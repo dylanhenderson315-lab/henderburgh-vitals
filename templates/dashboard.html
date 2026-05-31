@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if public_mode %}{{ site_name }} • Vitals{% else %}Oura Vitals • {{ name }}{% endif %}</title>
+
+  {% if public_mode %}
+  <!-- Public site SEO & Social -->
+  <meta name="description" content="Daily health metrics from {{ display_name }}'s Oura Ring. Readiness, sleep, HRV, resting heart rate, and more.">
+  <meta property="og:title" content="{{ site_name }} • Daily Vitals">
+  <meta property="og:description" content="Live health data from {{ display_name }}'s Oura Ring — readiness, sleep, HRV, and activity.">
+  <meta property="og:url" content="{{ site_url }}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  {% endif %}
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+    
+    :root {
+      --accent: #10b981;
+    }
+    
+    body {
+      font-family: 'Inter', system_ui, sans-serif;
+    }
+    
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-feature-settings: "ss02";
+    }
+
+    .glass {
+      background: rgba(255,255,255, 0.03);
+      backdrop-filter: blur(20px);
+    }
+    
+    .dark .glass {
+      background: rgba(255,255,255, 0.03);
+    }
+    
+    .light .glass {
+      background: rgba(255,255,255, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .metric-card {
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+                  box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1),
+                  background 0.2s ease;
+    }
+    
+    .metric-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    }
+
+    .dark .metric-card:hover {
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+    }
+
+    .score-number {
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s ease;
+    }
+
+    .section-title {
+      font-size: 13px;
+      letter-spacing: -.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .chart-container {
+      position: relative;
+    }
+
+    .data-table th {
+      font-weight: 500;
+      color: #64748b;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: -.3px;
+    }
+
+    .dark .data-table th {
+      color: #64748b;
+    }
+
+    .trend-pill {
+      font-size: 12px;
+      padding: 1px 8px;
+      border-radius: 9999px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .metric-value {
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .nav-active {
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      border-radius: 6px;
+    }
+
+    .oura-green { color: #10b981; }
+    
+    .stat-label {
+      font-size: 12px;
+      letter-spacing: -.2px;
+      font-weight: 500;
+    }
+
+    .big-stat {
+      font-size: 42px;
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: -2.5px;
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+    }
+
+    .sub-stat {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .dashboard-bg {
+      background: #0a0a0b;
+    }
+    
+    .light .dashboard-bg {
+      background: #f8f7f4;
+    }
+
+    .card-bg {
+      background: #141415;
+      border: 1px solid #232325;
+    }
+    
+    .light .card-bg {
+      background: #ffffff;
+      border: 1px solid #e5e5e3;
+    }
+
+    .subtle-text {
+      color: #a1a1aa;
+    }
+    
+    .light .subtle-text {
+      color: #52525b;
+    }
+
+    .metric-label {
+      color: #71717a;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    
+    .light .metric-label {
+      color: #52525b;
+    }
+
+    .chart-grid {
+      background-image: 
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    
+    .light .chart-grid {
+      background-image: 
+        linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+    }
+
+    .value-good { color: #10b981; }
+    .value-warn { color: #f59e0b; }
+    .value-bad { color: #f43f5e; }
+
+    .htmx-request .refresh-icon {
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .sleep-bar {
+      height: 6px;
+      background: linear-gradient(to right, #10b981, #34d399);
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body class="dashboard-bg text-zinc-200 dark:text-zinc-200 light:text-zinc-900 min-h-screen transition-colors duration-200">
+  {% if setup_mode %}
+  <!-- ==================== SETUP SCREEN (local dev only) ==================== -->
+  <div class="max-w-xl mx-auto pt-20 px-6">
+    <div class="flex items-center gap-x-3 mb-8">
+      <div class="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center">
+        <i class="fa-solid fa-ring text-white text-3xl"></i>
+      </div>
+      <div>
+        <div class="font-semibold text-3xl tracking-tighter font-display">Oura Vitals</div>
+        <div class="text-emerald-500 text-sm -mt-1">personal dashboard</div>
+      </div>
+    </div>
+
+    <div class="card-bg rounded-3xl p-8 shadow-2xl border border-zinc-800 light:border-zinc-200">
+      <h1 class="text-3xl font-semibold tracking-tight mb-2">Connect your Oura Ring</h1>
+      <p class="text-zinc-400 light:text-zinc-600 mb-8">This dashboard pulls all available daily metrics directly from the Oura API v2.</p>
+
+      <div class="space-y-6">
+        <div>
+          <div class="stat-label mb-2 text-zinc-400">1. Get your Personal Access Token</div>
+          <a href="https://cloud.ouraring.com/personal-access-tokens" target="_blank"
+             class="inline-flex items-center gap-x-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 transition-colors text-white rounded-2xl text-sm font-semibold">
+            <i class="fa-solid fa-external-link-alt"></i>
+            <span>Open Oura Cloud → Personal Access Tokens</span>
+          </a>
+          <div class="mt-3 text-xs text-zinc-500 light:text-zinc-500">
+            If the page says tokens are deprecated, create an OAuth application instead and use the access token.
+          </div>
+        </div>
+
+        <div>
+          <div class="stat-label mb-2 text-zinc-400">2. Set your token</div>
+          <div class="bg-black/40 light:bg-zinc-100 rounded-2xl p-4 font-mono text-sm">
+            <div class="text-emerald-400 light:text-emerald-600 mb-1"># .env file (recommended)</div>
+            <div>OURA_TOKEN=your_token_here</div>
+            <div class="mt-2 text-emerald-400 light:text-emerald-600">OURA_DAYS=14</div>
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button onclick="window.location.reload()"
+                  class="w-full py-3.5 bg-white text-zinc-900 light:bg-zinc-900 light:text-white font-semibold rounded-2xl hover:bg-zinc-100 light:hover:bg-zinc-800 transition-all active:scale-[0.985]">
+            I've added the token — Reload dashboard
+          </button>
+          <div class="text-center text-xs text-zinc-500 mt-4">Then restart uvicorn (it reads .env on startup)</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="mt-8 text-center text-xs text-zinc-500">
+      Made for personal use • <a href="https://github.com" class="hover:text-zinc-400">inspired by shrey.com/vitals</a>
+    </div>
+  </div>
+  {% else %}
+  <!-- ==================== MAIN DASHBOARD ==================== -->
+  
+  <!-- Top Navigation -->
+  <nav class="border-b border-zinc-800 light:border-zinc-200 sticky top-0 z-50 bg-[#0a0a0b]/90 light:bg-[#f8f7f4]/90 backdrop-blur-xl">
+    <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-x-3">
+        <div class="flex items-center gap-x-2.5">
+          <div class="w-8 h-8 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-inner">
+            <i class="fa-solid fa-ring text-white text-xl"></i>
+          </div>
+          <div class="font-semibold text-xl tracking-tighter font-display">
+            {% if public_mode %}{{ site_name }}{% else %}Oura Vitals{% endif %}
+          </div>
+        </div>
+        {% if not public_mode %}
+        <div class="px-3 py-1 rounded-full bg-white/5 light:bg-black/5 text-xs font-medium text-emerald-400 border border-white/10 light:border-black/10">
+          {{ days }} days
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center gap-x-2">
+        {% if not public_mode %}
+        <!-- Period selector (local only) -->
+        <div class="hidden sm:flex items-center bg-zinc-900 light:bg-white border border-zinc-800 light:border-zinc-200 rounded-2xl p-1 text-sm">
+          {% for d in [7, 14, 30] %}
+          <a href="?days={{ d }}"
+             class="px-4 py-1.5 rounded-[14px] transition-all font-medium {% if days == d %}bg-emerald-500 text-white shadow-sm{% else %}hover:bg-zinc-800 light:hover:bg-zinc-100 text-zinc-400 light:text-zinc-600{% endif %}">
+            {{ d }}d
+          </a>
+          {% endfor %}
+        </div>
+
+        <!-- Refresh button (local only) -->
+        <button 
+          hx-get="/fragment?days={{ days }}"
+          hx-target="#main-content"
+          hx-swap="outerHTML"
+          hx-indicator="#refresh-indicator"
+          class="flex items-center gap-x-2 px-4 py-2 rounded-2xl bg-zinc-900 hover:bg-zinc-800 light:bg-white light:hover:bg-zinc-100 border border-zinc-800 light:border-zinc-200 text-sm font-semibold transition-all active:scale-[0.985]">
+          <i id="refresh-indicator" class="fa-solid fa-sync-alt refresh-icon"></i>
+          <span>Refresh</span>
+        </button>
+        {% else %}
+        <!-- Public mode: clean last updated -->
+        <div class="text-xs text-zinc-500 font-medium px-3 py-1.5 rounded-2xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10">
+          Updated {{ last_updated }}
+        </div>
+        {% endif %}
+
+        <!-- Theme toggle (always available) -->
+        <button onclick="toggleTheme()"
+                class="w-10 h-10 flex items-center justify-center rounded-2xl bg-zinc-900 hover:bg-zinc-800 light:bg-white light:hover:bg-zinc-100 border border-zinc-800 light:border-zinc-200 text-lg transition-all active:scale-95">
+          <i class="fa-solid fa-moon dark:hidden light:block"></i>
+          <i class="fa-solid fa-sun hidden dark:block light:hidden"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div id="main-content" class="{% if fragment %}contents{% endif %}">
+    {% if error %}
+    <div class="max-w-[1200px] mx-auto px-6 pt-8">
+      <div class="bg-red-950/60 border border-red-900/60 text-red-300 rounded-3xl p-6 flex items-start gap-4">
+        <i class="fa-solid fa-exclamation-triangle mt-1"></i>
+        <div>
+          <div class="font-semibold">Failed to load Oura data</div>
+          <div class="text-sm mt-1 opacity-90">{{ error }}</div>
+          <button onclick="window.location.reload()" 
+                  class="mt-3 text-xs px-4 py-1.5 bg-red-900/60 hover:bg-red-900/80 rounded-2xl font-medium transition-colors">
+            Try again
+          </button>
+        </div>
+      </div>
+    </div>
+    {% else %}
+
+    <div class="max-w-[1200px] mx-auto px-6 pt-8 pb-20">
+      
+      <!-- Hero Header -->
+      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-y-4 mb-8">
+        <div>
+          {% if public_mode %}
+          <div class="text-emerald-500 text-sm font-semibold tracking-[1.5px] uppercase">{{ display_name | upper }}'S DAILY VITALS</div>
+          <div class="font-semibold text-5xl sm:text-6xl tracking-tighter font-display mt-1">From the Oura Ring</div>
+          {% else %}
+          <div class="text-emerald-500 text-sm font-semibold tracking-wider">GOOD {{ greeting }}, {{ (name.split()[0] if name else "THERE") | upper }}.</div>
+          <div class="font-semibold text-6xl tracking-tighter font-display mt-1">Your vitals</div>
+          {% endif %}
+        </div>
+        
+        {% if not public_mode %}
+        <div class="flex items-center gap-x-3 text-sm">
+          <div class="px-4 py-2 rounded-3xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10 flex items-center gap-x-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span class="font-medium">Last ring sync • {{ last_updated }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Hero Scores -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-9">
+        <!-- Readiness -->
+        <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-x-2">
+              <i class="fa-solid fa-battery-full text-emerald-400 text-xl"></i>
+              <div class="font-semibold text-lg">Readiness</div>
+            </div>
+            {% if readiness_trend.arrow %}
+            <div class="trend-pill bg-{{ readiness_trend.color }}-500/10 text-{{ readiness_trend.color }}-400">
+              {{ readiness_trend.arrow }} {{ readiness_trend.pct }}
+            </div>
+            {% endif %}
+          </div>
+          <div class="flex items-baseline gap-x-1 mt-auto">
+            <div class="big-stat {% if readiness_score and readiness_score >= 85 %}value-good{% elif readiness_score and readiness_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
+              {{ readiness_score or "—" }}
+            </div>
+            <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
+          </div>
+          <div class="text-xs text-zinc-500 mt-1">Yesterday's readiness</div>
+        </div>
+
+        <!-- Sleep -->
+        <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-x-2">
+              <i class="fa-solid fa-bed text-sky-400 text-xl"></i>
+              <div class="font-semibold text-lg">Sleep Score</div>
+            </div>
+            {% if sleep_score_trend.arrow %}
+            <div class="trend-pill bg-{{ sleep_score_trend.color }}-500/10 text-{{ sleep_score_trend.color }}-400">
+              {{ sleep_score_trend.arrow }} {{ sleep_score_trend.pct }}
+            </div>
+            {% endif %}
+          </div>
+          <div class="flex items-baseline gap-x-1 mt-auto">
+            <div class="big-stat {% if sleep_score and sleep_score >= 85 %}value-good{% elif sleep_score and sleep_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
+              {{ sleep_score or "—" }}
+            </div>
+            <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
+          </div>
+          <div class="text-xs text-zinc-500 mt-1">Last night • {{ total_sleep }}</div>
+        </div>
+
+        <!-- Activity -->
+        <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-x-2">
+              <i class="fa-solid fa-running text-orange-400 text-xl"></i>
+              <div class="font-semibold text-lg">Activity</div>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-x-1 mt-auto">
+            <div class="big-stat {% if activity_score and activity_score >= 85 %}value-good{% elif activity_score and activity_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
+              {{ activity_score or "—" }}
+            </div>
+            <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
+          </div>
+          <div class="text-xs text-zinc-500 mt-1">{{ steps or "—" }} steps • {{ active_calories or "—" }} kcal</div>
+        </div>
+      </div>
+
+      <!-- Metric Cards Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-10">
+        
+        <!-- HRV -->
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-x-2 text-sm">
+                <i class="fa-solid fa-heart-pulse text-rose-400"></i>
+                <span class="metric-label">HRV</span>
+              </div>
+              <div class="mt-3 flex items-baseline gap-x-1">
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ hrv or "—" }}</span>
+                <span class="text-sm text-zinc-500 font-medium">ms</span>
+              </div>
+            </div>
+            {% if hrv_trend.arrow %}
+            <div class="trend-pill bg-{{ hrv_trend.color }}-500/10 text-{{ hrv_trend.color }}-400 text-[11px]">
+              {{ hrv_trend.arrow }}
+            </div>
+            {% endif %}
+          </div>
+          <div class="text-[11px] text-zinc-500 mt-5">Average nightly HRV</div>
+        </div>
+
+        <!-- Resting HR -->
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-x-2 text-sm">
+                <i class="fa-solid fa-heart text-red-400"></i>
+                <span class="metric-label">Resting HR</span>
+              </div>
+              <div class="mt-3 flex items-baseline gap-x-1">
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ rhr or "—" }}</span>
+                <span class="text-sm text-zinc-500 font-medium">bpm</span>
+              </div>
+            </div>
+            {% if rhr_trend.arrow %}
+            <div class="trend-pill bg-{{ rhr_trend.color }}-500/10 text-{{ rhr_trend.color }}-400 text-[11px]">
+              {{ rhr_trend.arrow }}
+            </div>
+            {% endif %}
+          </div>
+          <div class="text-[11px] text-zinc-500 mt-5">Lowest heart rate overnight</div>
+        </div>
+
+        <!-- Respiratory Rate -->
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-x-2 text-sm">
+                <i class="fa-solid fa-wind text-sky-400"></i>
+                <span class="metric-label">Respiratory Rate</span>
+              </div>
+              <div class="mt-3 flex items-baseline gap-x-1">
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ respiratory_rate or "—" }}</span>
+                <span class="text-sm text-zinc-500 font-medium">brpm</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-[11px] text-zinc-500 mt-5">Average breaths per minute</div>
+        </div>
+
+        <!-- SpO2 -->
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-x-2 text-sm">
+                <i class="fa-solid fa-lungs text-teal-400"></i>
+                <span class="metric-label">SpO₂</span>
+              </div>
+              <div class="mt-3 flex items-baseline gap-x-1">
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ spo2 or "—" }}</span>
+                <span class="text-sm text-zinc-500 font-medium">%</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-[11px] text-zinc-500 mt-5">Average blood oxygen</div>
+        </div>
+
+        <!-- Temperature Deviation -->
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-x-2 text-sm">
+                <i class="fa-solid fa-temperature-half text-amber-400"></i>
+                <span class="metric-label">Skin Temp</span>
+              </div>
+              <div class="mt-3 flex items-baseline gap-x-1">
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ "%.1f"|format(temp_deviation) if temp_deviation is not none else "—" }}</span>
+                <span class="text-sm text-zinc-500 font-medium">°C</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-[11px] text-zinc-500 mt-5">Deviation from baseline</div>
+        </div>
+
+        <!-- Stress / Recovery -->
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-x-2 text-sm">
+                <i class="fa-solid fa-brain text-violet-400"></i>
+                <span class="metric-label">Stress</span>
+              </div>
+              <div class="mt-3">
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ stress_summary or "—" }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-[11px] text-zinc-500 mt-5">Daily stress summary</div>
+        </div>
+
+      </div>
+
+      <!-- Charts -->
+      <div class="mb-4 flex items-center justify-between">
+        <div class="section-title text-emerald-400">Trends</div>
+        <div class="text-xs text-zinc-500">Last {{ days }} days • Hover for values</div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-10">
+        <!-- HRV Chart -->
+        <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <div class="font-semibold flex items-center gap-x-2">
+                <i class="fa-solid fa-heart-pulse text-rose-400"></i> 
+                HRV Trend
+              </div>
+              <div class="text-xs text-zinc-500">Average nightly HRV (ms)</div>
+            </div>
+            {% if hrv %}<div class="text-2xl font-semibold tabular-nums text-right">{{ hrv }}<span class="text-sm text-zinc-500 font-normal ml-0.5">ms</span></div>{% endif %}
+          </div>
+          <div class="chart-container h-[210px]">
+            <canvas id="hrvChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Sleep Chart -->
+        <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <div class="font-semibold flex items-center gap-x-2">
+                <i class="fa-solid fa-bed text-sky-400"></i> 
+                Sleep Duration
+              </div>
+              <div class="text-xs text-zinc-500">Hours of sleep per night</div>
+            </div>
+            {% if total_sleep %}<div class="text-2xl font-semibold tabular-nums text-right">{{ total_sleep }}</div>{% endif %}
+          </div>
+          <div class="chart-container h-[210px]">
+            <canvas id="sleepChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sleep Breakdown + More Details -->
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        
+        <!-- Sleep Stages -->
+        <div class="lg:col-span-3 card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+          <div class="font-semibold mb-4 flex items-center gap-x-2">
+            <i class="fa-solid fa-bed text-sky-400"></i>
+            Last Night's Sleep Breakdown
+          </div>
+          
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div class="text-xs text-zinc-500">TOTAL SLEEP</div>
+              <div class="text-3xl font-semibold tabular-nums mt-1">{{ total_sleep or "—" }}</div>
+              <div class="text-xs mt-1 text-emerald-400">{{ sleep_efficiency or "—" }}% efficiency</div>
+            </div>
+            <div>
+              <div class="text-xs text-zinc-500">DEEP</div>
+              <div class="text-3xl font-semibold tabular-nums mt-1">{{ deep_sleep or "—" }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-zinc-500">REM</div>
+              <div class="text-3xl font-semibold tabular-nums mt-1">{{ rem_sleep or "—" }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-zinc-500">LIGHT</div>
+              <div class="text-3xl font-semibold tabular-nums mt-1">{{ light_sleep or "—" }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="lg:col-span-2 card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+          <div class="font-semibold mb-4">Key Contributors (yesterday)</div>
+          
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-x-2 text-zinc-400">
+                <i class="fa-solid fa-moon w-4"></i>
+                <span>Previous night sleep</span>
+              </div>
+              <span class="font-medium">{{ readiness_score or "—" }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-x-2 text-zinc-400">
+                <i class="fa-solid fa-heart w-4"></i>
+                <span>Resting heart rate</span>
+              </div>
+              <span class="font-medium">{{ rhr or "—" }} bpm</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-x-2 text-zinc-400">
+                <i class="fa-solid fa-heart-pulse w-4"></i>
+                <span>HRV balance</span>
+              </div>
+              <span class="font-medium">{{ hrv or "—" }} ms</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-x-2 text-zinc-400">
+                <i class="fa-solid fa-temperature-half w-4"></i>
+                <span>Body temperature</span>
+              </div>
+              <span class="font-medium">{{ "%.2f"|format(temp_deviation) if temp_deviation is not none else "—" }} °C</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="mt-10 pt-6 border-t border-zinc-800 light:border-zinc-200 text-center">
+        {% if public_mode %}
+        <div class="text-xs text-zinc-500 tracking-widest">
+          {{ site_name }} • Personal health data from {{ display_name }}'s Oura Ring<br>
+          <span class="opacity-60">Refreshes automatically • Not medical advice • Data via Oura API v2</span>
+        </div>
+        {% else %}
+        <div class="text-[10px] text-center text-zinc-500 tracking-widest">
+          DATA FROM OURA API v2 • PULLED LIVE • NOT MEDICAL ADVICE
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    // Tailwind script configuration
+    function initTailwind() {
+      document.documentElement.classList.add('dark');
+      
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif']
+            }
+          }
+        }
+      };
+    }
+
+    // Theme toggle with persistence
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      
+      if (isDark) {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        localStorage.setItem('theme', 'light');
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+    }
+
+    function restoreTheme() {
+      const saved = localStorage.getItem('theme');
+      const html = document.documentElement;
+      
+      if (saved === 'light') {
+        html.classList.remove('dark');
+        html.classList.add('light');
+      } else {
+        html.classList.remove('light');
+        html.classList.add('dark');
+      }
+    }
+
+    // Chart.js instances
+    let hrvChartInstance = null;
+    let sleepChartInstance = null;
+
+    function createCharts() {
+      // Destroy existing charts if re-rendering fragment
+      if (hrvChartInstance) { hrvChartInstance.destroy(); hrvChartInstance = null; }
+      if (sleepChartInstance) { sleepChartInstance.destroy(); sleepChartInstance = null; }
+
+      const labels = {{ chart.labels | tojson }};
+      const hrvData = {{ chart.hrv | tojson }};
+      const sleepDurData = {{ chart.sleep_duration | tojson }};
+      const sleepScoreData = {{ chart.sleep_score | tojson }};
+
+      // HRV Chart
+      const hrvCtx = document.getElementById('hrvChart');
+      if (hrvCtx) {
+        hrvChartInstance = new Chart(hrvCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'HRV (ms)',
+              data: hrvData,
+              borderColor: '#f43f5e',
+              backgroundColor: 'rgba(244, 63, 94, 0.08)',
+              borderWidth: 2.5,
+              tension: 0.35,
+              fill: true,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHoverBackgroundColor: '#f43f5e',
+              pointHoverBorderColor: '#fff',
+              pointHoverBorderWidth: 2,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#18181b',
+                titleColor: '#a1a1aa',
+                bodyColor: '#fff',
+                displayColors: false,
+                callbacks: {
+                  label: (ctx) => ctx.raw ? ctx.raw + ' ms' : '—'
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255,255,255,0.06)', lineWidth: 0.5 },
+                ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0 }
+              },
+              y: {
+                grid: { color: 'rgba(255,255,255,0.06)', lineWidth: 0.5 },
+                ticks: { color: '#52525b', font: { size: 10 }, stepSize: 10 },
+                beginAtZero: false
+              }
+            },
+            elements: {
+              line: { borderJoinStyle: 'round' }
+            }
+          }
+        });
+      }
+
+      // Sleep Duration Chart
+      const sleepCtx = document.getElementById('sleepChart');
+      if (sleepCtx) {
+        sleepChartInstance = new Chart(sleepCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Hours',
+              data: sleepDurData,
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              borderWidth: 2.5,
+              tension: 0.35,
+              fill: true,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHoverBackgroundColor: '#38bdf8',
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#18181b',
+                callbacks: {
+                  label: (ctx) => ctx.raw ? ctx.raw + ' hrs' : '—'
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255,255,255,0.06)', lineWidth: 0.5 },
+                ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0 }
+              },
+              y: {
+                grid: { color: 'rgba(255,255,255,0.06)', lineWidth: 0.5 },
+                ticks: { color: '#52525b', font: { size: 10 } },
+                beginAtZero: true,
+                suggestedMax: 10
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // Re-initialize charts when HTMX swaps content
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+      if (evt.detail.target.id === 'main-content' || evt.detail.target.id === 'hrvChart' || evt.detail.target.id === 'sleepChart') {
+        // Small delay to allow DOM to settle
+        setTimeout(() => {
+          createCharts();
+        }, 30);
+      }
+    });
+
+    // Keyboard support
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '/' && document.activeElement.tagName === 'BODY') {
+        e.preventDefault();
+        const refreshBtn = document.querySelector('button[hx-get]');
+        if (refreshBtn) refreshBtn.click();
+      }
+    });
+
+    // Boot
+    function boot() {
+      initTailwind();
+      restoreTheme();
+      
+      // Initialize charts on first load
+      setTimeout(() => {
+        createCharts();
+      }, 80);
+
+      // Nice touch: show a subtle toast on first load if data is fresh
+      {% if not fragment %}
+      console.log('%c[Oura Vitals] Dashboard ready — press / to refresh', 'color:#3f3f46');
+      {% endif %}
+    }
+
+    window.onload = boot;
+  </script>
+  {% endif %}
+</body>
+</html>
