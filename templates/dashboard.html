@@ -489,7 +489,7 @@
               <div class="text-[10px] text-zinc-500 mt-1" id="latest-hr-updated"
                    data-timestamp="{{ latest_hr_timestamp or '' }}">
                 {% if latest_hr_timestamp %}
-                  Updated recently
+                  updated recently
                 {% else %}
                   Most recent reading
                 {% endif %}
@@ -898,12 +898,12 @@
         createCharts();
       }, 80);
 
-      // Format initial "Updated Xm ago" for Latest Heart Rate card (if timestamp present)
+      // Format initial "updated Xm ago" for Latest Heart Rate card (if timestamp present)
       (function initHrTimestamp() {
         const timeEl = document.getElementById('latest-hr-updated');
         if (timeEl && timeEl.dataset.timestamp) {
           const rel = formatRelativeTime(timeEl.dataset.timestamp);
-          if (rel) timeEl.textContent = `Updated ${rel}`;
+          if (rel) timeEl.textContent = `updated ${rel}`;
         }
       })();
 
@@ -971,7 +971,7 @@
 
               if (hrTimeEl && data.timestamp) {
                 const relative = formatRelativeTime(data.timestamp);
-                hrTimeEl.textContent = relative ? `Updated ${relative}` : 'Updated recently';
+                hrTimeEl.textContent = relative ? `updated ${relative}` : 'updated recently';
                 // Also keep the raw timestamp for future updates
                 hrTimeEl.dataset.timestamp = data.timestamp;
               }
