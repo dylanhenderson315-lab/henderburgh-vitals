@@ -180,12 +180,12 @@ class OuraClient:
     def _cache_key(self, path: str, params: Dict) -> str:
         return f"{path}?{sorted(params.items())}"
 
-    async def _get(self, path: str, params: Optional[Dict] = None) -> Dict[str, Any]:
+    async def _get(self, path: str, params: Optional[Dict] = None, bypass_cache: bool = False) -> Dict[str, Any]:
         params = params or {}
         key = self._cache_key(path, params)
         now = asyncio.get_event_loop().time()
 
-        if key in self._cache:
+        if not bypass_cache and key in self._cache:
             ts, data = self._cache[key]
             if now - ts < CACHE_TTL_SECONDS:
                 return data
@@ -227,11 +227,14 @@ class OuraClient:
         data = await self._get("/usercollection/daily_spo2", {"start_date": start, "end_date": end})
         return data.get("data", [])
 
-    async def get_heartrate(self, start: str, end: str) -> List[Dict]:
+    async def get_heartrate(self, start: str, end: str, bypass_cache: bool = False) -> List[Dict]:
         """Fetch recent heart rate readings. Note: Oura uses datetime params for this endpoint."""
         try:
-            # Use start/end date as rough range; API accepts them for recent data
-            data = await self._get("/usercollection/heartrate", {"start_date": start, "end_date": end})
+            data = await self._get(
+                "/usercollection/heartrate", 
+                {"start_date": start, "end_date": end},
+                bypass_cache=bypass_cache
+            )
             return data.get("data", [])
         except Exception:
             return []
@@ -728,26 +731,37 @@ async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
 
 
 @app.get("/api/latest-hr")
-async def api_latest_hr():
-    """Lightweight endpoint for fast Latest Heart Rate updates.
-    Returns JSON with bpm and timestamp so the UI can show "Updated X min ago".
+async def api_latest_hr(fresh: bool = False):
+    """Lightweight endpoint for fast Heart Rate updates.
+    Use ?fresh=true for the live modal (bypasses cache for freshest possible data).
     """
     if not oura_client:
         return JSONResponse({"bpm": None, "timestamp": None})
 
     try:
-        # For "live" feel, only fetch a short recent window (last ~4 hours).
-        # This gives the absolute newest samples the ring has uploaded,
-        # and creates a different cache key from the main dashboard queries.
         now = datetime.now(timezone.utc)
-        start_dt = (now - timedelta(hours=4)).isoformat()
-        end_dt = now.isoformat()
 
-        # Use datetime params for precision on the fast path
-        hr_data = await oura_client._get(
-            "/usercollection/heartrate",
-            {"start_datetime": start_dt, "end_datetime": end_dt}
-        )
+        if fresh:
+            # Very recent window for true "live" feel in the modal
+            start_dt = (now - timedelta(minutes=30)).isoformat()
+            end_dt = now.isoformat()
+
+            hr_data = await oura_client._get(
+                "/usercollection/heartrate",
+                {"start_datetime": start_dt, "end_datetime": end_dt},
+                bypass_cache=True   # Force fresh data from Oura
+            )
+        else:
+            # Normal cached call (used by the regular 2-min background refresh)
+            start_dt = (now - timedelta(hours=4)).isoformat()
+            end_dt = now.isoformat()
+
+            hr_data = await oura_client._get(
+                "/usercollection/heartrate",
+                {"start_datetime": start_dt, "end_datetime": end_dt},
+                bypass_cache=False
+            )
+
         hr_data = hr_data.get("data", []) if isinstance(hr_data, dict) else []
 
         latest_hr = None
@@ -761,7 +775,7 @@ async def api_latest_hr():
                     break
 
         if latest_hr is None:
-            # Fallback to most recent resting HR from sleep (last 24h)
+            # Fallback
             recent_start = (now - timedelta(days=1)).date().isoformat()
             detailed = await oura_client.get_sleep(recent_start, now.date().isoformat())
             if detailed:

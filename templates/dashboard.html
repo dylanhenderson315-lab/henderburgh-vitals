@@ -474,8 +474,9 @@
           <div class="text-[11px] text-zinc-500 mt-5">Lowest heart rate overnight</div>
         </div>
 
-        <!-- Latest Heart Rate -->
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <!-- Heart Rate (click for live view) -->
+        <div onclick="openLiveHeartRateModal()"
+             class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200 cursor-pointer hover:border-red-500/50 transition-colors active:scale-[0.985]">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -496,6 +497,7 @@
               </div>
             </div>
           </div>
+          <div class="mt-2 text-[10px] text-red-400/70">Click for live →</div>
         </div>
 
         <!-- Respiratory Rate -->
@@ -728,6 +730,38 @@
           DATA FROM OURA API v2 • PULLED LIVE • NOT MEDICAL ADVICE
         </div>
         {% endif %}
+      </div>
+
+      <!-- Live Heart Rate Modal -->
+      <div id="live-hr-modal" onclick="closeLiveHeartRateModal()" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[100]">
+        <div onclick="event.stopImmediatePropagation()" class="bg-[#111113] border border-zinc-700 rounded-3xl p-8 w-full max-w-md mx-4">
+          <div class="flex justify-between items-center mb-6">
+            <div>
+              <div class="text-sm text-zinc-400">LIVE FROM YOUR RING</div>
+              <div class="text-2xl font-semibold">Heart Rate</div>
+            </div>
+            <button onclick="closeLiveHeartRateModal()" class="text-zinc-400 hover:text-white text-3xl leading-none">×</button>
+          </div>
+
+          <div class="text-center py-8">
+            <div id="modal-hr-value" class="text-[92px] font-bold tabular-nums leading-none text-white">—</div>
+            <div class="text-2xl text-zinc-400 -mt-2">bpm</div>
+          </div>
+
+          <div class="flex items-center justify-center gap-x-2 mb-6">
+            <div class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
+            <span id="modal-live-status" class="text-red-400 font-medium tracking-wider text-sm">LIVE</span>
+          </div>
+
+          <div id="modal-hr-time" class="text-center text-sm text-zinc-400 mb-8">
+            Waiting for data...
+          </div>
+
+          <div class="text-[11px] text-center text-zinc-500">
+            Polling every 5 seconds.<br>
+            Actual freshness depends on your ring's last sync with Oura.
+          </div>
+        </div>
       </div>
 
     </div>
@@ -1046,6 +1080,78 @@
         startHrFastRefresh();
       }
     }
+
+    // Live Heart Rate Modal
+    let liveHrInterval = null;
+
+    function openLiveHeartRateModal() {
+      const modal = document.getElementById('live-hr-modal');
+      if (!modal) return;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      // Start aggressive live polling (every 5 seconds)
+      updateLiveHeartRate();
+      if (liveHrInterval) clearInterval(liveHrInterval);
+      liveHrInterval = setInterval(updateLiveHeartRate, 5000);
+    }
+
+    function closeLiveHeartRateModal() {
+      const modal = document.getElementById('live-hr-modal');
+      if (!modal) return;
+
+      modal.classList.remove('flex');
+      modal.classList.add('hidden');
+
+      if (liveHrInterval) {
+        clearInterval(liveHrInterval);
+        liveHrInterval = null;
+      }
+    }
+
+    async function updateLiveHeartRate() {
+      try {
+        const res = await fetch('/api/latest-hr?fresh=true');
+        const data = await res.json();
+
+        const valueEl = document.getElementById('modal-hr-value');
+        const timeEl = document.getElementById('modal-hr-time');
+
+        if (valueEl) {
+          valueEl.textContent = data.bpm ?? '—';
+        }
+
+        if (timeEl && data.timestamp) {
+          const then = new Date(data.timestamp);
+          const diffSec = Math.floor((Date.now() - then) / 1000);
+
+          if (diffSec < 30) {
+            timeEl.textContent = 'Updated just now';
+          } else if (diffSec < 60) {
+            timeEl.textContent = `Updated ${diffSec}s ago`;
+          } else {
+            const min = Math.floor(diffSec / 60);
+            timeEl.textContent = `Updated ${min}m ago`;
+          }
+        } else if (timeEl) {
+          timeEl.textContent = 'No recent data';
+        }
+      } catch (e) {
+        const timeEl = document.getElementById('modal-hr-time');
+        if (timeEl) timeEl.textContent = 'Unable to fetch live data';
+      }
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('live-hr-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+          closeLiveHeartRateModal();
+        }
+      }
+    });
 
     window.onload = boot;
   </script>
