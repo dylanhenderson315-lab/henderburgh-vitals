@@ -40,6 +40,9 @@ SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
 DEFAULT_CACHE_TTL = 600 if PUBLIC_MODE else 180  # 10 min public, 3 min local
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL))
 
+# Railway (and other platforms) inject PORT. Default to 8000 for local dev.
+PORT = int(os.getenv("PORT", 8000))
+
 if PUBLIC_MODE:
     if not OURA_TOKEN:
         raise RuntimeError(
@@ -601,4 +604,4 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
