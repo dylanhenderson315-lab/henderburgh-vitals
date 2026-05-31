@@ -43,6 +43,9 @@ CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL))
 # Railway (and other platforms) inject PORT. Default to 8000 for local dev.
 PORT = int(os.getenv("PORT", 8000))
 
+# Auto-refresh interval in seconds (0 or negative = disabled)
+AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "300" if PUBLIC_MODE else "0"))
+
 if PUBLIC_MODE:
     if not OURA_TOKEN:
         raise RuntimeError(
@@ -569,6 +572,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
             "display_name": DISPLAY_NAME,
             "site_name": SITE_NAME,
             "site_url": SITE_URL,
+            "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
         })
         return _render("dashboard.html", ctx)
     except Exception as e:
@@ -585,6 +589,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                     "site_name": SITE_NAME,
                     "site_url": SITE_URL,
                     "name": DISPLAY_NAME,
+                    "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
                 },
             )
         return _render(
@@ -624,10 +629,53 @@ async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
             raw.get("heartrate", []),
             days,
         )
-        ctx.update({"request": request, "setup_mode": False, "error": None, "fragment": True})
+        ctx.update({
+            "request": request,
+            "setup_mode": False,
+            "error": None,
+            "fragment": True,
+            "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
+        })
         return _render("dashboard.html", ctx)
     except Exception as e:
         return HTMLResponse(f"<div class='text-red-400 p-8'>Error: {e}</div>", 500)
+
+
+@app.get("/api/latest-hr", response_class=HTMLResponse)
+async def api_latest_hr():
+    """Lightweight endpoint for fast Latest Heart Rate updates (used for 2-min refresh in public mode)."""
+    if not oura_client:
+        return HTMLResponse("—")
+
+    try:
+        # Fetch recent heartrate (last 2 days is plenty for latest reading)
+        end = date.today()
+        start = (end - timedelta(days=2)).isoformat()
+        hr_data = await oura_client.get_heartrate(start, end)
+
+        latest_hr = None
+        if hr_data:
+            # Most recent entry
+            for entry in reversed(hr_data):
+                if isinstance(entry, dict) and entry.get("bpm") is not None:
+                    latest_hr = entry["bpm"]
+                    break
+
+        if latest_hr is None:
+            # Fallback to recent resting HR if no fresh samples
+            # Fetch last 1 day of detailed sleep for fallback
+            recent_start = (end - timedelta(days=1)).isoformat()
+            detailed = await oura_client.get_sleep(recent_start, end.isoformat())
+            if detailed:
+                latest_detailed = detailed[-1] if detailed else None
+                latest_hr = _safe_get(latest_detailed, "average_heart_rate") or _safe_get(latest_detailed, "lowest_heart_rate")
+
+        if latest_hr is not None:
+            return HTMLResponse(str(int(latest_hr)))
+        else:
+            return HTMLResponse("—")
+    except Exception:
+        return HTMLResponse("—")
 
 
 @app.get("/health")
