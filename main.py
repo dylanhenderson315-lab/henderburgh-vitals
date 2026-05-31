@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import asyncio
 import time
-import sqlite3
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -82,78 +81,6 @@ rate_limiter = SimpleRateLimiter(
     max_requests=40 if PUBLIC_MODE else 120,
     window_seconds=60
 )
-
-# =============================================================================
-# Vape (Fogger) Logging - Simple SQLite
-# =============================================================================
-DB_PATH = os.getenv("DB_PATH", "vape_log.db")
-
-def init_vape_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS vape_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            notes TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-    print("✅ Vape database initialized")
-
-def log_vape_session(notes: Optional[str] = None):
-    conn = sqlite3.connect(DB_PATH)
-    now = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        "INSERT INTO vape_sessions (timestamp, notes) VALUES (?, ?)",
-        (now, notes)
-    )
-    conn.commit()
-    conn.close()
-
-def get_vape_stats(days: int = 30) -> Dict[str, Any]:
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # Total in last N days
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    cursor.execute(
-        "SELECT COUNT(*) FROM vape_sessions WHERE timestamp >= ?",
-        (cutoff,)
-    )
-    total = cursor.fetchone()[0]
-
-    # Today
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    cursor.execute(
-        "SELECT COUNT(*) FROM vape_sessions WHERE timestamp >= ?",
-        (today_start,)
-    )
-    today = cursor.fetchone()[0]
-
-    # This week (last 7 days)
-    week_start = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    cursor.execute(
-        "SELECT COUNT(*) FROM vape_sessions WHERE timestamp >= ?",
-        (week_start,)
-    )
-    week = cursor.fetchone()[0]
-
-    # Last hit
-    cursor.execute(
-        "SELECT timestamp FROM vape_sessions ORDER BY timestamp DESC LIMIT 1"
-    )
-    last_row = cursor.fetchone()
-    last_hit = last_row[0] if last_row else None
-
-    conn.close()
-
-    return {
-        "total_last_30d": total,
-        "today": today,
-        "last_7d": week,
-        "last_hit": last_hit,
-    }
 
 # =============================================================================
 # Oura Client
@@ -553,7 +480,6 @@ oura_client: Optional[OuraClient] = None
 @app.on_event("startup")
 async def startup():
     global oura_client
-    init_vape_db()
     if OURA_TOKEN:
         oura_client = OuraClient(OURA_TOKEN)
     elif PUBLIC_MODE:
@@ -640,7 +566,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "setup_mode": True,
                 "token": OURA_TOKEN,
                 "display_name": DISPLAY_NAME,
-                "vape_stats": {"today": 0, "last_7d": 0, "last_hit": None},
                 "hr_age_minutes": None,
             },
         )
@@ -658,7 +583,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
             raw.get("heartrate", []),
             days,
         )
-        vape_stats = get_vape_stats()
 
         ctx.update({
             "request": request,
@@ -669,7 +593,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
             "site_name": SITE_NAME,
             "site_url": SITE_URL,
             "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
-            "vape_stats": vape_stats,
         })
         return _render("dashboard.html", ctx)
     except Exception as e:
@@ -687,7 +610,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                     "site_url": SITE_URL,
                     "name": DISPLAY_NAME,
                     "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
-                    "vape_stats": {"today": 0, "last_7d": 0, "last_hit": None},
                     "hr_age_minutes": None,
                 },
             )
@@ -699,7 +621,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "error": str(e),
                 "name": "there",
                 "display_name": DISPLAY_NAME,
-                "vape_stats": {"today": 0, "last_7d": 0, "last_hit": None},
                 "hr_age_minutes": None,
             },
         )
@@ -736,7 +657,6 @@ async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
             "error": None,
             "fragment": True,
             "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
-            "vape_stats": get_vape_stats(),
         })
         return _render("dashboard.html", ctx)
     except Exception as e:
@@ -811,22 +731,6 @@ async def api_latest_hr(fresh: bool = False):
         })
     except Exception:
         return JSONResponse({"bpm": None, "timestamp": None})
-
-
-@app.post("/log-vape")
-async def log_vape(request: Request):
-    """Log a fogger vape hit. Called via HTMX from the dashboard."""
-    try:
-        log_vape_session()
-        return HTMLResponse(
-            '<span class="text-emerald-400">Logged ✓</span>',
-            headers={"HX-Trigger": "vapeLogged"}  # optional event for future use
-        )
-    except Exception as e:
-        return HTMLResponse(
-            f'<span class="text-red-400">Error logging</span>',
-            status_code=500
-        )
 
 
 @app.get("/health")
