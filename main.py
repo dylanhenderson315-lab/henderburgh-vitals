@@ -377,6 +377,15 @@ def process_dashboard_data(
         latest_hr = rhr
         latest_hr_timestamp = None  # no precise timestamp for fallback
 
+    # Compute how old the heart rate reading is (in minutes)
+    hr_age_minutes = None
+    if latest_hr_timestamp:
+        try:
+            ts = datetime.fromisoformat(latest_hr_timestamp.replace("Z", "+00:00"))
+            hr_age_minutes = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
+        except Exception:
+            hr_age_minutes = None
+
     # Temperature from readiness
     temp_dev = _safe_get(latest_readiness, "temperature_deviation")
 
@@ -498,6 +507,7 @@ def process_dashboard_data(
         "stress_summary": _safe_get(latest_stress, "day_summary"),
         "latest_hr": latest_hr,
         "latest_hr_timestamp": latest_hr_timestamp,
+        "hr_age_minutes": hr_age_minutes,
 
         # Sleep breakdown
         "total_sleep": _fmt_duration(total_sleep),
@@ -631,6 +641,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "token": OURA_TOKEN,
                 "display_name": DISPLAY_NAME,
                 "vape_stats": {"today": 0, "last_7d": 0, "last_hit": None},
+                "hr_age_minutes": None,
             },
         )
 
@@ -677,6 +688,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                     "name": DISPLAY_NAME,
                     "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
                     "vape_stats": {"today": 0, "last_7d": 0, "last_hit": None},
+                    "hr_age_minutes": None,
                 },
             )
         return _render(
@@ -688,6 +700,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "name": "there",
                 "display_name": DISPLAY_NAME,
                 "vape_stats": {"today": 0, "last_7d": 0, "last_hit": None},
+                "hr_age_minutes": None,
             },
         )
 
@@ -782,9 +795,19 @@ async def api_latest_hr(fresh: bool = False):
                 latest_detailed = detailed[-1] if detailed else None
                 latest_hr = _safe_get(latest_detailed, "average_heart_rate") or _safe_get(latest_detailed, "lowest_heart_rate")
 
+        # Compute age for the response
+        age_minutes = None
+        if latest_hr_timestamp:
+            try:
+                ts = datetime.fromisoformat(latest_hr_timestamp.replace("Z", "+00:00"))
+                age_minutes = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
+            except Exception:
+                pass
+
         return JSONResponse({
             "bpm": int(latest_hr) if latest_hr is not None else None,
-            "timestamp": latest_hr_timestamp
+            "timestamp": latest_hr_timestamp,
+            "age_minutes": age_minutes
         })
     except Exception:
         return JSONResponse({"bpm": None, "timestamp": None})

@@ -488,9 +488,12 @@
                 <span class="text-sm text-zinc-500 font-medium">bpm</span>
               </div>
               <div class="text-[10px] text-zinc-500 mt-1" id="latest-hr-updated"
-                   data-timestamp="{{ latest_hr_timestamp or '' }}">
-                {% if latest_hr_timestamp %}
-                  updated recently
+                   data-timestamp="{{ latest_hr_timestamp or '' }}"
+                   data-age-minutes="{{ hr_age_minutes or '' }}">
+                {% if hr_age_minutes is not none and hr_age_minutes > 15 %}
+                  Have Dylan open the Oura app for a fresh reading
+                {% elif latest_hr_timestamp %}
+                  updated {{ hr_age_minutes }}m ago
                 {% else %}
                   Most recent reading
                 {% endif %}
@@ -749,12 +752,16 @@
           </div>
 
           <div class="flex items-center justify-center gap-x-2 mb-6">
-            <div class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
+            <div id="modal-live-dot" class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
             <span id="modal-live-status" class="text-red-400 font-medium tracking-wider text-sm">LIVE</span>
           </div>
 
           <div id="modal-hr-time" class="text-center text-sm text-zinc-400 mb-8">
             Waiting for data...
+          </div>
+
+          <div id="modal-hr-message" class="hidden text-center text-sm text-amber-400 mb-4 px-4">
+            <!-- Smart message populated by JS when data is stale -->
           </div>
 
           <div class="text-[11px] text-center text-zinc-500">
@@ -1117,9 +1124,27 @@
 
         const valueEl = document.getElementById('modal-hr-value');
         const timeEl = document.getElementById('modal-hr-time');
+        const messageEl = document.getElementById('modal-hr-message');
+        const statusEl = document.getElementById('modal-live-status');
+        const dotEl = document.getElementById('modal-live-dot');
 
         if (valueEl) {
           valueEl.textContent = data.bpm ?? '—';
+        }
+
+        const age = data.age_minutes;
+
+        if (messageEl) {
+          if (age != null && age > 15) {
+            messageEl.classList.remove('hidden');
+            messageEl.innerHTML = 'Have Dylan open the Oura app to measure his heart rate for a fresh reading.';
+            if (statusEl) statusEl.textContent = 'STALE';
+            if (dotEl) dotEl.classList.add('!bg-amber-500');
+          } else {
+            messageEl.classList.add('hidden');
+            if (statusEl) statusEl.textContent = 'LIVE';
+            if (dotEl) dotEl.classList.remove('!bg-amber-500');
+          }
         }
 
         if (timeEl && data.timestamp) {
