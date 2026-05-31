@@ -427,7 +427,91 @@
         </div>
       </div>
 
-      <!-- Metric Cards Grid -->
+      <!-- Live Status from Home Assistant -->
+      <div class="mb-9">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-semibold tracking-wider text-zinc-400">LIVE STATUS</div>
+          {% if live_status %}
+          <div class="text-xs text-zinc-500">
+            Last updated: {{ live_status.weather.last_changed | default('—') | truncate(16) }}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Weather -->
+          <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+            <div class="flex items-center gap-x-3 mb-4">
+              <i class="fa-solid fa-cloud-sun text-emerald-400 text-2xl"></i>
+              <div>
+                <div class="font-semibold">Weather</div>
+                <div class="text-xs text-zinc-400">Myrtle Beach, SC</div>
+              </div>
+            </div>
+            {% if live_status and live_status.weather.state != 'unavailable' %}
+            <div class="flex items-baseline gap-x-2">
+              <span class="text-5xl font-bold tabular-nums">{{ live_status.weather.state }}</span>
+              <span class="text-xl text-zinc-400">°F</span>
+            </div>
+            <div class="text-sm text-zinc-300 mt-1">
+              Feels like {{ live_status.weather.attributes.apparent_temperature | default('—') }}°F
+            </div>
+            {% else %}
+            <div class="text-3xl font-semibold text-zinc-400">—</div>
+            <div class="text-sm text-zinc-500 mt-1">Weather unavailable</div>
+            {% endif %}
+          </div>
+
+          <!-- Steps -->
+          <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+            <div class="flex items-center gap-x-3 mb-4">
+              <i class="fa-solid fa-shoe-prints text-blue-400 text-2xl"></i>
+              <div class="font-semibold">Steps Today</div>
+            </div>
+            {% if live_status and live_status.steps.state not in ['unavailable', 'unknown', None] %}
+            <div class="flex items-baseline gap-x-2">
+              <span class="text-5xl font-bold tabular-nums">{{ live_status.steps.state | int }}</span>
+            </div>
+            <div class="mt-3">
+              <div class="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div class="h-2 bg-blue-400 rounded-full" style="width: {{ (live_status.steps.state | int / 10000 * 100) | round }}%"></div>
+              </div>
+              <div class="text-xs text-zinc-400 mt-1">Goal: 10,000</div>
+            </div>
+            {% else %}
+            <div class="text-3xl font-semibold text-zinc-400">—</div>
+            <div class="text-sm text-zinc-500 mt-1">Steps unavailable</div>
+            {% endif %}
+          </div>
+
+          <!-- iPhone Battery -->
+          <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+            <div class="flex items-center gap-x-3 mb-4">
+              <i class="fa-solid fa-battery-full text-green-400 text-2xl"></i>
+              <div class="font-semibold">iPhone Battery</div>
+            </div>
+            {% if live_status and live_status.battery.state not in ['unavailable', 'unknown', None] %}
+            <div class="flex items-baseline gap-x-2">
+              <span class="text-5xl font-bold tabular-nums">{{ live_status.battery.state | int }}</span>
+              <span class="text-xl text-zinc-400">%</span>
+            </div>
+            <div class="mt-2 text-sm">
+              {% set state = live_status.battery_state.state | default('') %}
+              {% if 'charging' in state | lower %}
+              <span class="text-green-400">Charging</span>
+              {% elif 'full' in state | lower %}
+              <span class="text-green-400">Fully Charged</span>
+              {% else %}
+              <span class="text-zinc-400">Not charging</span>
+              {% endif %}
+            </div>
+            {% else %}
+            <div class="text-3xl font-semibold text-zinc-400">—</div>
+            <div class="text-sm text-zinc-500 mt-1">Battery unavailable</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-10">
         
         <!-- HRV -->
@@ -681,28 +765,7 @@
 
       </div>
 
-      <!-- Weather Card -->
-      <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200 mb-8">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <div class="text-sm font-medium text-zinc-400">Myrtle Beach, SC</div>
-            <div class="text-xl font-semibold">Current Weather</div>
-          </div>
-          <div id="weather-updated" class="text-xs text-zinc-500"></div>
-        </div>
 
-        <div class="flex items-center gap-x-6">
-          <div>
-            <div id="weather-temp" class="text-6xl font-bold tabular-nums text-emerald-400">--</div>
-            <div id="weather-desc" class="text-lg text-zinc-300 mt-1"></div>
-          </div>
-
-          <div class="text-sm space-y-1 text-zinc-400">
-            <div>Feels like <span id="weather-feels" class="font-semibold text-white">--</span>°F</div>
-            <div>Wind <span id="weather-wind" class="font-semibold text-white">--</span></div>
-          </div>
-        </div>
-      </div>
 
       <div class="mt-10 pt-6 border-t border-zinc-800 light:border-zinc-200 text-center">
         {% if public_mode %}
