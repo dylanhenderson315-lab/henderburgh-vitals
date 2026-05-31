@@ -609,6 +609,61 @@
 
       </div>
 
+      <!-- === Fogger Vape Tracker (Puff Counter - User Provided) === -->
+      <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200 mb-8">
+        <div class="flex justify-between items-center mb-5">
+          <h3 class="text-lg font-semibold flex items-center gap-x-2">
+            <span>🚬</span> 
+            <span>Fogger Puff Tracker</span>
+          </h3>
+          <div class="text-right">
+            <div id="vape-today-big" class="text-4xl font-bold text-emerald-400 leading-none">0</div>
+            <div class="text-xs text-zinc-400 -mt-1">today</div>
+          </div>
+        </div>
+
+        <!-- Quick add buttons -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <button onclick="addPuffs(1)" 
+                  class="py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black font-semibold transition-colors text-sm">
+            +1
+          </button>
+          <button onclick="addPuffs(10)" 
+                  class="py-3.5 rounded-2xl bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-800 text-white font-medium transition-colors text-sm">
+            +10
+          </button>
+          <button onclick="addPuffs(50)" 
+                  class="py-3.5 rounded-2xl bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-800 text-white font-medium transition-colors text-sm">
+            +50
+          </button>
+          <button onclick="addPuffs(100)" 
+                  class="py-3.5 rounded-2xl bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-800 text-white font-medium transition-colors text-sm">
+            +100
+          </button>
+        </div>
+
+        <!-- Manual entry from Fogger screen -->
+        <div class="flex gap-3 mb-5">
+          <input id="manual-input" type="number" placeholder="Exact puffs from your Fogger" 
+                 class="flex-1 px-5 py-3 bg-zinc-800 border border-zinc-700 focus:border-emerald-500 rounded-2xl text-white placeholder-zinc-400 text-sm">
+          <button onclick="logManual()" 
+                  class="px-8 py-3 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black font-semibold rounded-2xl transition-colors text-sm whitespace-nowrap">
+            LOG
+          </button>
+        </div>
+
+        <div class="text-sm text-zinc-300 mb-4">
+          Today: <span id="daily-total" class="font-semibold text-white">0</span> puffs • 
+          Est. nicotine: <span id="nic-est" class="font-semibold text-white">0 mg</span>
+          <div id="last-logged" class="text-[11px] text-zinc-400 mt-1">Not logged yet</div>
+        </div>
+
+        <!-- 7-day chart -->
+        <div class="mt-2">
+          <canvas id="puffChart" height="110"></canvas>
+        </div>
+      </div>
+
       <!-- Charts -->
       <div class="mb-4 flex items-center justify-between">
         <div class="section-title text-emerald-400">Trends</div>
