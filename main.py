@@ -151,6 +151,15 @@ class OuraClient:
         data = await self._get("/usercollection/daily_spo2", {"start_date": start, "end_date": end})
         return data.get("data", [])
 
+    async def get_heartrate(self, start: str, end: str) -> List[Dict]:
+        """Fetch recent heart rate readings. Note: Oura uses datetime params for this endpoint."""
+        try:
+            # Use start/end date as rough range; API accepts them for recent data
+            data = await self._get("/usercollection/heartrate", {"start_date": start, "end_date": end})
+            return data.get("data", [])
+        except Exception:
+            return []
+
     async def get_daily_stress(self, start: str, end: str) -> List[Dict]:
         data = await self._get("/usercollection/daily_stress", {"start_date": start, "end_date": end})
         return data.get("data", [])
@@ -236,6 +245,7 @@ def process_dashboard_data(
     activity: List[Dict],
     spo2: List[Dict],
     stress: List[Dict],
+    heartrate: List[Dict],
     days: int,
 ) -> Dict[str, Any]:
     """Turn raw API responses into a clean dashboard context dict."""
@@ -255,11 +265,34 @@ def process_dashboard_data(
     latest_spo2 = next((s for s in reversed(spo2) if s.get("spo2_percentage") is not None), None)
     latest_stress = next((s for s in reversed(stress) if s.get("day_summary")), None)
 
+    # Handle SpO2 which can be a number or an object like {"average": 95.8}
+    spo2_raw = _safe_get(latest_spo2, "spo2_percentage")
+    if isinstance(spo2_raw, dict):
+        spo2_val = spo2_raw.get("average")
+    else:
+        spo2_val = spo2_raw
+    if spo2_val is not None:
+        try:
+            spo2_val = round(float(spo2_val))
+        except (ValueError, TypeError):
+            spo2_val = None
+
     # Physiological values (prefer detailed sleep)
     hrv = _safe_get(latest_detailed, "average_hrv")
     rhr = _safe_get(latest_detailed, "lowest_heart_rate") or _safe_get(latest_detailed, "average_heart_rate")
     resp_rate = _safe_get(latest_detailed, "average_breath")
     sleep_efficiency = _safe_get(latest_detailed, "efficiency") or _safe_get(latest_daily_sleep, "contributors.efficiency")
+
+    # Latest heart rate from the heartrate endpoint (most recent reading)
+    latest_hr = None
+    if heartrate:
+        # Data is usually returned oldest first; take the last one
+        recent = heartrate[-1] if isinstance(heartrate[-1], dict) else None
+        if recent:
+            latest_hr = recent.get("bpm")
+    # Fallback to resting HR if no heartrate samples
+    if latest_hr is None:
+        latest_hr = rhr
 
     # Temperature from readiness
     temp_dev = _safe_get(latest_readiness, "temperature_deviation")
@@ -377,9 +410,10 @@ def process_dashboard_data(
         "hrv": hrv,
         "rhr": rhr,
         "respiratory_rate": resp_rate,
-        "spo2": _safe_get(latest_spo2, "spo2_percentage"),
+        "spo2": spo2_val,
         "temp_deviation": temp_dev,
         "stress_summary": _safe_get(latest_stress, "day_summary"),
+        "latest_hr": latest_hr,
 
         # Sleep breakdown
         "total_sleep": _fmt_duration(total_sleep),
@@ -446,7 +480,7 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
 
     start, end = get_date_range(days)
 
-    personal, readiness, daily_sleep, detailed_sleep, activity, spo2, stress = await asyncio.gather(
+    personal, readiness, daily_sleep, detailed_sleep, activity, spo2, stress, heartrate = await asyncio.gather(
         oura_client.get_personal_info(),
         oura_client.get_daily_readiness(start, end),
         oura_client.get_daily_sleep(start, end),
@@ -454,6 +488,7 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
         oura_client.get_daily_activity(start, end),
         oura_client.get_daily_spo2(start, end),
         oura_client.get_daily_stress(start, end),
+        oura_client.get_heartrate(start, end),
         return_exceptions=True,
     )
 
@@ -469,6 +504,7 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
         "activity": safe(activity, []),
         "spo2": safe(spo2, []),
         "stress": safe(stress, []),
+        "heartrate": safe(heartrate, []),
     }
 
 
@@ -508,6 +544,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "request": request,
                 "setup_mode": True,
                 "token": OURA_TOKEN,
+                "display_name": DISPLAY_NAME,
             },
         )
 
@@ -521,6 +558,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
             raw["activity"],
             raw["spo2"],
             raw["stress"],
+            raw.get("heartrate", []),
             days,
         )
         ctx.update({
@@ -556,6 +594,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "setup_mode": False,
                 "error": str(e),
                 "name": "there",
+                "display_name": DISPLAY_NAME,
             },
         )
 
@@ -582,6 +621,7 @@ async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
             raw["activity"],
             raw["spo2"],
             raw["stress"],
+            raw.get("heartrate", []),
             days,
         )
         ctx.update({"request": request, "setup_mode": False, "error": None, "fragment": True})

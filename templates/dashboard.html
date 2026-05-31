@@ -345,7 +345,7 @@
           <div class="text-emerald-500 text-sm font-semibold tracking-[1.5px] uppercase">{{ display_name | upper }}'S DAILY VITALS</div>
           <div class="font-semibold text-5xl sm:text-6xl tracking-tighter font-display mt-1">From the Oura Ring</div>
           {% else %}
-          <div class="text-emerald-500 text-sm font-semibold tracking-wider">GOOD {{ greeting }}, {{ (name.split()[0] if name else "THERE") | upper }}.</div>
+          <div class="text-emerald-500 text-sm font-semibold tracking-wider">GOOD {{ greeting }}, {{ (display_name or (name.split()[0] if name else "THERE")) | upper }}.</div>
           <div class="font-semibold text-6xl tracking-tighter font-display mt-1">Your vitals</div>
           {% endif %}
         </div>
@@ -471,6 +471,23 @@
           <div class="text-[11px] text-zinc-500 mt-5">Lowest heart rate overnight</div>
         </div>
 
+        <!-- Latest Heart Rate -->
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-x-2 text-sm">
+                <i class="fa-solid fa-heartbeat text-red-400"></i>
+                <span class="metric-label">Current HR</span>
+              </div>
+              <div class="mt-3 flex items-baseline gap-x-1">
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ latest_hr or "—" }}</span>
+                <span class="text-sm text-zinc-500 font-medium">bpm</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-[11px] text-zinc-500 mt-5">Most recent reading</div>
+        </div>
+
         <!-- Respiratory Rate -->
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
@@ -494,7 +511,7 @@
             <div>
               <div class="flex items-center gap-x-2 text-sm">
                 <i class="fa-solid fa-lungs text-teal-400"></i>
-                <span class="metric-label">SpO₂</span>
+                <span class="metric-label">Average SpO₂</span>
               </div>
               <div class="mt-3 flex items-baseline gap-x-1">
                 <span class="metric-value text-4xl font-semibold tabular-nums">{{ spo2 or "—" }}</span>
@@ -502,7 +519,7 @@
               </div>
             </div>
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Average blood oxygen</div>
+          <div class="text-[11px] text-zinc-500 mt-5">Average overnight SpO₂</div>
         </div>
 
         <!-- Temperature Deviation -->
