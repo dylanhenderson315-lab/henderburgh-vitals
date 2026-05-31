@@ -486,9 +486,16 @@
                 <span id="latest-hr-value" class="metric-value text-4xl font-semibold tabular-nums">{{ latest_hr or "—" }}</span>
                 <span class="text-sm text-zinc-500 font-medium">bpm</span>
               </div>
+              <div class="text-[10px] text-zinc-500 mt-1" id="latest-hr-updated"
+                   data-timestamp="{{ latest_hr_timestamp or '' }}">
+                {% if latest_hr_timestamp %}
+                  Updated recently
+                {% else %}
+                  Most recent reading
+                {% endif %}
+              </div>
             </div>
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Most recent reading</div>
         </div>
 
         <!-- Respiratory Rate -->
@@ -871,6 +878,16 @@
       }
     });
 
+    // Global relative time helper (used for initial render + live HR updates)
+    function formatRelativeTime(isoTimestamp) {
+      if (!isoTimestamp) return null;
+      const diffMin = Math.floor((Date.now() - new Date(isoTimestamp)) / 60000);
+      if (diffMin < 1) return 'just now';
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const h = Math.floor(diffMin / 60);
+      return h < 24 ? `${h}h ago` : null;
+    }
+
     // Boot
     function boot() {
       initTailwind();
@@ -880,6 +897,15 @@
       setTimeout(() => {
         createCharts();
       }, 80);
+
+      // Format initial "Updated Xm ago" for Latest Heart Rate card (if timestamp present)
+      (function initHrTimestamp() {
+        const timeEl = document.getElementById('latest-hr-updated');
+        if (timeEl && timeEl.dataset.timestamp) {
+          const rel = formatRelativeTime(timeEl.dataset.timestamp);
+          if (rel) timeEl.textContent = `Updated ${rel}`;
+        }
+      })();
 
       // Nice touch: show a subtle toast on first load if data is fresh
       {% if not fragment %}
@@ -934,17 +960,28 @@
           if (document.visibilityState !== 'visible') return;
 
           fetch('/api/latest-hr')
-            .then(response => response.text())
-            .then(bpm => {
+            .then(response => response.json())
+            .then(data => {
               const hrValueEl = document.getElementById('latest-hr-value');
-              if (hrValueEl) {
-                hrValueEl.textContent = bpm || '—';
+              const hrTimeEl = document.getElementById('latest-hr-updated');
+
+              if (hrValueEl && data.bpm != null) {
+                hrValueEl.textContent = data.bpm;
+              }
+
+              if (hrTimeEl && data.timestamp) {
+                const relative = formatRelativeTime(data.timestamp);
+                hrTimeEl.textContent = relative ? `Updated ${relative}` : 'Updated recently';
+                // Also keep the raw timestamp for future updates
+                hrTimeEl.dataset.timestamp = data.timestamp;
               }
             })
             .catch(() => {
-              // silent fail on network error
+              // silent fail
             });
         }
+
+        // (formatRelativeTime is defined globally above)
 
         function startHrFastRefresh() {
           if (hrTimer) clearInterval(hrTimer);

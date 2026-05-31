@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -288,14 +288,18 @@ def process_dashboard_data(
 
     # Latest heart rate from the heartrate endpoint (most recent reading)
     latest_hr = None
+    latest_hr_timestamp = None
     if heartrate:
-        # Data is usually returned oldest first; take the last one
-        recent = heartrate[-1] if isinstance(heartrate[-1], dict) else None
-        if recent:
-            latest_hr = recent.get("bpm")
+        # Search from most recent
+        for entry in reversed(heartrate):
+            if isinstance(entry, dict) and entry.get("bpm") is not None:
+                latest_hr = entry.get("bpm")
+                latest_hr_timestamp = entry.get("timestamp")
+                break
     # Fallback to resting HR if no heartrate samples
     if latest_hr is None:
         latest_hr = rhr
+        latest_hr_timestamp = None  # no precise timestamp for fallback
 
     # Temperature from readiness
     temp_dev = _safe_get(latest_readiness, "temperature_deviation")
@@ -417,6 +421,7 @@ def process_dashboard_data(
         "temp_deviation": temp_dev,
         "stress_summary": _safe_get(latest_stress, "day_summary"),
         "latest_hr": latest_hr,
+        "latest_hr_timestamp": latest_hr_timestamp,
 
         # Sleep breakdown
         "total_sleep": _fmt_duration(total_sleep),
@@ -641,41 +646,44 @@ async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
         return HTMLResponse(f"<div class='text-red-400 p-8'>Error: {e}</div>", 500)
 
 
-@app.get("/api/latest-hr", response_class=HTMLResponse)
+@app.get("/api/latest-hr")
 async def api_latest_hr():
-    """Lightweight endpoint for fast Latest Heart Rate updates (used for 2-min refresh in public mode)."""
+    """Lightweight endpoint for fast Latest Heart Rate updates.
+    Returns JSON with bpm and timestamp so the UI can show "Updated X min ago".
+    """
     if not oura_client:
-        return HTMLResponse("—")
+        return JSONResponse({"bpm": None, "timestamp": None})
 
     try:
-        # Fetch recent heartrate (last 2 days is plenty for latest reading)
+        # Fetch recent heartrate (last 2 days)
         end = date.today()
         start = (end - timedelta(days=2)).isoformat()
         hr_data = await oura_client.get_heartrate(start, end)
 
         latest_hr = None
+        latest_hr_timestamp = None
+
         if hr_data:
-            # Most recent entry
             for entry in reversed(hr_data):
                 if isinstance(entry, dict) and entry.get("bpm") is not None:
-                    latest_hr = entry["bpm"]
+                    latest_hr = entry.get("bpm")
+                    latest_hr_timestamp = entry.get("timestamp")
                     break
 
         if latest_hr is None:
-            # Fallback to recent resting HR if no fresh samples
-            # Fetch last 1 day of detailed sleep for fallback
+            # Fallback to recent sleep data
             recent_start = (end - timedelta(days=1)).isoformat()
             detailed = await oura_client.get_sleep(recent_start, end.isoformat())
             if detailed:
                 latest_detailed = detailed[-1] if detailed else None
                 latest_hr = _safe_get(latest_detailed, "average_heart_rate") or _safe_get(latest_detailed, "lowest_heart_rate")
 
-        if latest_hr is not None:
-            return HTMLResponse(str(int(latest_hr)))
-        else:
-            return HTMLResponse("—")
+        return JSONResponse({
+            "bpm": int(latest_hr) if latest_hr is not None else None,
+            "timestamp": latest_hr_timestamp
+        })
     except Exception:
-        return HTMLResponse("—")
+        return JSONResponse({"bpm": None, "timestamp": None})
 
 
 @app.get("/health")
