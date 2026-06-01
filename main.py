@@ -57,6 +57,9 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
 
+# Admin token used for protected actions (e.g. deleting messages on /blog)
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+
 # In-memory cache for last successful Xbox status (survives between requests in the same process)
 last_xbox_status = {"status": "unavailable", "state": "Unknown", "game": "—"}
 
