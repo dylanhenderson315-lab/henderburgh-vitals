@@ -440,38 +440,26 @@
             {% set miles = (steps * 0.0005)|round(1) %}
 
             <!-- Distance -->
-            <div class="mt-3 text-lg font-medium text-zinc-200">
+            <div class="mt-2 text-lg font-medium text-zinc-200">
               {{ miles }} miles
             </div>
 
-            <!-- Interesting Comparisons -->
-            <div class="mt-4 pt-4 border-t border-zinc-700">
-              <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Interesting comparisons</div>
-              <div class="space-y-[3px] text-xs text-zinc-400 leading-snug">
-                {% set laps = (steps / 400)|round(0)|int %}
-                {% if laps > 0 %}<div>• {{ laps }} laps around a standard running track</div>{% endif %}
+            <!-- 5 Clean Comparisons -->
+            <div class="mt-4 text-xs text-zinc-400 leading-snug space-y-[2px]">
+              {% set laps = (steps / 400)|round(0)|int %}
+              {% if laps > 0 %}<div>• {{ laps }} laps on a standard running track</div>{% endif %}
 
-                {% set brooklyn = (miles / 1.1)|round(1) %}
-                {% if brooklyn > 0.5 %}<div>• Walking the Brooklyn Bridge {{ brooklyn }} times</div>{% endif %}
+              {% set brooklyn = (miles / 1.1)|round(1) %}
+              {% if brooklyn > 0.5 %}<div>• Walking the Brooklyn Bridge {{ brooklyn }} times</div>{% endif %}
 
-                {% set fields = (steps / 150)|round(0)|int %}
-                {% if fields > 5 %}<div>• The length of {{ fields }} football fields</div>{% endif %}
+              {% set fields = (steps / 150)|round(0)|int %}
+              {% if fields > 5 %}<div>• The length of {{ fields }} football fields</div>{% endif %}
 
-                {% set boardwalk = (miles / 2.5)|round(1) %}
-                {% if boardwalk > 0.5 %}<div>• The full length of the Myrtle Beach Boardwalk {{ boardwalk }} times</div>{% endif %}
+              {% set blocks = (miles / 0.12)|round(0)|int %}
+              {% if blocks > 8 %}<div>• About {{ blocks }} city blocks</div>{% endif %}
 
-                {% set blocks = (miles / 0.12)|round(0)|int %}
-                {% if blocks > 10 %}<div>• About {{ blocks }} city blocks</div>{% endif %}
-
-                {% set cat = (miles / 0.5)|round(1) %}
-                {% if cat > 1 %}<div>• The distance an average house cat walks in a day ({{ cat }}x)</div>{% endif %}
-
-                {% set track = (miles / 0.25)|round(1) %}
-                {% if track > 1 %}<div>• Circling a high school track {{ track }} times</div>{% endif %}
-
-                {% set coffee = (miles / 0.3)|round(0)|int %}
-                {% if coffee > 5 %}<div>• Walking to your local coffee shop and back {{ coffee }} times</div>{% endif %}
-              </div>
+              {% set track = (miles / 0.25)|round(1) %}
+              {% if track > 1 %}<div>• Circling a high school track {{ track }} times</div>{% endif %}
             </div>
             {% endif %}
 

@@ -301,10 +301,13 @@
         <!-- Steps (from Oura) -->
         <div class="live-card">
           <h3>Steps</h3>
-          <div id="home-steps" class="text-3xl font-bold tabular-nums text-white">—</div>
-          <div id="home-steps-miles" class="text-sm text-neutral-400 -mt-0.5">— miles</div>
-          <div id="home-steps-comparisons" class="mt-2 text-[10px] text-neutral-500 leading-tight space-y-0.5">
-            <!-- Populated by JS -->
+          <div id="home-steps-content">
+            <div class="text-3xl font-bold tabular-nums">—</div>
+            <div class="text-sm text-neutral-400">— miles</div>
+            <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
+              <div>• —</div>
+              <div>• —</div>
+            </div>
           </div>
         </div>
 
@@ -570,46 +573,59 @@
   <!-- Steps (Live Now card) -->
   <script>
   async function updateHomeSteps() {
+    const contentEl = document.getElementById('home-steps-content');
+    if (!contentEl) return;
+
     try {
       const res = await fetch('/api/steps');
       const data = await res.json();
 
-      const stepsEl = document.getElementById('home-steps');
-      const milesEl = document.getElementById('home-steps-miles');
-      const compEl = document.getElementById('home-steps-comparisons');
-
-      if (!data.steps) {
-        if (stepsEl) stepsEl.textContent = '—';
-        if (milesEl) milesEl.textContent = '— miles';
+      if (!data || !data.steps) {
+        contentEl.innerHTML = `
+          <div class="text-3xl font-bold tabular-nums">—</div>
+          <div class="text-sm text-neutral-400">— miles</div>
+          <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
+            <div>• —</div>
+            <div>• —</div>
+          </div>
+        `;
         return;
       }
 
       const steps = data.steps;
       const miles = data.miles || (steps * 0.0005);
 
-      if (stepsEl) stepsEl.textContent = steps.toLocaleString();
-      if (milesEl) milesEl.textContent = `${miles.toFixed(1)} miles`;
+      // Only 2 punchy comparisons
+      const comparisons = [];
+      const fields = Math.round(steps / 150);
+      if (fields > 0) comparisons.push(`${fields} football fields`);
 
-      if (compEl) {
-        const comparisons = [];
+      const blocks = Math.round(miles / 0.12);
+      if (blocks > 5) comparisons.push(`${blocks} city blocks`);
+      else comparisons.push(`${Math.max(blocks, 8)} city blocks`);
 
-        const fields = Math.round(steps / 150);
-        if (fields > 0) comparisons.push(`${fields} football fields`);
-
-        const blocks = Math.round(miles / 0.12);
-        if (blocks > 5) comparisons.push(`${blocks} city blocks`);
-
-        const laps = Math.round(miles / 0.25);
-        if (laps > 0) comparisons.push(`${laps} track laps`);
-
-        compEl.innerHTML = comparisons.slice(0, 3).map(c => `<div>• ${c}</div>`).join('');
-      }
+      contentEl.innerHTML = `
+        <div class="text-3xl font-bold tabular-nums">${steps.toLocaleString()}</div>
+        <div class="text-sm text-neutral-400">${miles.toFixed(1)} miles</div>
+        <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
+          <div>• ${comparisons[0]}</div>
+          <div>• ${comparisons[1]}</div>
+        </div>
+      `;
     } catch (e) {
       console.error('Failed to load steps for homepage', e);
+      contentEl.innerHTML = `
+        <div class="text-3xl font-bold tabular-nums">—</div>
+        <div class="text-sm text-neutral-400">— miles</div>
+        <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
+          <div>• —</div>
+          <div>• —</div>
+        </div>
+      `;
     }
   }
 
-  // Initial load + auto refresh
+  // Initial load + auto refresh every 60s
   updateHomeSteps();
   setInterval(updateHomeSteps, 60000);
   </script>
