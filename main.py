@@ -884,11 +884,45 @@ async def health():
 
 @app.get("/api/xbox/status")
 async def get_xbox_status():
-    """Temporary graceful response while Xbox integration is being sorted out."""
-    return {
-        "status": "coming_soon",
-        "message": "Xbox live status coming soon"
+    headers = {
+        "X-Authorization": XBL_API_KEY,
+        "Accept": "application/json"
     }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Step 1: Resolve gamertag → XUID (most reliable method)
+            profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
+            profile_response = await client.get(profile_url, headers=headers, timeout=10)
+
+            if profile_response.status_code != 200:
+                return {
+                    "error": "Failed to resolve gamertag",
+                    "status_code": profile_response.status_code,
+                    "detail": profile_response.text
+                }
+
+            profile = profile_response.json()
+            xuid = profile.get("xuid")
+
+            if not xuid:
+                return {"error": "No XUID found for this gamertag"}
+
+            # Step 2: Get presence using XUID
+            presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
+            presence_response = await client.get(presence_url, headers=headers, timeout=10)
+
+            if presence_response.status_code != 200:
+                return {
+                    "error": "Failed to get presence",
+                    "status_code": presence_response.status_code,
+                    "detail": presence_response.text
+                }
+
+            return presence_response.json()
+
+        except Exception as e:
+            return {"error": str(e)}
 
 
 # =============================================================================
