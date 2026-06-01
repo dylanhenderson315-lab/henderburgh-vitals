@@ -40,11 +40,14 @@ SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
 DEFAULT_CACHE_TTL = 600 if PUBLIC_MODE else 180  # 10 min public, 3 min local
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL))
 
+# Special shorter cache for heart rate (can be more frequent)
+HEARTRATE_CACHE_TTL = int(os.getenv("HEARTRATE_CACHE_TTL", "120" if PUBLIC_MODE else "30"))  # 2 min public, 30s local
+
 # Railway (and other platforms) inject PORT. Default to 8000 for local dev.
 PORT = int(os.getenv("PORT", 8000))
 
 # Auto-refresh interval in seconds (0 or negative = disabled)
-AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "300" if PUBLIC_MODE else "0"))
+AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "180" if PUBLIC_MODE else "0"))  # 3 min default in public for fresher data
 
 if PUBLIC_MODE:
     if not OURA_TOKEN:
@@ -107,14 +110,16 @@ class OuraClient:
     def _cache_key(self, path: str, params: Dict) -> str:
         return f"{path}?{sorted(params.items())}"
 
-    async def _get(self, path: str, params: Optional[Dict] = None, bypass_cache: bool = False) -> Dict[str, Any]:
+    async def _get(self, path: str, params: Optional[Dict] = None, bypass_cache: bool = False, custom_ttl: Optional[int] = None) -> Dict[str, Any]:
         params = params or {}
         key = self._cache_key(path, params)
         now = asyncio.get_event_loop().time()
 
+        ttl = custom_ttl if custom_ttl is not None else CACHE_TTL_SECONDS
+
         if not bypass_cache and key in self._cache:
             ts, data = self._cache[key]
-            if now - ts < CACHE_TTL_SECONDS:
+            if now - ts < ttl:
                 return data
 
         client = await self._get_client()
@@ -155,12 +160,21 @@ class OuraClient:
         return data.get("data", [])
 
     async def get_heartrate(self, start: str, end: str, bypass_cache: bool = False) -> List[Dict]:
-        """Fetch recent heart rate readings. Note: Oura uses datetime params for this endpoint."""
+        """Fetch recent heart rate readings. Uses shorter cache than other metrics."""
         try:
+            # Use shorter TTL for heartrate
+            original_ttl = CACHE_TTL_SECONDS
+            # Temporarily override for this call if not bypassing
+            if not bypass_cache:
+                # We can't easily override global, so we pass bypass if we want fresh
+                # For now, the fast path uses bypass_cache=True
+                pass
+
             data = await self._get(
                 "/usercollection/heartrate", 
                 {"start_date": start, "end_date": end},
-                bypass_cache=bypass_cache
+                bypass_cache=bypass_cache,
+                custom_ttl=HEARTRATE_CACHE_TTL
             )
             return data.get("data", [])
         except Exception:
@@ -509,7 +523,7 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
         oura_client.get_daily_activity(start, end),
         oura_client.get_daily_spo2(start, end),
         oura_client.get_daily_stress(start, end),
-        oura_client.get_heartrate(start, end),
+        oura_client.get_heartrate(start, end, bypass_cache=True),  # Always get fresh HR on dashboard load
         return_exceptions=True,
     )
 
@@ -541,6 +555,9 @@ def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, days: int = OURA_DAYS):
+    # In public mode, always use a fixed recent period (14 days) for simplicity
+    if PUBLIC_MODE:
+        days = 14
     # Basic rate limiting in public mode
     if PUBLIC_MODE:
         client_ip = request.client.host if request.client else "unknown"
@@ -628,6 +645,9 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
 
 @app.get("/fragment", response_class=HTMLResponse)
 async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
+    # In public mode, always use a fixed recent period
+    if PUBLIC_MODE:
+        days = 14
     """HTMX target — disabled in public mode to protect API quota."""
     if PUBLIC_MODE:
         return HTMLResponse(

@@ -274,45 +274,16 @@
             {% if public_mode %}{{ site_name }}{% else %}Oura Vitals{% endif %}
           </div>
         </div>
-        {% if not public_mode %}
-        <div class="px-3 py-1 rounded-full bg-white/5 light:bg-black/5 text-xs font-medium text-emerald-400 border border-white/10 light:border-black/10">
-          {{ days }} days
-        </div>
-        {% endif %}
       </div>
 
       <div class="flex items-center gap-x-2">
-        {% if not public_mode %}
-        <!-- Period selector (local only) -->
-        <div class="hidden sm:flex items-center bg-zinc-900 light:bg-white border border-zinc-800 light:border-zinc-200 rounded-2xl p-1 text-sm">
-          {% for d in [7, 14, 30] %}
-          <a href="?days={{ d }}"
-             class="px-4 py-1.5 rounded-[14px] transition-all font-medium {% if days == d %}bg-emerald-500 text-white shadow-sm{% else %}hover:bg-zinc-800 light:hover:bg-zinc-100 text-zinc-400 light:text-zinc-600{% endif %}">
-            {{ d }}d
-          </a>
-          {% endfor %}
-        </div>
-
-        <!-- Refresh button (local only) -->
-        <button 
-          hx-get="/fragment?days={{ days }}"
-          hx-target="#main-content"
-          hx-swap="outerHTML"
-          hx-select="#main-content"
-          hx-indicator="#refresh-indicator"
-          class="flex items-center gap-x-2 px-4 py-2 rounded-2xl bg-zinc-900 hover:bg-zinc-800 light:bg-white light:hover:bg-zinc-100 border border-zinc-800 light:border-zinc-200 text-sm font-semibold transition-all active:scale-[0.985]">
-          <i id="refresh-indicator" class="fa-solid fa-sync-alt refresh-icon"></i>
-          <span>Refresh</span>
-        </button>
-        {% else %}
-        <!-- Public mode: last updated + auto refresh info -->
+        <!-- Status info -->
         <div class="text-xs text-zinc-500 font-medium px-3 py-1.5 rounded-2xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10 flex items-center gap-x-2">
           <span>Updated {{ last_updated }}</span>
           {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}
           <span class="text-emerald-400">• auto every {{ (auto_refresh_seconds // 60) }}m</span>
           {% endif %}
         </div>
-        {% endif %}
 
         <!-- Theme toggle (always available) -->
         <button onclick="toggleTheme()"
@@ -735,7 +706,7 @@
         {% if public_mode %}
         <div class="text-xs text-zinc-500 tracking-widest">
           {{ site_name }} • Personal health data from {{ display_name }}'s Oura Ring<br>
-          <span class="opacity-60">Refreshes every ~5 min while open • Not medical advice • Data via Oura API v2</span>
+          <span class="opacity-60">Full refresh ~3 min • Heart rate every ~90s • Not medical advice • Data via Oura API v2</span>
         </div>
         {% else %}
         <div class="text-[10px] text-center text-zinc-500 tracking-widest">
@@ -927,12 +898,11 @@
       }
     });
 
-    // Keyboard support
+    // Keyboard support - press / to force a full reload
     document.addEventListener('keydown', function(e) {
       if (e.key === '/' && document.activeElement.tagName === 'BODY') {
         e.preventDefault();
-        const refreshBtn = document.querySelector('button[hx-get]');
-        if (refreshBtn) refreshBtn.click();
+        window.location.reload();
       }
     });
 
@@ -1040,13 +1010,8 @@
           refreshTimer = setInterval(() => {
             // Only refresh if the page is visible (saves API calls)
             if (document.visibilityState === 'visible') {
-              const refreshBtn = document.querySelector('button[hx-get]');
-              if (refreshBtn) {
-                refreshBtn.click();
-              } else {
-                // Fallback: full page reload (rare)
-                window.location.reload();
-              }
+              // No more manual refresh button — always do full reload for simplicity
+              window.location.reload();
             }
           }, autoRefreshSeconds * 1000);
         }
@@ -1065,6 +1030,52 @@
 
         // Start immediately
         startAutoRefresh();
+
+        // === Background fast refresh for Heart Rate card only (more "live" feel) ===
+        // This runs independently of the full dashboard refresh.
+        // Uses the fast endpoint which can bypass cache.
+        const hrFastInterval = 90 * 1000; // every 90 seconds
+        let hrFastTimer = null;
+
+        function updateMainHeartRate() {
+          if (document.visibilityState !== 'visible') return;
+
+          fetch('/api/latest-hr?fresh=true')
+            .then(r => r.json())
+            .then(data => {
+              const valueEl = document.getElementById('latest-hr-value');
+              const timeEl = document.getElementById('latest-hr-updated');
+
+              if (valueEl && data.bpm != null) {
+                valueEl.textContent = data.bpm;
+              }
+
+              if (timeEl && data.timestamp) {
+                const rel = formatRelativeTime(data.timestamp);
+                timeEl.textContent = rel ? `updated ${rel}` : 'updated recently';
+                timeEl.dataset.timestamp = data.timestamp;
+              }
+            })
+            .catch(() => {});
+        }
+
+        function startHrFastUpdates() {
+          if (hrFastTimer) clearInterval(hrFastTimer);
+          hrFastTimer = setInterval(updateMainHeartRate, hrFastInterval);
+          // Prime it
+          setTimeout(updateMainHeartRate, 15000);
+        }
+
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            startHrFastUpdates();
+          } else if (hrFastTimer) {
+            clearInterval(hrFastTimer);
+            hrFastTimer = null;
+          }
+        });
+
+        startHrFastUpdates();
       }
     }
 
