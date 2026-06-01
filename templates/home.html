@@ -438,37 +438,21 @@
   <script>
   async function loadXbox() {
     const el = document.getElementById("xbox-status");
-    if (!el) return;
 
     try {
       const res = await fetch("/api/xbox/status");
       const data = await res.json();
 
-      // Success case - we got real presence data
-      if (data?.presence || data?.xuid) {
-        const state = data.presence?.state || data.state || "Online";
-        const title = data.presence?.lastSeenTitle || data.lastSeenTitle || data.title || "—";
-
+      if (data.status === "ok") {
         el.innerHTML = `
-          <p><strong>${state}</strong></p>
-          <p>Now: ${title}</p>
+          <p><strong>${data.state}</strong></p>
+          <p>Now: ${data.game}</p>
         `;
-        return;
+      } else {
+        el.innerHTML = `<p><em>Xbox status temporarily unavailable</em></p>`;
       }
-
-      // Error case with rich details from backend
-      if (data?.error) {
-        console.error("Xbox API error:", data);
-        const status = data.status_code ? ` (HTTP ${data.status_code})` : "";
-        el.innerHTML = `<p><em>Xbox status unavailable${status}</em></p>`;
-        return;
-      }
-
-      // Fallback
-      el.innerHTML = `<p><em>Xbox status coming soon</em></p>`;
     } catch (error) {
-      console.error("Failed to load Xbox status:", error);
-      el.innerHTML = `<p><em>Xbox status coming soon</em></p>`;
+      el.innerHTML = `<p><em>Xbox status temporarily unavailable</em></p>`;
     }
   }
 

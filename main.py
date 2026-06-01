@@ -891,38 +891,36 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # First, verify the key works by getting basic account info
-            account_url = "https://xbl.io/api/v2/account"
-            account_res = await client.get(account_url, headers=headers, timeout=10)
+            # Step 1: Verify key + get profile
+            profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
+            profile_res = await client.get(profile_url, headers=headers, timeout=8)
 
-            # Log for debugging
-            print("xbl.io account response:", account_res.status_code, account_res.text)
+            if profile_res.status_code != 200:
+                return {"status": "error", "message": f"xbl.io error {profile_res.status_code}"}
 
-            if account_res.status_code != 200:
+            profile = profile_res.json()
+            xuid = profile.get("xuid")
+
+            # Step 2: Get presence
+            presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
+            presence_res = await client.get(presence_url, headers=headers, timeout=8)
+
+            if presence_res.status_code == 200:
+                presence = presence_res.json()
                 return {
-                    "error": "xbl.io authentication failed",
-                    "status_code": account_res.status_code,
-                    "detail": account_res.text
+                    "status": "ok",
+                    "state": presence.get("state", "Online"),
+                    "game": presence.get("lastSeenTitle", "—")
                 }
-
-            # If account works, try to get presence
-            presence_url = f"https://xbl.io/api/v2/presence/{XBL_GAMERTAG}"
-            presence_res = await client.get(presence_url, headers=headers, timeout=10)
-
-            # Log for debugging
-            print("xbl.io presence response:", presence_res.status_code, presence_res.text)
-
-            if presence_res.status_code != 200:
+            else:
                 return {
-                    "error": "Failed to get presence",
-                    "status_code": presence_res.status_code,
-                    "detail": presence_res.text
+                    "status": "ok",
+                    "state": "Online",
+                    "game": "—"
                 }
-
-            return presence_res.json()
 
         except Exception as e:
-            return {"error": str(e)}
+            return {"status": "error", "message": str(e)}
 
 
 # =============================================================================
