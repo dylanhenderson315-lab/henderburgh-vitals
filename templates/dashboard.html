@@ -277,6 +277,15 @@
       </div>
 
       <div class="flex items-center gap-x-2">
+        <!-- Page Navigation (top right, consistent with other pages) -->
+        <nav class="hidden md:flex items-center gap-x-5 text-sm mr-3">
+          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
+          <a href="/vitals" class="text-white font-medium">Vitals</a>
+          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
+          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
+          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
+        </nav>
+
         <!-- Status info -->
         <div class="text-xs text-zinc-500 font-medium px-3 py-1.5 rounded-2xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10 flex items-center gap-x-2">
           <span>Updated {{ last_updated }}</span>
