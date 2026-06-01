@@ -1,4 +1,4 @@
-# Oura Vitals Dashboard
+# HENDER VITALS Dashboard
 
 A beautiful, self-hosted personal dashboard for your Oura Ring data — inspired by shrey.com/vitals.
 

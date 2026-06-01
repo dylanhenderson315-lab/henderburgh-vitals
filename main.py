@@ -1,5 +1,5 @@
 """
-Oura Vitals Dashboard
+HENDER VITALS Dashboard
 Beautiful personal Oura Ring dashboard — FastAPI + HTMX + Tailwind + Chart.js
 Run with: uvicorn main:app --reload
 """
@@ -199,6 +199,14 @@ class OuraClient:
         except Exception:
             return []
 
+    async def get_workouts(self, start: str, end: str) -> List[Dict]:
+        """Detailed activity sessions (workouts, walks, runs etc). Best source for type/start/duration/distance."""
+        try:
+            data = await self._get("/usercollection/workout", {"start_date": start, "end_date": end})
+            return data.get("data", [])
+        except Exception:
+            return []
+
 
 # =============================================================================
 # Data Processing Helpers
@@ -267,6 +275,7 @@ def process_dashboard_data(
     spo2: List[Dict],
     stress: List[Dict],
     heartrate: List[Dict],
+    workouts: List[Dict],
     days: int,
 ) -> Dict[str, Any]:
     """Turn raw API responses into a clean dashboard context dict."""
@@ -434,6 +443,67 @@ def process_dashboard_data(
     else:
         time_greeting = "HENDERBURGH IS SLEEPING."
 
+    # --- Recent detailed activity sessions (Recent Activity section) ---
+    # Pull real per-session data (type, start, duration, distance etc) from workouts collection
+    recent_activities: List[Dict[str, Any]] = []
+    if workouts:
+        try:
+            sorted_ws = sorted(
+                [w for w in workouts if w.get("start_time") and w.get("end_time")],
+                key=lambda w: w.get("start_time", ""),
+                reverse=True,
+            )
+            for w in sorted_ws[:6]:
+                try:
+                    start_iso = w.get("start_time")
+                    end_iso = w.get("end_time")
+                    start_dt = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+                    end_dt = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
+                    local_start = start_dt.astimezone(local_tz)
+                    dur_sec = int((end_dt - start_dt).total_seconds())
+                    if dur_sec < 60:
+                        continue
+                    # Nice activity type label
+                    raw_act = (w.get("activity") or w.get("type") or "activity").lower().replace("_", " ")
+                    type_map = {
+                        "walking": "Walk",
+                        "running": "Run",
+                        "cycling": "Cycle",
+                        "swimming": "Swim",
+                        "strength training": "Strength",
+                        "yoga": "Yoga",
+                        "pilates": "Pilates",
+                        "hiit": "HIIT",
+                        "workout": "Workout",
+                        "other": "Activity",
+                    }
+                    act_type = type_map.get(raw_act, raw_act.title())
+                    # Start time in Eastern, clean e.g. 2:45 PM (strip leading zero)
+                    start_str = local_start.strftime("%I:%M %p").lstrip("0")  # e.g. 9:05 AM or 10:30 AM
+                    # Duration
+                    dur_min = dur_sec // 60
+                    dur_str = f"{dur_min}m" if dur_min < 60 else f"{dur_min // 60}h {dur_min % 60}m"
+                    # Distance (meters -> miles, US style)
+                    dist_m = w.get("distance") or 0
+                    dist_str = None
+                    if dist_m and dist_m > 50:
+                        miles = round(dist_m / 1609.34, 1)
+                        dist_str = f"{miles} mi"
+                    steps = w.get("steps")
+                    cals = w.get("calories") or w.get("active_calories")
+                    recent_activities.append({
+                        "type": act_type,
+                        "start_time": start_str,
+                        "duration": dur_str,
+                        "distance": dist_str,
+                        "steps": steps if steps else None,
+                        "calories": cals if cals else None,
+                    })
+                except Exception:
+                    continue
+        except Exception:
+            recent_activities = []
+
     now = datetime.now(ZoneInfo("UTC"))
 
     return {
@@ -471,6 +541,9 @@ def process_dashboard_data(
         "steps": steps,
         "active_calories": active_cal,
 
+        # Recent detailed sessions (new "Recent Activity" section)
+        "recent_activities": recent_activities,
+
         # Trends
         "readiness_trend": readiness_trend,
         "sleep_score_trend": sleep_score_trend,
@@ -494,7 +567,7 @@ def process_dashboard_data(
 # =============================================================================
 # FastAPI App
 # =============================================================================
-app = FastAPI(title="Oura Vitals", docs_url=None, redoc_url=None)
+app = FastAPI(title="HENDER VITALS", docs_url=None, redoc_url=None)
 templates = Jinja2Templates(directory="templates")
 
 # Global client (simple singleton for local dashboard)
@@ -525,7 +598,7 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
 
     start, end = get_date_range(days)
 
-    personal, readiness, daily_sleep, detailed_sleep, activity, spo2, stress, heartrate = await asyncio.gather(
+    personal, readiness, daily_sleep, detailed_sleep, activity, spo2, stress, heartrate, workouts = await asyncio.gather(
         oura_client.get_personal_info(),
         oura_client.get_daily_readiness(start, end),
         oura_client.get_daily_sleep(start, end),
@@ -534,6 +607,7 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
         oura_client.get_daily_spo2(start, end),
         oura_client.get_daily_stress(start, end),
         oura_client.get_heartrate(start, end, bypass_cache=True),  # Always get fresh HR on dashboard load
+        oura_client.get_workouts(start, end),
         return_exceptions=True,
     )
 
@@ -550,6 +624,7 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
         "spo2": safe(spo2, []),
         "stress": safe(stress, []),
         "heartrate": safe(heartrate, []),
+        "workouts": safe(workouts, []),
     }
 
 
@@ -598,6 +673,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "token": OURA_TOKEN,
                 "display_name": DISPLAY_NAME,
                 "hr_age_minutes": None,
+                "recent_activities": [],
             },
         )
 
@@ -612,6 +688,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
             raw["spo2"],
             raw["stress"],
             raw.get("heartrate", []),
+            raw.get("workouts", []),
             days,
         )
 
@@ -642,6 +719,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                     "name": DISPLAY_NAME,
                     "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
                     "hr_age_minutes": None,
+                    "recent_activities": [],
                 },
             )
         return _render(
@@ -654,6 +732,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "display_name": DISPLAY_NAME,
                 "hr_age_minutes": None,
                 "time_greeting": "HENDERBURGH IS HERE.",
+                "recent_activities": [],
             },
         )
 
@@ -684,6 +763,7 @@ async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
             raw["spo2"],
             raw["stress"],
             raw.get("heartrate", []),
+            raw.get("workouts", []),
             days,
         )
         ctx.update({

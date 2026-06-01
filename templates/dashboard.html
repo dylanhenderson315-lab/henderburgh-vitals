@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% if public_mode %}{{ site_name | upper }} • VITALS{% else %}Oura Vitals • {{ name }}{% endif %}</title>
+  <title>{% if public_mode %}{{ site_name | upper }} • VITALS{% else %}HENDER VITALS • {{ name }}{% endif %}</title>
 
   {% if public_mode %}
   <!-- Public site SEO & Social -->
@@ -213,7 +213,7 @@
         <i class="fa-solid fa-ring text-white text-3xl"></i>
       </div>
       <div>
-        <div class="font-semibold text-3xl tracking-tighter font-display">Oura Vitals</div>
+        <div class="font-semibold text-3xl tracking-tighter font-display">HENDER VITALS</div>
         <div class="text-emerald-500 text-sm -mt-1">personal dashboard</div>
       </div>
     </div>
@@ -271,7 +271,7 @@
             <i class="fa-solid fa-ring text-white text-xl"></i>
           </div>
           <div class="font-semibold text-xl tracking-tighter font-display">
-            {% if public_mode %}{{ site_name }}{% else %}Oura Vitals{% endif %}
+            {% if public_mode %}{{ site_name }}{% else %}HENDER VITALS{% endif %}
           </div>
         </div>
       </div>
@@ -447,9 +447,42 @@
         </div>
       </div>
 
-      <!-- Oura Vitals -->
+      <!-- Recent Activity (real Oura workout/activity sessions) -->
+      <div class="mb-8">
+        <div class="section-title text-emerald-400 mb-3">RECENT ACTIVITY</div>
+        {% if recent_activities %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {% for act in recent_activities %}
+          <div class="metric-card card-bg rounded-3xl p-4 border border-zinc-800 light:border-zinc-200">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-x-2">
+                {% set icon = 'fa-running' if act.type == 'Run' else ('fa-walking' if act.type == 'Walk' else ('fa-bicycle' if act.type == 'Cycle' else ('fa-water' if act.type == 'Swim' else 'fa-dumbbell'))) %}
+                <i class="fa-solid {{ icon }} text-emerald-400 text-base"></i>
+                <span class="text-[10px] font-semibold tracking-[1px] text-emerald-400/90">{{ act.type | upper }}</span>
+              </div>
+              <div class="text-[10px] text-zinc-500 tabular-nums">{{ act.start_time }}</div>
+            </div>
+            <div class="mt-1.5 flex items-baseline gap-x-1">
+              <span class="text-2xl font-semibold tabular-nums text-white">{{ act.duration }}</span>
+            </div>
+            {% if act.distance or act.steps or act.calories %}
+            <div class="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-zinc-400">
+              {% if act.distance %}<span class="font-medium text-zinc-300">{{ act.distance }}</span>{% endif %}
+              {% if act.steps %}<span>{{ act.steps }} steps</span>{% endif %}
+              {% if act.calories %}<span>{{ act.calories }} kcal</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-xs text-zinc-500 px-1 py-1">No recent activity sessions recorded.</div>
+        {% endif %}
+      </div>
+
+      <!-- Hender Vitals -->
       <div class="mb-3">
-        <div class="section-title text-emerald-400">OURA VITALS</div>
+        <div class="section-title text-emerald-400">HENDER VITALS</div>
       </div>
       <!-- Metric Cards Grid -->
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-10">
@@ -999,13 +1032,13 @@
 
       // Nice touch: show a subtle toast on first load if data is fresh
       {% if not fragment %}
-      console.log('%c[Oura Vitals] Dashboard ready — press / to refresh', 'color:#3f3f46');
+      console.log('%c[HENDER VITALS] Dashboard ready — press / to refresh', 'color:#3f3f46');
       {% endif %}
 
       // Auto-refresh system (client-side polling)
       const autoRefreshSeconds = {{ auto_refresh_seconds | default(0) }};
       if (autoRefreshSeconds > 0) {
-        console.log(`%c[Oura Vitals] Auto-refresh enabled every ${autoRefreshSeconds}s`, 'color:#3f3f46');
+        console.log(`%c[HENDER VITALS] Auto-refresh enabled every ${autoRefreshSeconds}s`, 'color:#3f3f46');
 
         let refreshTimer = null;
 
