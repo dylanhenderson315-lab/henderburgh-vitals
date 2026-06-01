@@ -200,15 +200,15 @@
     }
 
     .live-card {
-      border: 1px solid #e5e5e5;
+      border: 1px solid #3f3f46;
       border-radius: 12px;
       padding: 18px 18px;
-      background: #fff;
+      background: #18181b;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .live-card:hover {
-      border-color: #d4d4d4;
-      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+      border-color: #52525b;
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
       transform: translateY(-1px);
     }
     .live-card h3 {
@@ -222,8 +222,18 @@
     .live-card p {
       font-size: 13.5px;
       line-height: 1.4;
-      color: #171717;
+      color: #d4d4d8;
       margin: 2px 0;
+    }
+
+    .top-option {
+      background: #18181b;
+      border-color: #3f3f46;
+      color: #e4e4e7;
+    }
+    .top-option:hover {
+      background: #27272a;
+      border-color: #52525b;
     }
 
     .live-card .big-number {
@@ -240,31 +250,31 @@
     }
   </style>
 </head>
-<body class="bg-white text-[#111111] antialiased">
+<body class="bg-[#0a0a0b] text-zinc-200 antialiased">
   <!-- Header -->
-  <header class="border-b border-neutral-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-50">
+  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
     <div class="max-w-[1080px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
         <!-- Logo -->
         <a href="/" class="flex items-center gap-x-2.5 group">
-          <div class="w-8 h-8 rounded-xl bg-[#111111] flex items-center justify-center">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
             <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
           </div>
           <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
         </a>
 
         <!-- Navigation -->
-        <nav class="hidden md:flex items-center gap-x-8">
-          <a href="/" class="nav-link">Home</a>
-          <a href="/vitals" class="nav-link">Vitals</a>
-          <a href="/golf" class="nav-link">Golf</a>
-          <a href="/clips" class="nav-link">Clips</a>
-          <a href="/blog" class="nav-link">Blog</a>
+        <nav class="hidden md:flex items-center gap-x-8 text-sm">
+          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
+          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
+          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
+          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
+          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
 
         <!-- Mobile nav -->
         <div class="md:hidden">
-          <a href="/vitals" class="text-sm px-4 py-1.5 rounded-full border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition">Vitals</a>
+          <a href="/vitals" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">Vitals</a>
         </div>
       </div>
     </div>
@@ -280,9 +290,9 @@
       </div>
     </div>
 
-    <!-- Top Options: Vitals + Golf -->
+    <!-- Page Toggles -->
     <div class="top-options">
-      <!-- Vitals Card -->
+      <!-- Vitals -->
       <a href="/vitals" class="top-option group">
         <div class="icon">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -290,10 +300,10 @@
           </svg>
         </div>
         <h3>Vitals</h3>
-        <p>Daily health metrics from my Oura Ring — readiness, sleep, HRV, and more.</p>
+        <p>Daily health metrics from my Oura Ring.</p>
       </a>
 
-      <!-- Golf Card -->
+      <!-- Golf -->
       <a href="/golf" class="top-option group">
         <div class="icon">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
@@ -303,7 +313,25 @@
           </svg>
         </div>
         <h3>Golf</h3>
-        <p>Scores, rounds, and notes from the course.</p>
+        <p>Scores, rounds, and course notes.</p>
+      </a>
+
+      <!-- Clips -->
+      <a href="/clips" class="top-option group">
+        <div class="icon">
+          <i class="fa-solid fa-video text-3xl"></i>
+        </div>
+        <h3>Clips</h3>
+        <p>Game highlights and moments.</p>
+      </a>
+
+      <!-- Blog -->
+      <a href="/blog" class="top-option group">
+        <div class="icon">
+          <i class="fa-solid fa-pen-nib text-3xl"></i>
+        </div>
+        <h3>Blog</h3>
+        <p>Thoughts and a place to leave messages.</p>
       </a>
     </div>
 
