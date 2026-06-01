@@ -920,7 +920,9 @@ async def golf_page():
 
 @app.get("/clips", response_class=HTMLResponse)
 async def clips_page():
-    return _placeholder_page("Clips", "A collection of game highlights and moments.")
+    return _render("clips.html", {
+        "request": None,
+    })
 
 
 @app.get("/blog", response_class=HTMLResponse)

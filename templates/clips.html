@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clips • HENDERBURGH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+
+    body {
+      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #737373;
+      font-weight: 600;
+    }
+
+    .nav-link {
+      color: #404040;
+      transition: color 0.15s ease;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .nav-link:hover {
+      color: #111111;
+    }
+    .nav-link.active {
+      color: #111;
+      font-weight: 600;
+    }
+
+    .clip-card {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      overflow: hidden;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .clip-card:hover {
+      border-color: #d4d4d4;
+      box-shadow: 0 8px 20px -4px rgba(0,0,0,0.08), 0 2px 6px -2px rgba(0,0,0,0.04);
+      transform: translateY(-2px);
+    }
+
+    .clip-card video {
+      width: 100%;
+      display: block;
+      background: #000;
+    }
+
+    .clip-meta {
+      padding: 16px;
+    }
+
+    .clip-meta .title {
+      font-weight: 600;
+      font-size: 15px;
+      line-height: 1.3;
+      margin-bottom: 4px;
+    }
+
+    .clip-meta .date {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .tag {
+      font-size: 10px;
+      padding: 1px 8px;
+      border-radius: 9999px;
+      background: #f4f4f5;
+      color: #52525b;
+      font-weight: 500;
+    }
+
+    .filter-btn {
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      border: 1px solid #e5e5e5;
+      background: white;
+      color: #52525b;
+      transition: all 0.15s;
+    }
+
+    .filter-btn.active,
+    .filter-btn:hover {
+      background: #111;
+      color: white;
+      border-color: #111;
+    }
+  </style>
+</head>
+<body class="bg-white text-[#111111] antialiased">
+  <!-- Header -->
+  <header class="border-b border-neutral-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-50">
+    <div class="max-w-[1080px] mx-auto px-6">
+      <div class="h-16 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-x-2.5 group">
+          <div class="w-8 h-8 rounded-xl bg-[#111111] flex items-center justify-center">
+            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
+          </div>
+          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-x-8">
+          <a href="/" class="nav-link">Home</a>
+          <a href="/vitals" class="nav-link">Vitals</a>
+          <a href="/golf" class="nav-link">Golf</a>
+          <a href="/clips" class="nav-link active">Clips</a>
+          <a href="/blog" class="nav-link">Blog</a>
+        </nav>
+
+        <div class="md:hidden">
+          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-neutral-200 text-neutral-700 hover:bg-neutral-50">← Home</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
+    <!-- Header -->
+    <div class="mb-10">
+      <div class="flex items-center gap-x-3 mb-2">
+        <div class="w-9 h-9 rounded-2xl bg-orange-100 flex items-center justify-center">
+          <i class="fa-solid fa-video text-orange-600 text-xl"></i>
+        </div>
+        <h1 class="text-4xl font-semibold tracking-tighter">Game Clips</h1>
+      </div>
+      <p class="text-lg text-neutral-600 max-w-md">Highlights from my recent sessions.</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="mb-8 flex flex-wrap gap-2" id="filter-buttons">
+      <button onclick="filterClips('all')" class="filter-btn active" data-filter="all">All</button>
+      <button onclick="filterClips('Clutch')" class="filter-btn" data-filter="Clutch">Clutch</button>
+      <button onclick="filterClips('Ace')" class="filter-btn" data-filter="Ace">Ace</button>
+      <button onclick="filterClips('Team Play')" class="filter-btn" data-filter="Team Play">Team Play</button>
+      <button onclick="filterClips('Execute')" class="filter-btn" data-filter="Execute">Execute</button>
+      <button onclick="filterClips('Post-plant')" class="filter-btn" data-filter="Post-plant">Post-plant</button>
+    </div>
+
+    <!-- Clips Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="clips-grid">
+      <!-- Populated by JavaScript -->
+    </div>
+
+    <div class="mt-12 text-center">
+      <a href="/" class="inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 transition">
+        ← Back to home
+      </a>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="max-w-[1080px] mx-auto px-6 pb-10">
+    <div class="border-t border-neutral-100 pt-6 text-xs text-neutral-400 text-center">
+      Personal game highlights • HENDERBURGH
+    </div>
+  </footer>
+
+  <script>
+    const clips = [
+      {
+        id: 1,
+        title: "Clutch 1v3",
+        date: "Feb 12, 2026",
+        src: "clips/clutch-moment.mp4",
+        tags: ["Clutch"],
+        description: "3v1 retake on defense"
+      },
+      {
+        id: 2,
+        title: "Insane team play",
+        date: "Jan 28, 2026",
+        src: "clips/team-win.mp4",
+        tags: ["Team Play"],
+        description: "Perfect coordination on Haven"
+      },
+      {
+        id: 3,
+        title: "Ace on Haven",
+        date: "Jan 15, 2026",
+        src: "clips/ace.mp4",
+        tags: ["Ace", "Clutch"],
+        description: "5 kills in a single round"
+      },
+      {
+        id: 4,
+        title: "1v4 Retake",
+        date: "Dec 3, 2025",
+        src: "clips/clutch-moment.mp4",
+        tags: ["Clutch"],
+        description: "Impossible retake on B site"
+      },
+      {
+        id: 5,
+        title: "Perfect Execute",
+        date: "Nov 22, 2025",
+        src: "clips/team-win.mp4",
+        tags: ["Execute", "Team Play"],
+        description: "Textbook A site execute"
+      },
+      {
+        id: 6,
+        title: "Post-plant 3k",
+        date: "Nov 8, 2025",
+        src: "clips/ace.mp4",
+        tags: ["Post-plant", "Clutch"],
+        description: "Clutch post-plant on Bind"
+      },
+      {
+        id: 7,
+        title: "4k on Bind",
+        date: "Oct 19, 2025",
+        src: "clips/clutch-moment.mp4",
+        tags: ["Clutch"],
+        description: "Back-to-back clutches"
+      },
+      {
+        id: 8,
+        title: "Last Second Defuse",
+        date: "Oct 5, 2025",
+        src: "clips/team-win.mp4",
+        tags: ["Clutch", "Execute"],
+        description: "1.3 seconds left"
+      }
+    ];
+
+    function renderClips(filteredClips) {
+      const grid = document.getElementById('clips-grid');
+      grid.innerHTML = '';
+
+      const toRender = filteredClips || clips;
+
+      toRender.forEach(clip => {
+        const card = document.createElement('div');
+        card.className = 'clip-card';
+        card.dataset.tags = clip.tags.join(',');
+
+        const tagsHTML = clip.tags.map(tag => 
+          `<span class="tag">${tag}</span>`
+        ).join('');
+
+        card.innerHTML = `
+          <video controls preload="metadata" class="w-full">
+            <source src="${clip.src}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+          <div class="clip-meta">
+            <div class="title">${clip.title}</div>
+            <div class="date">${clip.date}</div>
+            ${clip.description ? `<div class="text-sm text-neutral-600 mt-1">${clip.description}</div>` : ''}
+            <div class="flex flex-wrap gap-1 mt-3">
+              ${tagsHTML}
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    let currentFilter = 'all';
+
+    function filterClips(filter) {
+      currentFilter = filter;
+
+      // Update button states
+      document.querySelectorAll('#filter-buttons button').forEach(btn => {
+        btn.classList.remove('active');
+        if (filter === 'all' && btn.dataset.filter === 'all') {
+          btn.classList.add('active');
+        } else if (btn.dataset.filter === filter) {
+          btn.classList.add('active');
+        }
+      });
+
+      const grid = document.getElementById('clips-grid');
+      const cards = grid.querySelectorAll('.clip-card');
+
+      cards.forEach(card => {
+        const tags = card.dataset.tags.split(',');
+        
+        if (filter === 'all') {
+          card.style.display = '';
+        } else {
+          if (tags.includes(filter)) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        }
+      });
+    }
+
+    // Initialize
+    function initClipsPage() {
+      renderClips();
+
+      // Make sure "All" button starts active
+      const allBtn = document.querySelector('#filter-buttons button[data-filter="all"]');
+      if (allBtn) allBtn.classList.add('active');
+
+      // Optional: keyboard support
+      document.addEventListener('keydown', function(e) {
+        if (e.key === '/' && document.activeElement.tagName === 'BODY') {
+          e.preventDefault();
+          const search = prompt('Filter by tag (Clutch, Ace, etc):');
+          if (search) {
+            filterClips(search.trim());
+          }
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', initClipsPage);
+  </script>
+</body>
+</html>
