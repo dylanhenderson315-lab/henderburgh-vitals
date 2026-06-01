@@ -181,9 +181,22 @@
     /* Live Now cards */
     .live-now {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 14px;
       align-items: stretch;
+    }
+
+    .live-now-main {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (min-width: 768px) {
+      .live-now-main {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .live-now-secondary {
+      grid-template-columns: 1fr;
     }
 
     .live-card {
@@ -211,6 +224,19 @@
       line-height: 1.4;
       color: #171717;
       margin: 2px 0;
+    }
+
+    .live-card .big-number {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.1;
+      margin: 4px 0;
+    }
+
+    .live-card .comparison {
+      font-size: 11px;
+      color: #666;
+      margin-top: 6px;
     }
   </style>
 </head>
@@ -285,7 +311,8 @@
     <div class="content-section">
       <div class="section-label mb-3">Live Now</div>
 
-      <div class="live-now">
+      <!-- First row: 4 balanced cards -->
+      <div class="live-now live-now-main">
         <!-- Xbox -->
         <div class="live-card">
           <h3>Xbox</h3>
@@ -295,16 +322,19 @@
         <!-- Heart Rate -->
         <div class="live-card">
           <h3>Heart Rate</h3>
-          <p><strong>72 bpm</strong></p>
-          <p>Live from Oura • Updated recently</p>
+          <p class="big-number"><strong><span id="hr-bpm">--</span> bpm</strong></p>
+          <p id="hr-updated">Live from Oura • Updated recently</p>
         </div>
 
         <!-- Steps (from Oura) -->
         <div class="live-card">
           <h3>Steps</h3>
-          <div id="home-steps-content">
-            <!-- Populated via JS from /api/steps -->
+          <div id="steps-value">
+            <p class="big-number"><span id="steps-count">--</span> steps</p>
+            <p id="steps-miles">-- miles</p>
           </div>
+          <p class="comparison" id="steps-comparison"></p>
+          <p><a href="/vitals">Full details on Vitals page →</a></p>
         </div>
 
         <!-- Readiness -->
@@ -313,7 +343,10 @@
           <p><strong>72 / 100</strong> <span style="color:#22c55e">↑ 6%</span></p>
           <p>Full trends and history on the Vitals page</p>
         </div>
+      </div>
 
+      <!-- Last.fm on its own row below for balance -->
+      <div class="live-now live-now-secondary mt-3">
         <!-- Last.fm -->
         <div class="live-card">
           <h3>Last.fm</h3>
@@ -569,69 +602,84 @@
   <!-- Steps (Live Now card) -->
   <script>
   async function updateHomeSteps() {
-    const contentEl = document.getElementById('home-steps-content');
-    if (!contentEl) return;
-
     try {
       const res = await fetch('/api/steps');
       const data = await res.json();
 
+      const countEl = document.getElementById('steps-count');
+      const milesEl = document.getElementById('steps-miles');
+      const compEl = document.getElementById('steps-comparison');
+
       if (!data || !data.steps) {
-        contentEl.innerHTML = `
-          <div class="text-3xl font-bold tabular-nums">—</div>
-          <div class="text-sm text-neutral-400">— miles</div>
-          <div class="mt-2 text-[10px] text-neutral-500 space-y-px">
-            <div>• —</div>
-            <div>• —</div>
-          </div>
-          <div class="mt-2 text-[10px]">
-            <a href="/vitals" class="text-neutral-500 hover:text-neutral-800">Full details on Vitals page →</a>
-          </div>
-        `;
+        if (countEl) countEl.textContent = '--';
+        if (milesEl) milesEl.textContent = '-- miles';
+        if (compEl) compEl.textContent = '';
         return;
       }
 
       const steps = data.steps;
       const miles = data.miles || (steps * 0.0005);
 
-      // Exactly 2 punchy comparisons
-      const comparisons = [];
-      const fields = Math.round(steps / 150);
-      if (fields > 0) comparisons.push(`${fields} football fields`);
+      if (countEl) countEl.textContent = steps.toLocaleString();
+      if (milesEl) milesEl.textContent = `${miles.toFixed(1)} miles`;
 
-      const blocks = Math.round(miles / 0.12);
-      comparisons.push(`${Math.max(blocks, 8)} city blocks`);
+      if (compEl) {
+        const comparisons = [];
+        const fields = Math.round(steps / 150);
+        if (fields > 0) comparisons.push(`${fields} football fields`);
 
-      contentEl.innerHTML = `
-        <div class="text-3xl font-bold tabular-nums">${steps.toLocaleString()}</div>
-        <div class="text-sm text-neutral-400">${miles.toFixed(1)} miles</div>
-        <div class="mt-2 text-[10px] text-neutral-500 space-y-px">
-          <div>• ${comparisons[0]}</div>
-          <div>• ${comparisons[1]}</div>
-        </div>
-        <div class="mt-2 text-[10px]">
-          <a href="/vitals" class="text-neutral-500 hover:text-neutral-800">Full details on Vitals page →</a>
-        </div>
-      `;
+        const blocks = Math.round(miles / 0.12);
+        comparisons.push(`${Math.max(blocks, 8)} city blocks`);
+
+        compEl.innerHTML = comparisons.slice(0, 2).map(c => `• ${c}`).join(' &nbsp; ');
+      }
     } catch (e) {
       console.error('Failed to load steps for homepage', e);
-      contentEl.innerHTML = `
-        <div class="text-3xl font-bold tabular-nums">—</div>
-        <div class="text-sm text-neutral-400">— miles</div>
-        <div class="mt-2 text-[10px] text-neutral-500 space-y-px">
-          <div>• —</div>
-          <div>• —</div>
-        </div>
-        <div class="mt-2 text-[10px]">
-          <a href="/vitals" class="text-neutral-500 hover:text-neutral-800">Full details on Vitals page →</a>
-        </div>
-      `;
+      const countEl = document.getElementById('steps-count');
+      const milesEl = document.getElementById('steps-miles');
+      if (countEl) countEl.textContent = '--';
+      if (milesEl) milesEl.textContent = '-- miles';
     }
   }
 
   // Initial load + auto refresh every 60s
   updateHomeSteps();
   setInterval(updateHomeSteps, 60000);
+
+  // Heart Rate live update
+  async function updateHomeHeartRate() {
+    try {
+      const res = await fetch('/api/heart-rate');
+      const data = await res.json();
+
+      const bpmEl = document.getElementById('hr-bpm');
+      const updatedEl = document.getElementById('hr-updated');
+
+      if (data && data.bpm) {
+        if (bpmEl) bpmEl.textContent = data.bpm;
+
+        if (updatedEl && data.updated) {
+          try {
+            const ts = new Date(data.updated);
+            const now = new Date();
+            const diffMin = Math.floor((now - ts) / 60000);
+            let timeText = 'just now';
+            if (diffMin >= 1) timeText = `${diffMin}m ago`;
+            updatedEl.textContent = `Live from Oura • Updated ${timeText}`;
+          } catch {
+            updatedEl.textContent = 'Live from Oura • Updated recently';
+          }
+        }
+      } else {
+        if (bpmEl) bpmEl.textContent = '--';
+      }
+    } catch (e) {
+      console.error('Failed to load heart rate for homepage', e);
+    }
+  }
+
+  updateHomeHeartRate();
+  setInterval(updateHomeHeartRate, 60000);
   </script>
 </body>
 </html>

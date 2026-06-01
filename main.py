@@ -908,6 +908,37 @@ async def api_steps():
     return {"steps": None, "miles": None}
 
 
+@app.get("/api/heart-rate")
+async def api_heart_rate():
+    """Lightweight endpoint for current heart rate (used on homepage Live Now)."""
+    if not oura_client:
+        return {"bpm": None, "updated": None}
+
+    try:
+        now = datetime.now(timezone.utc)
+        # Get last ~4 hours of HR samples
+        start_dt = (now - timedelta(hours=4)).isoformat()
+        hr_data = await oura_client._get(
+            "/usercollection/heartrate",
+            {"start_datetime": start_dt, "end_datetime": now.isoformat()},
+            bypass_cache=True
+        )
+        hr_list = hr_data.get("data", []) if isinstance(hr_data, dict) else []
+
+        if hr_list:
+            latest = hr_list[-1]
+            bpm = latest.get("bpm")
+            ts = latest.get("timestamp")
+            return {
+                "bpm": bpm,
+                "updated": ts
+            }
+    except Exception:
+        pass
+
+    return {"bpm": None, "updated": None}
+
+
 @app.get("/api/xbox/status")
 async def get_xbox_status():
     global last_xbox_status
