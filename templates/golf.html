@@ -213,8 +213,16 @@
           </div>
 
           <div>
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Holes Played</label>
+            <select id="round-holes" class="form-input w-full">
+              <option value="18">18 Holes</option>
+              <option value="9">9 Holes</option>
+            </select>
+          </div>
+
+          <div>
             <label class="block text-xs font-medium text-neutral-500 mb-1.5">Total Score</label>
-            <input type="number" id="round-score" class="form-input w-full" placeholder="78" required min="50" max="150">
+            <input type="number" id="round-score" class="form-input w-full" placeholder="78" required min="55" max="150">
           </div>
           <div>
             <label class="block text-xs font-medium text-neutral-500 mb-1.5">Fairways Hit</label>
@@ -243,6 +251,8 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
       </div>
     </div>
 
@@ -441,11 +451,22 @@
     function saveRound(e) {
       e.preventDefault();
 
+      const holes = parseInt(document.getElementById('round-holes').value) || 18;
+      const score = parseInt(document.getElementById('round-score').value);
+
+      // Dynamic minimum score validation
+      const minScore = holes === 9 ? 28 : 55;
+      if (score < minScore) {
+        alert(`Minimum realistic score for ${holes} holes is ${minScore}. Please check your entry.`);
+        return;
+      }
+
       const newRound = {
         id: Date.now(),
         date: document.getElementById('round-date').value,
         course: document.getElementById('round-course').value.trim(),
-        score: parseInt(document.getElementById('round-score').value),
+        holes: holes,
+        score: score,
         fairways: parseInt(document.getElementById('round-fairways').value) || 0,
         gir: parseInt(document.getElementById('round-gir').value) || 0,
         putts: parseInt(document.getElementById('round-putts').value) || 0,
@@ -457,6 +478,8 @@
 
       // Clear form
       document.getElementById('round-form').reset();
+      document.getElementById('round-holes').value = '18';
+      updateFormLimits();
       // Set today's date again
       document.getElementById('round-date').value = new Date().toISOString().split('T')[0];
 
@@ -532,12 +555,14 @@
           meta = `<span class="text-xs text-neutral-500">${parts.join(' • ')}</span>`;
         }
 
+        const holesLabel = round.holes ? `${round.holes}H` : '18H';
+
         div.innerHTML = `
           <div class="flex-1">
             <div class="flex items-center gap-x-3">
               <div class="font-semibold">${round.score}</div>
               <div>
-                <div class="font-medium">${round.course}</div>
+                <div class="font-medium">${round.course} <span class="text-xs text-emerald-400 font-mono">(${holesLabel})</span></div>
                 <div class="text-xs text-neutral-500">${round.date}</div>
               </div>
             </div>
@@ -558,6 +583,45 @@
     }
 
     // ==================== INIT ====================
+    function updateFormLimits() {
+      const holesSelect = document.getElementById('round-holes');
+      const scoreInput = document.getElementById('round-score');
+      const fairwaysInput = document.getElementById('round-fairways');
+      const girInput = document.getElementById('round-gir');
+
+      if (!holesSelect || !scoreInput) return;
+
+      const holes = parseInt(holesSelect.value) || 18;
+
+      if (holes === 9) {
+        scoreInput.min = 28;
+        scoreInput.max = 90;
+        scoreInput.placeholder = "38";
+
+        if (fairwaysInput) {
+          fairwaysInput.max = 9;
+          fairwaysInput.placeholder = "5";
+        }
+        if (girInput) {
+          girInput.max = 9;
+          girInput.placeholder = "6";
+        }
+      } else {
+        scoreInput.min = 55;
+        scoreInput.max = 150;
+        scoreInput.placeholder = "78";
+
+        if (fairwaysInput) {
+          fairwaysInput.max = 18;
+          fairwaysInput.placeholder = "9";
+        }
+        if (girInput) {
+          girInput.max = 18;
+          girInput.placeholder = "11";
+        }
+      }
+    }
+
     async function initGolfPage() {
       loadData();                    // still loads rounds from localStorage
       await loadClubs();             // now loads clubs from server
@@ -566,6 +630,13 @@
       const dateInput = document.getElementById('round-date');
       if (!dateInput.value) {
         dateInput.value = new Date().toISOString().split('T')[0];
+      }
+
+      // Set up dynamic form limits for 9 vs 18 holes
+      const holesSelect = document.getElementById('round-holes');
+      if (holesSelect) {
+        holesSelect.addEventListener('change', updateFormLimits);
+        updateFormLimits(); // set initial limits
       }
 
       renderEverything();
