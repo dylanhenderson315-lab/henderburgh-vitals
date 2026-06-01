@@ -183,6 +183,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 14px;
+      align-items: stretch;
     }
 
     .live-card {
@@ -302,12 +303,7 @@
         <div class="live-card">
           <h3>Steps</h3>
           <div id="home-steps-content">
-            <div class="text-3xl font-bold tabular-nums">—</div>
-            <div class="text-sm text-neutral-400">— miles</div>
-            <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
-              <div>• —</div>
-              <div>• —</div>
-            </div>
+            <!-- Populated via JS from /api/steps -->
           </div>
         </div>
 
@@ -584,9 +580,12 @@
         contentEl.innerHTML = `
           <div class="text-3xl font-bold tabular-nums">—</div>
           <div class="text-sm text-neutral-400">— miles</div>
-          <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
+          <div class="mt-2 text-[10px] text-neutral-500 space-y-px">
             <div>• —</div>
             <div>• —</div>
+          </div>
+          <div class="mt-2 text-[10px]">
+            <a href="/vitals" class="text-neutral-500 hover:text-neutral-800">Full details on Vitals page →</a>
           </div>
         `;
         return;
@@ -595,21 +594,23 @@
       const steps = data.steps;
       const miles = data.miles || (steps * 0.0005);
 
-      // Only 2 punchy comparisons
+      // Exactly 2 punchy comparisons
       const comparisons = [];
       const fields = Math.round(steps / 150);
       if (fields > 0) comparisons.push(`${fields} football fields`);
 
       const blocks = Math.round(miles / 0.12);
-      if (blocks > 5) comparisons.push(`${blocks} city blocks`);
-      else comparisons.push(`${Math.max(blocks, 8)} city blocks`);
+      comparisons.push(`${Math.max(blocks, 8)} city blocks`);
 
       contentEl.innerHTML = `
         <div class="text-3xl font-bold tabular-nums">${steps.toLocaleString()}</div>
         <div class="text-sm text-neutral-400">${miles.toFixed(1)} miles</div>
-        <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
+        <div class="mt-2 text-[10px] text-neutral-500 space-y-px">
           <div>• ${comparisons[0]}</div>
           <div>• ${comparisons[1]}</div>
+        </div>
+        <div class="mt-2 text-[10px]">
+          <a href="/vitals" class="text-neutral-500 hover:text-neutral-800">Full details on Vitals page →</a>
         </div>
       `;
     } catch (e) {
@@ -617,9 +618,12 @@
       contentEl.innerHTML = `
         <div class="text-3xl font-bold tabular-nums">—</div>
         <div class="text-sm text-neutral-400">— miles</div>
-        <div class="mt-1.5 text-[10px] text-neutral-500 space-y-px">
+        <div class="mt-2 text-[10px] text-neutral-500 space-y-px">
           <div>• —</div>
           <div>• —</div>
+        </div>
+        <div class="mt-2 text-[10px]">
+          <a href="/vitals" class="text-neutral-500 hover:text-neutral-800">Full details on Vitals page →</a>
         </div>
       `;
     }
