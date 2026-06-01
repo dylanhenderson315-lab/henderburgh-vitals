@@ -1045,6 +1045,42 @@ async def get_xbox_status():
 
 
 # =============================================================================
+# Golf Club Distances (server-persisted, shared across visitors)
+# =============================================================================
+import json
+from pathlib import Path
+
+CLUBS_FILE = Path("data/clubs.json")
+CLUBS_FILE.parent.mkdir(exist_ok=True)
+
+DEFAULT_CLUBS = [
+    {"name": "Driver", "distance": 245},
+    {"name": "3 Wood", "distance": 220},
+    {"name": "5 Wood", "distance": 200},
+    {"name": "4 Iron", "distance": 185},
+    {"name": "5 Iron", "distance": 175},
+    {"name": "6 Iron", "distance": 165},
+    {"name": "7 Iron", "distance": 155},
+    {"name": "8 Iron", "distance": 145},
+    {"name": "9 Iron", "distance": 135},
+    {"name": "PW", "distance": 125},
+    {"name": "GW", "distance": 110},
+    {"name": "SW", "distance": 90},
+]
+
+def load_clubs():
+    if CLUBS_FILE.exists():
+        try:
+            return json.loads(CLUBS_FILE.read_text())
+        except Exception:
+            pass
+    return DEFAULT_CLUBS.copy()
+
+def save_clubs(clubs):
+    CLUBS_FILE.write_text(json.dumps(clubs, indent=2))
+
+
+# =============================================================================
 # Simple placeholder routes for future sections (Golf, Clips, Blog)
 # =============================================================================
 
@@ -1075,6 +1111,16 @@ def _placeholder_page(title: str, description: str = "") -> HTMLResponse:
 </html>
 """
     return HTMLResponse(html)
+
+
+@app.get("/api/golf/clubs")
+async def get_clubs():
+    return load_clubs()
+
+@app.post("/api/golf/clubs")
+async def update_clubs(clubs: List[dict]):
+    save_clubs(clubs)
+    return {"status": "saved"}
 
 
 @app.get("/golf", response_class=HTMLResponse)

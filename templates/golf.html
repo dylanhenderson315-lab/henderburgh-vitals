@@ -291,7 +291,7 @@
 
   <footer class="max-w-[1080px] mx-auto px-6 pb-10">
     <div class="border-t border-neutral-100 pt-6 text-xs text-neutral-400 text-center">
-      Data stored locally in your browser • HENDERBURGH Golf
+      Club distances saved on server • Rounds stored in your browser • HENDERBURGH Golf
     </div>
   </footer>
 
@@ -317,14 +317,7 @@
 
     // ==================== STORAGE ====================
     function loadData() {
-      const savedClubs = localStorage.getItem('henderburgh_golf_clubs');
-      if (savedClubs) {
-        clubs = JSON.parse(savedClubs);
-      } else {
-        clubs = [...DEFAULT_CLUBS];
-        saveClubs();
-      }
-
+      // Rounds still use localStorage for now
       const savedRounds = localStorage.getItem('henderburgh_golf_rounds');
       if (savedRounds) {
         rounds = JSON.parse(savedRounds);
@@ -333,12 +326,35 @@
       }
     }
 
-    function saveClubs() {
-      localStorage.setItem('henderburgh_golf_clubs', JSON.stringify(clubs));
-    }
-
     function saveRounds() {
       localStorage.setItem('henderburgh_golf_rounds', JSON.stringify(rounds));
+    }
+
+    // Clubs are now loaded/saved from the server
+    async function loadClubs() {
+      try {
+        const res = await fetch('/api/golf/clubs');
+        if (res.ok) {
+          clubs = await res.json();
+        } else {
+          clubs = [...DEFAULT_CLUBS];
+        }
+      } catch (e) {
+        console.error('Failed to load clubs from server, using defaults', e);
+        clubs = [...DEFAULT_CLUBS];
+      }
+    }
+
+    async function saveClubs() {
+      try {
+        await fetch('/api/golf/clubs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clubs)
+        });
+      } catch (e) {
+        console.error('Failed to save clubs to server', e);
+      }
     }
 
     // ==================== CLUBS TABLE ====================
@@ -369,12 +385,13 @@
       // Attach editable listeners
       const cells = tbody.querySelectorAll('.distance-cell');
       cells.forEach(cell => {
-        cell.addEventListener('blur', () => {
+        cell.addEventListener('blur', async () => {
           const index = parseInt(cell.dataset.index);
           let val = parseInt(cell.textContent.trim());
           if (isNaN(val) || val < 0) val = 0;
           clubs[index].distance = val;
-          saveClubs();
+          await saveClubs();
+          showSavedFeedback();
           // Refresh the number (in case user typed letters)
           cell.textContent = val;
         });
@@ -388,7 +405,20 @@
       });
     }
 
-    function addNewClub() {
+    function showSavedFeedback() {
+      const feedback = document.createElement('span');
+      feedback.textContent = ' Saved';
+      feedback.style.color = '#22c55e';
+      feedback.style.marginLeft = '8px';
+      feedback.style.fontSize = '12px';
+      document.body.appendChild(feedback);
+
+      setTimeout(() => {
+        if (feedback.parentNode) feedback.parentNode.removeChild(feedback);
+      }, 1200);
+    }
+
+    async function addNewClub() {
       const name = prompt("Club name (e.g. 3 Hybrid):");
       if (!name || name.trim() === '') return;
 
@@ -396,14 +426,14 @@
       const distance = parseInt(distanceStr) || 150;
 
       clubs.push({ name: name.trim(), distance });
-      saveClubs();
+      await saveClubs();
       renderClubsTable();
     }
 
-    function deleteClub(index) {
+    async function deleteClub(index) {
       if (!confirm(`Remove ${clubs[index].name}?`)) return;
       clubs.splice(index, 1);
-      saveClubs();
+      await saveClubs();
       renderClubsTable();
     }
 
@@ -528,8 +558,9 @@
     }
 
     // ==================== INIT ====================
-    function initGolfPage() {
-      loadData();
+    async function initGolfPage() {
+      loadData();                    // still loads rounds from localStorage
+      await loadClubs();             // now loads clubs from server
 
       // Set today's date in the form by default
       const dateInput = document.getElementById('round-date');
@@ -540,7 +571,7 @@
       renderEverything();
 
       // Keyboard hint
-      console.log('%c[HENDERBURGH Golf] Data saved to localStorage', 'color:#a3a3a3');
+      console.log('%c[HENDERBURGH Golf] Club distances saved on server', 'color:#a3a3a3');
     }
 
     // Boot
