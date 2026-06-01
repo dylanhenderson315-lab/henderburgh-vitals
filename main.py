@@ -648,17 +648,47 @@ def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Clean minimalist home page for HENDERBURGH."""
-    # Get the same live data used by the vitals page for consistency
-    steps_data = await get_current_steps()
-    heart_rate_data = await get_current_heart_rate()
+    # Use the exact same data pipeline as the vitals page for perfect consistency
+    steps = None
+    latest_hr = None
+    hr_age_minutes = None
 
-    # Normalize for clean template usage
+    if oura_client:
+        try:
+            # Fetch minimal data (today only is enough for steps + latest HR)
+            raw = await fetch_all_data(days=1)
+
+            # Process using the same function the vitals page uses
+            processed = process_dashboard_data(
+                raw.get("personal", {}),
+                raw.get("readiness", []),
+                raw.get("daily_sleep", []),
+                raw.get("detailed_sleep", []),
+                raw.get("activity", []),
+                raw.get("spo2", []),
+                raw.get("stress", []),
+                raw.get("heartrate", []),
+                raw.get("workouts", []),
+                1,  # only need today's data
+            )
+
+            steps = processed.get("steps")
+            latest_hr = processed.get("latest_hr")
+            hr_age_minutes = processed.get("hr_age_minutes")
+
+        except Exception:
+            # If anything fails, fall back to None (will show placeholders)
+            pass
+
+    # Prepare clean context for the homepage
     steps_ctx = {
-        "count": steps_data.get("steps"),
-        "miles": steps_data.get("miles"),
+        "count": steps,
+        "miles": round(steps * 0.0005, 1) if steps else None,
     }
+
     hr_ctx = {
-        "bpm": heart_rate_data.get("bpm"),
+        "bpm": latest_hr,
+        "age_minutes": hr_age_minutes,
     }
 
     return _render("home.html", {
