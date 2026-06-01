@@ -297,6 +297,7 @@
           hx-get="/fragment?days={{ days }}"
           hx-target="#main-content"
           hx-swap="outerHTML"
+          hx-select="#main-content"
           hx-indicator="#refresh-indicator"
           class="flex items-center gap-x-2 px-4 py-2 rounded-2xl bg-zinc-900 hover:bg-zinc-800 light:bg-white light:hover:bg-zinc-100 border border-zinc-800 light:border-zinc-200 text-sm font-semibold transition-all active:scale-[0.985]">
           <i id="refresh-indicator" class="fa-solid fa-sync-alt refresh-icon"></i>
@@ -320,7 +321,11 @@
         </button>
       </div>
     </div>
+  {% if not fragment %}
+  <nav class="border-b border-zinc-800 light:border-zinc-200 sticky top-0 z-50 bg-[#0a0a0b]/90 light:bg-[#f8f7f4]/90 backdrop-blur-xl">
+    ... nav content ...
   </nav>
+  {% endif %}
 
   <div id="main-content" class="{% if fragment %}contents{% endif %}">
     {% if error %}
