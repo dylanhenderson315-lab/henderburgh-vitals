@@ -1,6 +1,11 @@
-# HENDER VITALS Dashboard
+# HENDERBURGH
 
-A beautiful, self-hosted personal dashboard for your Oura Ring data — inspired by shrey.com/vitals.
+Personal site for HENDERBURGH.
+
+- **Home**: https://henderburgh.com
+- **Vitals**: https://henderburgh.com/vitals (the Oura Ring dashboard)
+
+The Vitals section is a beautiful, self-hosted personal dashboard for Oura Ring data — inspired by shrey.com/vitals. Built with Python + FastAPI + HTMX + Tailwind + Chart.js.
 
 Built with **Python + FastAPI + HTMX + Tailwind CSS + Chart.js**. Runs instantly on localhost with zero build step.
 

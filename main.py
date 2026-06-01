@@ -567,7 +567,7 @@ def process_dashboard_data(
 # =============================================================================
 # FastAPI App
 # =============================================================================
-app = FastAPI(title="HENDER VITALS", docs_url=None, redoc_url=None)
+app = FastAPI(title="HENDERBURGH", docs_url=None, redoc_url=None)
 templates = Jinja2Templates(directory="templates")
 
 # Global client (simple singleton for local dashboard)
@@ -639,10 +639,22 @@ def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, days: int = OURA_DAYS):
+async def home(request: Request):
+    """Clean minimalist home page for HENDERBURGH."""
+    return _render("home.html", {
+        "request": request,
+        "public_mode": PUBLIC_MODE,
+        "site_name": SITE_NAME,
+        "display_name": DISPLAY_NAME,
+    })
+
+
+@app.get("/vitals", response_class=HTMLResponse)
+async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
+    """The Oura Ring vitals dashboard (moved to /vitals per site structure)."""
     # Force clean URLs in public mode — redirect away from any ?days= param
     if PUBLIC_MODE and request.query_params.get("days"):
-        return RedirectResponse(url="/", status_code=302)
+        return RedirectResponse(url="/vitals", status_code=302)
 
     # Always use fixed 14-day window in public mode
     if PUBLIC_MODE:
@@ -739,6 +751,12 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
 
 @app.get("/fragment", response_class=HTMLResponse)
 async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
+    """Legacy fragment endpoint (still works for the vitals dashboard)."""
+    return await vitals_fragment(request, days)
+
+
+@app.get("/vitals/fragment", response_class=HTMLResponse)
+async def vitals_fragment(request: Request, days: int = OURA_DAYS):
     # Always ignore ?days= in public mode for clean URLs
     if PUBLIC_MODE:
         days = 14
@@ -858,6 +876,54 @@ async def health():
         "display_name": DISPLAY_NAME,
         "site": SITE_NAME,
     }
+
+
+# =============================================================================
+# Simple placeholder routes for future sections (Golf, Clips, Blog)
+# =============================================================================
+
+def _placeholder_page(title: str, description: str = "") -> HTMLResponse:
+    html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title} • HENDERBURGH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {{ font-family: 'Inter', system_ui, sans-serif; }}
+  </style>
+</head>
+<body class="bg-white text-[#111] min-h-screen flex items-center justify-center">
+  <div class="max-w-md mx-auto px-6 text-center">
+    <a href="/" class="inline-flex items-center gap-x-2 text-sm text-neutral-500 hover:text-neutral-700 mb-8">
+      <span>←</span> <span>HENDERBURGH</span>
+    </a>
+    <h1 class="text-4xl font-semibold tracking-tight mb-3">{title}</h1>
+    <p class="text-lg text-neutral-600 mb-8">{description or "This section is coming soon."}</p>
+    <a href="/" class="inline-block px-6 py-2.5 text-sm border border-neutral-200 rounded-2xl hover:bg-neutral-50 transition">Back to home</a>
+    <div class="mt-12 text-[10px] text-neutral-400">HENDERBURGH</div>
+  </div>
+</body>
+</html>
+"""
+    return HTMLResponse(html)
+
+
+@app.get("/golf", response_class=HTMLResponse)
+async def golf_page():
+    return _placeholder_page("Golf", "Rounds, scores, and course notes.")
+
+
+@app.get("/clips", response_class=HTMLResponse)
+async def clips_page():
+    return _placeholder_page("Clips", "A collection of game highlights and moments.")
+
+
+@app.get("/blog", response_class=HTMLResponse)
+async def blog_page():
+    return _placeholder_page("Blog", "Thoughts on health, golf, and the quiet parts of life.")
 
 
 if __name__ == "__main__":

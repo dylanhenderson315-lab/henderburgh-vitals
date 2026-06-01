@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HENDERBURGH</title>
+  <meta name="description" content="Personal site of HENDERBURGH — daily vitals, golf, clips, and thoughts.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+
+    :root {
+      --accent: #111111;
+    }
+
+    body {
+      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-feature-settings: "ss02";
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #737373;
+      font-weight: 600;
+    }
+
+    .top-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 64px;
+    }
+
+    @media (max-width: 640px) {
+      .top-options {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .top-option {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 28px;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      text-align: center;
+      text-decoration: none;
+      color: #111111;
+      background: white;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      min-height: 168px;
+    }
+
+    .top-option:hover {
+      background: #fafafa;
+      border-color: #d4d4d4;
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.06), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+      transform: translateY(-1px);
+    }
+
+    .top-option:active {
+      transform: translateY(0);
+    }
+
+    .top-option .icon {
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      color: #171717;
+    }
+
+    .top-option h3 {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+
+    .top-option p {
+      font-size: 13.5px;
+      color: #525252;
+      line-height: 1.45;
+      max-width: 240px;
+    }
+
+    .content-section {
+      margin-bottom: 72px;
+    }
+
+    .placeholder-card {
+      border: 1px solid #f0f0f0;
+      border-radius: 14px;
+      background: #fafafa;
+      transition: border-color 0.2s ease;
+    }
+
+    .placeholder-card:hover {
+      border-color: #e5e5e5;
+    }
+
+    .clip-card {
+      width: 248px;
+      flex-shrink: 0;
+      border: 1px solid #f0f0f0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: white;
+      transition: all 0.2s ease;
+    }
+
+    .clip-card:hover {
+      border-color: #d4d4d4;
+      box-shadow: 0 2px 8px -2px rgb(0 0 0 / 0.08);
+    }
+
+    .clip-thumb {
+      height: 138px;
+      background: linear-gradient(145deg, #f4f4f5, #e4e4e7);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .clip-thumb .play {
+      width: 38px;
+      height: 38px;
+      background: rgba(255,255,255,0.92);
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #171717;
+      box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+    }
+
+    .nav-link {
+      color: #404040;
+      transition: color 0.15s ease;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .nav-link:hover {
+      color: #111111;
+    }
+
+    .minimal-footer {
+      border-top: 1px solid #f0f0f0;
+      padding-top: 28px;
+      padding-bottom: 28px;
+      font-size: 12px;
+      color: #737373;
+    }
+  </style>
+</head>
+<body class="bg-white text-[#111111] antialiased">
+  <!-- Header -->
+  <header class="border-b border-neutral-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-50">
+    <div class="max-w-[1080px] mx-auto px-6">
+      <div class="h-16 flex items-center justify-between">
+        <!-- Logo -->
+        <a href="/" class="flex items-center gap-x-2.5 group">
+          <div class="w-8 h-8 rounded-xl bg-[#111111] flex items-center justify-center">
+            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
+          </div>
+          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
+        </a>
+
+        <!-- Navigation -->
+        <nav class="hidden md:flex items-center gap-x-8">
+          <a href="/" class="nav-link">Home</a>
+          <a href="/vitals" class="nav-link">Vitals</a>
+          <a href="/golf" class="nav-link">Golf</a>
+          <a href="/clips" class="nav-link">Clips</a>
+          <a href="/blog" class="nav-link">Blog</a>
+        </nav>
+
+        <!-- Mobile nav -->
+        <div class="md:hidden">
+          <a href="/vitals" class="text-sm px-4 py-1.5 rounded-full border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition">Vitals</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1080px] mx-auto px-6 pt-12 pb-20">
+    <!-- Intro -->
+    <div class="mb-10">
+      <div class="max-w-xl">
+        <p class="text-[15px] text-neutral-600 leading-relaxed">
+          Daily signals, golf, and the occasional reflection.
+        </p>
+      </div>
+    </div>
+
+    <!-- Top Options: Vitals + Golf -->
+    <div class="top-options">
+      <!-- Vitals Card -->
+      <a href="/vitals" class="top-option group">
+        <div class="icon">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+          </svg>
+        </div>
+        <h3>Vitals</h3>
+        <p>Daily health metrics from my Oura Ring — readiness, sleep, HRV, and more.</p>
+      </a>
+
+      <!-- Golf Card -->
+      <a href="/golf" class="top-option group">
+        <div class="icon">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 18.75l.75-1.5M18 18.75l-.75-1.5" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.75 6.75l-1.5-.75M6.75 12l-1.5.75" />
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <h3>Golf</h3>
+        <p>Scores, rounds, and notes from the course.</p>
+      </a>
+    </div>
+
+    <!-- Live Now -->
+    <div class="content-section">
+      <div class="flex items-center justify-between mb-4">
+        <div class="section-label">Live Now</div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="placeholder-card p-7">
+          <div class="flex items-center gap-x-3 mb-3">
+            <i class="fa-solid fa-location-dot text-lg text-neutral-400"></i>
+            <span class="text-sm font-medium text-neutral-700">Location</span>
+          </div>
+          <div class="text-neutral-400 text-sm">—</div>
+        </div>
+        <div class="placeholder-card p-7">
+          <div class="flex items-center gap-x-3 mb-3">
+            <i class="fa-solid fa-clock text-lg text-neutral-400"></i>
+            <span class="text-sm font-medium text-neutral-700">Current Focus</span>
+          </div>
+          <div class="text-neutral-400 text-sm">—</div>
+        </div>
+        <div class="placeholder-card p-7 md:col-span-1">
+          <div class="text-sm text-neutral-400">More live signals coming soon.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Clips -->
+    <div class="content-section">
+      <div class="flex items-baseline justify-between mb-4">
+        <div class="section-label">Game Clips</div>
+        <a href="/clips" class="text-sm text-neutral-500 hover:text-neutral-900 transition flex items-center gap-x-1">
+          View all <span class="text-xs">→</span>
+        </a>
+      </div>
+
+      <div class="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory -mx-1 px-1 scrollbar-hide">
+        <!-- Placeholder clips -->
+        <div class="clip-card snap-start">
+          <div class="clip-thumb">
+            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
+            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">0:47</div>
+          </div>
+          <div class="p-3.5">
+            <div class="text-sm font-medium">Approach on 14</div>
+            <div class="text-xs text-neutral-500 mt-0.5">Myrtle Beach • Feb 12</div>
+          </div>
+        </div>
+
+        <div class="clip-card snap-start">
+          <div class="clip-thumb">
+            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
+            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">1:12</div>
+          </div>
+          <div class="p-3.5">
+            <div class="text-sm font-medium">Birdie putt on 7</div>
+            <div class="text-xs text-neutral-500 mt-0.5">Pinehurst • Jan 28</div>
+          </div>
+        </div>
+
+        <div class="clip-card snap-start">
+          <div class="clip-thumb">
+            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
+            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">0:31</div>
+          </div>
+          <div class="p-3.5">
+            <div class="text-sm font-medium">Drive on the 1st</div>
+            <div class="text-xs text-neutral-500 mt-0.5">Charleston • Jan 4</div>
+          </div>
+        </div>
+
+        <div class="clip-card snap-start">
+          <div class="clip-thumb">
+            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
+            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">2:04</div>
+          </div>
+          <div class="p-3.5">
+            <div class="text-sm font-medium">Full round highlight</div>
+            <div class="text-xs text-neutral-500 mt-0.5">Florida • Dec 19</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- From the Blog -->
+    <div class="content-section">
+      <div class="flex items-baseline justify-between mb-4">
+        <div class="section-label">From the Blog</div>
+        <a href="/blog" class="text-sm text-neutral-500 hover:text-neutral-900 transition flex items-center gap-x-1">
+          All posts <span class="text-xs">→</span>
+        </a>
+      </div>
+
+      <div class="space-y-5">
+        <a href="/blog" class="block group">
+          <div class="flex flex-col sm:flex-row sm:items-baseline gap-y-1 sm:gap-x-4">
+            <div class="text-[15px] font-medium group-hover:underline underline-offset-2 decoration-neutral-300">The quiet value of a consistent morning routine</div>
+            <div class="text-xs text-neutral-400 sm:whitespace-nowrap">Feb 2026</div>
+          </div>
+          <div class="mt-1 text-[13.5px] text-neutral-600 line-clamp-2">How protecting the first 90 minutes of the day changed how I move through everything else.</div>
+        </a>
+
+        <a href="/blog" class="block group">
+          <div class="flex flex-col sm:flex-row sm:items-baseline gap-y-1 sm:gap-x-4">
+            <div class="text-[15px] font-medium group-hover:underline underline-offset-2 decoration-neutral-300">What 14 days of Oura data taught me about recovery</div>
+            <div class="text-xs text-neutral-400 sm:whitespace-nowrap">Jan 2026</div>
+          </div>
+          <div class="mt-1 text-[13.5px] text-neutral-600 line-clamp-2">Patterns in HRV, temperature, and sleep that actually moved the needle on how I feel.</div>
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="max-w-[1080px] mx-auto px-6">
+    <div class="minimal-footer flex flex-col sm:flex-row sm:items-center justify-between gap-y-2 text-center sm:text-left">
+      <div>© HENDERBURGH</div>
+      <div class="text-[11px]">Personal site • Not a professional service</div>
+    </div>
+  </footer>
+
+  <script>
+    // Tailwind script configuration
+    function initTailwind() {
+      if (typeof tailwind !== 'undefined') {
+        tailwind.config = {
+          theme: {
+            extend: {
+              fontFamily: {
+                'display': ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif']
+              }
+            }
+          }
+        };
+      }
+    }
+
+    // Keyboard shortcut: press / to go to vitals (nice touch)
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '/' && document.activeElement.tagName === 'BODY') {
+        e.preventDefault();
+        window.location.href = '/vitals';
+      }
+    });
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', function() {
+      initTailwind();
+      // Optional: console hint
+      // console.log('%c[HENDERBURGH] Home ready — press / for Vitals', 'color:#a3a3a3');
+    });
+  </script>
+</body>
+</html>
