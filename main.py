@@ -36,10 +36,6 @@ DISPLAY_NAME = os.getenv("DISPLAY_NAME", "Dylan").strip() or "Dylan"
 SITE_NAME = os.getenv("SITE_NAME", "Henderburgh")
 SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
 
-# Home Assistant configuration (for Live Status)
-HA_URL = os.getenv("HA_URL", "").rstrip("/")
-HA_TOKEN = os.getenv("HA_TOKEN", "")
-
 # Longer cache in public mode to protect Oura API quota
 DEFAULT_CACHE_TTL = 600 if PUBLIC_MODE else 180  # 10 min public, 3 min local
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL))
@@ -57,11 +53,6 @@ if PUBLIC_MODE:
             "Set OURA_TOKEN as an environment variable on your hosting platform."
         )
     print(f"🌍 Running in PUBLIC_MODE for {SITE_URL} — token required, aggressive caching enabled.")
-
-    # Warn if HA_URL looks like a local/private address (common mistake)
-    if HA_URL and any(x in HA_URL for x in ["192.168.", "10.", "172.16.", "localhost", "127.0.0.1"]):
-        print("⚠️  WARNING: HA_URL appears to be a local/private address. "
-              "This will not work from Railway. Use a public URL (e.g. Cloudflare Tunnel) or leave blank.")
 else:
     if not OURA_TOKEN:
         print("⚠️  OURA_TOKEN not set. Dashboard will show setup instructions.")
@@ -90,56 +81,6 @@ rate_limiter = SimpleRateLimiter(
     max_requests=40 if PUBLIC_MODE else 120,
     window_seconds=60
 )
-
-# =============================================================================
-# Home Assistant Live Status Helper
-# =============================================================================
-def fetch_ha_sensor(entity_id: str) -> Dict[str, Any]:
-    """Fetch a single sensor state from Home Assistant.
-    Safely handles unreachable local HA instances from cloud deployments.
-    """
-    if not HA_URL or not HA_TOKEN:
-        return {"state": "unavailable", "attributes": {}}
-
-    # Safety check: don't try to reach private/local IPs from cloud (e.g. Railway)
-    if any(private in HA_URL for private in ["192.168.", "10.", "172.16.", "172.17.", "172.18.", "localhost", "127.0.0.1"]):
-        # Only allow in development (when not running in PUBLIC_MODE or on known cloud platforms)
-        if PUBLIC_MODE:
-            return {"state": "unavailable", "attributes": {}}
-
-    headers = {
-        "Authorization": f"Bearer {HA_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    url = f"{HA_URL}/api/states/{entity_id}"
-
-    try:
-        response = httpx.get(url, headers=headers, timeout=8.0)
-        if response.status_code == 200:
-            data = response.json()
-            return {
-                "state": data.get("state"),
-                "attributes": data.get("attributes", {}),
-                "last_changed": data.get("last_changed"),
-            }
-        return {"state": "unavailable", "attributes": {}}
-    except Exception:
-        return {"state": "unavailable", "attributes": {}}
-
-
-def get_live_status() -> Dict[str, Any]:
-    """Aggregate live status from Home Assistant sensors."""
-    weather = fetch_ha_sensor("weather.myrtle_beach")
-    steps = fetch_ha_sensor("sensor.iphone_steps")          # Adjust entity id as needed
-    battery = fetch_ha_sensor("sensor.iphone_battery_level") # Adjust entity id as needed
-    battery_state = fetch_ha_sensor("sensor.iphone_battery_state")
-
-    return {
-        "weather": weather,
-        "steps": steps,
-        "battery": battery,
-        "battery_state": battery_state,
-    }
 
 # =============================================================================
 # Oura Client
@@ -652,7 +593,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
             "site_name": SITE_NAME,
             "site_url": SITE_URL,
             "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
-            "live_status": get_live_status(),
         })
         return _render("dashboard.html", ctx)
     except Exception as e:
@@ -671,7 +611,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                     "name": DISPLAY_NAME,
                     "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
                     "hr_age_minutes": None,
-                    "live_status": None,
                 },
             )
         return _render(
@@ -683,7 +622,6 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "name": "there",
                 "display_name": DISPLAY_NAME,
                 "hr_age_minutes": None,
-                "live_status": None,
             },
         )
 
@@ -719,7 +657,6 @@ async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
             "error": None,
             "fragment": True,
             "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
-            "live_status": get_live_status(),
         })
         return _render("dashboard.html", ctx)
     except Exception as e:
