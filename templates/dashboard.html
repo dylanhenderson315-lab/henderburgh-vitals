@@ -322,7 +322,7 @@
           <div class="text-emerald-500 text-sm font-semibold tracking-[1.5px] uppercase">{{ display_name | upper }}'S DAILY VITALS</div>
           <div class="font-semibold text-5xl sm:text-6xl tracking-tighter font-display mt-1">From the Oura Ring</div>
           {% else %}
-          <div class="text-emerald-500 text-sm font-semibold tracking-wider">GOOD {{ greeting }}, {{ (display_name or (name.split()[0] if name else "THERE")) | upper }}.</div>
+          <div class="text-emerald-500 text-sm font-semibold tracking-wider">{{ time_greeting }}.</div>
           <div class="font-semibold text-6xl tracking-tighter font-display mt-1">Your vitals</div>
           {% endif %}
         </div>
@@ -509,7 +509,7 @@
                    data-timestamp="{{ latest_hr_timestamp or '' }}"
                    data-age-minutes="{{ hr_age_minutes or '' }}">
                 {% if hr_age_minutes is not none and hr_age_minutes > 15 %}
-                  Have Dylan open the Oura app for a fresh reading
+                  Have {{ display_name }} open the Oura app for a fresh reading
                 {% elif latest_hr_timestamp %}
                   updated {{ hr_age_minutes }}m ago
                 {% else %}

@@ -415,22 +415,31 @@ def process_dashboard_data(
     # Name - prefer DISPLAY_NAME env var over Oura's email-derived name (e.g. "neffyneffy412")
     name = DISPLAY_NAME or personal.get("name") or personal.get("email", "there").split("@")[0].title()
 
-    now = datetime.now(ZoneInfo("UTC"))
-    hour = now.hour
-    if hour < 5:
-        greeting = "NIGHT"
-    elif hour < 12:
-        greeting = "MORNING"
-    elif hour < 17:
-        greeting = "AFTERNOON"
+    # Time-based greeting for Henderburgh (local Eastern Time)
+    local_tz = ZoneInfo("America/New_York")
+    local_now = datetime.now(local_tz)
+    h = local_now.hour
+    m = local_now.minute
+    total_minutes = h * 60 + m
+
+    if 7 * 60 <= total_minutes < 8 * 60 + 30:
+        time_greeting = f"{DISPLAY_NAME} is waking up"
+    elif 8 * 60 + 30 <= total_minutes < 17 * 60:
+        time_greeting = f"{DISPLAY_NAME} is working"
+    elif 17 * 60 <= total_minutes < 22 * 60:
+        time_greeting = f"{DISPLAY_NAME} is relaxing"
+    elif 22 * 60 <= total_minutes < 24 * 60:
+        time_greeting = f"{DISPLAY_NAME} is getting ready for bed"
     else:
-        greeting = "EVENING"
+        time_greeting = f"{DISPLAY_NAME} is sleeping"
+
+    now = datetime.now(ZoneInfo("UTC"))
 
     return {
         "name": name,
         "last_updated": now.strftime("%b %d, %H:%M UTC"),
         "now": now,
-        "greeting": greeting,
+        "time_greeting": time_greeting,
         "days": days,
         "today": today,
 
@@ -643,6 +652,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "name": "there",
                 "display_name": DISPLAY_NAME,
                 "hr_age_minutes": None,
+                "time_greeting": f"{DISPLAY_NAME} is here",
             },
         )
 
