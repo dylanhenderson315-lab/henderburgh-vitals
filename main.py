@@ -32,7 +32,7 @@ OURA_BASE_URL = "https://api.ouraring.com/v2"
 
 # Public mode configuration (for henderburgh.com deployment)
 PUBLIC_MODE = os.getenv("PUBLIC_MODE", "false").lower() in ("1", "true", "yes")
-DISPLAY_NAME = os.getenv("DISPLAY_NAME", "Dylan").strip() or "Dylan"
+DISPLAY_NAME = os.getenv("DISPLAY_NAME", "Henderburgh").strip() or "Henderburgh"
 SITE_NAME = os.getenv("SITE_NAME", "Henderburgh")
 SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
 
@@ -398,8 +398,8 @@ def process_dashboard_data(
     steps = _safe_get(latest_activity, "steps")
     active_cal = _safe_get(latest_activity, "active_calories")
 
-    # Name
-    name = personal.get("name") or personal.get("email", "there").split("@")[0].title()
+    # Name - prefer DISPLAY_NAME env var over Oura's email-derived name (e.g. "neffyneffy412")
+    name = DISPLAY_NAME or personal.get("name") or personal.get("email", "there").split("@")[0].title()
 
     now = datetime.now(ZoneInfo("UTC"))
     hour = now.hour
