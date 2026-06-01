@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Golf • HENDERBURGH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+
+    body {
+      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #737373;
+      font-weight: 600;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .stat-card {
+      background: #fafafa;
+      border: 1px solid #f0f0f0;
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .distance-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .distance-table td:first-child {
+      font-weight: 500;
+      color: #171717;
+    }
+
+    .distance-table .distance-cell {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: #111;
+      min-width: 70px;
+    }
+
+    .distance-cell:focus {
+      outline: 2px solid #e5e5e5;
+      outline-offset: -2px;
+      background: #fff;
+      border-radius: 4px;
+    }
+
+    .round-card {
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: all 0.15s ease;
+    }
+
+    .round-card:hover {
+      border-color: #d4d4d4;
+    }
+
+    .form-input {
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus {
+      border-color: #a3a3a3;
+      outline: none;
+    }
+
+    .btn {
+      background: #111;
+      color: white;
+      font-weight: 500;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #222;
+    }
+    .btn-secondary {
+      background: white;
+      color: #111;
+      border: 1px solid #e5e5e5;
+    }
+    .btn-secondary:hover {
+      background: #f9f9f9;
+    }
+
+    .nav-link {
+      color: #404040;
+      transition: color 0.15s ease;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .nav-link:hover {
+      color: #111111;
+    }
+    .nav-link.active {
+      color: #111;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="bg-white text-[#111111] antialiased">
+  <!-- Header -->
+  <header class="border-b border-neutral-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-50">
+    <div class="max-w-[1080px] mx-auto px-6">
+      <div class="h-16 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-x-2.5 group">
+          <div class="w-8 h-8 rounded-xl bg-[#111111] flex items-center justify-center">
+            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
+          </div>
+          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-x-8">
+          <a href="/" class="nav-link">Home</a>
+          <a href="/vitals" class="nav-link">Vitals</a>
+          <a href="/golf" class="nav-link active">Golf</a>
+          <a href="/clips" class="nav-link">Clips</a>
+          <a href="/blog" class="nav-link">Blog</a>
+        </nav>
+
+        <div class="md:hidden">
+          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-neutral-200 text-neutral-700 hover:bg-neutral-50">← Home</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-20">
+    <!-- Page Title -->
+    <div class="mb-10">
+      <div class="flex items-center gap-x-3">
+        <div class="w-9 h-9 rounded-2xl bg-emerald-100 flex items-center justify-center">
+          <i class="fa-solid fa-golf-ball text-emerald-600 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-4xl font-semibold tracking-tighter">Golf</h1>
+          <p class="text-neutral-600 mt-1">Track your game. Improve your distances.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Club Distances -->
+    <div class="mb-12">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <div class="section-label">Club Distances</div>
+          <p class="text-sm text-neutral-600 mt-1">Average carry (yards). Click a number to edit.</p>
+        </div>
+        <button onclick="addNewClub()"
+                class="btn-secondary text-sm px-4 py-2 rounded-xl flex items-center gap-x-2">
+          <i class="fa-solid fa-plus"></i>
+          <span>Add Club</span>
+        </button>
+      </div>
+
+      <div class="card overflow-hidden">
+        <table class="w-full distance-table text-sm">
+          <thead>
+            <tr class="bg-neutral-50">
+              <th class="text-left px-5 py-3 font-medium text-neutral-600 w-1/2">Club</th>
+              <th class="text-left px-5 py-3 font-medium text-neutral-600">Distance (yards)</th>
+              <th class="w-10"></th>
+            </tr>
+          </thead>
+          <tbody id="clubs-table-body">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-neutral-400 mt-2 px-1">Changes save automatically to your browser.</p>
+    </div>
+
+    <!-- Log New Round -->
+    <div class="mb-12">
+      <div class="section-label mb-4">Log New Round</div>
+      
+      <div class="card p-6">
+        <form id="round-form" onsubmit="saveRound(event)" class="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-5">
+          <div>
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Date</label>
+            <input type="date" id="round-date" class="form-input w-full" required>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Course</label>
+            <input type="text" id="round-course" class="form-input w-full" placeholder="e.g. Pinehurst No. 2" required>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Total Score</label>
+            <input type="number" id="round-score" class="form-input w-full" placeholder="78" required min="50" max="150">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Fairways Hit</label>
+            <input type="number" id="round-fairways" class="form-input w-full" placeholder="9" min="0" max="18">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Greens in Regulation</label>
+            <input type="number" id="round-gir" class="form-input w-full" placeholder="11" min="0" max="18">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Total Putts</label>
+            <input type="number" id="round-putts" class="form-input w-full" placeholder="29" min="0" max="60">
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Notes (optional)</label>
+            <textarea id="round-notes" rows="2" class="form-input w-full" placeholder="Hit driver well today..."></textarea>
+          </div>
+
+          <div class="md:col-span-2 flex justify-end">
+            <button type="submit" 
+                    class="btn flex items-center gap-x-2">
+              <i class="fa-solid fa-save"></i>
+              <span>Save Round</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Stats + Recent Rounds -->
+    <div>
+      <div class="section-label mb-4">Stats &amp; Recent Rounds</div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="stat-card">
+          <div class="text-xs text-neutral-500">Total Rounds</div>
+          <div id="stat-total" class="text-3xl font-semibold mt-1 tabular-nums">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-neutral-500">Average Score</div>
+          <div id="stat-average" class="text-3xl font-semibold mt-1 tabular-nums">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-neutral-500">Best Score</div>
+          <div id="stat-best" class="text-3xl font-semibold mt-1 tabular-nums">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="text-xs text-neutral-500">Avg Putts</div>
+          <div id="stat-putts" class="text-3xl font-semibold mt-1 tabular-nums">—</div>
+        </div>
+      </div>
+
+      <!-- Recent Rounds -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4 px-1">
+          <div class="font-medium">Recent Rounds</div>
+          <button onclick="clearAllRounds()" 
+                  class="text-xs text-red-500 hover:text-red-600 px-3 py-1">Clear all</button>
+        </div>
+
+        <div id="rounds-list" class="space-y-3">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <div id="no-rounds" class="hidden text-center py-6 text-neutral-400 text-sm">
+          No rounds logged yet. Add your first round above.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="max-w-[1080px] mx-auto px-6 pb-10">
+    <div class="border-t border-neutral-100 pt-6 text-xs text-neutral-400 text-center">
+      Data stored locally in your browser • HENDERBURGH Golf
+    </div>
+  </footer>
+
+  <script>
+    // ==================== DATA MODELS ====================
+    let clubs = [];
+    let rounds = [];
+
+    const DEFAULT_CLUBS = [
+      { name: "Driver", distance: 245 },
+      { name: "3 Wood", distance: 220 },
+      { name: "5 Wood", distance: 200 },
+      { name: "4 Iron", distance: 185 },
+      { name: "5 Iron", distance: 175 },
+      { name: "6 Iron", distance: 165 },
+      { name: "7 Iron", distance: 155 },
+      { name: "8 Iron", distance: 145 },
+      { name: "9 Iron", distance: 135 },
+      { name: "PW", distance: 125 },
+      { name: "GW", distance: 110 },
+      { name: "SW", distance: 90 },
+    ];
+
+    // ==================== STORAGE ====================
+    function loadData() {
+      const savedClubs = localStorage.getItem('henderburgh_golf_clubs');
+      if (savedClubs) {
+        clubs = JSON.parse(savedClubs);
+      } else {
+        clubs = [...DEFAULT_CLUBS];
+        saveClubs();
+      }
+
+      const savedRounds = localStorage.getItem('henderburgh_golf_rounds');
+      if (savedRounds) {
+        rounds = JSON.parse(savedRounds);
+      } else {
+        rounds = [];
+      }
+    }
+
+    function saveClubs() {
+      localStorage.setItem('henderburgh_golf_clubs', JSON.stringify(clubs));
+    }
+
+    function saveRounds() {
+      localStorage.setItem('henderburgh_golf_rounds', JSON.stringify(rounds));
+    }
+
+    // ==================== CLUBS TABLE ====================
+    function renderClubsTable() {
+      const tbody = document.getElementById('clubs-table-body');
+      tbody.innerHTML = '';
+
+      clubs.forEach((club, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-5 py-3 font-medium">${club.name}</td>
+          <td>
+            <span 
+              class="distance-cell px-3 py-1 inline-block cursor-text rounded"
+              contenteditable="true"
+              data-index="${index}"
+            >${club.distance}</span>
+            <span class="text-neutral-400 text-xs ml-1">yds</span>
+          </td>
+          <td class="text-right pr-4">
+            <button onclick="deleteClub(${index})" 
+                    class="text-neutral-300 hover:text-red-500 text-lg leading-none px-2">×</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Attach editable listeners
+      const cells = tbody.querySelectorAll('.distance-cell');
+      cells.forEach(cell => {
+        cell.addEventListener('blur', () => {
+          const index = parseInt(cell.dataset.index);
+          let val = parseInt(cell.textContent.trim());
+          if (isNaN(val) || val < 0) val = 0;
+          clubs[index].distance = val;
+          saveClubs();
+          // Refresh the number (in case user typed letters)
+          cell.textContent = val;
+        });
+
+        cell.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            cell.blur();
+          }
+        });
+      });
+    }
+
+    function addNewClub() {
+      const name = prompt("Club name (e.g. 3 Hybrid):");
+      if (!name || name.trim() === '') return;
+
+      const distanceStr = prompt("Average distance in yards:");
+      const distance = parseInt(distanceStr) || 150;
+
+      clubs.push({ name: name.trim(), distance });
+      saveClubs();
+      renderClubsTable();
+    }
+
+    function deleteClub(index) {
+      if (!confirm(`Remove ${clubs[index].name}?`)) return;
+      clubs.splice(index, 1);
+      saveClubs();
+      renderClubsTable();
+    }
+
+    // ==================== ROUNDS ====================
+    function saveRound(e) {
+      e.preventDefault();
+
+      const newRound = {
+        id: Date.now(),
+        date: document.getElementById('round-date').value,
+        course: document.getElementById('round-course').value.trim(),
+        score: parseInt(document.getElementById('round-score').value),
+        fairways: parseInt(document.getElementById('round-fairways').value) || 0,
+        gir: parseInt(document.getElementById('round-gir').value) || 0,
+        putts: parseInt(document.getElementById('round-putts').value) || 0,
+        notes: document.getElementById('round-notes').value.trim()
+      };
+
+      rounds.unshift(newRound); // newest first
+      saveRounds();
+
+      // Clear form
+      document.getElementById('round-form').reset();
+      // Set today's date again
+      document.getElementById('round-date').value = new Date().toISOString().split('T')[0];
+
+      renderEverything();
+    }
+
+    function deleteRound(id) {
+      if (!confirm("Delete this round?")) return;
+      rounds = rounds.filter(r => r.id !== id);
+      saveRounds();
+      renderEverything();
+    }
+
+    function clearAllRounds() {
+      if (!confirm("Delete ALL rounds? This cannot be undone.")) return;
+      rounds = [];
+      saveRounds();
+      renderEverything();
+    }
+
+    function renderStats() {
+      const total = rounds.length;
+      document.getElementById('stat-total').textContent = total;
+
+      if (total === 0) {
+        document.getElementById('stat-average').textContent = '—';
+        document.getElementById('stat-best').textContent = '—';
+        document.getElementById('stat-putts').textContent = '—';
+        return;
+      }
+
+      const scores = rounds.map(r => r.score);
+      const avg = (scores.reduce((a, b) => a + b, 0) / total).toFixed(1);
+      const best = Math.min(...scores);
+
+      document.getElementById('stat-average').textContent = avg;
+      document.getElementById('stat-best').textContent = best;
+
+      const puttsRounds = rounds.filter(r => r.putts > 0);
+      if (puttsRounds.length > 0) {
+        const avgPutts = (puttsRounds.reduce((a, b) => a + b.putts, 0) / puttsRounds.length).toFixed(1);
+        document.getElementById('stat-putts').textContent = avgPutts;
+      } else {
+        document.getElementById('stat-putts').textContent = '—';
+      }
+    }
+
+    function renderRoundsList() {
+      const container = document.getElementById('rounds-list');
+      const noRounds = document.getElementById('no-rounds');
+
+      container.innerHTML = '';
+
+      if (rounds.length === 0) {
+        noRounds.classList.remove('hidden');
+        return;
+      } else {
+        noRounds.classList.add('hidden');
+      }
+
+      const recent = rounds.slice(0, 8); // show last 8
+
+      recent.forEach(round => {
+        const div = document.createElement('div');
+        div.className = `round-card flex flex-col sm:flex-row sm:items-center justify-between gap-y-2`;
+
+        let meta = '';
+        if (round.fairways || round.gir || round.putts) {
+          const parts = [];
+          if (round.fairways) parts.push(`${round.fairways} FW`);
+          if (round.gir) parts.push(`${round.gir} GIR`);
+          if (round.putts) parts.push(`${round.putts} putts`);
+          meta = `<span class="text-xs text-neutral-500">${parts.join(' • ')}</span>`;
+        }
+
+        div.innerHTML = `
+          <div class="flex-1">
+            <div class="flex items-center gap-x-3">
+              <div class="font-semibold">${round.score}</div>
+              <div>
+                <div class="font-medium">${round.course}</div>
+                <div class="text-xs text-neutral-500">${round.date}</div>
+              </div>
+            </div>
+            ${meta ? `<div class="mt-1">${meta}</div>` : ''}
+            ${round.notes ? `<div class="text-xs text-neutral-500 mt-1 italic">"${round.notes}"</div>` : ''}
+          </div>
+          <button onclick="deleteRound(${round.id})" 
+                  class="text-red-300 hover:text-red-500 text-xl leading-none px-2 self-start sm:self-center">×</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderEverything() {
+      renderClubsTable();
+      renderStats();
+      renderRoundsList();
+    }
+
+    // ==================== INIT ====================
+    function initGolfPage() {
+      loadData();
+
+      // Set today's date in the form by default
+      const dateInput = document.getElementById('round-date');
+      if (!dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+      }
+
+      renderEverything();
+
+      // Keyboard hint
+      console.log('%c[HENDERBURGH Golf] Data saved to localStorage', 'color:#a3a3a3');
+    }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', initGolfPage);
+  </script>
+</body>
+</html>

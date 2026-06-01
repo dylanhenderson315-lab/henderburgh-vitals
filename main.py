@@ -913,7 +913,9 @@ def _placeholder_page(title: str, description: str = "") -> HTMLResponse:
 
 @app.get("/golf", response_class=HTMLResponse)
 async def golf_page():
-    return _placeholder_page("Golf", "Rounds, scores, and course notes.")
+    return _render("golf.html", {
+        "request": None,
+    })
 
 
 @app.get("/clips", response_class=HTMLResponse)
