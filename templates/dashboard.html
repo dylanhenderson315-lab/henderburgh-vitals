@@ -427,11 +427,22 @@
         </div>
       </div>
 
-      <!-- Simple Weather (client-side, accurate Fahrenheit) -->
-      <div class="mb-6 text-center text-sm text-zinc-400">
-        <span id="weather-temp" class="font-semibold text-white text-lg">--°F</span>
-        <span id="weather-desc" class="mx-2"></span>
-        <span class="text-xs">(Myrtle Beach • updates every 10 min)</span>
+      <!-- Weather -->
+      <div class="mb-6 flex flex-wrap items-center justify-center gap-x-4 text-sm text-zinc-400">
+        <span id="weather-temp" class="font-semibold text-white text-2xl tabular-nums">--°F</span>
+        <span id="weather-desc" class="font-medium"></span>
+        <span class="text-xs">
+          Feels like <span id="weather-feels" class="font-semibold text-white">--</span>°F
+          • Wind <span id="weather-wind" class="font-semibold text-white">--</span> mph
+        </span>
+        <span id="weather-updated" class="text-xs opacity-60">(Myrtle Beach • updates every 10 min)</span>
+      </div>
+
+      <!-- Today's Steps from Oura -->
+      <div class="mb-8 text-center">
+        <div class="text-sm font-medium text-zinc-400 tracking-wider mb-1">TODAY'S STEPS (from Oura Ring)</div>
+        <div class="text-5xl font-bold tabular-nums text-white">{{ steps or "—" }}</div>
+        <div class="text-xs text-zinc-400 mt-1">Goal progress shown in Activity card above</div>
       </div>
 
       <!-- Metric Cards Grid -->
