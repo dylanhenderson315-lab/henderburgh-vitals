@@ -891,22 +891,35 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # Try to get basic profile first
-            url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
-            response = await client.get(url, headers=headers, timeout=10)
+            # First, verify the key works by getting basic account info
+            account_url = "https://xbl.io/api/v2/account"
+            account_res = await client.get(account_url, headers=headers, timeout=10)
 
-            # Log what xbl.io actually returned (very useful for debugging)
-            print("xbl.io response:", response.status_code, response.text)
+            # Log for debugging
+            print("xbl.io account response:", account_res.status_code, account_res.text)
 
-            if response.status_code != 200:
+            if account_res.status_code != 200:
                 return {
-                    "error": "xbl.io error",
-                    "status_code": response.status_code,
-                    "detail": response.text
+                    "error": "xbl.io authentication failed",
+                    "status_code": account_res.status_code,
+                    "detail": account_res.text
                 }
 
-            data = response.json()
-            return data
+            # If account works, try to get presence
+            presence_url = f"https://xbl.io/api/v2/presence/{XBL_GAMERTAG}"
+            presence_res = await client.get(presence_url, headers=headers, timeout=10)
+
+            # Log for debugging
+            print("xbl.io presence response:", presence_res.status_code, presence_res.text)
+
+            if presence_res.status_code != 200:
+                return {
+                    "error": "Failed to get presence",
+                    "status_code": presence_res.status_code,
+                    "detail": presence_res.text
+                }
+
+            return presence_res.json()
 
         except Exception as e:
             return {"error": str(e)}
