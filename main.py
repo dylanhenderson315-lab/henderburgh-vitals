@@ -54,6 +54,9 @@ AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "180" if PUBLIC_MOD
 XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
 
+# In-memory cache for last successful Xbox status (survives between requests in the same process)
+last_xbox_status = {"status": "unavailable", "state": "Unknown", "game": "—"}
+
 if PUBLIC_MODE:
     if not OURA_TOKEN:
         raise RuntimeError(
@@ -884,6 +887,7 @@ async def health():
 
 @app.get("/api/xbox/status")
 async def get_xbox_status():
+    global last_xbox_status
     headers = {
         "X-Authorization": XBL_API_KEY,
         "Accept": "application/json"
@@ -891,36 +895,32 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # Step 1: Verify key + get profile
+            # Try to get fresh data
             profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
             profile_res = await client.get(profile_url, headers=headers, timeout=8)
 
-            if profile_res.status_code != 200:
-                return {"status": "error", "message": f"xbl.io error {profile_res.status_code}"}
+            if profile_res.status_code == 200:
+                profile = profile_res.json()
+                xuid = profile.get("xuid")
 
-            profile = profile_res.json()
-            xuid = profile.get("xuid")
+                presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
+                presence_res = await client.get(presence_url, headers=headers, timeout=8)
 
-            # Step 2: Get presence
-            presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
-            presence_res = await client.get(presence_url, headers=headers, timeout=8)
+                if presence_res.status_code == 200:
+                    presence = presence_res.json()
+                    last_xbox_status = {
+                        "status": "ok",
+                        "state": presence.get("state", "Online"),
+                        "game": presence.get("lastSeenTitle", "—")
+                    }
+                    return last_xbox_status
 
-            if presence_res.status_code == 200:
-                presence = presence_res.json()
-                return {
-                    "status": "ok",
-                    "state": presence.get("state", "Online"),
-                    "game": presence.get("lastSeenTitle", "—")
-                }
-            else:
-                return {
-                    "status": "ok",
-                    "state": "Online",
-                    "game": "—"
-                }
+            # If we reach here, something failed — return last known good data
+            return last_xbox_status
 
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+        except Exception:
+            # On any error, return last known good data
+            return last_xbox_status
 
 
 # =============================================================================
