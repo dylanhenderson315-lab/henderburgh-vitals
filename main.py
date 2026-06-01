@@ -57,6 +57,11 @@ if PUBLIC_MODE:
             "Set OURA_TOKEN as an environment variable on your hosting platform."
         )
     print(f"🌍 Running in PUBLIC_MODE for {SITE_URL} — token required, aggressive caching enabled.")
+
+    # Warn if HA_URL looks like a local/private address (common mistake)
+    if HA_URL and any(x in HA_URL for x in ["192.168.", "10.", "172.16.", "localhost", "127.0.0.1"]):
+        print("⚠️  WARNING: HA_URL appears to be a local/private address. "
+              "This will not work from Railway. Use a public URL (e.g. Cloudflare Tunnel) or leave blank.")
 else:
     if not OURA_TOKEN:
         print("⚠️  OURA_TOKEN not set. Dashboard will show setup instructions.")
@@ -90,9 +95,17 @@ rate_limiter = SimpleRateLimiter(
 # Home Assistant Live Status Helper
 # =============================================================================
 def fetch_ha_sensor(entity_id: str) -> Dict[str, Any]:
-    """Fetch a single sensor state from Home Assistant."""
+    """Fetch a single sensor state from Home Assistant.
+    Safely handles unreachable local HA instances from cloud deployments.
+    """
     if not HA_URL or not HA_TOKEN:
         return {"state": "unavailable", "attributes": {}}
+
+    # Safety check: don't try to reach private/local IPs from cloud (e.g. Railway)
+    if any(private in HA_URL for private in ["192.168.", "10.", "172.16.", "172.17.", "172.18.", "localhost", "127.0.0.1"]):
+        # Only allow in development (when not running in PUBLIC_MODE or on known cloud platforms)
+        if PUBLIC_MODE:
+            return {"state": "unavailable", "attributes": {}}
 
     headers = {
         "Authorization": f"Bearer {HA_TOKEN}",
@@ -101,7 +114,7 @@ def fetch_ha_sensor(entity_id: str) -> Dict[str, Any]:
     url = f"{HA_URL}/api/states/{entity_id}"
 
     try:
-        response = httpx.get(url, headers=headers, timeout=10.0)
+        response = httpx.get(url, headers=headers, timeout=8.0)
         if response.status_code == 200:
             data = response.json()
             return {
