@@ -713,6 +713,13 @@ async def home(request: Request):
         "updated_ago": hr_updated_ago,
     }
 
+    # Load real recent messages from the message board for the blog teaser
+    try:
+        all_messages = load_messages()
+        recent_messages = all_messages[:3]  # Show latest 3
+    except Exception:
+        recent_messages = []
+
     return _render("home.html", {
         "request": request,
         "public_mode": PUBLIC_MODE,
@@ -720,6 +727,7 @@ async def home(request: Request):
         "display_name": DISPLAY_NAME,
         "steps": steps_ctx,
         "heart_rate": hr_ctx,
+        "recent_messages": recent_messages,
     })
 
 
