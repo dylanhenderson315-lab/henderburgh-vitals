@@ -675,15 +675,17 @@ async def home(request: Request):
             steps = processed.get("steps")
             latest_hr = processed.get("latest_hr")
             hr_age_minutes = processed.get("hr_age_minutes")
+            latest_hr_timestamp = processed.get("latest_hr_timestamp")
 
         except Exception:
             # If anything fails, fall back to None (will show placeholders)
+            latest_hr_timestamp = None
             pass
 
     # Prepare clean context for the homepage
     steps_ctx = {
         "count": steps,
-        "miles": round(steps * 0.0005, 1) if steps else None,
+        "miles": round(steps * 0.0005, 1) if steps is not None else None,
     }
 
     # Format heart rate time the same way the vitals page intends
