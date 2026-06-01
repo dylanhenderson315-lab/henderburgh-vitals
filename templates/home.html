@@ -322,29 +322,15 @@
         <!-- Heart Rate -->
         <div class="live-card">
           <h3>Heart Rate</h3>
-          <p class="big-number"><strong>{{ heart_rate.bpm or '--' }} bpm</strong></p>
-          <p class="text-xs text-neutral-500 mt-1">
-            {% if heart_rate.age_minutes is not none and heart_rate.age_minutes > 15 %}
-              HENDERBURGH: OPEN OURA FOR FRESH HR
-            {% elif heart_rate.age_minutes is not none %}
-              updated {{ heart_rate.age_minutes }}m ago
-            {% else %}
-              Most recent reading
-            {% endif %}
-          </p>
+          <p class="big-number">{{ heart_rate.bpm or '--' }} bpm</p>
+          <p>Updated {{ heart_rate.updated_ago or 'recently' }}</p>
         </div>
 
         <!-- Steps (from Oura) -->
         <div class="live-card">
           <h3>Steps</h3>
-          <div id="steps-value">
-            <p class="big-number"><span id="steps-count">{{ steps.count or '--' }}</span> steps</p>
-            <p id="steps-miles">{{ '%.1f' % (steps.miles or 0) if steps.miles is not none else '--' }} miles</p>
-          </div>
-          <p class="comparison" id="steps-comparison">
-            • {{ (steps.count // 150) if steps.count else 0 }} football fields &nbsp;
-            • {{ (steps.count // 80) if steps.count else 0 }} city blocks
-          </p>
+          <p class="big-number">{{ steps.count or '--' }} steps</p>
+          <p>{{ '%.1f' % (steps.miles or 0) if steps.miles is not none else '--' }} miles</p>
           <p><a href="/vitals">Full details on Vitals page →</a></p>
         </div>
 

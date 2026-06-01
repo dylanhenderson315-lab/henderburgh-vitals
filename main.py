@@ -686,9 +686,24 @@ async def home(request: Request):
         "miles": round(steps * 0.0005, 1) if steps else None,
     }
 
+    # Format heart rate time the same way the vitals page intends
+    hr_updated_ago = "recently"
+    if latest_hr_timestamp and hr_age_minutes is not None:
+        try:
+            ts = datetime.fromisoformat(latest_hr_timestamp.replace("Z", "+00:00"))
+            local_tz = ZoneInfo("America/New_York")
+            local_time = ts.astimezone(local_tz)
+
+            if hr_age_minutes < 60:
+                hr_updated_ago = f"updated {hr_age_minutes}m ago"
+            else:
+                hr_updated_ago = local_time.strftime("updated at %-I:%M %p").replace(" 0", " ")
+        except Exception:
+            hr_updated_ago = "recently"
+
     hr_ctx = {
         "bpm": latest_hr,
-        "age_minutes": hr_age_minutes,
+        "updated_ago": hr_updated_ago,
     }
 
     return _render("home.html", {
