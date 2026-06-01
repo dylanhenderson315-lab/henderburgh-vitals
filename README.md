@@ -107,8 +107,8 @@ Create a `.env.production` (never commit real secrets):
 
 ```env
 PUBLIC_MODE=true
-DISPLAY_NAME=Henderburgh
-SITE_NAME=Henderburgh
+DISPLAY_NAME=HENDERBURGH
+SITE_NAME=HENDERBURGH
 SITE_URL=https://henderburgh.com
 OURA_DAYS=14
 CACHE_TTL_SECONDS=600          # 10 minutes — protects your Oura quota
@@ -122,8 +122,8 @@ CACHE_TTL_SECONDS=600          # 10 minutes — protects your Oura quota
 4. In the project **Variables** tab, add:
    - `OURA_TOKEN` = your real token (mark as secret)
    - `PUBLIC_MODE` = `true`
-   - `DISPLAY_NAME` = `Henderburgh`
-   - `SITE_NAME` = `Henderburgh`
+   - `DISPLAY_NAME` = `HENDERBURGH`
+   - `SITE_NAME` = `HENDERBURGH`
    - `SITE_URL` = `https://henderburgh.com`
 5. Railway gives you a temporary `.railway.app` URL. Test it.
 

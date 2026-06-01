@@ -32,8 +32,9 @@ OURA_BASE_URL = "https://api.ouraring.com/v2"
 
 # Public mode configuration (for henderburgh.com deployment)
 PUBLIC_MODE = os.getenv("PUBLIC_MODE", "false").lower() in ("1", "true", "yes")
-DISPLAY_NAME = os.getenv("DISPLAY_NAME", "Henderburgh").strip() or "Henderburgh"
-SITE_NAME = os.getenv("SITE_NAME", "Henderburgh")
+# Always uppercase HENDERBURGH for consistent all-caps branding across the site
+DISPLAY_NAME = (os.getenv("DISPLAY_NAME", "HENDERBURGH").strip() or "HENDERBURGH").upper()
+SITE_NAME = (os.getenv("SITE_NAME", "HENDERBURGH").strip() or "HENDERBURGH").upper()
 SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
 
 # Longer cache in public mode to protect Oura API quota
@@ -412,10 +413,10 @@ def process_dashboard_data(
     steps = _safe_get(latest_activity, "steps")
     active_cal = _safe_get(latest_activity, "active_calories")
 
-    # Name - prefer DISPLAY_NAME env var over Oura's email-derived name (e.g. "neffyneffy412")
-    name = DISPLAY_NAME or personal.get("name") or personal.get("email", "there").split("@")[0].title()
+    # Name (upper for branding consistency; greeting phrases hardcode HENDERBURGH)
+    name = DISPLAY_NAME or (personal.get("name") or personal.get("email", "there").split("@")[0]).upper()
 
-    # Time-based greeting for Henderburgh (local Eastern Time)
+    # Time-based greeting — always HENDERBURGH in ALL CAPS (Eastern Time)
     local_tz = ZoneInfo("America/New_York")
     local_now = datetime.now(local_tz)
     h = local_now.hour
@@ -423,15 +424,15 @@ def process_dashboard_data(
     total_minutes = h * 60 + m
 
     if 7 * 60 <= total_minutes < 8 * 60 + 30:
-        time_greeting = f"{DISPLAY_NAME} is waking up"
+        time_greeting = "HENDERBURGH IS WAKING UP."
     elif 8 * 60 + 30 <= total_minutes < 17 * 60:
-        time_greeting = f"{DISPLAY_NAME} is working"
+        time_greeting = "HENDERBURGH IS WORKING."
     elif 17 * 60 <= total_minutes < 22 * 60:
-        time_greeting = f"{DISPLAY_NAME} is relaxing"
+        time_greeting = "HENDERBURGH IS RELAXING."
     elif 22 * 60 <= total_minutes < 24 * 60:
-        time_greeting = f"{DISPLAY_NAME} is getting ready for bed"
+        time_greeting = "HENDERBURGH IS GETTING READY FOR BED."
     else:
-        time_greeting = f"{DISPLAY_NAME} is sleeping"
+        time_greeting = "HENDERBURGH IS SLEEPING."
 
     now = datetime.now(ZoneInfo("UTC"))
 
@@ -652,7 +653,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
                 "name": "there",
                 "display_name": DISPLAY_NAME,
                 "hr_age_minutes": None,
-                "time_greeting": f"{DISPLAY_NAME} is here",
+                "time_greeting": "HENDERBURGH IS HERE.",
             },
         )
 
