@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -555,7 +555,11 @@ def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, days: int = OURA_DAYS):
-    # In public mode, always use a fixed recent period (14 days) for simplicity
+    # Force clean URLs in public mode — redirect away from any ?days= param
+    if PUBLIC_MODE and request.query_params.get("days"):
+        return RedirectResponse(url="/", status_code=302)
+
+    # Always use fixed 14-day window in public mode
     if PUBLIC_MODE:
         days = 14
     # Basic rate limiting in public mode
@@ -645,7 +649,7 @@ async def dashboard(request: Request, days: int = OURA_DAYS):
 
 @app.get("/fragment", response_class=HTMLResponse)
 async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
-    # In public mode, always use a fixed recent period
+    # Always ignore ?days= in public mode for clean URLs
     if PUBLIC_MODE:
         days = 14
     """HTMX target — disabled in public mode to protect API quota."""

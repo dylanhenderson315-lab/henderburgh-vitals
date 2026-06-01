@@ -245,7 +245,7 @@
         </div>
 
         <div class="pt-2">
-          <button onclick="window.location.reload()"
+          <button onclick="window.location.href = window.location.origin + window.location.pathname"
                   class="w-full py-3.5 bg-white text-zinc-900 light:bg-zinc-900 light:text-white font-semibold rounded-2xl hover:bg-zinc-100 light:hover:bg-zinc-800 transition-all active:scale-[0.985]">
             I've added the token — Reload dashboard
           </button>
@@ -304,7 +304,7 @@
         <div>
           <div class="font-semibold">Failed to load Oura data</div>
           <div class="text-sm mt-1 opacity-90">{{ error }}</div>
-          <button onclick="window.location.reload()" 
+          <button onclick="window.location.href = window.location.origin + window.location.pathname" 
                   class="mt-3 text-xs px-4 py-1.5 bg-red-900/60 hover:bg-red-900/80 rounded-2xl font-medium transition-colors">
             Try again
           </button>
@@ -902,7 +902,7 @@
     document.addEventListener('keydown', function(e) {
       if (e.key === '/' && document.activeElement.tagName === 'BODY') {
         e.preventDefault();
-        window.location.reload();
+        window.location.href = window.location.origin + window.location.pathname;
       }
     });
 
@@ -1010,8 +1010,8 @@
           refreshTimer = setInterval(() => {
             // Only refresh if the page is visible (saves API calls)
             if (document.visibilityState === 'visible') {
-              // No more manual refresh button — always do full reload for simplicity
-              window.location.reload();
+              // Always reload to the clean root URL (no query params)
+              window.location.href = window.location.origin + window.location.pathname;
             }
           }, autoRefreshSeconds * 1000);
         }
