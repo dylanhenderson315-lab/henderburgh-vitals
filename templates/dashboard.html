@@ -914,12 +914,15 @@
       }
     }
 
-    // Re-initialize charts when HTMX swaps content
+    // Re-initialize charts + weather when HTMX swaps the main content
     document.body.addEventListener('htmx:afterSwap', function(evt) {
       if (evt.detail.target.id === 'main-content' || evt.detail.target.id === 'hrvChart' || evt.detail.target.id === 'sleepChart') {
         // Small delay to allow DOM to settle
         setTimeout(() => {
           createCharts();
+          if (typeof updateWeather === 'function') {
+            updateWeather();  // re-fetch fresh weather after HTMX replace
+          }
         }, 30);
       }
     });
@@ -943,6 +946,59 @@
       return h < 24 ? `${h}h ago` : null;
     }
 
+    // === Live Weather (Myrtle Beach) - defined globally so it can be called after HTMX swaps ===
+    async function updateWeather() {
+      const lat = 33.6890;
+      const lon = -78.8867;
+
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York`;
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const current = data.current;
+
+        const temp = Math.round(current.temperature_2m);
+        const feels = Math.round(current.apparent_temperature);
+        const wind = Math.round(current.wind_speed_10m);
+
+        // Simple weather code mapping
+        const code = current.weather_code;
+        let desc = "Clear";
+        if (code >= 1 && code <= 3) desc = "Partly Cloudy";
+        else if (code >= 45 && code <= 48) desc = "Fog";
+        else if (code >= 51 && code <= 67) desc = "Rain";
+        else if (code >= 71 && code <= 77) desc = "Snow";
+        else if (code >= 80 && code <= 82) desc = "Showers";
+        else if (code >= 85 && code <= 86) desc = "Snow Showers";
+        else if (code === 95) desc = "Thunderstorm";
+
+        const tempEl = document.getElementById("weather-temp");
+        const descEl = document.getElementById("weather-desc");
+        const feelsEl = document.getElementById("weather-feels");
+        const windEl = document.getElementById("weather-wind");
+        const updatedEl = document.getElementById("weather-updated");
+
+        if (tempEl) tempEl.textContent = `${temp}°F`;
+        if (descEl) descEl.textContent = desc;
+        if (feelsEl) feelsEl.textContent = feels;
+        if (windEl) windEl.textContent = `${wind} mph`;
+
+        if (updatedEl) {
+          const now = new Date();
+          updatedEl.textContent = `Updated ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+        }
+
+      } catch (e) {
+        const tempEl = document.getElementById("weather-temp");
+        const descEl = document.getElementById("weather-desc");
+        const updatedEl = document.getElementById("weather-updated");
+        if (tempEl) tempEl.textContent = "—";
+        if (descEl) descEl.textContent = "Unable to load weather";
+        if (updatedEl) updatedEl.textContent = "(Myrtle Beach • check connection)";
+      }
+    }
+
     // Boot
     function boot() {
       initTailwind();
@@ -961,52 +1017,6 @@
           if (rel) timeEl.textContent = `updated ${rel}`;
         }
       })();
-
-      // === Live Weather (Myrtle Beach) ===
-      async function updateWeather() {
-        const lat = 33.6890;
-        const lon = -78.8867;
-
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York`;
-
-        try {
-          const res = await fetch(url);
-          const data = await res.json();
-          const current = data.current;
-
-          const temp = Math.round(current.temperature_2m);
-          const feels = Math.round(current.apparent_temperature);
-          const wind = Math.round(current.wind_speed_10m);
-
-          // Simple weather code mapping
-          const code = current.weather_code;
-          let desc = "Clear";
-          if (code >= 1 && code <= 3) desc = "Partly Cloudy";
-          else if (code >= 45 && code <= 48) desc = "Fog";
-          else if (code >= 51 && code <= 67) desc = "Rain";
-          else if (code >= 71 && code <= 77) desc = "Snow";
-          else if (code >= 80 && code <= 82) desc = "Showers";
-          else if (code >= 85 && code <= 86) desc = "Snow Showers";
-          else if (code === 95) desc = "Thunderstorm";
-
-          document.getElementById("weather-temp").textContent = `${temp}°F`;
-          document.getElementById("weather-desc").textContent = desc;
-          document.getElementById("weather-feels").textContent = feels;
-          document.getElementById("weather-wind").textContent = `${wind} mph`;
-
-          const now = new Date();
-          document.getElementById("weather-updated").textContent = 
-            `Updated ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-
-        } catch (e) {
-          const tempEl = document.getElementById("weather-temp");
-          const descEl = document.getElementById("weather-desc");
-          if (tempEl) tempEl.textContent = "—";
-          if (descEl) descEl.textContent = "Unable to load weather";
-          const updatedEl = document.getElementById("weather-updated");
-          if (updatedEl) updatedEl.textContent = "(Myrtle Beach • check connection)";
-        }
-      }
 
       // Initial load + refresh every 10 minutes
       updateWeather();
