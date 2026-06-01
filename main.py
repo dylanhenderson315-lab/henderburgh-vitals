@@ -648,17 +648,18 @@ def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Clean minimalist home page for HENDERBURGH."""
-    # Use the exact same data pipeline as the vitals page for perfect consistency
     steps = None
     latest_hr = None
     hr_age_minutes = None
+    latest_hr_timestamp = None
 
     if oura_client:
         try:
-            # Fetch minimal data (today only is enough for steps + latest HR)
-            raw = await fetch_all_data(days=1)
+            # Use the exact same day window as the vitals page for data consistency
+            days = 14 if PUBLIC_MODE else OURA_DAYS
 
-            # Process using the same function the vitals page uses
+            raw = await fetch_all_data(days=days)
+
             processed = process_dashboard_data(
                 raw.get("personal", {}),
                 raw.get("readiness", []),
@@ -669,7 +670,7 @@ async def home(request: Request):
                 raw.get("stress", []),
                 raw.get("heartrate", []),
                 raw.get("workouts", []),
-                1,  # only need today's data
+                days,
             )
 
             steps = processed.get("steps")
@@ -678,17 +679,15 @@ async def home(request: Request):
             latest_hr_timestamp = processed.get("latest_hr_timestamp")
 
         except Exception:
-            # If anything fails, fall back to None (will show placeholders)
-            latest_hr_timestamp = None
             pass
 
-    # Prepare clean context for the homepage
+    # Prepare context for homepage (same values as vitals page)
     steps_ctx = {
         "count": steps,
         "miles": round(steps * 0.0005, 1) if steps is not None else None,
     }
 
-    # Format heart rate time the same way the vitals page intends
+    # Format "updated X ago" the same way as vitals
     hr_updated_ago = "recently"
     if latest_hr_timestamp and hr_age_minutes is not None:
         try:
