@@ -311,11 +311,13 @@
           <p>Full trends and history on the Vitals page</p>
         </div>
 
-        <!-- Apple Music -->
+        <!-- Last.fm -->
         <div class="live-card">
-          <h3>Now Playing</h3>
-          <div id="apple-music-status">Connect Apple Music to see current track</div>
-          <p style="font-size:0.85rem; color:#666; margin-top:4px;">Apple Music • Live</p>
+          <h3>Last.fm</h3>
+          <div id="lastfm-status"><p><em>Loading recent tracks...</em></p></div>
+          <p style="font-size:0.85rem; color:#666; margin-top:4px;">
+            <a href="https://www.last.fm/user/henderburgh" target="_blank" style="color:inherit; text-decoration:none;">Last.fm • Recent</a>
+          </p>
         </div>
       </div>
     </div>
@@ -460,23 +462,104 @@
   setInterval(loadXbox, 60000);
   </script>
 
-  <!-- Apple Music (placeholder) -->
-  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"></script>
+  <!-- Last.fm Recent Tracks -->
   <script>
-  document.addEventListener('musickitloaded', async () => {
-    await MusicKit.configure({
-      developerToken: 'YOUR_MUSICKIT_TOKEN_HERE',
-      app: { name: 'Henderburgh', build: '1.0' }
-    });
-  });
+  const LASTFM_USER = 'henderburgh';
+  const LASTFM_API_KEY = '3168e1997fc3a2150bfa1f10bafad213';
+  const LASTFM_ENDPOINT = `https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${LASTFM_USER}&api_key=${LASTFM_API_KEY}&format=json&limit=5`;
 
-  const music = MusicKit.getInstance();
-  music.addEventListener('playbackStateDidChange', () => {
-    const item = music.nowPlayingItem;
-    if (item) {
-      document.getElementById('apple-music-status').innerHTML =
-        `<strong>${item.title}</strong><br>by ${item.artistName}`;
+  let lastfmInterval = null;
+
+  function renderLastFmTracks(tracks) {
+    const el = document.getElementById('lastfm-status');
+    if (!el) return;
+
+    if (!tracks || tracks.length === 0) {
+      el.innerHTML = `<p><em>No recent tracks</em></p>`;
+      return;
     }
+
+    let html = '';
+
+    // Check for now playing track
+    const nowPlayingTrack = tracks.find(t => t['@attr'] && t['@attr'].nowplaying === 'true');
+
+    if (nowPlayingTrack) {
+      const name = nowPlayingTrack.name;
+      const artist = nowPlayingTrack.artist['#text'];
+      const image = nowPlayingTrack.image?.[1]?.['#text'] || nowPlayingTrack.image?.[2]?.['#text'];
+
+      html += `
+        <div style="margin-bottom:8px;">
+          <span style="background:#22c55e; color:white; font-size:0.65rem; padding:1px 5px; border-radius:3px; margin-right:6px;">NOW PLAYING</span>
+          <strong>${name}</strong><br>
+          <span style="color:#666; font-size:0.85rem;">${artist}</span>
+        </div>
+      `;
+    }
+
+    // Show up to 3 recent tracks (excluding the now playing one if present)
+    const recentTracks = tracks
+      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
+      .slice(0, 3);
+
+    if (recentTracks.length > 0) {
+      if (nowPlayingTrack) {
+        html += `<div style="font-size:0.7rem; color:#888; margin-bottom:4px; margin-top:6px;">Recently played</div>`;
+      }
+
+      recentTracks.forEach(track => {
+        const name = track.name;
+        const artist = track.artist['#text'];
+        html += `
+          <div style="margin-bottom:3px; font-size:0.85rem;">
+            <strong>${name}</strong><br>
+            <span style="color:#666;">${artist}</span>
+          </div>
+        `;
+      });
+    }
+
+    // Profile link
+    html += `
+      <div style="margin-top:6px;">
+        <a href="https://www.last.fm/user/${LASTFM_USER}" target="_blank" 
+           style="font-size:0.7rem; color:#3b82f6; text-decoration:none;">View on Last.fm →</a>
+      </div>
+    `;
+
+    el.innerHTML = html;
+  }
+
+  async function fetchLastFmTracks() {
+    const el = document.getElementById('lastfm-status');
+    if (!el) return;
+
+    try {
+      const res = await fetch(LASTFM_ENDPOINT);
+      const data = await res.json();
+
+      if (data.error) {
+        throw new Error(data.message);
+      }
+
+      const tracks = data.recenttracks?.track || [];
+      renderLastFmTracks(tracks);
+    } catch (err) {
+      console.error('Last.fm fetch error:', err);
+      el.innerHTML = `<p><em>Unable to load Last.fm tracks</em></p>`;
+    }
+  }
+
+  function startLastFmRefresh() {
+    fetchLastFmTracks();
+    if (lastfmInterval) clearInterval(lastfmInterval);
+    lastfmInterval = setInterval(fetchLastFmTracks, 60000); // Refresh every 60s
+  }
+
+  // Initialize Last.fm
+  document.addEventListener('DOMContentLoaded', () => {
+    startLastFmRefresh();
   });
   </script>
 </body>
