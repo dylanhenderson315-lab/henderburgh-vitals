@@ -322,18 +322,21 @@
         <!-- Heart Rate -->
         <div class="live-card">
           <h3>Heart Rate</h3>
-          <p class="big-number"><strong><span id="hr-bpm">--</span> bpm</strong></p>
-          <p id="hr-updated">Live from Oura • Updated recently</p>
+          <p class="big-number"><strong>{{ heart_rate.bpm or '--' }} bpm</strong></p>
+          <p>Live from Oura • Updated recently</p>
         </div>
 
         <!-- Steps (from Oura) -->
         <div class="live-card">
           <h3>Steps</h3>
           <div id="steps-value">
-            <p class="big-number"><span id="steps-count">--</span> steps</p>
-            <p id="steps-miles">-- miles</p>
+            <p class="big-number"><span id="steps-count">{{ steps.count or '--' }}</span> steps</p>
+            <p id="steps-miles">{{ '%.1f' % (steps.miles or 0) if steps.miles else '--' }} miles</p>
           </div>
-          <p class="comparison" id="steps-comparison"></p>
+          <p class="comparison" id="steps-comparison">
+            • {{ (steps.count // 150) if steps.count else 0 }} football fields &nbsp;
+            • {{ (steps.count // 80) if steps.count else 0 }} city blocks
+          </p>
           <p><a href="/vitals">Full details on Vitals page →</a></p>
         </div>
 
@@ -599,87 +602,5 @@
   });
   </script>
 
-  <!-- Steps (Live Now card) -->
-  <script>
-  async function updateHomeSteps() {
-    try {
-      const res = await fetch('/api/steps');
-      const data = await res.json();
-
-      const countEl = document.getElementById('steps-count');
-      const milesEl = document.getElementById('steps-miles');
-      const compEl = document.getElementById('steps-comparison');
-
-      if (!data || !data.steps) {
-        if (countEl) countEl.textContent = '--';
-        if (milesEl) milesEl.textContent = '-- miles';
-        if (compEl) compEl.textContent = '';
-        return;
-      }
-
-      const steps = data.steps;
-      const miles = data.miles || (steps * 0.0005);
-
-      if (countEl) countEl.textContent = steps.toLocaleString();
-      if (milesEl) milesEl.textContent = `${miles.toFixed(1)} miles`;
-
-      if (compEl) {
-        const comparisons = [];
-        const fields = Math.round(steps / 150);
-        if (fields > 0) comparisons.push(`${fields} football fields`);
-
-        const blocks = Math.round(miles / 0.12);
-        comparisons.push(`${Math.max(blocks, 8)} city blocks`);
-
-        compEl.innerHTML = comparisons.slice(0, 2).map(c => `• ${c}`).join(' &nbsp; ');
-      }
-    } catch (e) {
-      console.error('Failed to load steps for homepage', e);
-      const countEl = document.getElementById('steps-count');
-      const milesEl = document.getElementById('steps-miles');
-      if (countEl) countEl.textContent = '--';
-      if (milesEl) milesEl.textContent = '-- miles';
-    }
-  }
-
-  // Initial load + auto refresh every 60s
-  updateHomeSteps();
-  setInterval(updateHomeSteps, 60000);
-
-  // Heart Rate live update
-  async function updateHomeHeartRate() {
-    try {
-      const res = await fetch('/api/heart-rate');
-      const data = await res.json();
-
-      const bpmEl = document.getElementById('hr-bpm');
-      const updatedEl = document.getElementById('hr-updated');
-
-      if (data && data.bpm) {
-        if (bpmEl) bpmEl.textContent = data.bpm;
-
-        if (updatedEl && data.updated) {
-          try {
-            const ts = new Date(data.updated);
-            const now = new Date();
-            const diffMin = Math.floor((now - ts) / 60000);
-            let timeText = 'just now';
-            if (diffMin >= 1) timeText = `${diffMin}m ago`;
-            updatedEl.textContent = `Live from Oura • Updated ${timeText}`;
-          } catch {
-            updatedEl.textContent = 'Live from Oura • Updated recently';
-          }
-        }
-      } else {
-        if (bpmEl) bpmEl.textContent = '--';
-      }
-    } catch (e) {
-      console.error('Failed to load heart rate for homepage', e);
-    }
-  }
-
-  updateHomeHeartRate();
-  setInterval(updateHomeHeartRate, 60000);
-  </script>
 </body>
 </html>

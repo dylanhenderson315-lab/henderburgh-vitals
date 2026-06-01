@@ -648,11 +648,26 @@ def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Clean minimalist home page for HENDERBURGH."""
+    # Get the same live data used by the vitals page for consistency
+    steps_data = await get_current_steps()
+    heart_rate_data = await get_current_heart_rate()
+
+    # Normalize for clean template usage
+    steps_ctx = {
+        "count": steps_data.get("steps"),
+        "miles": steps_data.get("miles"),
+    }
+    hr_ctx = {
+        "bpm": heart_rate_data.get("bpm"),
+    }
+
     return _render("home.html", {
         "request": request,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
+        "steps": steps_ctx,
+        "heart_rate": hr_ctx,
     })
 
 
@@ -885,9 +900,8 @@ async def health():
     }
 
 
-@app.get("/api/steps")
-async def api_steps():
-    """Lightweight endpoint for current steps (used on homepage Live Now)."""
+async def get_current_steps():
+    """Internal helper to get current steps and miles (same logic as vitals page)."""
     if not oura_client:
         return {"steps": None, "miles": None}
 
@@ -898,19 +912,20 @@ async def api_steps():
             latest = activity[0]
             steps = latest.get("steps") or 0
             miles = round(steps * 0.0005, 1) if steps else 0
-            return {
-                "steps": steps,
-                "miles": miles
-            }
+            return {"steps": steps, "miles": miles}
     except Exception:
         pass
-
     return {"steps": None, "miles": None}
 
 
-@app.get("/api/heart-rate")
-async def api_heart_rate():
-    """Lightweight endpoint for current heart rate (used on homepage Live Now)."""
+@app.get("/api/steps")
+async def api_steps():
+    """Lightweight endpoint for current steps (used on homepage Live Now)."""
+    return await get_current_steps()
+
+
+async def get_current_heart_rate():
+    """Internal helper to get current heart rate (same logic used by vitals page)."""
     if not oura_client:
         return {"bpm": None, "updated": None}
 
@@ -937,6 +952,12 @@ async def api_heart_rate():
         pass
 
     return {"bpm": None, "updated": None}
+
+
+@app.get("/api/heart-rate")
+async def api_heart_rate():
+    """Lightweight endpoint for current heart rate (used on homepage Live Now)."""
+    return await get_current_heart_rate()
 
 
 @app.get("/api/xbox/status")
