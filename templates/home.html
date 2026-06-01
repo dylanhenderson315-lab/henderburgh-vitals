@@ -163,6 +163,46 @@
       font-size: 12px;
       color: #737373;
     }
+
+    /* Live Now cards */
+    .live-now {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+    @media (max-width: 1024px) {
+      .live-now { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .live-now { grid-template-columns: 1fr; }
+    }
+
+    .live-card {
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      padding: 18px 18px;
+      background: #fff;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .live-card:hover {
+      border-color: #d4d4d4;
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+      transform: translateY(-1px);
+    }
+    .live-card h3 {
+      font-size: 11px;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: #525252;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .live-card p {
+      font-size: 13.5px;
+      line-height: 1.4;
+      color: #171717;
+      margin: 2px 0;
+    }
   </style>
 </head>
 <body class="bg-white text-[#111111] antialiased">
@@ -234,26 +274,34 @@
 
     <!-- Live Now -->
     <div class="content-section">
-      <div class="flex items-center justify-between mb-4">
-        <div class="section-label">Live Now</div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="placeholder-card p-7">
-          <div class="flex items-center gap-x-3 mb-3">
-            <i class="fa-solid fa-location-dot text-lg text-neutral-400"></i>
-            <span class="text-sm font-medium text-neutral-700">Location</span>
-          </div>
-          <div class="text-neutral-400 text-sm">—</div>
+      <div class="section-label mb-3">Live Now</div>
+
+      <div class="live-now">
+        <!-- Xbox -->
+        <div class="live-card">
+          <h3>Xbox</h3>
+          <div id="xbox-status">Checking status...</div>
         </div>
-        <div class="placeholder-card p-7">
-          <div class="flex items-center gap-x-3 mb-3">
-            <i class="fa-solid fa-clock text-lg text-neutral-400"></i>
-            <span class="text-sm font-medium text-neutral-700">Current Focus</span>
-          </div>
-          <div class="text-neutral-400 text-sm">—</div>
+
+        <!-- Heart Rate -->
+        <div class="live-card">
+          <h3>Heart Rate</h3>
+          <p><strong>72 bpm</strong></p>
+          <p>Live from Oura • Updated recently</p>
         </div>
-        <div class="placeholder-card p-7 md:col-span-1">
-          <div class="text-sm text-neutral-400">More live signals coming soon.</div>
+
+        <!-- Readiness -->
+        <div class="live-card">
+          <h3>Readiness</h3>
+          <p><strong>72 / 100</strong> <span style="color:#22c55e">↑ 6%</span></p>
+          <p>Full trends and history on the Vitals page</p>
+        </div>
+
+        <!-- Apple Music -->
+        <div class="live-card">
+          <h3>Now Playing</h3>
+          <div id="apple-music-status">Connect Apple Music to see current track</div>
+          <p style="font-size:0.85rem; color:#666; margin-top:4px;">Apple Music • Live</p>
         </div>
       </div>
     </div>
@@ -382,6 +430,48 @@
       // Optional: console hint
       // console.log('%c[HENDERBURGH] Home ready — press / for Vitals', 'color:#a3a3a3');
     });
+  </script>
+
+  <!-- Xbox Live Status -->
+  <script>
+  async function loadXbox() {
+    const key = "YOUR_OPENXBL_API_KEY_HERE";
+    const gt = "YOUR_GAMERTAG_HERE";
+    const el = document.getElementById("xbox-status");
+    try {
+      const res = await fetch(`https://xbl.io/api/v2/presence/${gt}`, {
+        headers: { "X-Authorization": key }
+      });
+      const data = await res.json();
+      if (data?.presence) {
+        el.innerHTML = `<p>${data.presence.state || "Online"}</p><p>Now: ${data.presence.lastSeenTitle || "—"}</p>`;
+      }
+    } catch {
+      el.innerHTML = "<p>Unable to load Xbox status</p>";
+    }
+  }
+  loadXbox();
+  setInterval(loadXbox, 60000);
+  </script>
+
+  <!-- Apple Music (placeholder) -->
+  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"></script>
+  <script>
+  document.addEventListener('musickitloaded', async () => {
+    await MusicKit.configure({
+      developerToken: 'YOUR_MUSICKIT_TOKEN_HERE',
+      app: { name: 'Henderburgh', build: '1.0' }
+    });
+  });
+
+  const music = MusicKit.getInstance();
+  music.addEventListener('playbackStateDidChange', () => {
+    const item = music.nowPlayingItem;
+    if (item) {
+      document.getElementById('apple-music-status').innerHTML =
+        `<strong>${item.title}</strong><br>by ${item.artistName}`;
+    }
+  });
   </script>
 </body>
 </html>
