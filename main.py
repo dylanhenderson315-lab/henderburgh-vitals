@@ -891,35 +891,22 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # Step 1: Resolve gamertag → XUID (most reliable method)
-            profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
-            profile_response = await client.get(profile_url, headers=headers, timeout=10)
+            # Try to get basic profile first
+            url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
+            response = await client.get(url, headers=headers, timeout=10)
 
-            if profile_response.status_code != 200:
+            # Log what xbl.io actually returned (very useful for debugging)
+            print("xbl.io response:", response.status_code, response.text)
+
+            if response.status_code != 200:
                 return {
-                    "error": "Failed to resolve gamertag",
-                    "status_code": profile_response.status_code,
-                    "detail": profile_response.text
+                    "error": "xbl.io error",
+                    "status_code": response.status_code,
+                    "detail": response.text
                 }
 
-            profile = profile_response.json()
-            xuid = profile.get("xuid")
-
-            if not xuid:
-                return {"error": "No XUID found for this gamertag"}
-
-            # Step 2: Get presence using XUID
-            presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
-            presence_response = await client.get(presence_url, headers=headers, timeout=10)
-
-            if presence_response.status_code != 200:
-                return {
-                    "error": "Failed to get presence",
-                    "status_code": presence_response.status_code,
-                    "detail": presence_response.text
-                }
-
-            return presence_response.json()
+            data = response.json()
+            return data
 
         except Exception as e:
             return {"error": str(e)}
