@@ -437,22 +437,36 @@
   <!-- Xbox Live Status -->
   <script>
   async function loadXbox() {
-    const key = "YOUR_OPENXBL_API_KEY_HERE";
-    const gt = "YOUR_GAMERTAG_HERE";
+    const key = "7ede4621-fd2d-4928-919e-8f520a85804d";
+    const gt = "NutNutBiinks";
+
     const el = document.getElementById("xbox-status");
+
     try {
       const res = await fetch(`https://xbl.io/api/v2/presence/${gt}`, {
         headers: { "X-Authorization": key }
       });
+
       const data = await res.json();
-      if (data?.presence) {
-        el.innerHTML = `<p>${data.presence.state || "Online"}</p><p>Now: ${data.presence.lastSeenTitle || "—"}</p>`;
+
+      if (data && data.presence) {
+        el.innerHTML = `
+          <p><strong>${data.presence.state || "Online"}</strong></p>
+          <p>Now: ${data.presence.lastSeenTitle || "—"}</p>
+        `;
+      } else {
+        el.innerHTML = "<p>Status unavailable</p>";
       }
-    } catch {
-      el.innerHTML = "<p>Unable to load Xbox status</p>";
+    } catch (error) {
+      console.error(error);
+      el.innerHTML = "<p>Failed to load Xbox status</p>";
     }
   }
+
+  // Run on page load
   loadXbox();
+
+  // Refresh every 60 seconds
   setInterval(loadXbox, 60000);
   </script>
 
