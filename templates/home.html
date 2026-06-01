@@ -434,7 +434,7 @@
     });
   </script>
 
-  <!-- Xbox Live Status (via backend proxy to avoid CORS) -->
+  <!-- Xbox Live Status -->
   <script>
   async function loadXbox() {
     const el = document.getElementById("xbox-status");
@@ -443,19 +443,18 @@
       const res = await fetch("/api/xbox/status");
       const data = await res.json();
 
-      if (data?.presence) {
+      if (data.status === "coming_soon") {
+        el.innerHTML = `<p><em>Xbox status coming soon</em></p>`;
+      } else if (data?.presence) {
         el.innerHTML = `
           <p><strong>${data.presence.state || "Online"}</strong></p>
           <p>Now: ${data.presence.lastSeenTitle || "—"}</p>
         `;
-      } else if (data?.error) {
-        el.innerHTML = `<p>${data.error}</p>`;
       } else {
         el.innerHTML = "<p>Status unavailable</p>";
       }
     } catch (error) {
-      console.error(error);
-      el.innerHTML = "<p>Failed to load Xbox status</p>";
+      el.innerHTML = `<p><em>Xbox status coming soon</em></p>`;
     }
   }
 
