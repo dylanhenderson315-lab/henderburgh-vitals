@@ -181,14 +181,8 @@
     /* Live Now cards */
     .live-now {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 14px;
-    }
-    @media (max-width: 1024px) {
-      .live-now { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 640px) {
-      .live-now { grid-template-columns: 1fr; }
     }
 
     .live-card {
@@ -302,6 +296,16 @@
           <h3>Heart Rate</h3>
           <p><strong>72 bpm</strong></p>
           <p>Live from Oura • Updated recently</p>
+        </div>
+
+        <!-- Steps (from Oura) -->
+        <div class="live-card">
+          <h3>Steps</h3>
+          <div id="home-steps" class="text-3xl font-bold tabular-nums text-white">—</div>
+          <div id="home-steps-miles" class="text-sm text-neutral-400 -mt-0.5">— miles</div>
+          <div id="home-steps-comparisons" class="mt-2 text-[10px] text-neutral-500 leading-tight space-y-0.5">
+            <!-- Populated by JS -->
+          </div>
         </div>
 
         <!-- Readiness -->
@@ -561,6 +565,53 @@
   document.addEventListener('DOMContentLoaded', () => {
     startLastFmRefresh();
   });
+  </script>
+
+  <!-- Steps (Live Now card) -->
+  <script>
+  async function updateHomeSteps() {
+    try {
+      const res = await fetch('/api/steps');
+      const data = await res.json();
+
+      const stepsEl = document.getElementById('home-steps');
+      const milesEl = document.getElementById('home-steps-miles');
+      const compEl = document.getElementById('home-steps-comparisons');
+
+      if (!data.steps) {
+        if (stepsEl) stepsEl.textContent = '—';
+        if (milesEl) milesEl.textContent = '— miles';
+        return;
+      }
+
+      const steps = data.steps;
+      const miles = data.miles || (steps * 0.0005);
+
+      if (stepsEl) stepsEl.textContent = steps.toLocaleString();
+      if (milesEl) milesEl.textContent = `${miles.toFixed(1)} miles`;
+
+      if (compEl) {
+        const comparisons = [];
+
+        const fields = Math.round(steps / 150);
+        if (fields > 0) comparisons.push(`${fields} football fields`);
+
+        const blocks = Math.round(miles / 0.12);
+        if (blocks > 5) comparisons.push(`${blocks} city blocks`);
+
+        const laps = Math.round(miles / 0.25);
+        if (laps > 0) comparisons.push(`${laps} track laps`);
+
+        compEl.innerHTML = comparisons.slice(0, 3).map(c => `<div>• ${c}</div>`).join('');
+      }
+    } catch (e) {
+      console.error('Failed to load steps for homepage', e);
+    }
+  }
+
+  // Initial load + auto refresh
+  updateHomeSteps();
+  setInterval(updateHomeSteps, 60000);
   </script>
 </body>
 </html>

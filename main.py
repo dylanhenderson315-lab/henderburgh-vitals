@@ -885,6 +885,29 @@ async def health():
     }
 
 
+@app.get("/api/steps")
+async def api_steps():
+    """Lightweight endpoint for current steps (used on homepage Live Now)."""
+    if not oura_client:
+        return {"steps": None, "miles": None}
+
+    try:
+        today = date.today().isoformat()
+        activity = await oura_client.get_daily_activity(today, today)
+        if activity and len(activity) > 0:
+            latest = activity[0]
+            steps = latest.get("steps") or 0
+            miles = round(steps * 0.0005, 1) if steps else 0
+            return {
+                "steps": steps,
+                "miles": miles
+            }
+    except Exception:
+        pass
+
+    return {"steps": None, "miles": None}
+
+
 @app.get("/api/xbox/status")
 async def get_xbox_status():
     global last_xbox_status
