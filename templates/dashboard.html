@@ -430,49 +430,48 @@
         </div>
       </div>
 
-      <!-- Weather -->
-      <div class="mb-6 flex flex-wrap items-center justify-center gap-x-4 text-sm text-zinc-400">
-        <span id="weather-temp" class="font-semibold text-white text-2xl tabular-nums">--°F</span>
-        <span id="weather-desc" class="font-medium"></span>
-        <span class="text-xs">
-          Feels like <span id="weather-feels" class="font-semibold text-white">--</span>°F
-          • Wind <span id="weather-wind" class="font-semibold text-white">--</span> mph
-        </span>
-        <span id="weather-updated" class="text-xs opacity-60">(Myrtle Beach • updates every 10 min)</span>
-      </div>
-
-      <!-- Today's Steps from Oura -->
-      <div class="mb-8 text-center">
-        <div class="text-sm font-medium text-zinc-400 tracking-wider mb-1">TODAY'S STEPS (from Oura Ring)</div>
-        <div class="text-5xl font-bold tabular-nums text-white">{{ steps or "—" }}</div>
-        <div class="text-xs text-zinc-400 mt-1">Goal progress shown in Activity card above</div>
-      </div>
-
-      <!-- Live Snapshot (Weather + Oura Steps) -->
-      <div class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Weather -->
-        <div class="card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-sm font-medium text-zinc-400">Myrtle Beach, SC</div>
-            <div id="weather-updated" class="text-[10px] text-zinc-500"></div>
-          </div>
-          <div class="flex items-baseline gap-x-3">
-            <span id="weather-temp" class="text-4xl font-bold tabular-nums text-emerald-400">--°F</span>
-            <div>
-              <div id="weather-desc" class="text-lg font-medium text-zinc-100"></div>
-              <div class="text-xs text-zinc-400">Feels <span id="weather-feels">--</span>°F • Wind <span id="weather-wind">--</span> mph</div>
+      <!-- Live Status -->
+      <div class="mb-8">
+        <div class="text-sm font-semibold tracking-[1px] text-zinc-400 mb-3">LIVE STATUS</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Weather -->
+          <div class="card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+            <div class="flex items-center gap-x-2 mb-2">
+              <i class="fa-solid fa-cloud-sun text-emerald-400"></i>
+              <span class="text-sm font-medium text-zinc-300">Myrtle Beach, SC</span>
             </div>
+            <div class="flex items-baseline gap-x-2">
+              <span id="weather-temp" class="text-4xl font-bold tabular-nums text-white">--°F</span>
+              <span id="weather-desc" class="text-base text-zinc-300"></span>
+            </div>
+            <div class="mt-1 text-xs text-zinc-400">
+              Feels like <span id="weather-feels" class="font-medium text-white">--</span>°F
+              • Wind <span id="weather-wind" class="font-medium text-white">--</span> mph
+            </div>
+            <div id="weather-updated" class="mt-2 text-[10px] text-zinc-500 opacity-70"></div>
           </div>
-        </div>
 
-        <!-- Oura Steps -->
-        <div class="card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
-          <div class="text-sm font-medium text-zinc-400 mb-1">Steps Today (Oura Ring)</div>
-          <div class="flex items-baseline gap-x-2">
-            <span class="text-4xl font-bold tabular-nums text-white">{{ steps or "—" }}</span>
-            <span class="text-sm text-zinc-400">steps</span>
+          <!-- Steps from Oura -->
+          <div class="card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+            <div class="flex items-center gap-x-2 mb-2">
+              <i class="fa-solid fa-shoe-prints text-blue-400"></i>
+              <span class="text-sm font-medium text-zinc-300">Steps Today (Oura Ring)</span>
+            </div>
+            <div class="flex items-baseline gap-x-2">
+              <span class="text-4xl font-bold tabular-nums text-white">{{ steps or "—" }}</span>
+              <span class="text-sm text-zinc-400">steps</span>
+            </div>
+            {% if steps %}
+            {% set miles = (steps * 0.0005)|round(1) %}
+            {% set fields = (steps / 150)|round(0)|int %}
+            <div class="mt-2 text-xs text-zinc-400">
+              ≈ {{ miles }} miles
+              {% if fields > 0 %} • ≈ {{ fields }} football fields{% endif %}
+              {% if steps > 4000 %} • ≈ length of a runway{% endif %}
+            </div>
+            {% endif %}
+            <div class="mt-3 text-[10px] text-zinc-500 opacity-70">From your Oura Ring activity data</div>
           </div>
-          <div class="mt-2 text-[10px] text-zinc-500">From your latest activity data</div>
         </div>
       </div>
 
@@ -1000,8 +999,12 @@
             `Updated ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 
         } catch (e) {
-          document.getElementById("weather-temp").textContent = "—";
-          document.getElementById("weather-desc").textContent = "Unable to load";
+          const tempEl = document.getElementById("weather-temp");
+          const descEl = document.getElementById("weather-desc");
+          if (tempEl) tempEl.textContent = "—";
+          if (descEl) descEl.textContent = "Unable to load weather";
+          const updatedEl = document.getElementById("weather-updated");
+          if (updatedEl) updatedEl.textContent = "(Myrtle Beach • check connection)";
         }
       }
 
