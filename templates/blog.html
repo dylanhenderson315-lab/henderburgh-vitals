@@ -97,6 +97,14 @@
       </form>
 
       <!-- Messages will appear here (threaded) -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 1.1rem;">Messages</h3>
+        <button onclick="enterAdminMode()" 
+                style="font-size: 0.75rem; padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">
+          Admin
+        </button>
+      </div>
+
       <div id="messages"></div>
     </div>
   </main>
@@ -137,15 +145,29 @@
 
       const time = new Date(msg.timestamp).toLocaleString();
 
-      div.innerHTML = `
+      let html = `
         <strong>${msg.name}</strong> 
         <span style="color:#666; font-size:0.8rem; margin-left: 8px;">${time}</span>
+      `;
+
+      // Admin delete button
+      if (adminToken) {
+        html += `
+          <button onclick="deleteMessage('${msg.id}', this)" 
+                  style="float:right; color:#c00; font-size:18px; line-height:1; background:none; border:none; cursor:pointer; padding:0 4px;" 
+                  title="Delete (admin only)">×</button>
+        `;
+      }
+
+      html += `
         <p style="margin: 10px 0; white-space: pre-wrap;">${msg.text}</p>
         <button onclick="showReplyForm('${msg.id}', this)" 
                 style="font-size: 0.8rem; color: #3b82f6; background: none; border: none; cursor: pointer; padding: 0;">
           Reply
         </button>
       `;
+
+      div.innerHTML = html;
 
       // Show replies (indented)
       const replies = allMessages.filter(m => m.parent_id === msg.id);
@@ -157,6 +179,29 @@
       });
 
       return div;
+    }
+
+    async function deleteMessage(messageId, button) {
+      if (!adminToken) {
+        alert("Admin mode not active.");
+        return;
+      }
+      if (!confirm("Delete this message?")) return;
+
+      try {
+        const res = await fetch(`/api/messages/${messageId}?token=${encodeURIComponent(adminToken)}`, {
+          method: 'DELETE'
+        });
+
+        if (res.ok) {
+          loadMessages();
+        } else {
+          const err = await res.json();
+          alert("Delete failed: " + (err.detail || "Invalid token"));
+        }
+      } catch (e) {
+        alert("Failed to delete message.");
+      }
     }
 
     function showReplyForm(parentId, button) {
@@ -204,6 +249,52 @@
 
     // Load messages when page opens
     loadMessages();
+
+    // ==================== ADMIN DELETE FUNCTIONALITY ====================
+    let adminToken = null;
+
+    function enterAdminMode() {
+      const token = prompt("Enter admin token to manage messages:");
+      if (!token) return;
+
+      adminToken = token;
+      sessionStorage.setItem('blogAdminToken', token);
+      alert("Admin mode activated. Delete buttons will now appear.");
+      loadMessages();
+    }
+
+    function initAdminMode() {
+      const savedToken = sessionStorage.getItem('blogAdminToken');
+      if (savedToken) {
+        adminToken = savedToken;
+      }
+    }
+
+    async function deleteMessage(messageId) {
+      if (!adminToken) {
+        alert("Admin mode is not active.");
+        return;
+      }
+      if (!confirm("Delete this message?")) return;
+
+      try {
+        const res = await fetch(`/api/messages/${messageId}?token=${encodeURIComponent(adminToken)}`, {
+          method: 'DELETE'
+        });
+
+        if (res.ok) {
+          loadMessages();
+        } else {
+          const err = await res.json();
+          alert("Delete failed: " + (err.detail || "Invalid admin token"));
+        }
+      } catch (e) {
+        alert("Failed to delete message.");
+      }
+    }
+
+    // Initialize admin mode on page load
+    initAdminMode();
   </script>
 </body>
 </html>

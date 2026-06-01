@@ -50,6 +50,9 @@ PORT = int(os.getenv("PORT", 8000))
 # Auto-refresh interval in seconds (0 or negative = disabled)
 AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "180" if PUBLIC_MODE else "0"))  # 3 min default in public for fresher data
 
+# Admin token for protected actions (e.g. deleting blog messages)
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+
 # Xbox (OpenXBL) configuration for Live Now section
 XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
@@ -1118,6 +1121,23 @@ async def post_message(message: dict):
     messages.append(new_message)
     save_messages(messages)
     return new_message
+
+
+@app.delete("/api/messages/{message_id}")
+async def delete_message(message_id: str, token: str = None):
+    """Delete a message. Requires admin token via query param ?token=..."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    messages = load_messages()
+    original_len = len(messages)
+    messages = [m for m in messages if m.get("id") != message_id]
+
+    if len(messages) == original_len:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    save_messages(messages)
+    return {"status": "deleted"}
 
 
 # =============================================================================
