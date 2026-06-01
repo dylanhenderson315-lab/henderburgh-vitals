@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog &amp; Messages • HENDERBURGH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+
+    body {
+      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #737373;
+      font-weight: 600;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .message-card {
+      border: 1px solid #f0f0f0;
+      border-radius: 12px;
+      padding: 16px;
+      background: #fafafa;
+    }
+
+    .nav-link {
+      color: #404040;
+      transition: color 0.15s ease;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .nav-link:hover {
+      color: #111111;
+    }
+  </style>
+</head>
+<body class="bg-white text-[#111111] antialiased">
+  <!-- Header -->
+  <header class="border-b border-neutral-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-50">
+    <div class="max-w-[1080px] mx-auto px-6">
+      <div class="h-16 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-x-2.5 group">
+          <div class="w-8 h-8 rounded-xl bg-[#111111] flex items-center justify-center">
+            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
+          </div>
+          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-x-8">
+          <a href="/" class="nav-link">Home</a>
+          <a href="/vitals" class="nav-link">Vitals</a>
+          <a href="/golf" class="nav-link">Golf</a>
+          <a href="/clips" class="nav-link">Clips</a>
+          <a href="/blog" class="nav-link">Blog</a>
+        </nav>
+
+        <div class="md:hidden">
+          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-neutral-200 text-neutral-700 hover:bg-neutral-50">← Home</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
+    <div class="mb-10">
+      <h1 class="text-4xl font-semibold tracking-tighter">Blog &amp; Messages</h1>
+      <p class="text-lg text-neutral-600 mt-2">Thoughts, updates, and a place to leave a note.</p>
+    </div>
+
+    <!-- Threaded Message Board -->
+    <div class="card p-6 mb-10">
+      <h2 class="text-xl font-semibold mb-2">Message Board</h2>
+      <p class="text-neutral-600 mb-6">Leave a message or reply to others. Keep it friendly.</p>
+
+      <!-- New Message Form -->
+      <form id="message-form" style="margin-bottom: 24px;">
+        <input type="text" id="name" placeholder="Your name (optional)" style="margin-bottom: 8px; width: 100%; padding: 10px; border: 1px solid #e5e5e5; border-radius: 10px;">
+        <textarea id="text" placeholder="Write your message..." required style="width: 100%; height: 90px; padding: 10px; border: 1px solid #e5e5e5; border-radius: 10px; resize: vertical;"></textarea>
+        <button type="submit" class="btn" style="margin-top: 10px;">
+          Post Message
+        </button>
+      </form>
+
+      <!-- Messages will appear here (threaded) -->
+      <div id="messages"></div>
+    </div>
+  </main>
+
+  <footer class="max-w-[1080px] mx-auto px-6 pb-10">
+    <div class="border-t border-neutral-100 pt-6 text-xs text-neutral-400 text-center">
+      Messages are public • HENDERBURGH
+    </div>
+  </footer>
+
+  <script>
+    async function loadMessages() {
+      const res = await fetch('/api/messages');
+      const messages = await res.json();
+      renderMessages(messages);
+    }
+
+    function renderMessages(messages) {
+      const container = document.getElementById('messages');
+      container.innerHTML = '';
+
+      // Top level messages
+      const topLevel = messages.filter(m => !m.parent_id);
+
+      topLevel.forEach(msg => {
+        const div = createMessageElement(msg, messages);
+        container.appendChild(div);
+      });
+    }
+
+    function createMessageElement(msg, allMessages) {
+      const div = document.createElement('div');
+      div.style.border = '1px solid #e5e5e5';
+      div.style.borderRadius = '12px';
+      div.style.padding = '14px';
+      div.style.marginBottom = '12px';
+      div.style.background = '#fff';
+
+      const time = new Date(msg.timestamp).toLocaleString();
+
+      div.innerHTML = `
+        <strong>${msg.name}</strong> 
+        <span style="color:#666; font-size:0.8rem; margin-left: 8px;">${time}</span>
+        <p style="margin: 10px 0; white-space: pre-wrap;">${msg.text}</p>
+        <button onclick="showReplyForm('${msg.id}', this)" 
+                style="font-size: 0.8rem; color: #3b82f6; background: none; border: none; cursor: pointer; padding: 0;">
+          Reply
+        </button>
+      `;
+
+      // Show replies (indented)
+      const replies = allMessages.filter(m => m.parent_id === msg.id);
+      replies.forEach(reply => {
+        const replyDiv = createMessageElement(reply, allMessages);
+        replyDiv.style.marginLeft = '24px';
+        replyDiv.style.borderLeft = '3px solid #e5e5e5';
+        div.appendChild(replyDiv);
+      });
+
+      return div;
+    }
+
+    function showReplyForm(parentId, button) {
+      const form = document.createElement('form');
+      form.style.marginTop = '10px';
+      form.innerHTML = `
+        <input type="text" placeholder="Your name (optional)" style="margin-bottom: 6px; width: 100%; padding: 8px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <textarea placeholder="Your reply..." required style="width: 100%; height: 70px; padding: 8px; border: 1px solid #e5e5e5; border-radius: 8px;"></textarea>
+        <button type="submit" class="btn" style="margin-top: 6px; padding: 6px 14px; font-size: 0.85rem;">Send Reply</button>
+      `;
+
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const name = form.querySelector('input').value || 'Anonymous';
+        const text = form.querySelector('textarea').value;
+
+        await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, text, parent_id: parentId })
+        });
+
+        form.remove();
+        loadMessages();
+      };
+
+      button.replaceWith(form);
+    }
+
+    // Handle new top-level message
+    document.getElementById('message-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value || 'Anonymous';
+      const text = document.getElementById('text').value;
+
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, text, parent_id: null })
+      });
+
+      document.getElementById('message-form').reset();
+      loadMessages();
+    };
+
+    // Load messages when page opens
+    loadMessages();
+  </script>
+</body>
+</html>

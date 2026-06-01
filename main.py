@@ -1081,6 +1081,46 @@ def save_clubs(clubs):
 
 
 # =============================================================================
+# Blog Message Board (threaded, server-persisted)
+# =============================================================================
+
+MESSAGES_FILE = Path("data/messages.json")
+MESSAGES_FILE.parent.mkdir(exist_ok=True)
+
+def load_messages():
+    if MESSAGES_FILE.exists():
+        try:
+            return json.loads(MESSAGES_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+def save_messages(messages):
+    MESSAGES_FILE.write_text(json.dumps(messages, indent=2))
+
+@app.get("/api/messages")
+async def get_messages():
+    messages = load_messages()
+    # Sort newest first
+    messages.sort(key=lambda m: m.get("timestamp", ""), reverse=True)
+    return messages
+
+@app.post("/api/messages")
+async def post_message(message: dict):
+    messages = load_messages()
+    new_message = {
+        "id": str(datetime.now().timestamp()),
+        "name": message.get("name", "Anonymous"),
+        "text": message.get("text", ""),
+        "parent_id": message.get("parent_id"),  # None for top-level messages
+        "timestamp": datetime.now().isoformat()
+    }
+    messages.append(new_message)
+    save_messages(messages)
+    return new_message
+
+
+# =============================================================================
 # Simple placeholder routes for future sections (Golf, Clips, Blog)
 # =============================================================================
 
@@ -1139,7 +1179,12 @@ async def clips_page():
 
 @app.get("/blog", response_class=HTMLResponse)
 async def blog_page():
-    return _placeholder_page("Blog", "Thoughts on health, golf, and the quiet parts of life.")
+    return _render("blog.html", {
+        "request": None,
+        "public_mode": PUBLIC_MODE,
+        "site_name": SITE_NAME,
+        "display_name": DISPLAY_NAME,
+    })
 
 
 if __name__ == "__main__":
