@@ -110,40 +110,54 @@
       border-color: #e5e5e5;
     }
 
+    /* Polished Game Clips horizontal scroller */
+    .clips-scroll {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 16px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+
     .clip-card {
-      width: 248px;
-      flex-shrink: 0;
-      border: 1px solid #f0f0f0;
+      flex: 0 0 280px;
+      scroll-snap-align: start;
+      background: white;
+      border: 1px solid #e5e5e5;
       border-radius: 12px;
       overflow: hidden;
-      background: white;
-      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .clip-card:hover {
       border-color: #d4d4d4;
-      box-shadow: 0 2px 8px -2px rgb(0 0 0 / 0.08);
+      box-shadow: 0 8px 20px -4px rgba(0,0,0,0.08), 0 2px 6px -2px rgba(0,0,0,0.04);
+      transform: translateY(-2px);
     }
 
-    .clip-thumb {
-      height: 138px;
-      background: linear-gradient(145deg, #f4f4f5, #e4e4e7);
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .clip-card video {
+      width: 100%;
+      display: block;
+      border-radius: 12px 12px 0 0;
+      background: #000;
     }
 
-    .clip-thumb .play {
-      width: 38px;
-      height: 38px;
-      background: rgba(255,255,255,0.92);
-      border-radius: 9999px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #171717;
-      box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+    .clip-meta {
+      padding: 14px 16px;
+      font-size: 0.95rem;
+    }
+
+    .clip-meta strong {
+      display: block;
+      margin-bottom: 2px;
+      color: #111;
+    }
+
+    .clip-meta span {
+      color: #666;
+      font-size: 0.85rem;
     }
 
     .nav-link {
@@ -308,56 +322,44 @@
 
     <!-- Game Clips -->
     <div class="content-section">
-      <div class="flex items-baseline justify-between mb-4">
-        <div class="section-label">Game Clips</div>
-        <a href="/clips" class="text-sm text-neutral-500 hover:text-neutral-900 transition flex items-center gap-x-1">
+      <div class="flex items-baseline justify-between mb-3">
+        <div>
+          <div class="section-label">Game Clips</div>
+          <p style="margin-top: 4px; color: #525252; font-size: 0.95rem;">Recent highlights from my sessions.</p>
+        </div>
+        <a href="/clips" class="text-sm text-neutral-500 hover:text-neutral-900 transition flex items-center gap-x-1 mt-1">
           View all <span class="text-xs">→</span>
         </a>
       </div>
 
-      <div class="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory -mx-1 px-1 scrollbar-hide">
-        <!-- Placeholder clips -->
-        <div class="clip-card snap-start">
-          <div class="clip-thumb">
-            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
-            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">0:47</div>
-          </div>
-          <div class="p-3.5">
-            <div class="text-sm font-medium">Approach on 14</div>
-            <div class="text-xs text-neutral-500 mt-0.5">Myrtle Beach • Feb 12</div>
+      <div class="clips-scroll">
+        <div class="clip-card">
+          <video controls preload="metadata">
+            <source src="clips/clutch-moment.mp4" type="video/mp4">
+          </video>
+          <div class="clip-meta">
+            <strong>Clutch 1v3</strong>
+            <span>2 days ago</span>
           </div>
         </div>
 
-        <div class="clip-card snap-start">
-          <div class="clip-thumb">
-            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
-            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">1:12</div>
-          </div>
-          <div class="p-3.5">
-            <div class="text-sm font-medium">Birdie putt on 7</div>
-            <div class="text-xs text-neutral-500 mt-0.5">Pinehurst • Jan 28</div>
-          </div>
-        </div>
-
-        <div class="clip-card snap-start">
-          <div class="clip-thumb">
-            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
-            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">0:31</div>
-          </div>
-          <div class="p-3.5">
-            <div class="text-sm font-medium">Drive on the 1st</div>
-            <div class="text-xs text-neutral-500 mt-0.5">Charleston • Jan 4</div>
+        <div class="clip-card">
+          <video controls preload="metadata">
+            <source src="clips/team-win.mp4" type="video/mp4">
+          </video>
+          <div class="clip-meta">
+            <strong>Insane team play</strong>
+            <span>Last week</span>
           </div>
         </div>
 
-        <div class="clip-card snap-start">
-          <div class="clip-thumb">
-            <div class="play"><i class="fa-solid fa-play ml-0.5"></i></div>
-            <div class="absolute top-3 right-3 text-[10px] px-1.5 py-px bg-black/70 text-white rounded">2:04</div>
-          </div>
-          <div class="p-3.5">
-            <div class="text-sm font-medium">Full round highlight</div>
-            <div class="text-xs text-neutral-500 mt-0.5">Florida • Dec 19</div>
+        <div class="clip-card">
+          <video controls preload="metadata">
+            <source src="clips/ace.mp4" type="video/mp4">
+          </video>
+          <div class="clip-meta">
+            <strong>Ace on Haven</strong>
+            <span>3 weeks ago</span>
           </div>
         </div>
       </div>
