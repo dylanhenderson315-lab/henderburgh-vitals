@@ -434,26 +434,22 @@
     });
   </script>
 
-  <!-- Xbox Live Status -->
+  <!-- Xbox Live Status (via backend proxy to avoid CORS) -->
   <script>
   async function loadXbox() {
-    const key = "7ede4621-fd2d-4928-919e-8f520a85804d";
-    const gt = "NutNutBiinks";
-
     const el = document.getElementById("xbox-status");
 
     try {
-      const res = await fetch(`https://xbl.io/api/v2/presence/${gt}`, {
-        headers: { "X-Authorization": key }
-      });
-
+      const res = await fetch("/api/xbox/status");
       const data = await res.json();
 
-      if (data && data.presence) {
+      if (data?.presence) {
         el.innerHTML = `
           <p><strong>${data.presence.state || "Online"}</strong></p>
           <p>Now: ${data.presence.lastSeenTitle || "—"}</p>
         `;
+      } else if (data?.error) {
+        el.innerHTML = `<p>${data.error}</p>`;
       } else {
         el.innerHTML = "<p>Status unavailable</p>";
       }
@@ -463,10 +459,7 @@
     }
   }
 
-  // Run on page load
   loadXbox();
-
-  // Refresh every 60 seconds
   setInterval(loadXbox, 60000);
   </script>
 

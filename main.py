@@ -50,6 +50,10 @@ PORT = int(os.getenv("PORT", 8000))
 # Auto-refresh interval in seconds (0 or negative = disabled)
 AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "180" if PUBLIC_MODE else "0"))  # 3 min default in public for fresher data
 
+# Xbox (OpenXBL) configuration for Live Now section
+XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
+XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
+
 if PUBLIC_MODE:
     if not OURA_TOKEN:
         raise RuntimeError(
@@ -876,6 +880,27 @@ async def health():
         "display_name": DISPLAY_NAME,
         "site": SITE_NAME,
     }
+
+
+@app.get("/api/xbox/status")
+async def get_xbox_status():
+    """Proxy for OpenXBL presence API to avoid CORS issues in the browser."""
+    if not XBL_API_KEY or XBL_API_KEY == "YOUR_OPENXBL_API_KEY_HERE":
+        return {"error": "Xbox API key not configured"}
+
+    url = f"https://xbl.io/api/v2/presence/{XBL_GAMERTAG}"
+    headers = {
+        "X-Authorization": XBL_API_KEY,
+        "Accept": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        return {"error": f"Failed to fetch Xbox status: {str(e)}"}
 
 
 # =============================================================================
