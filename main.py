@@ -54,8 +54,8 @@ AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "180" if PUBLIC_MOD
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
 # Xbox (OpenXBL) configuration for Live Now section
-# IMPORTANT: XBL_API_KEY and XBL_GAMERTAG must be set (in .env for local, or as environment variables on Railway for production)
-# for the Xbox status card to show real data. See .env.example for setup instructions.
+# XBL_API_KEY and XBL_GAMERTAG must be set in Railway (production) or .env (local) for this to work.
+# See .env.example for setup instructions.
 XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
 
@@ -1031,6 +1031,12 @@ async def api_heart_rate():
 @app.get("/api/xbox/status")
 async def get_xbox_status():
     global last_xbox_data
+
+    # If using placeholder values, return not_configured immediately (no API call)
+    placeholder_keys = ("7ede4621-fd2d-4928-919e-8f520a85804d", "your_real_xbl_key_here", "your_openxbl_api_key_here")
+    placeholder_gts = ("NutNutBiinks", "your_gamertag_here", "your_exact_gamertag_here")
+    if XBL_API_KEY in placeholder_keys or XBL_GAMERTAG in placeholder_gts:
+        return {"status": "not_configured", "state": "Unknown", "game": "—"}
 
     headers = {
         "X-Authorization": XBL_API_KEY,
