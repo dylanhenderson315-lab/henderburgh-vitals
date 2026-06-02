@@ -61,7 +61,8 @@ XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
 # In-memory cache for last successful Xbox status (survives between requests in the same process)
-last_xbox_status = {"status": "unavailable", "state": "Unknown", "game": "—"}
+# Simple caching + fallback to last known good status
+last_xbox_data = {"status": "unavailable", "state": "Unknown", "game": "—"}
 
 if PUBLIC_MODE:
     if not OURA_TOKEN:
@@ -1022,7 +1023,8 @@ async def api_heart_rate():
 
 @app.get("/api/xbox/status")
 async def get_xbox_status():
-    global last_xbox_status
+    global last_xbox_data
+
     headers = {
         "X-Authorization": XBL_API_KEY,
         "Accept": "application/json"
@@ -1030,32 +1032,36 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # Try to get fresh data
+            # Step 1: Get profile (resolve gamertag)
             profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
             profile_res = await client.get(profile_url, headers=headers, timeout=8)
 
-            if profile_res.status_code == 200:
-                profile = profile_res.json()
-                xuid = profile.get("xuid")
+            if profile_res.status_code != 200:
+                return last_xbox_data  # return last known good data
 
-                presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
-                presence_res = await client.get(presence_url, headers=headers, timeout=8)
+            profile = profile_res.json()
+            xuid = profile.get("xuid")
 
-                if presence_res.status_code == 200:
-                    presence = presence_res.json()
-                    last_xbox_status = {
-                        "status": "ok",
-                        "state": presence.get("state", "Online"),
-                        "game": presence.get("lastSeenTitle", "—")
-                    }
-                    return last_xbox_status
+            if not xuid:
+                return last_xbox_data
 
-            # If we reach here, something failed — return last known good data
-            return last_xbox_status
+            # Step 2: Get presence
+            presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
+            presence_res = await client.get(presence_url, headers=headers, timeout=8)
+
+            if presence_res.status_code == 200:
+                presence = presence_res.json()
+                last_xbox_data = {
+                    "status": "ok",
+                    "state": presence.get("state", "Online"),
+                    "game": presence.get("lastSeenTitle", "—")
+                }
+                return last_xbox_data
+            else:
+                return last_xbox_data
 
         except Exception:
-            # On any error, return last known good data
-            return last_xbox_status
+            return last_xbox_data
 
 
 # =============================================================================
