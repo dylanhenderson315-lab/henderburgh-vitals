@@ -167,3 +167,47 @@ MIT — personal use encouraged. Fork it, make it yours.
 ---
 
 Made with ❤️ for Oura owners who love data.
+
+## Xbox Live Status (Live Now card)
+
+The homepage has a "Live Now" section with an Xbox card that shows your current game/activity.
+
+It uses the free OpenXBL API (https://xbl.io/).
+
+### Setup
+
+1. Create a free account and app at https://xbl.io/ to get an API key.
+2. Note the gamertag you want to track (the one the key can access).
+
+### Local development
+
+Add to your `.env` file (we've already added the section with comments):
+
+```
+XBL_API_KEY=your_key_from_xbl.io
+XBL_GAMERTAG=YourGamertag
+```
+
+Then run the server as usual. The Xbox card will poll `/api/xbox/status` every 60s.
+
+### Production (henderburgh.com)
+
+You **must** set the two variables in your hosting platform (Railway):
+
+- Go to Railway project → Variables
+- Add `XBL_API_KEY` and `XBL_GAMERTAG`
+- Redeploy
+
+Platform environment variables override `.env`.
+
+### Troubleshooting
+
+- If the card shows "Xbox status temporarily unavailable", check the server logs for "Xbox API error: ..." lines.
+- Test your key manually:
+  ```
+  curl -H "X-Authorization: $XBL_API_KEY" -H "Accept: application/json" \
+    "https://xbl.io/api/v2/player/gamertag/$XBL_GAMERTAG"
+  ```
+  Should return HTTP 200 and an "xuid".
+- Common issues: wrong key, key not authorized for that gamertag, expired key, or gamertag spelling/case.
+
