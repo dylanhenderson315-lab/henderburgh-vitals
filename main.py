@@ -54,8 +54,15 @@ AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "180" if PUBLIC_MOD
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
 # Xbox (OpenXBL) configuration for Live Now section
+# IMPORTANT: XBL_API_KEY and XBL_GAMERTAG must be set (in .env for local, or as environment variables on Railway for production)
+# for the Xbox status card to show real data. See .env.example for setup instructions.
 XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
+
+# Warn at startup if still using the placeholder Xbox key (common cause of "unavailable")
+if (XBL_API_KEY in ("7ede4621-fd2d-4928-919e-8f520a85804d", "your_real_xbl_key_here", "your_openxbl_api_key_here")
+        or XBL_GAMERTAG in ("NutNutBiinks", "your_gamertag_here", "your_exact_gamertag_here")):
+    print("⚠️  WARNING: Using placeholder XBL_API_KEY / XBL_GAMERTAG. Xbox status will be unavailable until you set real values in .env or Railway env vars. See .env.example for instructions.")
 
 # Admin token used for protected actions (e.g. deleting messages on /blog)
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
