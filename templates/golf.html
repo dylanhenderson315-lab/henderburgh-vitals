@@ -180,7 +180,7 @@
           <div class="section-label">Club Distances</div>
           <p class="text-sm text-zinc-400 mt-1">Average carry (yards). Click a number to edit.</p>
         </div>
-        <button onclick="addNewClub()"
+        <button onclick="addClub()"
                 class="btn-secondary text-sm px-4 py-2 rounded-xl flex items-center gap-x-2">
           <i class="fa-solid fa-plus"></i>
           <span>Add Club</span>
@@ -188,17 +188,8 @@
       </div>
 
       <div class="card overflow-hidden">
-        <table class="w-full distance-table text-sm">
-          <thead>
-            <tr class="bg-[#27272a]">
-              <th class="text-left px-5 py-3 font-medium text-zinc-400 w-1/2">Club</th>
-              <th class="text-left px-5 py-3 font-medium text-zinc-400">Distance (yards)</th>
-              <th class="w-10"></th>
-            </tr>
-          </thead>
-          <tbody id="clubs-table-body">
-            <!-- Populated by JavaScript -->
-          </tbody>
+        <table id="clubs-table" class="w-full distance-table text-sm">
+          <!-- Populated by JavaScript (header + rows) -->
         </table>
       </div>
       <p class="text-[11px] text-zinc-500 mt-2 px-1">Changes save automatically to the server.</p>
@@ -316,18 +307,18 @@
     let rounds = [];
 
     const DEFAULT_CLUBS = [
-      { name: "Driver", distance: 245 },
-      { name: "3 Wood", distance: 220 },
-      { name: "5 Wood", distance: 200 },
-      { name: "4 Iron", distance: 185 },
-      { name: "5 Iron", distance: 175 },
-      { name: "6 Iron", distance: 165 },
-      { name: "7 Iron", distance: 155 },
-      { name: "8 Iron", distance: 145 },
-      { name: "9 Iron", distance: 135 },
-      { name: "PW", distance: 125 },
-      { name: "GW", distance: 110 },
-      { name: "SW", distance: 90 },
+      { club: "Driver", yards: 245 },
+      { club: "3 Wood", yards: 220 },
+      { club: "5 Wood", yards: 200 },
+      { club: "4 Iron", yards: 185 },
+      { club: "5 Iron", yards: 175 },
+      { club: "6 Iron", yards: 165 },
+      { club: "7 Iron", yards: 155 },
+      { club: "8 Iron", yards: 145 },
+      { club: "9 Iron", yards: 135 },
+      { club: "PW", yards: 125 },
+      { club: "GW", yards: 110 },
+      { club: "SW", yards: 90 },
     ];
 
     // ==================== STORAGE ====================
@@ -346,6 +337,65 @@
     }
 
     // Clubs are now loaded/saved from the server
+    // Sort clubs by distance (highest first) so longest clubs always at top
+    function sortClubs() {
+      clubs.sort((a, b) => b.yards - a.yards);
+    }
+
+    // ==================== CLUBS TABLE (with auto-sort on changes) ====================
+    function renderClubs() {
+      const table = document.getElementById('clubs-table');
+      table.innerHTML = `
+        <tr class="bg-[#27272a]">
+          <th class="text-left px-5 py-3 font-medium text-zinc-400 w-1/2">Club</th>
+          <th class="text-left px-5 py-3 font-medium text-zinc-400">Distance (yards)</th>
+          <th class="w-10"></th>
+        </tr>
+      `;
+
+      clubs.forEach((club, index) => {
+        const row = table.insertRow();
+        row.innerHTML = `
+          <td class="px-5 py-3 font-medium">${club.club}</td>
+          <td>
+            <span 
+              class="distance-cell px-3 py-1 inline-block cursor-text rounded"
+              contenteditable="true"
+              data-index="${index}"
+            >${club.yards}</span>
+            <span class="text-zinc-400 text-xs ml-1">yds</span>
+          </td>
+          <td class="text-right pr-4">
+            <button onclick="deleteClub(${index})" 
+                    class="text-zinc-400 hover:text-red-400 text-lg leading-none px-2">×</button>
+          </td>
+        `;
+
+        const cell = row.cells[1].querySelector('.distance-cell');
+        if (cell) {
+          cell.addEventListener('blur', async () => {
+            const index = parseInt(cell.dataset.index);
+            let val = parseInt(cell.textContent.trim());
+            if (isNaN(val) || val < 0) val = 0;
+            clubs[index].yards = val;
+
+            sortClubs();           // re-sort after edit
+            await saveClubs();
+            renderClubs();         // re-render so new order is reflected
+            showSavedFeedback();
+          });
+
+          cell.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              cell.blur();
+            }
+          });
+        }
+      });
+    }
+
+    // Clubs are now loaded/saved from the server
     async function loadClubs() {
       try {
         const res = await fetch('/api/golf/clubs');
@@ -358,6 +408,8 @@
         console.error('Failed to load clubs from server, using defaults', e);
         clubs = [...DEFAULT_CLUBS];
       }
+      sortClubs();
+      renderClubs();
     }
 
     async function saveClubs() {
@@ -370,54 +422,6 @@
       } catch (e) {
         console.error('Failed to save clubs to server', e);
       }
-    }
-
-    // ==================== CLUBS TABLE ====================
-    function renderClubsTable() {
-      const tbody = document.getElementById('clubs-table-body');
-      tbody.innerHTML = '';
-
-      clubs.forEach((club, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="px-5 py-3 font-medium">${club.name}</td>
-          <td>
-            <span 
-              class="distance-cell px-3 py-1 inline-block cursor-text rounded"
-              contenteditable="true"
-              data-index="${index}"
-            >${club.distance}</span>
-            <span class="text-neutral-400 text-xs ml-1">yds</span>
-          </td>
-          <td class="text-right pr-4">
-            <button onclick="deleteClub(${index})" 
-                    class="text-zinc-400 hover:text-red-400 text-lg leading-none px-2">×</button>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
-
-      // Attach editable listeners
-      const cells = tbody.querySelectorAll('.distance-cell');
-      cells.forEach(cell => {
-        cell.addEventListener('blur', async () => {
-          const index = parseInt(cell.dataset.index);
-          let val = parseInt(cell.textContent.trim());
-          if (isNaN(val) || val < 0) val = 0;
-          clubs[index].distance = val;
-          await saveClubs();
-          showSavedFeedback();
-          // Refresh the number (in case user typed letters)
-          cell.textContent = val;
-        });
-
-        cell.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            cell.blur();
-          }
-        });
-      });
     }
 
     function showSavedFeedback() {
@@ -433,23 +437,22 @@
       }, 1200);
     }
 
-    async function addNewClub() {
+    async function addClub() {
       const name = prompt("Club name (e.g. 3 Hybrid):");
       if (!name || name.trim() === '') return;
 
-      const distanceStr = prompt("Average distance in yards:");
-      const distance = parseInt(distanceStr) || 150;
-
-      clubs.push({ name: name.trim(), distance });
+      clubs.push({ club: name.trim(), yards: 0 });
+      sortClubs();           // sort after adding
       await saveClubs();
-      renderClubsTable();
+      renderClubs();
     }
 
     async function deleteClub(index) {
-      if (!confirm(`Remove ${clubs[index].name}?`)) return;
+      if (!confirm(`Remove ${clubs[index].club}?`)) return;
       clubs.splice(index, 1);
+      sortClubs();           // sort after deleting
       await saveClubs();
-      renderClubsTable();
+      renderClubs();
     }
 
     // ==================== ROUNDS ====================
@@ -582,7 +585,7 @@
     }
 
     function renderEverything() {
-      renderClubsTable();
+      renderClubs();
       renderStats();
       renderRoundsList();
     }

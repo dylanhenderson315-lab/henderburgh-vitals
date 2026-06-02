@@ -1051,10 +1051,26 @@ async def get_xbox_status():
 
             if presence_res.status_code == 200:
                 presence = presence_res.json()
+                state = presence.get("state", "Online")
+
+                # Robust game title extraction - xbl.io responses vary
+                game = "—"
+                if presence.get("lastSeenTitle"):
+                    game = presence.get("lastSeenTitle")
+                elif presence.get("devices"):
+                    try:
+                        titles = presence["devices"][0].get("titles", [])
+                        if titles:
+                            game = titles[0].get("name", "—")
+                    except (IndexError, KeyError, TypeError):
+                        pass
+                elif presence.get("lastSeen", {}).get("titleName"):
+                    game = presence["lastSeen"]["titleName"]
+
                 last_xbox_data = {
                     "status": "ok",
-                    "state": presence.get("state", "Online"),
-                    "game": presence.get("lastSeenTitle", "—")
+                    "state": state,
+                    "game": game
                 }
                 return last_xbox_data
             else:
@@ -1074,18 +1090,18 @@ CLUBS_FILE = Path("data/clubs.json")
 CLUBS_FILE.parent.mkdir(exist_ok=True)
 
 DEFAULT_CLUBS = [
-    {"name": "Driver", "distance": 245},
-    {"name": "3 Wood", "distance": 220},
-    {"name": "5 Wood", "distance": 200},
-    {"name": "4 Iron", "distance": 185},
-    {"name": "5 Iron", "distance": 175},
-    {"name": "6 Iron", "distance": 165},
-    {"name": "7 Iron", "distance": 155},
-    {"name": "8 Iron", "distance": 145},
-    {"name": "9 Iron", "distance": 135},
-    {"name": "PW", "distance": 125},
-    {"name": "GW", "distance": 110},
-    {"name": "SW", "distance": 90},
+    {"club": "Driver", "yards": 245},
+    {"club": "3 Wood", "yards": 220},
+    {"club": "5 Wood", "yards": 200},
+    {"club": "4 Iron", "yards": 185},
+    {"club": "5 Iron", "yards": 175},
+    {"club": "6 Iron", "yards": 165},
+    {"club": "7 Iron", "yards": 155},
+    {"club": "8 Iron", "yards": 145},
+    {"club": "9 Iron", "yards": 135},
+    {"club": "PW", "yards": 125},
+    {"club": "GW", "yards": 110},
+    {"club": "SW", "yards": 90},
 ]
 
 def load_clubs():
