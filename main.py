@@ -1032,12 +1032,12 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # Step 1: Get profile (resolve gamertag)
+            # Get profile
             profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
-            profile_res = await client.get(profile_url, headers=headers, timeout=8)
+            profile_res = await client.get(profile_url, headers=headers, timeout=10)
 
             if profile_res.status_code != 200:
-                return last_xbox_data  # return last known good data
+                return last_xbox_data
 
             profile = profile_res.json()
             xuid = profile.get("xuid")
@@ -1045,38 +1045,33 @@ async def get_xbox_status():
             if not xuid:
                 return last_xbox_data
 
-            # Step 2: Get presence
+            # Get presence
             presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
-            presence_res = await client.get(presence_url, headers=headers, timeout=8)
+            presence_res = await client.get(presence_url, headers=headers, timeout=10)
 
             if presence_res.status_code == 200:
                 presence = presence_res.json()
-                state = presence.get("state", "Online")
 
-                # Robust game title extraction - xbl.io responses vary
+                # Try multiple possible paths for the game name
                 game = "—"
-                if presence.get("lastSeenTitle"):
-                    game = presence.get("lastSeenTitle")
-                elif presence.get("devices"):
-                    try:
-                        titles = presence["devices"][0].get("titles", [])
-                        if titles:
-                            game = titles[0].get("name", "—")
-                    except (IndexError, KeyError, TypeError):
-                        pass
-                elif presence.get("lastSeen", {}).get("titleName"):
-                    game = presence["lastSeen"]["titleName"]
+                if "devices" in presence and len(presence["devices"]) > 0:
+                    titles = presence["devices"][0].get("titles", [])
+                    if titles:
+                        game = titles[0].get("name", "—")
+                elif "lastSeenTitle" in presence:
+                    game = presence.get("lastSeenTitle", "—")
 
                 last_xbox_data = {
                     "status": "ok",
-                    "state": state,
+                    "state": presence.get("state", "Online"),
                     "game": game
                 }
                 return last_xbox_data
             else:
                 return last_xbox_data
 
-        except Exception:
+        except Exception as e:
+            print(f"Xbox API error: {e}")  # This will show in your logs
             return last_xbox_data
 
 
