@@ -56,12 +56,17 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 # Xbox (OpenXBL) configuration for Live Now section
 # XBL_API_KEY and XBL_GAMERTAG must be set in Railway (production) or .env (local) for this to work.
 # See .env.example for setup instructions.
+#
+# Placeholder detection: we only consider the values as "not configured" if they exactly match
+# the example placeholder strings from .env.example ("your_real_xbl_key_here" or "your_exact_gamertag_here").
+# This way, real keys (even if they look like the old default) or the actual gamertag "NutNutBiinks"
+# will trigger real API calls. The old default key in the getenv() fallback is kept for backward compat
+# but will now attempt API (and fail gracefully) instead of forcing not_configured.
 XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
 
-# Warn at startup if still using the placeholder Xbox key (common cause of "unavailable")
-if (XBL_API_KEY in ("7ede4621-fd2d-4928-919e-8f520a85804d", "your_real_xbl_key_here", "your_openxbl_api_key_here")
-        or XBL_GAMERTAG in ("NutNutBiinks", "your_gamertag_here", "your_exact_gamertag_here")):
+# Warn at startup ONLY if using the example placeholder strings (not real values)
+if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
     print("⚠️  WARNING: Using placeholder XBL_API_KEY / XBL_GAMERTAG. Xbox status will be unavailable until you set real values in .env or Railway env vars. See .env.example for instructions.")
 
 # Admin token used for protected actions (e.g. deleting messages on /blog)
@@ -1033,9 +1038,10 @@ async def get_xbox_status():
     global last_xbox_data
 
     # If using placeholder values, return not_configured immediately (no API call)
-    placeholder_keys = ("7ede4621-fd2d-4928-919e-8f520a85804d", "your_real_xbl_key_here", "your_openxbl_api_key_here")
-    placeholder_gts = ("NutNutBiinks", "your_gamertag_here", "your_exact_gamertag_here")
-    if XBL_API_KEY in placeholder_keys or XBL_GAMERTAG in placeholder_gts:
+    # Detection: ONLY trigger on the exact example placeholder strings from .env.example.
+    # Real values (including the user's actual key and gamertag="NutNutBiinks") will proceed to call xbl.io.
+    # See comment above the XBL_ assignments for full explanation of detection logic.
+    if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
         return {"status": "not_configured", "state": "Unknown", "game": "—"}
 
     headers = {
