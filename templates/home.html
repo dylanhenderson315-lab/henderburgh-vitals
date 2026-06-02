@@ -100,17 +100,6 @@
       margin-bottom: 72px;
     }
 
-    .placeholder-card {
-      border: 1px solid #f0f0f0;
-      border-radius: 14px;
-      background: #fafafa;
-      transition: border-color 0.2s ease;
-    }
-
-    .placeholder-card:hover {
-      border-color: #e5e5e5;
-    }
-
     /* Polished Game Clips horizontal scroller */
     .clips-scroll {
       display: flex;
@@ -124,18 +113,18 @@
     .clip-card {
       flex: 0 0 280px;
       scroll-snap-align: start;
-      background: white;
-      border: 1px solid #e5e5e5;
+      background: #18181b;
+      border: 1px solid #3f3f46;
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .clip-card:hover {
-      border-color: #d4d4d4;
-      box-shadow: 0 8px 20px -4px rgba(0,0,0,0.08), 0 2px 6px -2px rgba(0,0,0,0.04);
-      transform: translateY(-2px);
+      border-color: #52525b;
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
+      transform: translateY(-1px);
     }
 
     .clip-card video {
@@ -153,11 +142,11 @@
     .clip-meta strong {
       display: block;
       margin-bottom: 2px;
-      color: #111;
+      color: #f4f4f5;
     }
 
     .clip-meta span {
-      color: #666;
+      color: #a1a1aa;
       font-size: 0.85rem;
     }
 
@@ -172,11 +161,11 @@
     }
 
     .minimal-footer {
-      border-top: 1px solid #f0f0f0;
+      border-top: 1px solid #27272a;
       padding-top: 28px;
       padding-bottom: 28px;
       font-size: 12px;
-      color: #737373;
+      color: #71717a;
     }
 
     /* Live Now cards */
@@ -285,7 +274,7 @@
     <!-- Personal Intro -->
     <div class="mb-10 max-w-2xl">
       <p class="text-lg text-zinc-300">
-        Daily signals, swings, and stories.
+        HENDERBURGH'S UPDATES.
       </p>
     </div>
 
@@ -340,7 +329,7 @@
           <div class="section-label">Game Clips</div>
           <p style="margin-top: 4px; color: #525252; font-size: 0.95rem;">Recent highlights from my sessions.</p>
         </div>
-        <a href="/clips" class="text-sm text-neutral-500 hover:text-neutral-900 transition flex items-center gap-x-1 mt-1">
+        <a href="/clips" class="text-sm text-zinc-400 hover:text-white transition flex items-center gap-x-1 mt-1">
           View all <span class="text-xs">→</span>
         </a>
       </div>

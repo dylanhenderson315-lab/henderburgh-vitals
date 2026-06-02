@@ -25,15 +25,15 @@
     }
 
     .card {
-      background: white;
-      border: 1px solid #e5e5e5;
+      background: #18181b;
+      border: 1px solid #3f3f46;
       border-radius: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
 
     .stat-card {
-      background: #fafafa;
-      border: 1px solid #f0f0f0;
+      background: #27272a;
+      border: 1px solid #3f3f46;
       border-radius: 12px;
       padding: 16px 18px;
     }
@@ -45,82 +45,89 @@
 
     .distance-table td {
       padding: 10px 14px;
-      border-bottom: 1px solid #f0f0f0;
+      border-bottom: 1px solid #3f3f46;
     }
 
     .distance-table td:first-child {
       font-weight: 500;
-      color: #171717;
+      color: #e4e4e7;
     }
 
     .distance-table .distance-cell {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: #111;
+      color: #e4e4e7;
       min-width: 70px;
     }
 
     .distance-cell:focus {
-      outline: 2px solid #e5e5e5;
+      outline: 2px solid #52525b;
       outline-offset: -2px;
-      background: #fff;
+      background: #18181b;
       border-radius: 4px;
     }
 
     .round-card {
-      border: 1px solid #e5e5e5;
+      border: 1px solid #3f3f46;
       border-radius: 12px;
       padding: 14px 16px;
+      background: #18181b;
       transition: all 0.15s ease;
     }
 
     .round-card:hover {
-      border-color: #d4d4d4;
+      border-color: #52525b;
     }
 
     .form-input {
-      border: 1px solid #e5e5e5;
+      background: #27272a;
+      border: 1px solid #3f3f46;
       border-radius: 10px;
       padding: 10px 14px;
       font-size: 14px;
+      color: #e4e4e7;
       transition: border-color 0.15s;
     }
     .form-input:focus {
-      border-color: #a3a3a3;
+      border-color: #52525b;
       outline: none;
+      background: #18181b;
     }
 
     .btn {
-      background: #111;
-      color: white;
+      background: #27272a;
+      color: #e4e4e7;
       font-weight: 500;
       padding: 10px 18px;
       border-radius: 10px;
       font-size: 14px;
+      border: 1px solid #3f3f46;
       transition: all 0.2s;
     }
     .btn:hover {
-      background: #222;
+      background: #3f3f46;
+      border-color: #52525b;
     }
     .btn-secondary {
-      background: white;
-      color: #111;
-      border: 1px solid #e5e5e5;
+      background: #18181b;
+      color: #e4e4e7;
+      border: 1px solid #3f3f46;
     }
     .btn-secondary:hover {
-      background: #f9f9f9;
+      background: #27272a;
+      border-color: #52525b;
     }
 
     .nav-link {
-      color: #404040;
+      color: #a1a1aa;
       transition: color 0.15s ease;
       font-weight: 500;
       font-size: 14px;
     }
     .nav-link:hover {
-      color: #111111;
+      color: #f4f4f5;
     }
     .nav-link.active {
-      color: #111;
+      color: #fff;
       font-weight: 600;
     }
   </style>
@@ -156,12 +163,12 @@
     <!-- Page Title -->
     <div class="mb-10">
       <div class="flex items-center gap-x-3">
-        <div class="w-9 h-9 rounded-2xl bg-emerald-100 flex items-center justify-center">
-          <i class="fa-solid fa-golf-ball text-emerald-600 text-xl"></i>
+        <div class="w-9 h-9 rounded-2xl bg-emerald-900/30 flex items-center justify-center">
+          <i class="fa-solid fa-golf-ball text-emerald-400 text-xl"></i>
         </div>
         <div>
           <h1 class="text-4xl font-semibold tracking-tighter">Golf</h1>
-          <p class="text-neutral-600 mt-1">Track your game. Improve your distances.</p>
+          <p class="text-zinc-400 mt-1">Track your game. Improve your distances.</p>
         </div>
       </div>
     </div>
@@ -171,7 +178,7 @@
       <div class="flex items-center justify-between mb-4">
         <div>
           <div class="section-label">Club Distances</div>
-          <p class="text-sm text-neutral-600 mt-1">Average carry (yards). Click a number to edit.</p>
+          <p class="text-sm text-zinc-400 mt-1">Average carry (yards). Click a number to edit.</p>
         </div>
         <button onclick="addNewClub()"
                 class="btn-secondary text-sm px-4 py-2 rounded-xl flex items-center gap-x-2">
@@ -183,9 +190,9 @@
       <div class="card overflow-hidden">
         <table class="w-full distance-table text-sm">
           <thead>
-            <tr class="bg-neutral-50">
-              <th class="text-left px-5 py-3 font-medium text-neutral-600 w-1/2">Club</th>
-              <th class="text-left px-5 py-3 font-medium text-neutral-600">Distance (yards)</th>
+            <tr class="bg-[#27272a]">
+              <th class="text-left px-5 py-3 font-medium text-zinc-400 w-1/2">Club</th>
+              <th class="text-left px-5 py-3 font-medium text-zinc-400">Distance (yards)</th>
               <th class="w-10"></th>
             </tr>
           </thead>
@@ -194,7 +201,7 @@
           </tbody>
         </table>
       </div>
-      <p class="text-[11px] text-neutral-400 mt-2 px-1">Changes save automatically to your browser.</p>
+      <p class="text-[11px] text-zinc-500 mt-2 px-1">Changes save automatically to the server.</p>
     </div>
 
     <!-- Log New Round -->
@@ -204,16 +211,16 @@
       <div class="card p-6">
         <form id="round-form" onsubmit="saveRound(event)" class="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-5">
           <div>
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Date</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Date</label>
             <input type="date" id="round-date" class="form-input w-full" required>
           </div>
           <div>
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Course</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Course</label>
             <input type="text" id="round-course" class="form-input w-full" placeholder="e.g. Pinehurst No. 2" required>
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Holes Played</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Holes Played</label>
             <select id="round-holes" class="form-input w-full">
               <option value="18">18 Holes</option>
               <option value="9">9 Holes</option>
@@ -221,25 +228,25 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Total Score</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Total Score</label>
             <input type="number" id="round-score" class="form-input w-full" placeholder="78" required min="55" max="150">
           </div>
           <div>
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Fairways Hit</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Fairways Hit</label>
             <input type="number" id="round-fairways" class="form-input w-full" placeholder="9" min="0" max="18">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Greens in Regulation</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Greens in Regulation</label>
             <input type="number" id="round-gir" class="form-input w-full" placeholder="11" min="0" max="18">
           </div>
           <div>
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Total Putts</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Total Putts</label>
             <input type="number" id="round-putts" class="form-input w-full" placeholder="29" min="0" max="60">
           </div>
 
           <div class="md:col-span-2">
-            <label class="block text-xs font-medium text-neutral-500 mb-1.5">Notes (optional)</label>
+            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Notes (optional)</label>
             <textarea id="round-notes" rows="2" class="form-input w-full" placeholder="Hit driver well today..."></textarea>
           </div>
 
@@ -253,8 +260,6 @@
         </form>
       </div>
     </div>
-      </div>
-    </div>
 
     <!-- Stats + Recent Rounds -->
     <div>
@@ -263,19 +268,19 @@
       <!-- Stats -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div class="stat-card">
-          <div class="text-xs text-neutral-500">Total Rounds</div>
+          <div class="text-xs text-zinc-400">Total Rounds</div>
           <div id="stat-total" class="text-3xl font-semibold mt-1 tabular-nums">0</div>
         </div>
         <div class="stat-card">
-          <div class="text-xs text-neutral-500">Average Score</div>
+          <div class="text-xs text-zinc-400">Average Score</div>
           <div id="stat-average" class="text-3xl font-semibold mt-1 tabular-nums">—</div>
         </div>
         <div class="stat-card">
-          <div class="text-xs text-neutral-500">Best Score</div>
+          <div class="text-xs text-zinc-400">Best Score</div>
           <div id="stat-best" class="text-3xl font-semibold mt-1 tabular-nums">—</div>
         </div>
         <div class="stat-card">
-          <div class="text-xs text-neutral-500">Avg Putts</div>
+          <div class="text-xs text-zinc-400">Avg Putts</div>
           <div id="stat-putts" class="text-3xl font-semibold mt-1 tabular-nums">—</div>
         </div>
       </div>
@@ -292,7 +297,7 @@
           <!-- Populated by JavaScript -->
         </div>
 
-        <div id="no-rounds" class="hidden text-center py-6 text-neutral-400 text-sm">
+        <div id="no-rounds" class="hidden text-center py-6 text-zinc-500 text-sm">
           No rounds logged yet. Add your first round above.
         </div>
       </div>
@@ -300,7 +305,7 @@
   </main>
 
   <footer class="max-w-[1080px] mx-auto px-6 pb-10">
-    <div class="border-t border-neutral-100 pt-6 text-xs text-neutral-400 text-center">
+    <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-500 text-center">
       Club distances saved on server • Rounds stored in your browser • HENDERBURGH Golf
     </div>
   </footer>
@@ -386,7 +391,7 @@
           </td>
           <td class="text-right pr-4">
             <button onclick="deleteClub(${index})" 
-                    class="text-neutral-300 hover:text-red-500 text-lg leading-none px-2">×</button>
+                    class="text-zinc-400 hover:text-red-400 text-lg leading-none px-2">×</button>
           </td>
         `;
         tbody.appendChild(row);
@@ -552,7 +557,7 @@
           if (round.fairways) parts.push(`${round.fairways} FW`);
           if (round.gir) parts.push(`${round.gir} GIR`);
           if (round.putts) parts.push(`${round.putts} putts`);
-          meta = `<span class="text-xs text-neutral-500">${parts.join(' • ')}</span>`;
+          meta = `<span class="text-xs text-zinc-400">${parts.join(' • ')}</span>`;
         }
 
         const holesLabel = round.holes ? `${round.holes}H` : '18H';
@@ -563,11 +568,11 @@
               <div class="font-semibold">${round.score}</div>
               <div>
                 <div class="font-medium">${round.course} <span class="text-xs text-emerald-400 font-mono">(${holesLabel})</span></div>
-                <div class="text-xs text-neutral-500">${round.date}</div>
+                <div class="text-xs text-zinc-400">${round.date}</div>
               </div>
             </div>
             ${meta ? `<div class="mt-1">${meta}</div>` : ''}
-            ${round.notes ? `<div class="text-xs text-neutral-500 mt-1 italic">"${round.notes}"</div>` : ''}
+            ${round.notes ? `<div class="text-xs text-zinc-400 mt-1 italic">"${round.notes}"</div>` : ''}
           </div>
           <button onclick="deleteRound(${round.id})" 
                   class="text-red-300 hover:text-red-500 text-xl leading-none px-2 self-start sm:self-center">×</button>

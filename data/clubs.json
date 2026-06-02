@@ -1,0 +1,14 @@
+[
+  {"name": "Driver", "distance": 245},
+  {"name": "3 Wood", "distance": 220},
+  {"name": "5 Wood", "distance": 200},
+  {"name": "4 Iron", "distance": 185},
+  {"name": "5 Iron", "distance": 175},
+  {"name": "6 Iron", "distance": 165},
+  {"name": "7 Iron", "distance": 155},
+  {"name": "8 Iron", "distance": 145},
+  {"name": "9 Iron", "distance": 135},
+  {"name": "PW", "distance": 125},
+  {"name": "GW", "distance": 110},
+  {"name": "SW", "distance": 90}
+]

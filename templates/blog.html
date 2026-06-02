@@ -25,27 +25,58 @@
     }
 
     .card {
-      background: white;
-      border: 1px solid #e5e5e5;
+      background: #18181b;
+      border: 1px solid #3f3f46;
       border-radius: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
 
     .message-card {
-      border: 1px solid #f0f0f0;
+      border: 1px solid #3f3f46;
       border-radius: 12px;
       padding: 16px;
-      background: #fafafa;
+      background: #27272a;
+      color: #e4e4e7;
     }
 
     .nav-link {
-      color: #404040;
+      color: #a1a1aa;
       transition: color 0.15s ease;
       font-weight: 500;
       font-size: 14px;
     }
     .nav-link:hover {
-      color: #111111;
+      color: #f4f4f5;
+    }
+
+    .form-input {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #e4e4e7;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus {
+      border-color: #52525b;
+      outline: none;
+      background: #18181b;
+    }
+
+    .btn {
+      background: #27272a;
+      color: #e4e4e7;
+      font-weight: 500;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      border: 1px solid #3f3f46;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #3f3f46;
+      border-color: #52525b;
     }
   </style>
 </head>
@@ -79,18 +110,18 @@
   <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
     <div class="mb-10">
       <h1 class="text-4xl font-semibold tracking-tighter">Blog &amp; Messages</h1>
-      <p class="text-lg text-neutral-600 mt-2">Thoughts, updates, and a place to leave a note.</p>
+      <p class="text-lg text-zinc-400 mt-2">Thoughts, updates, and a place to leave a note.</p>
     </div>
 
     <!-- Threaded Message Board -->
     <div class="card p-6 mb-10">
       <h2 class="text-xl font-semibold mb-2">Message Board</h2>
-      <p class="text-neutral-600 mb-6">Leave a message or reply to others. Keep it friendly.</p>
+      <p class="text-zinc-400 mb-6">Leave a message or reply to others. Keep it friendly.</p>
 
       <!-- New Message Form -->
       <form id="message-form" style="margin-bottom: 24px;">
-        <input type="text" id="name" placeholder="Your name (optional)" style="margin-bottom: 8px; width: 100%; padding: 10px; border: 1px solid #e5e5e5; border-radius: 10px;">
-        <textarea id="text" placeholder="Write your message..." required style="width: 100%; height: 90px; padding: 10px; border: 1px solid #e5e5e5; border-radius: 10px; resize: vertical;"></textarea>
+        <input type="text" id="name" placeholder="Your name (optional)" class="form-input" style="margin-bottom: 8px; width: 100%;">
+        <textarea id="text" placeholder="Write your message..." required class="form-input" style="width: 100%; height: 90px; resize: vertical;"></textarea>
         <button type="submit" class="btn" style="margin-top: 10px;">
           Post Message
         </button>
@@ -100,7 +131,7 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h3 style="margin: 0; font-size: 1.1rem;">Messages</h3>
         <button onclick="enterAdminMode()" 
-                style="font-size: 0.75rem; padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">
+                style="font-size: 0.75rem; padding: 4px 10px; border: 1px solid #3f3f46; background: #18181b; color: #e4e4e7; border-radius: 6px; cursor: pointer;">
           Admin
         </button>
       </div>
@@ -110,7 +141,7 @@
   </main>
 
   <footer class="max-w-[1080px] mx-auto px-6 pb-10">
-    <div class="border-t border-neutral-100 pt-6 text-xs text-neutral-400 text-center">
+    <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-500 text-center">
       Messages are public • HENDERBURGH
     </div>
   </footer>
@@ -137,32 +168,29 @@
 
     function createMessageElement(msg, allMessages) {
       const div = document.createElement('div');
-      div.style.border = '1px solid #e5e5e5';
-      div.style.borderRadius = '12px';
-      div.style.padding = '14px';
+      div.className = 'message-card';
       div.style.marginBottom = '12px';
-      div.style.background = '#fff';
 
       const time = new Date(msg.timestamp).toLocaleString();
 
       let html = `
         <strong>${msg.name}</strong> 
-        <span style="color:#666; font-size:0.8rem; margin-left: 8px;">${time}</span>
+        <span style="color:#71717a; font-size:0.8rem; margin-left: 8px;">${time}</span>
       `;
 
       // Admin delete button
       if (adminToken) {
         html += `
-          <button onclick="deleteMessage('${msg.id}', this)" 
-                  style="float:right; color:#c00; font-size:18px; line-height:1; background:none; border:none; cursor:pointer; padding:0 4px;" 
+          <button onclick="deleteMessage('${msg.id}')" 
+                  style="float:right; color:#f87171; font-size:18px; line-height:1; background:none; border:none; cursor:pointer; padding:0 4px;" 
                   title="Delete (admin only)">×</button>
         `;
       }
 
       html += `
-        <p style="margin: 10px 0; white-space: pre-wrap;">${msg.text}</p>
+        <p style="margin: 10px 0; white-space: pre-wrap; color:#d4d4d8;">${msg.text}</p>
         <button onclick="showReplyForm('${msg.id}', this)" 
-                style="font-size: 0.8rem; color: #3b82f6; background: none; border: none; cursor: pointer; padding: 0;">
+                style="font-size: 0.8rem; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0;">
           Reply
         </button>
       `;
@@ -174,42 +202,19 @@
       replies.forEach(reply => {
         const replyDiv = createMessageElement(reply, allMessages);
         replyDiv.style.marginLeft = '24px';
-        replyDiv.style.borderLeft = '3px solid #e5e5e5';
+        replyDiv.style.borderLeft = '3px solid #52525b';
         div.appendChild(replyDiv);
       });
 
       return div;
     }
 
-    async function deleteMessage(messageId, button) {
-      if (!adminToken) {
-        alert("Admin mode not active.");
-        return;
-      }
-      if (!confirm("Delete this message?")) return;
-
-      try {
-        const res = await fetch(`/api/messages/${messageId}?token=${encodeURIComponent(adminToken)}`, {
-          method: 'DELETE'
-        });
-
-        if (res.ok) {
-          loadMessages();
-        } else {
-          const err = await res.json();
-          alert("Delete failed: " + (err.detail || "Invalid token"));
-        }
-      } catch (e) {
-        alert("Failed to delete message.");
-      }
-    }
-
     function showReplyForm(parentId, button) {
       const form = document.createElement('form');
       form.style.marginTop = '10px';
       form.innerHTML = `
-        <input type="text" placeholder="Your name (optional)" style="margin-bottom: 6px; width: 100%; padding: 8px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <textarea placeholder="Your reply..." required style="width: 100%; height: 70px; padding: 8px; border: 1px solid #e5e5e5; border-radius: 8px;"></textarea>
+        <input type="text" placeholder="Your name (optional)" style="margin-bottom: 6px; width: 100%; padding: 8px; border: 1px solid #3f3f46; background:#27272a; color:#e4e4e7; border-radius: 8px;">
+        <textarea placeholder="Your reply..." required style="width: 100%; height: 70px; padding: 8px; border: 1px solid #3f3f46; background:#27272a; color:#e4e4e7; border-radius: 8px;"></textarea>
         <button type="submit" class="btn" style="margin-top: 6px; padding: 6px 14px; font-size: 0.85rem;">Send Reply</button>
       `;
 
