@@ -1032,46 +1032,91 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # Get profile
+            # Step 1: Resolve gamertag to XUID
             profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
             profile_res = await client.get(profile_url, headers=headers, timeout=10)
 
             if profile_res.status_code != 200:
+                print(f"Xbox API error (profile): status={profile_res.status_code} body={profile_res.text[:300]}")
                 return last_xbox_data
 
             profile = profile_res.json()
             xuid = profile.get("xuid")
 
             if not xuid:
+                print("Xbox API error: no xuid returned in profile response")
                 return last_xbox_data
 
-            # Get presence
+            # Step 2: Get presence
             presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
             presence_res = await client.get(presence_url, headers=headers, timeout=10)
 
-            if presence_res.status_code == 200:
-                presence = presence_res.json()
+            if presence_res.status_code != 200:
+                print(f"Xbox API error (presence): status={presence_res.status_code} body={presence_res.text[:300]}")
+                return last_xbox_data
 
-                # Try multiple possible paths for the game name
+            presence = presence_res.json() or {}
+
+            state = presence.get("state", "Unknown")
+
+            # Step 3: Extract current game/app name - try multiple paths for robustness
+            game = "—"
+
+            # Path 1: devices[0].titles (most common for current activity)
+            devices = presence.get("devices") or []
+            if isinstance(devices, list) and len(devices) > 0:
+                for device in devices:
+                    if not isinstance(device, dict):
+                        continue
+                    titles = device.get("titles") or []
+                    if isinstance(titles, list) and len(titles) > 0:
+                        # Prefer active title if present
+                        for title in titles:
+                            if isinstance(title, dict):
+                                if title.get("placement") == "Active" or title.get("state") == "Active":
+                                    game = title.get("name") or title.get("titleName") or "—"
+                                    break
+                        if game == "—":
+                            # fallback to first title
+                            first_title = titles[0]
+                            if isinstance(first_title, dict):
+                                game = first_title.get("name") or first_title.get("titleName") or "—"
+                    if game != "—":
+                        break
+
+            # Path 2: direct lastSeenTitle (some response formats)
+            if game == "—" and "lastSeenTitle" in presence:
+                game = presence.get("lastSeenTitle") or "—"
+
+            # Path 3: lastSeen.titleName
+            if game == "—":
+                last_seen = presence.get("lastSeen") or {}
+                if isinstance(last_seen, dict):
+                    game = last_seen.get("titleName") or last_seen.get("name") or "—"
+
+            # Path 4: other possible top-level fields (handle different formats)
+            if game == "—":
+                game = (
+                    presence.get("titleName")
+                    or presence.get("name")
+                    or (presence.get("title") or {}).get("name") if isinstance(presence.get("title"), dict) else presence.get("title")
+                    or "—"
+                )
+
+            # Handle empty / falsy game
+            if not game or str(game).strip() == "":
                 game = "—"
-                if "devices" in presence and len(presence["devices"]) > 0:
-                    titles = presence["devices"][0].get("titles", [])
-                    if titles:
-                        game = titles[0].get("name", "—")
-                elif "lastSeenTitle" in presence:
-                    game = presence.get("lastSeenTitle", "—")
 
-                last_xbox_data = {
-                    "status": "ok",
-                    "state": presence.get("state", "Online"),
-                    "game": game
-                }
-                return last_xbox_data
-            else:
-                return last_xbox_data
+            # Only update cache and return success if we actually got something
+            last_xbox_data = {
+                "status": "ok",
+                "state": state,
+                "game": game
+            }
+            return last_xbox_data
 
         except Exception as e:
-            print(f"Xbox API error: {e}")  # This will show in your logs
+            print(f"Xbox API error: {e}")
             return last_xbox_data
 
 
