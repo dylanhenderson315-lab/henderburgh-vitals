@@ -183,6 +183,108 @@
       background-color: rgba(16, 185, 129, 0.12) !important;
       transform: scale(1.02);
     }
+
+    /* Premium calm dark + skeletons + mobile app bar */
+    .skeleton {
+      background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s ease-in-out infinite;
+      border-radius: 8px;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-text { height: 10px; }
+    .skeleton-card { min-height: 92px; }
+
+    /* Bottom app-like navigation (mobile only, thumb friendly >=44px) */
+    .bottom-nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 60;
+      background: #111113;
+      border-top: 1px solid #3f3f46;
+      display: none; /* shown via media */
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    @media (max-width: 640px) {
+      .bottom-nav { display: flex; }
+      .sidebar-desktop { display: none !important; }
+      .main-with-bottom { padding-bottom: 72px !important; }
+      .entity-grid { grid-template-columns: 1fr !important; }
+    }
+    .bottom-nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 4px 6px;
+      font-size: 10px;
+      color: #a1a1aa;
+      min-height: 56px;
+      transition: color 0.1s ease;
+    }
+    .bottom-nav-btn.active {
+      color: #10b981;
+    }
+    .bottom-nav-btn i {
+      font-size: 18px;
+      margin-bottom: 2px;
+    }
+    .bottom-nav-btn span {
+      letter-spacing: 0.2px;
+    }
+
+    /* Desktop view switcher pills (consistent with bottom nav) */
+    .view-switcher {
+      display: inline-flex;
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 9999px;
+      padding: 2px;
+    }
+    .view-switcher button {
+      padding: 6px 14px;
+      font-size: 12px;
+      border-radius: 9999px;
+      color: #a1a1aa;
+      transition: all 0.1s ease;
+    }
+    .view-switcher button.active {
+      background: #27272a;
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    /* Lights view quick filters */
+    .filter-chip {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #3f3f46;
+      background: #18181b;
+      color: #d4d4d8;
+      min-height: 32px;
+    }
+    .filter-chip.active {
+      background: #10b981;
+      border-color: #10b981;
+      color: #052e16;
+      font-weight: 600;
+    }
+
+    /* Subtle syncing indicator */
+    .sync-indicator {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #27272a;
+      color: #71717a;
+    }
   </style>
 </head>
 <body class="bg-[#0a0a0b] text-zinc-200 antialiased">
@@ -252,30 +354,37 @@
     </div>
     {% else %}
 
-    <!-- Top bar: search + last updated -->
-    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+    <!-- Top bar: search + last updated + subtle sync status -->
+    <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
       <div class="flex-1 min-w-[200px]">
-        <input id="global-search" type="text" placeholder="Search lights..." 
+        <input id="global-search" type="text" placeholder="Search lights, rooms, groups..." 
                class="w-full bg-[#18181b] border border-[#3f3f46] text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500/50"
                oninput="filterCurrentView()">
       </div>
-      <div class="text-[10px] text-zinc-500 tabular-nums" id="last-refresh">—</div>
+      <div class="flex items-center gap-2 text-[10px] text-zinc-500 tabular-nums">
+        <span id="last-refresh">—</span>
+        <span id="sync-indicator" class="sync-indicator hidden">syncing…</span>
+        <button onclick="refreshAllData(true)" class="ha-btn text-xs px-2 py-0.5" title="Refresh from Home Assistant"><i class="fa-solid fa-sync-alt"></i></button>
+      </div>
     </div>
 
-    <!-- View tabs for clean main experience vs visual floor plan reference -->
-    <div class="flex gap-1 mb-3">
-      <button onclick="switchView('organize')" id="tab-organize"
-              class="px-4 py-1.5 text-sm rounded-full bg-zinc-800 text-white border border-zinc-700 min-h-[44px]">Organize</button>
-      <button onclick="switchView('floorplan')" id="tab-floorplan"
-              class="px-4 py-1.5 text-sm rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800 min-h-[44px]">Floor Plan</button>
+    <!-- Desktop view switcher (consistent with mobile bottom nav). Sidebar remains for quick room/group access. -->
+    <div class="hidden md:flex items-center gap-2 mb-3">
+      <div class="view-switcher">
+        <button onclick="setPrimaryView('rooms')" id="vs-rooms" class="active">Rooms</button>
+        <button onclick="setPrimaryView('lights')" id="vs-lights">Lights</button>
+        <button onclick="setPrimaryView('groups')" id="vs-groups">Groups</button>
+        <button onclick="setPrimaryView('scenes')" id="vs-scenes">Scenes</button>
+        <button onclick="setPrimaryView('plan')" id="vs-plan">Plan</button>
+      </div>
       <div class="flex-1"></div>
-      <button onclick="refreshAllData()" class="ha-btn text-xs px-2 py-0.5"><i class="fa-solid fa-sync-alt"></i> Refresh</button>
+      <div class="text-[10px] text-emerald-400/70">Premium lighting • instant &amp; calm</div>
     </div>
 
     <!-- Main dashboard layout -->
-    <div class="flex flex-col lg:flex-row gap-4">
-      <!-- Sidebar / Room Navigation -->
-      <div class="lg:w-56 flex-shrink-0">
+    <div class="flex flex-col lg:flex-row gap-4 main-with-bottom">
+      <!-- Sidebar / Room Navigation (desktop only; hidden on mobile where bottom nav rules) -->
+      <div class="lg:w-56 flex-shrink-0 sidebar-desktop">
         <div class="card p-2 lg:sticky lg:top-20">
           <div class="flex items-center justify-between px-2 pb-1">
             <div class="section-label">Rooms</div>
@@ -303,7 +412,7 @@
           </div>
 
           <div class="section-label px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">Scenes</div>
-          <button onclick="showScenesView()" 
+          <button onclick="setPrimaryView('scenes')" 
                   class="w-full text-left px-3 py-1.5 text-sm rounded hover:bg-[#27272a] flex items-center gap-2 text-emerald-300">
             <i class="fa-solid fa-magic w-4"></i>
             <span>All Scenes</span>
@@ -313,12 +422,43 @@
 
       <!-- Main content -->
       <div class="flex-1 min-w-0" id="main-content">
-        <!-- Dynamically rendered by JS: room header + master controls + lights grid, or scenes -->
+        <!-- Dynamically rendered by JS from persisted config instantly, then live-updated -->
         <div id="dashboard-content">
-          <div class="text-sm text-zinc-500 p-8 text-center">Loading lighting data from Home Assistant...</div>
+          <!-- Initial skeleton (replaced instantly by bootstrap from lighting_config.json) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="card p-4 skeleton skeleton-card"></div>
+            <div class="card p-4 skeleton skeleton-card"></div>
+            <div class="card p-4 skeleton skeleton-card"></div>
+            <div class="card p-4 skeleton skeleton-card"></div>
+          </div>
+          <div class="text-center text-[10px] text-zinc-500 mt-3">Loading structure from saved rooms &amp; groups…</div>
         </div>
       </div>
     </div>
+
+    <!-- Mobile bottom navigation (app-like, premium #1 feel on phone) -->
+    <nav class="bottom-nav md:hidden">
+      <button class="bottom-nav-btn active" onclick="setPrimaryView('rooms')" id="bn-rooms" aria-label="Rooms">
+        <i class="fa-solid fa-home"></i>
+        <span>Rooms</span>
+      </button>
+      <button class="bottom-nav-btn" onclick="setPrimaryView('lights')" id="bn-lights" aria-label="All Lights">
+        <i class="fa-solid fa-lightbulb"></i>
+        <span>Lights</span>
+      </button>
+      <button class="bottom-nav-btn" onclick="setPrimaryView('groups')" id="bn-groups" aria-label="Sync Groups">
+        <i class="fa-solid fa-link"></i>
+        <span>Groups</span>
+      </button>
+      <button class="bottom-nav-btn" onclick="setPrimaryView('scenes')" id="bn-scenes" aria-label="Scenes">
+        <i class="fa-solid fa-magic"></i>
+        <span>Scenes</span>
+      </button>
+      <button class="bottom-nav-btn" onclick="setPrimaryView('plan')" id="bn-plan" aria-label="Floor Plan">
+        <i class="fa-solid fa-map"></i>
+        <span>Plan</span>
+      </button>
+    </nav>
 
     <!-- Light Detail Panel (premium slide-in on desktop, bottom sheet on mobile for thumb use) -->
     <div id="light-detail" class="hidden fixed inset-y-0 right-0 w-full max-w-md bg-[#0a0a0b] border-l border-zinc-800 shadow-2xl z-[100] flex flex-col transform transition-transform duration-200 translate-x-full lg:translate-x-full"
@@ -345,6 +485,14 @@
     {% endif %}
   </main>
 
+  <!-- Embed persisted lighting structure (rooms + sync groups from lighting_config.json) for instant render on first paint.
+       No waiting for Home Assistant. Background fetch then hydrates live states + any new unassigned lights. -->
+  {% if initial_lighting %}
+  <script>
+    window.INITIAL_LIGHTING = {{ initial_lighting | tojson }};
+  </script>
+  {% endif %}
+
   <!-- Footer -->
   <footer class="max-w-[1080px] mx-auto px-6 pb-10">
     <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-500 text-center">
@@ -362,10 +510,87 @@
 
     // Auto-unlocked by default (no prompt on refresh). Backend still enforces ADMIN_TOKEN on all writes.
     let adminToken = "67";
-    let haData = null;           // {rooms, lights_by_room, groups, scenes, ...}
+    let haData = null;           // {rooms, lights_by_room, groups, scenes, ...} from live or synthesized
     let lightsState = {};        // entity_id -> current optimistic attrs
-    let currentView = 'organize';     // 'organize' (default clean view) | 'floorplan' | room name etc for sub views
+    let primaryView = 'rooms';   // 'rooms' (default), 'lights', 'groups', 'scenes', 'plan'
+    let lightsFilter = 'all';    // for the Lights view: 'all' | 'on' | 'off' | 'unassigned' | 'nogroup'
     let searchTerm = '';
+    let isHydrated = false;      // true after first successful live data
+
+    // --- Instant bootstrap from persisted config (lighting_config.json embedded at render time) ---
+    function bootstrapFromInitial() {
+      const init = window.INITIAL_LIGHTING;
+      if (!init || !init.rooms) {
+        // fallback: will fetch
+        return false;
+      }
+      // Synthesize a minimal haData so we can render full room + group structure immediately.
+      // Lights will be "skeleton" (no friendly names / capabilities yet) until live fetch.
+      const synthRooms = (init.rooms || []).map(r => ({
+        id: r.id,
+        name: r.name,
+        light_ids: r.light_ids || [],
+        light_count: (r.light_ids || []).length,
+        on_count: 0
+      }));
+      const synthGroups = (init.groups || []).map(g => ({
+        id: g.id,
+        name: g.name,
+        light_ids: g.light_ids || [],
+        light_count: (g.light_ids || []).length,
+        on_count: 0
+      }));
+
+      // Build a fake lights_by_room + unassigned from the known ids (short labels until hydrated)
+      const lightsByRoom = {};
+      const unassigned = [];
+      const allSynth = [];
+
+      synthRooms.forEach(room => {
+        const arr = [];
+        (room.light_ids || []).forEach(eid => {
+          const short = eid.replace('light.', '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const fake = { entity_id: eid, friendly_name: short, state: 'unknown', brightness: null, room_name: room.name, effect_list: [], supported_color_modes: [] };
+          arr.push(fake);
+          allSynth.push(fake);
+        });
+        if (arr.length) lightsByRoom[room.name] = arr;
+      });
+
+      // Any light_ids in groups not yet in a room go unassigned for display (will be corrected on live)
+      const assigned = new Set(synthRooms.flatMap(r => r.light_ids || []));
+      synthGroups.forEach(g => {
+        (g.light_ids || []).forEach(eid => {
+          if (!assigned.has(eid)) {
+            const short = eid.replace('light.', '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const fake = { entity_id: eid, friendly_name: short, state: 'unknown', brightness: null, room_name: 'Unassigned', effect_list: [], supported_color_modes: [] };
+            unassigned.push(fake);
+            allSynth.push(fake);
+          }
+        });
+      });
+
+      haData = {
+        rooms: synthRooms,
+        groups: synthGroups,
+        lights_by_room: lightsByRoom,
+        unassigned_lights: unassigned,
+        scenes: [],
+        total_lights: allSynth.length
+      };
+
+      // Seed optimistic state as "unknown" so cards render calmly
+      lightsState = {};
+      allSynth.forEach(l => {
+        lightsState[l.entity_id] = { state: 'unknown', brightness: null };
+      });
+
+      // Render the persisted structure right now (no HA wait)
+      buildRoomNav();
+      setPrimaryView('rooms', true /*quiet*/);
+      updateLastRefresh('structure loaded');
+      return true;
+    }
 
     async function fetchLightsData() {
       try {
@@ -373,16 +598,20 @@
         const data = await res.json();
         if (data.status === 'ok') {
           haData = data;
-          // Initialize live state
-          lightsState = {};
+          // Merge / initialize live state (optimistic keeps priority for in-flight)
           const allRoomLights = Object.values(data.lights_by_room || {}).flat();
-          [...allRoomLights, ...(data.unassigned_lights || [])].forEach(l => {
-            lightsState[l.entity_id] = { 
-              ...l.attributes, 
+          const all = [...allRoomLights, ...(data.unassigned_lights || [])];
+          all.forEach(l => {
+            if (!lightsState[l.entity_id]) lightsState[l.entity_id] = {};
+            // Only overwrite with server if we don't have a fresher optimistic value, but for simplicity we take server as source of truth after success
+            lightsState[l.entity_id] = {
+              ...l.attributes,
               state: l.state,
-              current_effect: l.current_effect || l.attributes?.effect
+              current_effect: l.current_effect || (l.attributes && l.attributes.effect),
+              brightness: l.brightness,
             };
           });
+          isHydrated = true;
           return true;
         }
       } catch (e) {
@@ -391,29 +620,64 @@
       return false;
     }
 
+    // Background hydrate: fetch live, diff, update only what changed, keep UI calm
+    async function hydrateLiveStates(quiet = false) {
+      if (!quiet) showSyncIndicator(true);
+      const ok = await fetchLightsData();
+      if (ok && haData) {
+        buildRoomNav();
+        // If we are in a view that cares about live states, re-render (or do targeted later)
+        renderPrimaryView(true /* fromHydrate */);
+        updateLastRefresh('just now');
+      }
+      if (!quiet) showSyncIndicator(false);
+      return ok;
+    }
+
+    function showSyncIndicator(show) {
+      const el = document.getElementById('sync-indicator');
+      if (el) el.classList.toggle('hidden', !show);
+    }
+
+    function updateLastRefresh(text) {
+      const el = document.getElementById('last-refresh');
+      if (el) el.textContent = text || '—';
+    }
+
+    function updateActiveViewButtons() {
+      // Desktop switcher
+      ['rooms','lights','groups','scenes','plan'].forEach(v => {
+        const el = document.getElementById('vs-' + v);
+        if (el) el.classList.toggle('active', primaryView === v);
+      });
+      // Bottom nav
+      ['rooms','lights','groups','scenes','plan'].forEach(v => {
+        const el = document.getElementById('bn-' + v);
+        if (el) el.classList.toggle('active', primaryView === v);
+      });
+    }
+
     function buildRoomNav() {
       const roomContainer = document.getElementById('room-nav');
       const groupContainer = document.getElementById('group-nav');
       if (!roomContainer || !haData) return;
 
-      // Rooms
+      // Rooms section in sidebar (quick jump still sets primary to rooms for clarity)
       let roomHtml = '';
-      const totalOn = (haData.total_lights || 0) - (haData.unassigned_lights || []).filter(l => (lightsState[l.entity_id]?.state || l.state) !== 'on').length; // rough
 
       roomHtml += `
-        <button data-view="all" onclick="switchView('all')"
-                class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${currentView === 'all' ? 'bg-[#27272a] text-white' : ''}">
-          <span class="flex items-center gap-2"><i class="fa-solid fa-globe w-4"></i> All Lights</span>
+        <button data-view="rooms" onclick="setPrimaryView('rooms')"
+                class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${primaryView === 'rooms' ? 'bg-[#27272a] text-white' : ''}">
+          <span class="flex items-center gap-2"><i class="fa-solid fa-home w-4"></i> All Rooms</span>
           <span class="text-xs text-zinc-500 tabular-nums">${haData.total_lights || 0}</span>
         </button>`;
 
       (haData.rooms || []).forEach(room => {
-        const isActive = currentView === room.name || currentView === room.id;
         const on = room.on_count || 0;
         roomHtml += `
-          <div class="group flex items-center gap-1 nav-room-btn ${isActive ? 'bg-[#27272a] text-white' : ''} rounded" 
+          <div class="group flex items-center gap-1 nav-room-btn ${ (primaryView==='rooms') ? 'bg-[#27272a] text-white' : ''} rounded" 
                draggable="true" ondragover="event.preventDefault()" ondrop="handleDropToRoom(event, '${room.id}')">
-            <button data-view="${room.name}" onclick="switchView('${room.name}')"
+            <button data-view="${room.name}" onclick="jumpToRoom('${room.id}')"
                     class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
               <span class="truncate">${room.name}</span>
               <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${room.light_count || 0}</span>
@@ -425,30 +689,26 @@
           </div>`;
       });
 
-      // Unassigned
+      // Unassigned (clicking focuses the Lights view filtered)
       const unCount = (haData.unassigned_lights || []).length;
-      if (unCount > 0 || true) {
-        const isUn = currentView === 'unassigned';
-        roomHtml += `
-          <button data-view="unassigned" onclick="switchView('unassigned')"
-                  class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${isUn ? 'bg-[#27272a] text-white' : ''} text-amber-300">
-            <span class="flex items-center gap-2"><i class="fa-solid fa-question w-4"></i> Unassigned</span>
-            <span class="text-xs text-zinc-500 tabular-nums">${unCount}</span>
-          </button>`;
-      }
+      roomHtml += `
+        <button data-view="unassigned" onclick="setPrimaryView('lights'); lightsFilter='unassigned'; renderPrimaryView();"
+                class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${ (primaryView==='lights' && lightsFilter==='unassigned') ? 'bg-[#27272a] text-white' : ''} text-amber-300">
+          <span class="flex items-center gap-2"><i class="fa-solid fa-question w-4"></i> Unassigned</span>
+          <span class="text-xs text-zinc-500 tabular-nums">${unCount}</span>
+        </button>`;
 
       roomContainer.innerHTML = roomHtml;
 
-      // Groups
+      // Sync Groups sidebar
       if (groupContainer) {
         let gHtml = '';
         (haData.groups || []).forEach(group => {
-          const isActive = currentView === group.name || currentView === group.id;
           const on = group.on_count || 0;
           gHtml += `
-            <div class="group flex items-center gap-1 nav-room-btn ${isActive ? 'bg-[#27272a] text-white' : ''} rounded" 
+            <div class="group flex items-center gap-1 nav-room-btn ${ (primaryView==='groups') ? 'bg-[#27272a] text-white' : ''} rounded" 
                  draggable="true" ondragover="event.preventDefault()" ondrop="handleDropToGroup(event, '${group.id}')">
-              <button data-view="${group.name}" onclick="switchView('${group.name}')"
+              <button data-view="${group.name}" onclick="setPrimaryView('groups')"
                       class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
                 <span class="truncate">${group.name}</span>
                 <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${group.light_count || 0}</span>
@@ -463,36 +723,33 @@
       }
     }
 
-    function switchView(view) {
-      if (view === 'organize') {
-        view = 'all';  // organize tab shows the full clean list / last subview; 'all' is the default organize content
+    // New primary view switcher (powers bottom nav on mobile + desktop pills). Keeps experience consistent.
+    function setPrimaryView(view, quiet = false) {
+      primaryView = view;
+      if (!quiet) {
+        updateActiveViewButtons();
+        buildRoomNav();
       }
-      currentView = view;
-      // highlight tabs
-      const org = document.getElementById('tab-organize');
-      const fp = document.getElementById('tab-floorplan');
-      if (org && fp) {
-        if (view === 'floorplan') {
-          org.className = 'px-3 py-1 text-xs rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800';
-          fp.className = 'px-3 py-1 text-xs rounded-full bg-zinc-800 text-white border border-zinc-700';
-        } else {
-          fp.className = 'px-3 py-1 text-xs rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800';
-          org.className = 'px-3 py-1 text-xs rounded-full bg-zinc-800 text-white border border-zinc-700';
-        }
-      }
-      buildRoomNav();
-      renderCurrentView();
+      renderPrimaryView(quiet);
+    }
+
+    // Sidebar "jump" for a specific room while staying in Rooms view (future: could highlight/scroll)
+    function jumpToRoom(roomIdOrName) {
+      setPrimaryView('rooms');
+      // Optional future: scroll the rendered room section into view by id
+      setTimeout(() => {
+        const el = document.querySelector(`[data-room-section="${roomIdOrName}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
     }
 
     function showScenesView() {
-      currentView = 'scenes';
-      buildRoomNav();
-      renderCurrentView();
+      setPrimaryView('scenes');
     }
 
     function filterCurrentView() {
       searchTerm = (document.getElementById('global-search') || {}).value || '';
-      renderCurrentView();
+      renderPrimaryView();
     }
 
     // --- Sync Groups (Pairs) support - true "act as one" ---
@@ -901,215 +1158,363 @@
       // Also update the original data if present for counts
     }
 
-    function renderCurrentView() {
+    // Central dispatcher for the 5 primary views (Rooms / Lights / Groups / Scenes / Plan)
+    function renderPrimaryView(fromHydrate = false) {
       const container = document.getElementById('dashboard-content');
-      if (!container || !haData) {
+      if (!container) return;
+      if (!haData) {
         container.innerHTML = `<div class="card p-8 text-center text-sm">No lighting data loaded.</div>`;
         return;
       }
 
-      if (currentView === 'floorplan') {
+      const searchLower = (searchTerm || '').toLowerCase();
+
+      if (primaryView === 'plan') {
         renderFloorPlanView(container);
+        updateActiveViewButtons();
+        return;
+      }
+      if (primaryView === 'scenes') {
+        renderScenesView(container, searchLower);
+        updateActiveViewButtons();
+        return;
+      }
+      if (primaryView === 'lights') {
+        renderLightsView(container, searchLower);
+        updateActiveViewButtons();
+        return;
+      }
+      if (primaryView === 'groups') {
+        renderGroupsView(container, searchLower);
+        updateActiveViewButtons();
         return;
       }
 
-      const searchLower = searchTerm.toLowerCase();
+      // Default: Rooms (stacked sections, each with big master controls + lights)
+      renderRoomsView(container, searchLower);
+      updateActiveViewButtons();
+    }
 
-      if (currentView === 'scenes') {
-        const scenes = (haData.scenes || []).filter(s => 
-          !searchLower || s.friendly_name.toLowerCase().includes(searchLower)
-        );
-        let html = `<div class="mb-3 section-label">Scenes</div><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">`;
-        if (scenes.length === 0) {
-          html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No scenes found.</div>`;
-        } else {
-          scenes.forEach(scene => {
-            html += `
-              <div class="card p-4 flex flex-col">
-                <div class="font-medium text-sm mb-1 truncate">${scene.friendly_name}</div>
-                ${scene.description ? `<div class="text-[10px] text-zinc-500 mb-3 line-clamp-2">${scene.description}</div>` : ''}
-                <button onclick="activateScene('${scene.entity_id}', this)"
-                        class="mt-auto ha-btn bg-emerald-600/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-600/20 text-xs py-1.5">
-                  <i class="fa-solid fa-play mr-1"></i> Activate
-                </button>
-              </div>`;
-          });
+    function renderScenesView(container, searchLower) {
+      const scenes = (haData.scenes || []).filter(s => 
+        !searchLower || (s.friendly_name || '').toLowerCase().includes(searchLower)
+      );
+      let html = `<div class="mb-2 flex items-center justify-between"><div class="section-label">Scenes</div><div class="text-[10px] text-zinc-500">${scenes.length} available</div></div>`;
+      html += `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">`;
+      if (scenes.length === 0) {
+        html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No scenes found. Create some in Home Assistant.</div>`;
+      } else {
+        scenes.forEach(scene => {
+          html += `
+            <div class="card p-4 flex flex-col">
+              <div class="font-medium text-sm mb-1 truncate">${scene.friendly_name}</div>
+              ${scene.description ? `<div class="text-[10px] text-zinc-500 mb-3 line-clamp-2">${scene.description}</div>` : ''}
+              <button onclick="activateScene('${scene.entity_id}', this)"
+                      class="mt-auto ha-btn bg-emerald-600/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-600/20 text-xs py-1.5 min-h-[44px]">
+                <i class="fa-solid fa-play mr-1"></i> Activate
+              </button>
+            </div>`;
+        });
+      }
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    // Dedicated "Lights" view: scannable clean list of every light + powerful search + filters
+    function renderLightsView(container, searchLower) {
+      let lights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+
+      // Apply global search
+      if (searchLower) {
+        lights = lights.filter(l => (l.friendly_name || l.entity_id).toLowerCase().includes(searchLower));
+      }
+
+      // Quick filter chips
+      const allCount = lights.length;
+      const onCount = lights.filter(l => (lightsState[l.entity_id]?.state || l.state) === 'on').length;
+      const offCount = allCount - onCount;
+      const unCount = (haData.unassigned_lights || []).length;
+      const groupLightIds = new Set((haData.groups || []).flatMap(g => g.light_ids || []));
+      const noGroupCount = lights.filter(l => !groupLightIds.has(l.entity_id)).length;
+
+      let filtered = lights;
+      if (lightsFilter === 'on') filtered = lights.filter(l => (lightsState[l.entity_id]?.state || l.state) === 'on');
+      else if (lightsFilter === 'off') filtered = lights.filter(l => (lightsState[l.entity_id]?.state || l.state) !== 'on');
+      else if (lightsFilter === 'unassigned') filtered = (haData.unassigned_lights || []).filter(l => !searchLower || (l.friendly_name||'').toLowerCase().includes(searchLower));
+      else if (lightsFilter === 'nogroup') filtered = lights.filter(l => !groupLightIds.has(l.entity_id));
+
+      filtered.sort((a,b) => (a.friendly_name || a.entity_id).localeCompare(b.friendly_name || b.entity_id));
+
+      let html = `
+        <div class="mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold">All Lights <span class="text-xs text-zinc-500 font-normal">(${filtered.length} / ${allCount})</span></div>
+            <button onclick="refreshAllData(true)" class="text-emerald-400 text-xs"><i class="fa-solid fa-sync mr-1"></i>Sync</button>
+          </div>
+          <!-- Quick filters -->
+          <div class="flex flex-wrap gap-1.5">
+            <button onclick="setLightsFilter('all')" class="filter-chip ${lightsFilter==='all' ? 'active' : ''}">All <span class="opacity-70">(${allCount})</span></button>
+            <button onclick="setLightsFilter('on')" class="filter-chip ${lightsFilter==='on' ? 'active' : ''}">On <span class="opacity-70">(${onCount})</span></button>
+            <button onclick="setLightsFilter('off')" class="filter-chip ${lightsFilter==='off' ? 'active' : ''}">Off <span class="opacity-70">(${offCount})</span></button>
+            <button onclick="setLightsFilter('unassigned')" class="filter-chip ${lightsFilter==='unassigned' ? 'active' : ''} text-amber-300">Unassigned <span class="opacity-70">(${unCount})</span></button>
+            <button onclick="setLightsFilter('nogroup')" class="filter-chip ${lightsFilter==='nogroup' ? 'active' : ''}">No Sync Group <span class="opacity-70">(${noGroupCount})</span></button>
+          </div>
+        </div>
+        <div class="entity-grid">`;
+
+      if (filtered.length === 0) {
+        html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No lights match the current filter.</div>`;
+      } else {
+        filtered.forEach(light => {
+          html += createLightCardHTML(light);
+        });
+      }
+      html += `</div>`;
+
+      container.innerHTML = html;
+      initMobileTouchOnContainer(container);
+    }
+
+    function setLightsFilter(f) {
+      lightsFilter = f;
+      renderPrimaryView();
+    }
+
+    // Rooms view: stacked premium sections. Each has clear master controls (All On/Off + quick % + slider) + its lights.
+    function renderRoomsView(container, searchLower) {
+      const rooms = haData.rooms || [];
+      let html = `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-500">— tap a light for full controls</span></div>`;
+
+      if (rooms.length === 0) {
+        html += `<div class="card p-6 text-sm text-zinc-400">No rooms yet. Create one from the sidebar.</div>`;
+      }
+
+      rooms.forEach(room => {
+        let roomLights = (haData.lights_by_room || {})[room.name] || [];
+        if (searchLower) {
+          roomLights = roomLights.filter(l => (l.friendly_name || '').toLowerCase().includes(searchLower));
         }
-        html += `</div>`;
+        if (roomLights.length === 0 && searchLower) return; // hide empty during search
+
+        const onCount = room.on_count || 0;
+        const total = room.light_count || roomLights.length;
+
+        // Per-room master controls (big, thumb friendly)
+        let master = `
+          <div class="flex items-center gap-2 mb-3 flex-wrap">
+            <button onclick="roomOrGroupMaster('${room.id}', 'turn_on', false)" class="ha-btn text-emerald-400 min-h-[44px] px-4">All On</button>
+            <button onclick="roomOrGroupMaster('${room.id}', 'turn_off', false)" class="ha-btn min-h-[44px] px-4">All Off</button>
+            <div class="flex-1"></div>
+            <div class="text-xs text-zinc-400 mr-1">${onCount}/${total} on</div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <div class="flex justify-between text-xs mb-1 text-zinc-400"><span>Brightness</span><span id="mbright-${room.id}">—</span></div>
+              <input type="range" min="0" max="100" value="70" class="w-full accent-emerald-400"
+                     oninput="updateMasterVal('mbright-${room.id}', this.value)"
+                     onchange="roomOrGroupMasterBrightness('${room.id}', this.value, false)">
+              <div class="flex gap-1 mt-1">
+                ${[25,50,75,100].map(p => `<button class="ha-btn text-[10px] flex-1 min-h-[36px]" onclick="roomOrGroupMasterBrightness('${room.id}', ${p}, false); updateMasterVal('mbright-${room.id}', ${p})">${p}%</button>`).join('')}
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
+              <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
+                     onchange="roomOrGroupMasterColorTemp('${room.id}', this.value, false)">
+            </div>
+          </div>`;
+
+        html += `
+          <div class="card p-4 mb-4" data-room-section="${room.id}">
+            <div class="flex items-baseline justify-between mb-2">
+              <div class="font-semibold text-lg">${room.name}</div>
+              <div class="text-xs text-emerald-400/80">${total} lights</div>
+            </div>
+            ${master}
+            <div class="entity-grid mt-1">`;
+
+        if (roomLights.length === 0) {
+          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-zinc-700 rounded">Empty room — drag lights here from the Lights view or Unassigned.</div>`;
+        } else {
+          roomLights.forEach(l => { html += createLightCardHTML(l); });
+        }
+        html += `</div></div>`;
+      });
+
+      // Always surface Unassigned at bottom of Rooms for discoverability
+      let unLights = haData.unassigned_lights || [];
+      if (searchLower) unLights = unLights.filter(l => (l.friendly_name||'').toLowerCase().includes(searchLower));
+      if (unLights.length > 0 || !searchLower) {
+        html += `
+          <div class="card p-4 border-amber-900/40">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold">Unassigned <span class="text-amber-400 text-xs">— new lights from HA land here</span></div>
+              <button onclick="setPrimaryView('lights'); lightsFilter='unassigned'; renderPrimaryView();" class="text-xs ha-btn">Manage in Lights →</button>
+            </div>
+            <div class="entity-grid">`;
+        if (unLights.length === 0) {
+          html += `<div class="col-span-full text-xs text-zinc-500">No unassigned lights.</div>`;
+        } else {
+          unLights.forEach(l => { html += createLightCardHTML(l); });
+        }
+        html += `</div></div>`;
+      }
+
+      container.innerHTML = html;
+      initMobileTouchOnContainer(container);
+    }
+
+    // Strong Sync Groups view: each group feels like one device. Big masters + obvious membership.
+    function renderGroupsView(container, searchLower) {
+      const groups = haData.groups || [];
+      let html = `<div class="mb-2"><span class="section-label">Sync Groups</span> <span class="text-xs text-emerald-400/80">— act as one</span></div>`;
+
+      if (groups.length === 0) {
+        html += `<div class="card p-6 text-sm">No sync groups. Create powerful groups that stay perfectly in sync (effects fire together, brightness together).</div>`;
         container.innerHTML = html;
         return;
       }
 
-      // Determine lights for current view (support custom rooms + unassigned + groups)
-      let lights = [];
-      let viewTitle = 'All Lights';
-      let isCustomRoom = false;
-      let isGroup = false;
-      let currentRoomId = null;
-      let currentGroupId = null;
-
-      if (currentView === 'all') {
-        lights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
-      } else if (currentView === 'unassigned') {
-        lights = haData.unassigned_lights || [];
-        viewTitle = 'Unassigned Lights';
-      } else if (currentView === 'scenes') {
-        // handled above
-      } else {
-        // Try to find as room
-        const room = (haData.rooms || []).find(r => r.name === currentView || r.id === currentView);
-        if (room) {
-          lights = (haData.lights_by_room || {})[room.name] || [];
-          viewTitle = room.name;
-          isCustomRoom = true;
-          currentRoomId = room.id;
-        } else {
-          // Try as group
-          const group = (haData.groups || []).find(g => g.name === currentView || g.id === currentView);
-          if (group) {
-            // collect lights for group
-            const all = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
-            lights = all.filter(l => (group.light_ids || []).includes(l.entity_id));
-            viewTitle = group.name;
-            isGroup = true;
-            currentGroupId = group.id;
-          } else {
-            lights = Object.values(haData.lights_by_room || {}).flat();
-          }
+      groups.forEach(group => {
+        let gLights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])]
+          .filter(l => (group.light_ids || []).includes(l.entity_id));
+        if (searchLower) {
+          gLights = gLights.filter(l => (l.friendly_name || '').toLowerCase().includes(searchLower));
         }
-      }
+        const onC = group.on_count || 0;
+        const tot = group.light_count || gLights.length;
 
-      // Apply search
-      if (searchLower) {
-        lights = lights.filter(l => l.friendly_name.toLowerCase().includes(searchLower));
-      }
-      lights.sort((a,b) => a.friendly_name.localeCompare(b.friendly_name));
+        const master = `
+          <div class="flex items-center gap-2 mb-3 flex-wrap">
+            <button onclick="roomOrGroupMaster('${group.id}', 'turn_on', true)" class="ha-btn text-emerald-400 min-h-[44px] px-4">All On</button>
+            <button onclick="roomOrGroupMaster('${group.id}', 'turn_off', true)" class="ha-btn min-h-[44px] px-4">All Off</button>
+            <div class="flex-1"></div>
+            <div class="text-xs text-zinc-400">${onC}/${tot} on</div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <div class="flex justify-between text-xs mb-1 text-zinc-400"><span>Brightness</span><span id="gbright-${group.id}">—</span></div>
+              <input type="range" min="0" max="100" value="70" class="w-full accent-emerald-400" oninput="updateMasterVal('gbright-${group.id}', this.value)" onchange="roomOrGroupMasterBrightness('${group.id}', this.value, true)">
+              <div class="flex gap-1 mt-1">
+                ${[25,50,75,100].map(p => `<button class="ha-btn text-[10px] flex-1 min-h-[36px]" onclick="roomOrGroupMasterBrightness('${group.id}', ${p}, true); updateMasterVal('gbright-${group.id}', ${p})">${p}%</button>`).join('')}
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
+              <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400" onchange="roomOrGroupMasterColorTemp('${group.id}', this.value, true)">
+            </div>
+          </div>
+          <div class="text-[10px] text-emerald-400/70 mb-2">True sync: brightness, color, and dynamic effects start at the exact same moment across all lights in this group.</div>`;
 
-      // Master controls for room or group
-      let masterHtml = '';
-      if ((isCustomRoom || isGroup) && lights.length > 0) {
-        const label = isGroup ? 'Group' : 'Room';
-        masterHtml = `
+        html += `
           <div class="card p-4 mb-4">
-            <div class="flex items-center justify-between mb-3">
-              <div class="font-semibold">${label} Controls — ${viewTitle}</div>
-              <div class="flex gap-2">
-                <button onclick="roomOrGroupMaster('${currentRoomId || currentGroupId}', 'turn_on', ${isGroup})" class="ha-btn text-emerald-400">All On</button>
-                <button onclick="roomOrGroupMaster('${currentRoomId || currentGroupId}', 'turn_off', ${isGroup})" class="ha-btn">All Off</button>
-              </div>
+            <div class="flex items-baseline justify-between mb-1">
+              <div class="font-semibold text-lg flex items-center gap-2"><i class="fa-solid fa-link text-emerald-400"></i> ${group.name}</div>
+              <div class="text-xs text-emerald-400/80">${tot} lights • synced</div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div class="flex justify-between text-xs mb-1"><span>Brightness</span><span id="master-bright-val">—</span></div>
-                <input type="range" min="0" max="100" value="70" class="w-full accent-emerald-400" 
-                       oninput="updateMasterVal('bright', this.value)" onchange="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', this.value, ${isGroup})">
-                <div class="flex gap-1 mt-1">
-                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 25, ${isGroup}); updateMasterVal('bright', 25)">25%</button>
-                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 50, ${isGroup}); updateMasterVal('bright', 50)">50%</button>
-                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 75, ${isGroup}); updateMasterVal('bright', 75)">75%</button>
-                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 100, ${isGroup}); updateMasterVal('bright', 100)">100%</button>
-                </div>
-              </div>
-              <div>
-                <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span id="master-temp-val" class="text-sky-300">—</span></div>
-                <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400" 
-                       oninput="updateMasterVal('temp', this.value)" onchange="roomOrGroupMasterColorTemp('${currentRoomId || currentGroupId}', this.value, ${isGroup})">
-              </div>
-            </div>
-            <div class="text-[10px] text-zinc-500 mt-2">Master controls apply to every light in this ${label.toLowerCase()} (acts as one for Sync Groups).</div>
-          </div>`;
-      }
-
-      // Render individual light cards (advanced UI: static/dynamic, effects, sliders, color, presets)
-      let lightsHtml = '<div class="entity-grid">';
-      lights.forEach(light => {
-        const eid = light.entity_id;
-        const st = getLightState(eid) || {};
-        const friendly = light.friendly_name || eid;
-        const state = st.state || light.state || 'off';
-        const isOn = state === 'on';
-        const bri = st.brightness || light.brightness || 0;
-        const briPct = bri ? Math.round(bri / 2.55) : (isOn ? 100 : 0);
-        const effectList = light.effect_list || st.effect_list || (light.attributes && light.attributes.effect_list) || [];
-        const curEffect = st.current_effect || light.current_effect || (light.attributes && light.attributes.effect) || '';
-        const mode = st.mode || (curEffect ? 'dynamic' : 'static');
-        const supportsCt = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => m === 'color_temp');
-        const supportsRgb = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => ['rgb','rgbw','rgbww','hs','xy'].includes(m));
-
-        // Sync groups this light belongs to (for badge + behavior)
-        const syncNames = (haData.groups || []).filter(g => (g.light_ids || []).includes(eid)).map(g => g.name).join(', ');
-
-        lightsHtml += `
-          <div class="card p-3 light-card cursor-pointer transition" data-eid="${eid}"
-               draggable="true"
-               ondragstart="handleLightDragStart(event, '${eid}')"
-               ondragend="handleDragEnd(event)"
-               ondragover="event.preventDefault(); this.classList.add('ring-2','ring-emerald-400');"
-               ondragleave="this.classList.remove('ring-2','ring-emerald-400');"
-               ondrop="handleDropOntoLight(event, '${eid}')"
-               onclick="if (!event.target.closest('button,input,select')) openLightDetail('${eid}');">
-            <div class="flex items-start justify-between mb-2">
-              <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');">
-                <div class="font-medium text-sm truncate">${friendly}</div>
-                ${syncNames ? `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${syncNames}</div>` : ''}
-                <div class="text-[10px] text-zinc-500">${isOn ? 'On' : 'Off'}${curEffect ? ' • ' + curEffect : ''}</div>
-              </div>
-              <button onclick="event.stopImmediatePropagation(); toggleLight('${eid}', this)" class="ha-btn text-[10px] px-2 py-0.5 ${isOn ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : ''}">
-                ${isOn ? 'On' : 'Off'}
-              </button>
-            </div>
-
-            <div class="mb-2" onclick="event.stopImmediatePropagation();">
-              <div class="flex justify-between text-[10px] mb-0.5 text-zinc-400">
-                <span>Brightness</span>
-                <span class="tabular-nums text-xs text-zinc-400">${briPct}%</span>
-              </div>
-              <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400"
-                     oninput="debouncedBrightness('${eid}', this.value, this)">
-            </div>
-
-            ${supportsCt ? `
-            <div class="mb-2" onclick="event.stopImmediatePropagation();">
-              <div class="flex justify-between text-[10px] mb-0.5">
-                <span class="text-amber-300">Warm</span>
-                <span class="text-sky-300">Cool</span>
-              </div>
-              <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
-                     oninput="debouncedColorTemp('${eid}', this.value, this)">
-            </div>` : ''}
-
-            ${supportsRgb ? `
-            <div class="mb-2" onclick="event.stopImmediatePropagation();">
-              <div class="text-[10px] text-zinc-400 mb-1">Color</div>
-              <div class="flex items-center gap-1.5">
-                <input type="color" value="#ffcc99" class="w-7 h-5 p-0 border-0 bg-transparent" oninput="debouncedColor('${eid}', this.value, this)">
-                ${typeof createPresetButtons === 'function' ? createPresetButtons(eid) : ''}
-              </div>
-            </div>` : ''}
-
-            ${effectList.length > 0 ? `
-            <div class="mt-1" onclick="event.stopImmediatePropagation();">
-              <div class="flex gap-1 text-[10px] mb-1">
-                <button onclick="setLightMode('${eid}', 'static', this)" class="ha-btn text-[9px] px-1.5 py-0 ${mode !== 'dynamic' ? 'bg-zinc-700' : ''}">Static</button>
-                <button onclick="setLightMode('${eid}', 'dynamic', this)" class="ha-btn text-[9px] px-1.5 py-0 ${mode === 'dynamic' ? 'bg-zinc-700' : ''}">Dynamic</button>
-              </div>
-              ${mode === 'dynamic' ? `
-              <div class="grid grid-cols-3 sm:grid-cols-4 gap-1 text-[9px] max-h-24 overflow-auto">
-                ${effectList.map(eff => {
-                  const safeEff = eff.replace(/'/g, "\\'");
-                  return `<button onclick="applyEffect('${eid}', '${safeEff}', this)" class="ha-btn px-1 py-0.5 truncate text-left ${curEffect === eff ? 'bg-emerald-600/30 border-emerald-500' : ''}">${eff}</button>`;
-                }).join('')}
-              </div>` : ''}
-            </div>` : '' }
-          </div>`;
+            ${master}
+            <div class="entity-grid">`;
+        gLights.forEach(l => {
+          // Force badge in this view
+          html += createLightCardHTML(l, /*forceSyncBadge*/ group.name);
+        });
+        if (gLights.length === 0) {
+          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-emerald-900/40 rounded">This group is empty — drag lights onto it from the Lights view or sidebar.</div>`;
+        }
+        html += `</div></div>`;
       });
-      lightsHtml += '</div>';
 
-      container.innerHTML = masterHtml + lightsHtml;
+      container.innerHTML = html;
+      initMobileTouchOnContainer(container);
+    }
 
-      // Init touch drag for mobile on newly rendered cards (works with native too)
+    // Reusable premium light card (used by Rooms, Lights, Groups, etc.)
+    function createLightCardHTML(light, forceSyncBadgeName = null) {
+      const eid = light.entity_id;
+      const st = getLightState(eid) || {};
+      const friendly = light.friendly_name || eid;
+      const state = st.state || light.state || 'off';
+      const isOn = state === 'on' || state === 'unknown'; // unknown shows as calm
+      const bri = st.brightness || light.brightness || 0;
+      const briPct = bri ? Math.round(bri / 2.55) : (isOn ? 100 : 0);
+      const effectList = light.effect_list || st.effect_list || (light.attributes && light.attributes.effect_list) || [];
+      const curEffect = st.current_effect || light.current_effect || (light.attributes && light.attributes.effect) || '';
+      const mode = st.mode || (curEffect ? 'dynamic' : 'static');
+      const supportsCt = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => m === 'color_temp' || m === 'color_temp_kelvin');
+      const supportsRgb = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => ['rgb','rgbw','rgbww','hs','xy'].includes(m));
+
+      let syncNames = forceSyncBadgeName || (haData.groups || []).filter(g => (g.light_ids || []).includes(eid)).map(g => g.name).join(', ');
+
+      const isSkeleton = state === 'unknown' && !isHydrated;
+
+      return `
+        <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}"
+             draggable="true"
+             ondragstart="handleLightDragStart(event, '${eid}')"
+             ondragend="handleDragEnd(event)"
+             ondragover="event.preventDefault(); this.classList.add('ring-2','ring-emerald-400');"
+             ondragleave="this.classList.remove('ring-2','ring-emerald-400');"
+             ondrop="handleDropOntoLight(event, '${eid}')"
+             onclick="if (!event.target.closest('button,input,select')) openLightDetail('${eid}');">
+          <div class="flex items-start justify-between mb-2">
+            <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');">
+              <div class="font-medium text-sm truncate">${friendly}</div>
+              ${syncNames ? `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${syncNames}</div>` : ''}
+              <div class="text-[10px] text-zinc-500">${isOn && state !== 'unknown' ? 'On' : (state === 'unknown' ? 'Syncing…' : 'Off')}${curEffect ? ' • ' + curEffect : ''}</div>
+            </div>
+            <button onclick="event.stopImmediatePropagation(); toggleLight('${eid}', this)" class="ha-btn text-[10px] px-2 py-0.5 min-h-[32px] ${isOn ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : ''}">
+              ${state === 'unknown' ? '…' : (isOn ? 'On' : 'Off')}
+            </button>
+          </div>
+
+          <div class="mb-2" onclick="event.stopImmediatePropagation();">
+            <div class="flex justify-between text-[10px] mb-0.5 text-zinc-400">
+              <span>Brightness</span>
+              <span class="tabular-nums text-xs text-zinc-400">${state === 'unknown' ? '—' : briPct + '%'}</span>
+            </div>
+            <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400"
+                   oninput="debouncedBrightness('${eid}', this.value, this)">
+          </div>
+
+          ${supportsCt ? `
+          <div class="mb-2" onclick="event.stopImmediatePropagation();">
+            <div class="flex justify-between text-[10px] mb-0.5">
+              <span class="text-amber-300">Warm</span>
+              <span class="text-sky-300">Cool</span>
+            </div>
+            <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
+                   oninput="debouncedColorTemp('${eid}', this.value, this)">
+          </div>` : ''}
+
+          ${supportsRgb ? `
+          <div class="mb-2" onclick="event.stopImmediatePropagation();">
+            <div class="text-[10px] text-zinc-400 mb-1">Color</div>
+            <div class="flex items-center gap-1.5">
+              <input type="color" value="#ffcc99" class="w-7 h-5 p-0 border-0 bg-transparent" oninput="debouncedColor('${eid}', this.value, this)">
+              ${typeof createPresetButtons === 'function' ? createPresetButtons(eid) : ''}
+            </div>
+          </div>` : ''}
+
+          ${effectList.length > 0 ? `
+          <div class="mt-1" onclick="event.stopImmediatePropagation();">
+            <div class="flex gap-1 text-[10px] mb-1">
+              <button onclick="setLightMode('${eid}', 'static', this)" class="ha-btn text-[9px] px-1.5 py-0 ${mode !== 'dynamic' ? 'bg-zinc-700' : ''}">Static</button>
+              <button onclick="setLightMode('${eid}', 'dynamic', this)" class="ha-btn text-[9px] px-1.5 py-0 ${mode === 'dynamic' ? 'bg-zinc-700' : ''}">Dynamic</button>
+            </div>
+            ${mode === 'dynamic' ? `
+            <div class="grid grid-cols-3 sm:grid-cols-4 gap-1 text-[9px] max-h-24 overflow-auto">
+              ${effectList.map(eff => {
+                const safeEff = eff.replace(/'/g, "\\'");
+                return `<button onclick="applyEffect('${eid}', '${safeEff}', this)" class="ha-btn px-1 py-0.5 truncate text-left ${curEffect === eff ? 'bg-emerald-600/30 border-emerald-500' : ''}">${eff}</button>`;
+              }).join('')}
+            </div>` : ''}
+          </div>` : '' }
+        </div>`;
+    }
+
+    function initMobileTouchOnContainer(container) {
       if (window.innerWidth < 768) {
-        container.querySelectorAll('.light-card, .light-pill').forEach(card => {
+        container.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
           const eid = card.dataset.eid;
           if (eid && !card._touchInit) {
             initTouchDrag(card, eid);
@@ -1117,6 +1522,11 @@
           }
         });
       }
+    }
+
+    // Legacy alias so older internal calls still work
+    function renderCurrentView() {
+      renderPrimaryView();
     }
 
     function renderFloorPlanView(container) {
@@ -1165,18 +1575,18 @@
         <div class="card p-4">
           <div class="mb-2 flex items-center gap-2">
             <i class="fa-solid fa-map text-emerald-400"></i>
-            <span class="font-medium">Floor Plan View</span>
-            <span class="text-[10px] text-zinc-500">(visual reference + drag to assign)</span>
+            <span class="font-medium">Floor Plan</span>
+            <span class="text-[10px] text-zinc-500">(drag lights onto rooms)</span>
           </div>
           ${imgHtml}
-          <div class="text-xs text-zinc-400 mb-2">Use the blueprint (or mock below) as reference. Drag the light pills between the room areas on the "plan" to organize. Changes save instantly. The main Organize view has the full list/grid.</div>
-          <!-- The interactive visual "plan" using your actual rooms as drop zones - mimics floor plan layout -->
+          <div class="text-xs text-zinc-400 mb-2">Visual reference. Drag light pills or cards onto the room boxes below (or use the sidebar / Lights view). Changes persist instantly.</div>
+          <!-- The interactive visual "plan" using your actual rooms as drop zones -->
           <div class="border border-zinc-700 rounded-lg p-2 bg-zinc-950 mb-3" style="min-height: 120px;">
             ${roomBoxes}
           </div>
           <!-- Unassigned always shown for new HA lights -->
           <div class="mt-1">
-            <div class="text-xs text-amber-400 mb-1">Unassigned (new lights from HA appear here automatically - drag to rooms on plan or sidebar)</div>
+            <div class="text-xs text-amber-400 mb-1">Unassigned — drag to any room box</div>
             <div class="floor-plan-room p-2 text-xs border-amber-700" 
                  ondragover="event.preventDefault(); this.classList.add('drop-target');"
                  ondragleave="this.classList.remove('drop-target');"
@@ -1281,9 +1691,17 @@
       await Promise.all(promises.filter(Boolean));
     }
 
-    function updateMasterVal(type, val) {
-      const el = document.getElementById(type === 'bright' ? 'master-bright-val' : 'master-temp-val');
-      if (el) el.textContent = val + (type === 'bright' ? '%' : '');
+    function updateMasterVal(typeOrId, val) {
+      // Supports legacy 'bright'/'temp' and new dynamic ids like 'mbright-hallway' or 'gbright-tv-lamps'
+      let el = document.getElementById(typeOrId);
+      if (!el) {
+        // legacy fallback
+        el = document.getElementById(typeOrId === 'bright' ? 'master-bright-val' : 'master-temp-val');
+      }
+      if (el) {
+        const suffix = (typeOrId.includes('temp') || typeOrId === 'temp') ? '' : '%';
+        el.textContent = val + suffix;
+      }
     }
 
     const debounceTimers = {};
@@ -1431,45 +1849,73 @@
       }
     }
 
-    async function refreshAllData() {
-      const content = document.getElementById('dashboard-content');
-      const oldHTML = content ? content.innerHTML : '';
-      if (content) content.innerHTML = `<div class="text-sm text-zinc-500 p-8 text-center">Refreshing...</div>`;
-
-      const ok = await fetchLightsData();
-      if (ok) {
-        if (currentView === 'floorplan') {
-          // keep floorplan
-        } else {
-          currentView = 'all';
-        }
-        buildRoomNav();
-        renderCurrentView();
-        const lr = document.getElementById('last-refresh');
-        if (lr) lr.textContent = 'updated just now';
-
-        // re-init touch on mobile after refresh
-        if (window.innerWidth < 768) {
-          setTimeout(() => {
-            document.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
-              const eid = card.dataset.eid;
-              if (eid && !card._touchInit) {
-                initTouchDrag(card, eid);
-                card._touchInit = true;
-              }
-            });
-          }, 100);
-        }
-      } else if (content) {
-        content.innerHTML = oldHTML;
+    async function refreshAllData(quiet = false) {
+      if (!quiet) {
+        const content = document.getElementById('dashboard-content');
+        if (content) content.innerHTML = `<div class="text-sm text-zinc-500 p-6 text-center">Refreshing from Home Assistant…</div>`;
       }
+      const ok = await hydrateLiveStates(quiet);
+      if (!ok && !quiet) {
+        // keep previous UI
+        renderPrimaryView();
+      }
+      // re-init touch targets after possible re-render
+      setTimeout(() => {
+        const c = document.getElementById('dashboard-content');
+        if (c && window.innerWidth < 768) {
+          c.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
+            const eid = card.dataset.eid;
+            if (eid && !card._touchInit) {
+              initTouchDrag(card, eid);
+              card._touchInit = true;
+            }
+          });
+        }
+      }, 80);
+    }
+
+    function initializeDashboard() {
+      initTailwind();
+
+      // 1. INSTANT: show persisted rooms + sync groups + skeleton states from lighting_config.json
+      const bootstrapped = bootstrapFromInitial();
+
+      // 2. Always kick background live fetch from HA (hydrates names, real states, new unassigned lights, counts)
+      // Use setTimeout so the first paint is completely unblocked.
+      setTimeout(() => {
+        hydrateLiveStates(true).then(() => {
+          // After first successful hydrate, if user is still on default view the data is rich now
+          if (!searchTerm) {
+            // no-op; renderPrimaryView already called inside hydrate
+          }
+        }).catch(() => {});
+      }, bootstrapped ? 40 : 120);
+
+      // Gentle auto background refresh every ~40s (keeps states fresh without user action)
+      setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          hydrateLiveStates(true);
+        }
+      }, 40000);
+
+      // Make sure active buttons reflect default
+      updateActiveViewButtons();
+
+      // Keyboard hint (desktop)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement.tagName === 'BODY') {
+          e.preventDefault();
+          const s = document.getElementById('global-search');
+          if (s) s.focus();
+        }
+      });
     }
 
     // Boot
     document.addEventListener('DOMContentLoaded', () => {
       initializeDashboard();
 
-      // Mobile touch drag init on load (for cards rendered in initial view)
+      // Mobile touch drag init on load (for any early cards)
       if (window.innerWidth < 768) {
         setTimeout(() => {
           document.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
@@ -1479,7 +1925,7 @@
               card._touchInit = true;
             }
           });
-        }, 300);
+        }, 280);
       }
     });
   </script>

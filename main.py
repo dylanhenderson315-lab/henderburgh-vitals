@@ -83,6 +83,14 @@ if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL
 # Admin token used for protected actions (e.g. deleting messages on /blog)
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
+# =============================================================================
+# Home Assistant Lighting - instant bootstrap + last known state cache (for premium fast feel)
+# Persisted structure (rooms + sync groups) from lighting_config.json is always shown immediately.
+# Fresh HA data fetched in background; only changed states trigger UI updates.
+# =============================================================================
+last_ha_lights_snapshot: Dict[str, Any] = {"data": None, "ts": 0}  # {lights: {eid: {state, brightness, current_effect, ...}}, ts, total}
+HA_BOOTSTRAP_CACHE_TTL = 45  # seconds; background refresh keeps it fresh for "last known"
+
 # In-memory cache for last successful Xbox status (survives between requests in the same process)
 # We only hit xbl.io when this cache is older than XBOX_CACHE_TTL_SECONDS.
 # On any error (including rate limits) we return the previous last_xbox_data so the UI stays useful.
@@ -835,22 +843,30 @@ async def ha_page(request: Request):
     """Private Home Assistant control page. Controls require admin token (see blog pattern).
     In PUBLIC_MODE the page renders but shows disabled state and no controls.
     """
-    states = await get_ha_states() if HA_ENABLED else []
-    # Group entities by domain for clean organization (lights, scenes, switches, media_player, etc.)
+    # Fast path: we no longer block the entire page on full HA states for the lighting UI.
+    # entity_count is best-effort (falls back to last snapshot or 0). The real lighting data
+    # (rooms/groups + live states) is delivered instantly via embedded INITIAL_LIGHTING + background /lights-data.
+    states = []
+    try:
+        if HA_ENABLED:
+            # Lightweight: still useful for header count, but do not let a slow/401 HA kill the instant feel.
+            states = await get_ha_states()
+    except Exception:
+        states = []
+
+    # The legacy "groups" + ordered domain list is only used for the disabled-state message path.
+    # Keep the computation but it is cheap on the (usually empty or small) states list.
     groups: Dict[str, List[Dict]] = {}
     for s in states:
         eid = s.get("entity_id", "unknown.unknown")
         domain = eid.split(".", 1)[0] if "." in eid else "other"
-        # Skip noisy read-only domains on the control UI by default (can be expanded)
         if domain in ("sensor", "binary_sensor", "sun", "zone", "device_tracker", "weather"):
             continue
         groups.setdefault(domain, []).append(s)
 
-    # Sort groups and within groups by friendly name
     for dom in groups:
         groups[dom].sort(key=lambda e: (e.get("attributes", {}).get("friendly_name") or e.get("entity_id")).lower())
 
-    # Sort domains with preferred order
     domain_order = ["light", "scene", "switch", "media_player", "input_boolean", "automation", "script", "cover", "fan", "other"]
     ordered_groups = []
     for d in domain_order:
@@ -859,14 +875,22 @@ async def ha_page(request: Request):
     for d, ents in sorted(groups.items()):
         ordered_groups.append((d, ents))
 
+    # Exact persisted rooms + groups from lighting_config.json — this is what makes the UI feel instant.
+    initial_lighting = load_lighting_config() if HA_ENABLED else {"rooms": [], "groups": []}
+
+    # Prefer a fast count from last snapshot when available
+    snap_total = (last_ha_lights_snapshot.get("data") or {}).get("total") or 0
+    display_count = len(states) or snap_total or (len(initial_lighting.get("rooms", [])) * 2)  # rough but never blocks
+
     return _render("home-assistant.html", {
         "request": request,
         "groups": ordered_groups,
-        "entity_count": len(states),
+        "entity_count": display_count,
         "ha_enabled": HA_ENABLED,
         "public_mode": PUBLIC_MODE,
         "has_admin_token": bool(ADMIN_TOKEN),
         "site_name": SITE_NAME,
+        "initial_lighting": initial_lighting,
         "display_name": DISPLAY_NAME,
     })
 
@@ -1393,6 +1417,18 @@ async def api_ha_lights_data():
     return {"status": "ok", **data}
 
 
+@app.get("/api/ha/bootstrap")
+async def api_ha_bootstrap():
+    """Ultra-fast (no HA roundtrip) bootstrap for instant UI.
+    Returns exact persisted rooms + Sync Groups from lighting_config.json + last known light states (if any).
+    Frontend renders the full structure + skeleton/last-known cards immediately, then background-refreshes live states.
+    """
+    if not HA_ENABLED:
+        return {"status": "disabled", "rooms": [], "groups": [], "last_states": {}}
+    struct = get_persisted_lighting_structure()
+    return {"status": "ok", **struct}
+
+
 # --- Lighting management (rooms, groups, assignments) - protected by ADMIN_TOKEN ---
 
 @app.post("/api/ha/lighting/room/create")
@@ -1574,6 +1610,20 @@ def load_lighting_config():
 def save_lighting_config(config):
     LIGHTING_CONFIG_FILE.write_text(json.dumps(config, indent=2))
 
+def get_persisted_lighting_structure() -> Dict[str, Any]:
+    """Fast, no-HA call. Returns rooms + groups exactly as persisted + any last known light states.
+    Used by /api/ha/bootstrap for instant UI render of structure before live HA data arrives.
+    """
+    config = load_lighting_config()
+    snap = last_ha_lights_snapshot.get("data") or {}
+    return {
+        "rooms": config.get("rooms", []),
+        "groups": config.get("groups", []),
+        "last_states": snap.get("lights", {}),
+        "total": snap.get("total", 0),
+        "ts": last_ha_lights_snapshot.get("ts", 0),
+    }
+
 
 # =============================================================================
 # Home Assistant helpers
@@ -1726,6 +1776,7 @@ async def get_ha_lights_data():
     Uses exact rooms/groups from lighting_config.json for organization (user can create, move lights, rename, etc.).
     No auto-seeding - config.json is the source of truth for room assignments.
     New/unmatched lights go to Unassigned.
+    Updates the last_ha_lights_snapshot so bootstrap + "last known" are instant on next loads.
     """
     if not HA_ENABLED:
         return {"rooms": [], "groups": [], "lights_by_room": {}, "unassigned_lights": [], "scenes": [], "total_lights": 0}
@@ -1836,7 +1887,7 @@ async def get_ha_lights_data():
             "on_count": sum(1 for l in glights if l["state"] == "on")
         })
 
-    return {
+    result = {
         "rooms": rooms_for_ui,
         "groups": groups_for_ui,
         "lights_by_room": lights_by_room,   # only lights assigned to custom rooms
@@ -1844,6 +1895,24 @@ async def get_ha_lights_data():
         "scenes": scenes,
         "total_lights": len(all_lights),
     }
+
+    # Update in-memory last known snapshot for instant bootstrap + "last known states" on next visit / refresh
+    global last_ha_lights_snapshot
+    lights_map = {}
+    for l in all_lights:
+        lights_map[l["entity_id"]] = {
+            "state": l["state"],
+            "brightness": l.get("brightness"),
+            "current_effect": l.get("current_effect"),
+            "color_temp": l.get("color_temp"),
+            "rgb_color": l.get("rgb_color"),
+        }
+    last_ha_lights_snapshot = {
+        "data": {"lights": lights_map, "total": len(all_lights)},
+        "ts": time.time()
+    }
+
+    return result
 
 
 # =============================================================================
