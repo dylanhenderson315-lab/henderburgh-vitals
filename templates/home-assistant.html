@@ -138,6 +138,51 @@
     #light-detail {
       box-shadow: -8px 0 30px -10px rgb(0 0 0 / 0.6);
     }
+
+    /* Mobile-first: large tap targets, responsive grids, touch friendly */
+    @media (max-width: 640px) {
+      .entity-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+        gap: 8px;
+      }
+      .card, .light-card, .floor-plan-room {
+        padding: 12px;
+        font-size: 14px;
+      }
+      .ha-btn {
+        font-size: 13px;
+        padding: 8px 12px;
+        min-height: 44px;
+        min-width: 44px;
+      }
+      .nav-room-btn, .section-label {
+        min-height: 44px;
+        font-size: 14px;
+      }
+      .light-pill {
+        font-size: 12px;
+        padding: 4px 8px;
+        min-height: 32px;
+      }
+      #detail-content {
+        font-size: 15px;
+      }
+      .entity-grid .card {
+        min-height: 80px;
+      }
+    }
+
+    /* Enhanced drag feedback for touch */
+    .dragging {
+      opacity: 0.6 !important;
+      transform: scale(0.92) !important;
+      z-index: 50;
+    }
+    .drop-target {
+      border-color: #10b981 !important;
+      background-color: rgba(16, 185, 129, 0.12) !important;
+      transform: scale(1.02);
+    }
   </style>
 </head>
 <body class="bg-[#0a0a0b] text-zinc-200 antialiased">
@@ -220,9 +265,9 @@
     <!-- View tabs for clean main experience vs visual floor plan reference -->
     <div class="flex gap-1 mb-3">
       <button onclick="switchView('organize')" id="tab-organize"
-              class="px-3 py-1 text-xs rounded-full bg-zinc-800 text-white border border-zinc-700">Organize</button>
+              class="px-4 py-1.5 text-sm rounded-full bg-zinc-800 text-white border border-zinc-700 min-h-[44px]">Organize</button>
       <button onclick="switchView('floorplan')" id="tab-floorplan"
-              class="px-3 py-1 text-xs rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800">Floor Plan</button>
+              class="px-4 py-1.5 text-sm rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800 min-h-[44px]">Floor Plan</button>
       <div class="flex-1"></div>
       <button onclick="refreshAllData()" class="ha-btn text-xs px-2 py-0.5"><i class="fa-solid fa-sync-alt"></i> Refresh</button>
     </div>
@@ -275,17 +320,18 @@
       </div>
     </div>
 
-    <!-- Light Detail Panel (Apple-like slide-in / modal for full controls) -->
-    <div id="light-detail" class="hidden fixed inset-y-0 right-0 w-full max-w-md bg-[#0a0a0b] border-l border-zinc-800 shadow-2xl z-[100] flex flex-col transform transition-transform duration-200 translate-x-full">
+    <!-- Light Detail Panel (premium slide-in on desktop, bottom sheet on mobile for thumb use) -->
+    <div id="light-detail" class="hidden fixed inset-y-0 right-0 w-full max-w-md bg-[#0a0a0b] border-l border-zinc-800 shadow-2xl z-[100] flex flex-col transform transition-transform duration-200 translate-x-full lg:translate-x-full"
+         style="touch-action: pan-y;">
       <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-[#111113]">
         <div id="detail-title" class="font-semibold text-lg truncate pr-2"></div>
-        <button onclick="closeLightDetail()" class="text-2xl leading-none text-zinc-400 hover:text-white px-2">&times;</button>
+        <button onclick="closeLightDetail()" class="text-2xl leading-none text-zinc-400 hover:text-white px-2 -mr-1">&times;</button>
       </div>
       <div id="detail-content" class="flex-1 overflow-auto p-4 space-y-5 text-sm">
         <!-- populated dynamically by openLightDetail -->
       </div>
       <div class="p-3 border-t border-zinc-800 text-[10px] text-zinc-500">
-        Changes are sent live to Home Assistant. Sync Groups keep paired lights in step.
+        Changes sent live to Home Assistant. Sync Groups keep lights in step.
       </div>
     </div>
 
@@ -524,6 +570,108 @@
       document.querySelectorAll('.drop-target, .ring-2').forEach(el => el.classList.remove('drop-target', 'ring-2', 'ring-emerald-400'));
     }
 
+    // --- Mobile touch drag & drop (works alongside desktop HTML5 drag) ---
+    let touchDragEid = null;
+    let touchDragEl = null;
+
+    function initTouchDrag(el, eid) {
+      let pressTimer = null;
+      el.addEventListener('touchstart', (e) => {
+        touchDragEid = eid;
+        touchDragEl = el;
+        el.classList.add('dragging');
+        // Long press for quick actions (500ms)
+        pressTimer = setTimeout(() => {
+          showQuickActions(eid, e.touches[0]);
+          // cancel drag if long press
+          if (touchDragEl) touchDragEl.classList.remove('dragging');
+          touchDragEid = null;
+          touchDragEl = null;
+        }, 520);
+      }, {passive: true});
+
+      el.addEventListener('touchend', () => {
+        clearTimeout(pressTimer);
+        if (touchDragEl) touchDragEl.classList.remove('dragging');
+        touchDragEid = null;
+        touchDragEl = null;
+      }, {passive: true});
+
+      el.addEventListener('touchmove', (e) => {
+        clearTimeout(pressTimer);
+        if (!touchDragEid) return;
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        // highlight drop zones
+        document.querySelectorAll('.floor-plan-room, .nav-room-btn, [data-view]').forEach(dz => dz.classList.remove('drop-target'));
+        if (target) {
+          const dropZone = target.closest('.floor-plan-room, .nav-room-btn, [data-view]');
+          if (dropZone) dropZone.classList.add('drop-target');
+        }
+      }, {passive: true});
+
+      el.addEventListener('touchend', (e) => {
+        if (!touchDragEid) return;
+        const touch = e.changedTouches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        const dropZone = target ? target.closest('.floor-plan-room, .nav-room-btn, [data-view]') : null;
+        document.querySelectorAll('.drop-target').forEach(dz => dz.classList.remove('drop-target'));
+
+        if (dropZone) {
+          const roomId = dropZone.getAttribute('data-view') || dropZone.dataset.roomId || dropZone.getAttribute('data-eid') ? '' : null;
+          // Simple: if it's a room nav or floor room, use handle logic
+          if (dropZone.classList.contains('nav-room-btn') || dropZone.classList.contains('floor-plan-room')) {
+            const id = dropZone.getAttribute('data-view') || dropZone.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || '';
+            if (id) {
+              // reuse assign
+              fetch(`/api/ha/lighting/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(touchDragEid)}&room_id=${encodeURIComponent(id)}`, {method:'POST'})
+                .then(() => refreshAllData());
+            }
+          }
+        }
+        if (touchDragEl) touchDragEl.classList.remove('dragging');
+        touchDragEid = null;
+        touchDragEl = null;
+      }, {passive: true});
+    }
+
+    // Long-press quick actions popover (thumb friendly on mobile)
+    function showQuickActions(eid, touch) {
+      const existing = document.getElementById('quick-actions');
+      if (existing) existing.remove();
+
+      const pop = document.createElement('div');
+      pop.id = 'quick-actions';
+      pop.className = 'fixed z-[200] bg-[#18181b] border border-zinc-700 rounded-2xl shadow-xl p-2 text-sm flex flex-col gap-1';
+      pop.style.left = `${touch.clientX}px`;
+      pop.style.top = `${touch.clientY - 10}px`;
+      pop.style.transform = 'translate(-50%, -100%)';
+
+      const light = (haData ? [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])].find(l => l.entity_id === eid) : null) || {};
+      const st = getLightState(eid) || {};
+      const isOn = (st.state || light.state || 'off') === 'on';
+
+      pop.innerHTML = `
+        <button class="ha-btn w-full text-left px-3 py-2 min-h-[44px]" onclick="toggleLight('${eid}', this); document.getElementById('quick-actions').remove();">Toggle ${isOn ? 'Off' : 'On'}</button>
+        <button class="ha-btn w-full text-left px-3 py-2 min-h-[44px]" onclick="debouncedBrightness('${eid}', '50', {closest:()=>({querySelector:()=>null})}); document.getElementById('quick-actions').remove();">Set 50% Bright</button>
+        <button class="ha-btn w-full text-left px-3 py-2 min-h-[44px]" onclick="openLightDetail('${eid}'); document.getElementById('quick-actions').remove();">All Controls...</button>
+        <button class="ha-btn w-full text-left px-3 py-2 text-rose-400 min-h-[44px]" onclick="document.getElementById('quick-actions').remove();">Close</button>
+      `;
+
+      document.body.appendChild(pop);
+
+      // Auto close on outside tap
+      setTimeout(() => {
+        const closer = (ev) => {
+          if (!pop.contains(ev.target)) {
+            pop.remove();
+            document.removeEventListener('touchstart', closer, true);
+          }
+        };
+        document.addEventListener('touchstart', closer, true);
+      }, 50);
+    }
+
     // --- Light Detail View (premium slide-in panel) ---
     function openLightDetail(eid) {
       const panel = document.getElementById('light-detail');
@@ -557,7 +705,7 @@
         <div>
           <div class="flex justify-between text-xs mb-1"><span>Brightness</span><span>${briPct}%</span></div>
           <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400 mb-3"
-                 oninput="debouncedBrightness('${eid}', this.value, this); document.getElementById('detail-bri-val').textContent = this.value + '%' ">
+                 oninput="debouncedBrightness('${eid}', this.value, this); const v=document.getElementById('detail-bri-val'); if(v) v.textContent=this.value+'%' ">
           <div id="detail-bri-val" class="text-[10px] text-right text-zinc-500">${briPct}%</div>
         </div>
       `;
@@ -607,21 +755,36 @@
         html += `<div class="text-[10px] text-emerald-400 mt-3"><i class="fa-solid fa-link mr-1"></i> Synced with: ${syncs}</div>`;
       }
 
-      html += `<div class="text-[10px] text-zinc-500 mt-4">Tap outside or × to close. All changes sync across the group if applicable.</div>`;
+      html += `<div class="text-[10px] text-zinc-500 mt-4">All changes sync across groups if applicable. Tap × or outside to close.</div>`;
 
       content.innerHTML = html;
 
-      panel.classList.remove('hidden', 'translate-x-full');
-      panel.classList.add('flex');
+      // Mobile bottom sheet vs desktop slide
+      panel.classList.remove('hidden');
+      if (window.innerWidth < 640) {
+        panel.classList.add('flex', 'open');
+        panel.style.transform = 'translateY(0)';
+      } else {
+        panel.classList.add('flex');
+        panel.classList.remove('translate-x-full');
+      }
     }
 
     function closeLightDetail() {
       const panel = document.getElementById('light-detail');
       if (!panel) return;
-      panel.classList.add('translate-x-full');
-      panel.classList.remove('flex');
-      // small delay then hide to let transition play
-      setTimeout(() => panel.classList.add('hidden'), 180);
+      if (window.innerWidth < 640) {
+        panel.style.transform = 'translateY(100%)';
+        setTimeout(() => {
+          panel.classList.remove('flex', 'open');
+          panel.classList.add('hidden');
+          panel.style.transform = '';
+        }, 180);
+      } else {
+        panel.classList.add('translate-x-full');
+        panel.classList.remove('flex');
+        setTimeout(() => panel.classList.add('hidden'), 180);
+      }
     }
 
     // Keyboard close for detail
@@ -931,6 +1094,17 @@
       lightsHtml += '</div>';
 
       container.innerHTML = masterHtml + lightsHtml;
+
+      // Init touch drag for mobile on newly rendered cards (works with native too)
+      if (window.innerWidth < 768) {
+        container.querySelectorAll('.light-card, .light-pill').forEach(card => {
+          const eid = card.dataset.eid;
+          if (eid && !card._touchInit) {
+            initTouchDrag(card, eid);
+            card._touchInit = true;
+          }
+        });
+      }
     }
 
     function renderFloorPlanView(container) {
@@ -1016,6 +1190,17 @@
           </div>
         </div>
       `;
+
+      // Mobile touch init for floor plan pills/boxes
+      if (window.innerWidth < 768) {
+        container.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(el => {
+          const eid = el.dataset.eid;
+          if (eid && !el._touchInit) {
+            initTouchDrag(el, eid);
+            el._touchInit = true;
+          }
+        });
+      }
     }
 
     // --- Helpers (consolidated, no duplicates) ---
@@ -1265,6 +1450,19 @@
         renderCurrentView();
         const lr = document.getElementById('last-refresh');
         if (lr) lr.textContent = 'updated just now';
+
+        // re-init touch on mobile after refresh
+        if (window.innerWidth < 768) {
+          setTimeout(() => {
+            document.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
+              const eid = card.dataset.eid;
+              if (eid && !card._touchInit) {
+                initTouchDrag(card, eid);
+                card._touchInit = true;
+              }
+            });
+          }, 100);
+        }
       } else if (content) {
         content.innerHTML = oldHTML;
       }
@@ -1273,6 +1471,19 @@
     // Boot
     document.addEventListener('DOMContentLoaded', () => {
       initializeDashboard();
+
+      // Mobile touch drag init on load (for cards rendered in initial view)
+      if (window.innerWidth < 768) {
+        setTimeout(() => {
+          document.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
+            const eid = card.dataset.eid;
+            if (eid && !card._touchInit) {
+              initTouchDrag(card, eid);
+              card._touchInit = true;
+            }
+          });
+        }, 300);
+      }
     });
   </script>
 </body>
