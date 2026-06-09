@@ -51,5 +51,42 @@
       ]
     }
   ],
-  "groups": []
+  "groups": [
+    {
+      "id": "hallway-lights",
+      "name": "Hallway Lights",
+      "light_ids": [
+        "light.hallway_light_1",
+        "light.hallway_light_2",
+        "light.hallway_light_3",
+        "light.hallway_light_4"
+      ]
+    },
+    {
+      "id": "kitchen-lights",
+      "name": "Kitchen Lights",
+      "light_ids": [
+        "light.kitchen_light_left",
+        "light.kitchen_light_right"
+      ]
+    },
+    {
+      "id": "tv-lamps",
+      "name": "TV Lamps",
+      "light_ids": [
+        "light.tv_lamp_1",
+        "light.tv_lamp_2"
+      ]
+    },
+    {
+      "id": "desk-area",
+      "name": "Desk Area",
+      "light_ids": [
+        "light.office_lamp",
+        "light.wiz_rgbw_tunable_ef497e",
+        "light.t_v_lights",
+        "light.bookshelf_lamp"
+      ]
+    }
+  ]
 }

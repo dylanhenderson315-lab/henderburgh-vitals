@@ -495,17 +495,23 @@
       renderCurrentView();
     }
 
-    // --- Sync Groups (Pairs) support ---
-    function getSyncPeers(eid) {
-      if (!haData || !haData.groups) return [];
-      const peers = new Set();
+    // --- Sync Groups (Pairs) support - true "act as one" ---
+    function getSyncGroupLights(eid) {
+      if (!haData || !haData.groups) return [eid];
+      const groupLights = new Set([eid]);
       (haData.groups || []).forEach(g => {
         const ids = g.light_ids || [];
         if (ids.includes(eid)) {
-          ids.forEach(id => { if (id !== eid) peers.add(id); });
+          ids.forEach(id => groupLights.add(id));
         }
       });
-      return Array.from(peers);
+      return Array.from(groupLights);
+    }
+
+    // legacy alias for existing calls
+    function getSyncPeers(eid) {
+      const lights = getSyncGroupLights(eid);
+      return lights.filter(id => id !== eid);
     }
 
     async function handleDropToNewSyncGroup(ev) {
@@ -997,6 +1003,12 @@
                 <div class="flex justify-between text-xs mb-1"><span>Brightness</span><span id="master-bright-val">—</span></div>
                 <input type="range" min="0" max="100" value="70" class="w-full accent-emerald-400" 
                        oninput="updateMasterVal('bright', this.value)" onchange="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', this.value, ${isGroup})">
+                <div class="flex gap-1 mt-1">
+                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 25, ${isGroup}); updateMasterVal('bright', 25)">25%</button>
+                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 50, ${isGroup}); updateMasterVal('bright', 50)">50%</button>
+                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 75, ${isGroup}); updateMasterVal('bright', 75)">75%</button>
+                  <button class="ha-btn text-[10px] px-2 py-0 flex-1" onclick="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', 100, ${isGroup}); updateMasterVal('bright', 100)">100%</button>
+                </div>
               </div>
               <div>
                 <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span id="master-temp-val" class="text-sky-300">—</span></div>
@@ -1004,7 +1016,7 @@
                        oninput="updateMasterVal('temp', this.value)" onchange="roomOrGroupMasterColorTemp('${currentRoomId || currentGroupId}', this.value, ${isGroup})">
               </div>
             </div>
-            <div class="text-[10px] text-zinc-500 mt-2">Master controls apply to every light in this ${label.toLowerCase()}.</div>
+            <div class="text-[10px] text-zinc-500 mt-2">Master controls apply to every light in this ${label.toLowerCase()} (acts as one for Sync Groups).</div>
           </div>`;
       }
 
@@ -1202,12 +1214,12 @@
     }
 
     async function applyEffect(eid, effect, btn) {
-      updateLightState(eid, {current_effect: effect, state: 'on'});
-      const peers = getSyncPeers(eid);
-      peers.forEach(p => updateLightState(p, {current_effect: effect, state: 'on'}));
+      // Act as ONE: whole sync group gets the exact same effect at the same time
+      const groupLights = getSyncGroupLights(eid);
+      groupLights.forEach(l => updateLightState(l, {current_effect: effect, state: 'on'}));
       renderCurrentView();
-      await callLightService(eid, {effect});
-      peers.forEach(p => callLightService(p, {effect}).catch(()=>{}));
+      const promises = groupLights.map(l => callLightService(l, {effect}).catch(()=>{}));
+      await Promise.all(promises);
     }
 
     async function roomOrGroupMaster(id, action, isGroup) {
@@ -1313,26 +1325,23 @@
       const currentlyOn = (st.state || 'off') === 'on';
       const newState = currentlyOn ? 'off' : 'on';
 
-      // Optimistic + sync peers
-      updateLightState(eid, {state: newState});
-      const peers = getSyncPeers(eid);
-      peers.forEach(p => updateLightState(p, {state: newState}));
+      // Act as ONE: optimistic update ALL in the sync group(s)
+      const groupLights = getSyncGroupLights(eid);
+      groupLights.forEach(l => updateLightState(l, {state: newState}));
       renderCurrentView();
 
-      if (currentlyOn) {
-        turnLightOff(eid);
-        peers.forEach(p => turnLightOff(p));
-      } else {
-        callLightService(eid, {brightness: 255});
-        peers.forEach(p => callLightService(p, {brightness: 255}));
-      }
+      // Parallel calls for exact same time
+      const promises = groupLights.map(l => 
+        currentlyOn ? turnLightOff(l) : callLightService(l, {brightness: 255})
+      );
+      Promise.all(promises).catch(() => refreshAllData());
     }
 
     function debouncedBrightness(eid, percent, inputEl) {
       const brightness = Math.max(1, Math.round(parseInt(percent) * 2.55));
-      updateLightState(eid, {brightness, state: 'on'});
-      const peers = getSyncPeers(eid);
-      peers.forEach(p => updateLightState(p, {brightness, state: 'on'}));
+      // Act as ONE for the whole sync group
+      const groupLights = getSyncGroupLights(eid);
+      groupLights.forEach(l => updateLightState(l, {brightness, state: 'on'}));
 
       const card = inputEl.closest('[data-eid]');
       if (card) {
@@ -1341,33 +1350,31 @@
       }
 
       debounce(async () => {
-        const ok = await callLightService(eid, {brightness});
-        if (!ok) refreshAllData();
-        peers.forEach(p => callLightService(p, {brightness}).catch(()=>{}));
+        const promises = groupLights.map(l => callLightService(l, {brightness}).catch(()=>{}));
+        const results = await Promise.all(promises);
+        if (results.some(r => !r)) refreshAllData();
       }, 'bright-' + eid);
     }
 
     function debouncedColorTemp(eid, val, inputEl) {
       const mired = Math.round(500 - (parseInt(val) / 100) * (500 - 153));
-      updateLightState(eid, {color_temp: mired, state: 'on'});
-      const peers = getSyncPeers(eid);
-      peers.forEach(p => updateLightState(p, {color_temp: mired, state: 'on'}));
+      const groupLights = getSyncGroupLights(eid);
+      groupLights.forEach(l => updateLightState(l, {color_temp: mired, state: 'on'}));
 
       debounce(async () => {
-        await callLightService(eid, {color_temp: mired});
-        peers.forEach(p => callLightService(p, {color_temp: mired}).catch(()=>{}));
+        const promises = groupLights.map(l => callLightService(l, {color_temp: mired}).catch(()=>{}));
+        await Promise.all(promises);
       }, 'temp-' + eid);
     }
 
     function debouncedColor(eid, hex, inputEl) {
       const rgb = hexToRgb(hex);
-      updateLightState(eid, {rgb_color: rgb, state: 'on'});
-      const peers = getSyncPeers(eid);
-      peers.forEach(p => updateLightState(p, {rgb_color: rgb, state: 'on'}));
+      const groupLights = getSyncGroupLights(eid);
+      groupLights.forEach(l => updateLightState(l, {rgb_color: rgb, state: 'on'}));
 
       debounce(async () => {
-        await callLightService(eid, {rgb_color: rgb});
-        peers.forEach(p => callLightService(p, {rgb_color: rgb}).catch(()=>{}));
+        const promises = groupLights.map(l => callLightService(l, {rgb_color: rgb}).catch(()=>{}));
+        await Promise.all(promises);
       }, 'color-' + eid);
     }
 
@@ -1393,12 +1400,11 @@
 
     function applyPreset(eid, hex, btn) {
       const rgb = hexToRgb(hex);
-      updateLightState(eid, {rgb_color: rgb, state: 'on'});
-      const peers = getSyncPeers(eid);
-      peers.forEach(p => updateLightState(p, {rgb_color: rgb, state: 'on'}));
+      const groupLights = getSyncGroupLights(eid);
+      groupLights.forEach(l => updateLightState(l, {rgb_color: rgb, state: 'on'}));
       renderCurrentView();
-      callLightService(eid, {rgb_color: rgb});
-      peers.forEach(p => callLightService(p, {rgb_color: rgb}).catch(()=>{}));
+      const promises = groupLights.map(l => callLightService(l, {rgb_color: rgb}).catch(()=>{}));
+      Promise.all(promises);
     }
 
     async function activateScene(eid, btn) {
