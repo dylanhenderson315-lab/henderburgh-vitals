@@ -1812,42 +1812,66 @@ async def get_ha_lights_data():
     lights_by_room: Dict[str, List[Dict]] = {}
     unassigned_lights = []
     all_lights = []
+    sync_controls = []  # Wiz Sync Box or similar - surfaced so you can control the box itself (often appears as light.* or select.*)
 
     for s in states:
         eid = str(s.get("entity_id", ""))
-        if not eid.startswith("light."):
-            continue
-
         attrs = s.get("attributes", {}) or {}
         friendly = attrs.get("friendly_name") or eid.split(".", 1)[1].replace("_", " ").title()
 
-        # Find which custom room this light belongs to (by id) - strictly from config
-        room_name = "Unassigned"
-        for room in rooms:
-            if eid in room.get("light_ids", []):
-                room_name = room["name"]
-                break
-        # No fallback to HA area - new lights stay Unassigned until manually assigned
+        is_light = eid.startswith("light.")
+        is_sync_related = any(k in eid.lower() for k in ("sync", "wiz_sync", "syncbox", "sync_box")) or "sync" in friendly.lower()
 
-        light = {
+        if not (is_light or is_sync_related):
+            continue
+
+        # Build unified entry
+        entry = {
             "entity_id": eid,
             "state": s.get("state", "off"),
             "attributes": attrs,
             "friendly_name": friendly,
             "supported_color_modes": attrs.get("supported_color_modes", []),
-            "effect_list": attrs.get("effect_list", []),  # for dynamic mode
+            "effect_list": attrs.get("effect_list", []),
             "brightness": attrs.get("brightness"),
             "color_temp": attrs.get("color_temp"),
             "rgb_color": attrs.get("rgb_color"),
             "current_effect": attrs.get("effect"),
-            "room_name": room_name,
+            "room_name": "Unassigned",
+            "is_sync": bool(is_sync_related),
         }
-        all_lights.append(light)
 
-        if room_name == "Unassigned":
-            unassigned_lights.append(light)
+        # Sync box / non-plain-light sync controls get their own list (so UI can highlight them)
+        if is_sync_related and not is_light:
+            sync_controls.append(entry)
+            # Still try to classify into a room below if user manually assigned the entity id in config
+            # (rare but supported)
         else:
-            lights_by_room.setdefault(room_name, []).append(light)
+            all_lights.append(entry)
+
+        # Find which custom room this belongs to (by exact id in lighting_config.json) - strictly from config
+        room_name = "Unassigned"
+        for room in rooms:
+            if eid in room.get("light_ids", []):
+                room_name = room["name"]
+                break
+
+        # Update entry room for display
+        entry["room_name"] = room_name
+
+        if is_sync_related and not is_light:
+            # already added to sync_controls; if it was assigned to a room we still want it in lights_by_room too for the room view
+            if room_name != "Unassigned":
+                lights_by_room.setdefault(room_name, []).append(entry)
+            else:
+                # put sync boxes that aren't assigned into a visible "sync" bucket in unassigned for now
+                # (frontend will show is_sync badge)
+                pass
+        else:
+            if room_name == "Unassigned":
+                unassigned_lights.append(entry)
+            else:
+                lights_by_room.setdefault(room_name, []).append(entry)
 
     # Sort lights in each room
     for rname in lights_by_room:
@@ -1897,6 +1921,7 @@ async def get_ha_lights_data():
         "unassigned_lights": unassigned_lights,
         "scenes": scenes,
         "total_lights": len(all_lights),
+        "sync_controls": sync_controls,  # Wiz Sync Box etc. - shown in UI as special items you can control directly
     }
 
     # Update in-memory last known snapshot for instant bootstrap + "last known states" on next visit / refresh

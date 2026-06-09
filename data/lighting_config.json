@@ -77,16 +77,6 @@
         "light.tv_lamp_1",
         "light.tv_lamp_2"
       ]
-    },
-    {
-      "id": "desk-area",
-      "name": "Desk Area",
-      "light_ids": [
-        "light.office_lamp",
-        "light.wiz_rgbw_tunable_ef497e",
-        "light.t_v_lights",
-        "light.bookshelf_lamp"
-      ]
     }
   ]
 }

@@ -401,6 +401,11 @@
           <div id="group-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
             <!-- Populated by JS -->
           </div>
+
+          <!-- Wiz Sync Box / external sync controls (discovered from HA if present) -->
+          <div id="sync-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1 mt-1">
+            <!-- Populated by JS when sync_controls present -->
+          </div>
           <!-- Drop zone for creating new sync groups by dragging lights -->
           <div 
             id="new-sync-drop"
@@ -600,7 +605,15 @@
           haData = data;
           // Merge / initialize live state (optimistic keeps priority for in-flight)
           const allRoomLights = Object.values(data.lights_by_room || {}).flat();
-          const all = [...allRoomLights, ...(data.unassigned_lights || [])];
+          let all = [...allRoomLights, ...(data.unassigned_lights || [])];
+
+          // Surface Wiz Sync Box / sync controls (from backend) so they appear in Lights view and can be controlled / assigned
+          if (Array.isArray(data.sync_controls) && data.sync_controls.length) {
+            data.sync_controls.forEach(s => s.is_sync = true);
+            all = all.concat(data.sync_controls);
+            haData.sync_controls = data.sync_controls;
+          }
+
           all.forEach(l => {
             const prev = lightsState[l.entity_id] || {};
             const newEffect = l.current_effect || (l.attributes && l.attributes.effect) || '';
@@ -725,6 +738,24 @@
             </div>`;
         });
         groupContainer.innerHTML = gHtml || '<div class="px-3 py-1 text-xs text-zinc-500">No groups yet</div>';
+      }
+
+      // Wiz Sync Box / sync controls (if backend discovered any)
+      const syncContainer = document.getElementById('sync-nav');
+      if (syncContainer && haData && Array.isArray(haData.sync_controls) && haData.sync_controls.length) {
+        let sHtml = '';
+        haData.sync_controls.forEach(s => {
+          const on = (lightsState[s.entity_id]?.state || s.state) === 'on' ? 1 : 0;
+          sHtml += `
+            <button data-view="sync" onclick="setPrimaryView('lights'); lightsFilter='all'; renderPrimaryView();"
+                    class="nav-room-btn w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] text-amber-300">
+              <span class="flex items-center gap-2"><i class="fa-solid fa-magic w-4"></i> ${s.friendly_name}</span>
+              <span class="text-xs text-zinc-500 tabular-nums">${on ? 'on' : 'off'}</span>
+            </button>`;
+        });
+        syncContainer.innerHTML = sHtml;
+      } else if (syncContainer) {
+        syncContainer.innerHTML = '';
       }
     }
 
@@ -993,10 +1024,16 @@
         html += `
           <div>
             <div class="text-xs mb-1 text-zinc-400">Color</div>
-            <div class="flex items-center gap-2 mb-3">
-              <input type="color" value="#ffcc99" class="w-9 h-7 p-0 border-0 bg-transparent" oninput="debouncedColor('${eid}', this.value, this)">
-              ${typeof createPresetButtons === 'function' ? createPresetButtons(eid) : ''}
+            <div class="flex items-center gap-3 mb-2">
+              <input type="color" value="#ffcc99" class="w-12 h-9 p-0 border border-zinc-700 bg-transparent rounded-md cursor-pointer" oninput="debouncedColor('${eid}', this.value, this)">
+              <div class="flex-1">
+                <div class="text-[10px] text-zinc-500 mb-1">Presets</div>
+                <div class="flex items-center gap-2">
+                  ${typeof createPresetButtons === 'function' ? createPresetButtons(eid) : ''}
+                </div>
+              </div>
             </div>
+            <div class="text-[9px] text-zinc-500">Tap swatch or use the picker for custom colors. Changes sync across the group.</div>
           </div>
         `;
       }
@@ -1244,6 +1281,9 @@
     // Dedicated "Lights" view: scannable clean list of every light + powerful search + filters
     function renderLightsView(container, searchLower) {
       let lights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      if (Array.isArray(haData.sync_controls)) {
+        lights = lights.concat(haData.sync_controls);
+      }
 
       // Apply global search
       if (searchLower) {
@@ -1364,6 +1404,9 @@
 
       // Always surface Unassigned at bottom of Rooms for discoverability
       let unLights = haData.unassigned_lights || [];
+      if (Array.isArray(haData.sync_controls)) {
+        unLights = unLights.concat(haData.sync_controls.filter(s => s.room_name === 'Unassigned'));
+      }
       if (searchLower) unLights = unLights.filter(l => (l.friendly_name||'').toLowerCase().includes(searchLower));
       if (unLights.length > 0 || !searchLower) {
         html += `
@@ -1481,6 +1524,7 @@
             <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');">
               <div class="font-medium text-sm truncate">${friendly}</div>
               ${syncNames ? `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${syncNames}</div>` : ''}
+              ${light && light.is_sync ? `<div class="text-[9px] text-amber-400 inline px-1 rounded bg-amber-900/30 mr-1">SYNC BOX</div>` : ''}
               <div class="text-[10px] text-zinc-500">${isOn && state !== 'unknown' ? 'On' : (state === 'unknown' ? 'Syncing…' : 'Off')}${curEffect ? ' • ' + curEffect : ''}</div>
             </div>
             <button onclick="event.stopImmediatePropagation(); toggleLight('${eid}', this)" class="ha-btn text-[10px] px-2 py-0.5 min-h-[32px] ${isOn ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : ''}">
@@ -1510,9 +1554,8 @@
           ${supportsRgb ? `
           <div class="mb-2" onclick="event.stopImmediatePropagation();">
             <div class="text-[10px] text-zinc-400 mb-1">Color</div>
-            <div class="flex items-center gap-1.5">
-              <input type="color" value="#ffcc99" class="w-7 h-5 p-0 border-0 bg-transparent" oninput="debouncedColor('${eid}', this.value, this)">
-              ${typeof createPresetButtons === 'function' ? createPresetButtons(eid) : ''}
+            <div>
+              <input type="color" value="#ffcc99" class="w-8 h-6 p-0 border-0 bg-transparent rounded" oninput="debouncedColor('${eid}', this.value, this)">
             </div>
           </div>` : ''}
 
@@ -1767,17 +1810,17 @@
     }
 
     function createPresetButtons(eid) {
+      // Reduced & cleaned presets for seamless/intuitive color customization (only in detail sheet)
       const presets = [
         {label: 'Warm', color: '#ffcc99'},
-        {label: 'Neutral', color: '#ffe4b5'},
         {label: 'Cool', color: '#e0f2fe'},
-        {label: 'Relax', color: '#f4a261'},
-        {label: 'Focus', color: '#a5d8ff'},
-        {label: 'Accent', color: '#c026d3'},
+        {label: 'Red', color: '#ff6b6b'},
+        {label: 'Blue', color: '#4dabf7'},
+        {label: 'Purple', color: '#9775fa'},
       ];
       return presets.map(p => 
         `<button onclick="applyPreset('${eid}', '${p.color}', this)" 
-                 class="w-5 h-5 rounded-full border border-[#3f3f46] hover:scale-110 transition" 
+                 class="w-8 h-8 rounded-full border border-[#3f3f46] hover:scale-110 transition shadow-sm" 
                  style="background:${p.color}" title="${p.label}"></button>`
       ).join('');
     }
