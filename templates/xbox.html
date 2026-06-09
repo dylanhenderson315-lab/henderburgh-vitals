@@ -238,7 +238,9 @@
   </footer>
 
   <script>
-    // Live refresh of profile header + current activity every 60s (keeps the page feeling current)
+    // Live refresh of profile header + current activity every 5 minutes.
+    // The heavy lifting is done by server-side caching; this is just to keep the dedicated page view reasonably fresh
+    // without contributing to rate-limit pressure.
     async function refreshXboxLive() {
       try {
         const res = await fetch('/api/xbox/status');
@@ -284,7 +286,7 @@
         // silent — keep last known good UI
       }
     }
-    setInterval(refreshXboxLive, 60000);
+    setInterval(refreshXboxLive, 300000);
   </script>
 </body>
 </html>

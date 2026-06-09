@@ -460,6 +460,15 @@
           ? `<div class="text-[10px] text-zinc-500 mt-1.5 tabular-nums">${score}${score && ten ? " • " : ""}${ten ? ten + " years" : ""}</div>` 
           : "";
 
+        // Show age of the cached snapshot (populated by backend). Helps communicate that we are not live-polling.
+        let updatedLine = "";
+        if (data.last_updated) {
+          const ageSec = Math.floor(Date.now() / 1000 - data.last_updated);
+          const ageMin = Math.max(0, Math.floor(ageSec / 60));
+          const label = ageMin === 0 ? "just now" : `${ageMin} min ago`;
+          updatedLine = `<div class="text-[9px] text-zinc-500 mt-1">Updated ${label}</div>`;
+        }
+
         el.innerHTML = `
           <div class="flex gap-3">
             ${pic ? `<img src="${pic}" class="w-9 h-9 rounded-full object-cover border border-zinc-700 flex-shrink-0" alt="${gt} gamerpic">` : ''}
@@ -470,6 +479,7 @@
               </div>
               <div class="text-xs ${gameText === 'No active game' ? 'text-zinc-500 italic' : 'text-zinc-300'} truncate mt-1 leading-snug">${gameText}</div>
               ${bottom}
+              ${updatedLine}
             </div>
           </div>
         `;
@@ -483,8 +493,11 @@
     }
   }
 
+  // Poll every 5 minutes (300s). Combined with server-side 5-minute caching this keeps us
+  // comfortably under the xbl.io free tier limit of 150 requests/hour while still showing
+  // reasonably fresh status + the last known game when the cache is being served.
   loadXbox();
-  setInterval(loadXbox, 60000);
+  setInterval(loadXbox, 300000);
   </script>
 
   <!-- Last.fm Recent Tracks -->

@@ -69,6 +69,12 @@ XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
 XBL_XUID = os.getenv("XBL_XUID", "")  # Optional: if set, skip gamertag resolution and use this XUID directly for presence call
 
+# Xbox response caching to protect the free-tier 150 req/hour limit on xbl.io.
+# We cache successful profile+presence+account responses for ~5 minutes.
+# This means at most ~12 actual API roundtrips per hour per server process (even with many visitors),
+# plus we always serve the last-known-good data instantly on cache hits or on any failure/rate-limit.
+XBOX_CACHE_TTL_SECONDS = 5 * 60
+
 # Warn at startup ONLY if using the example placeholder strings (not real values)
 if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
     print("⚠️  WARNING: Using placeholder XBL_API_KEY / XBL_GAMERTAG. Xbox status will be unavailable until you set real values in .env or Railway env vars. See .env.example for instructions.")
@@ -77,8 +83,10 @@ if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
 # In-memory cache for last successful Xbox status (survives between requests in the same process)
-# Simple caching + fallback to last known good status
-last_xbox_data = {"status": "unavailable", "state": "Unknown", "game": "—"}
+# We only hit xbl.io when this cache is older than XBOX_CACHE_TTL_SECONDS.
+# On any error (including rate limits) we return the previous last_xbox_data so the UI stays useful.
+last_xbox_data = {"status": "unavailable", "state": "Unknown", "game": "—", "last_updated": 0}
+_last_xbox_fetch_time: float = 0.0  # epoch seconds of the last *successful* network fetch (for cache decision)
 
 if PUBLIC_MODE:
     if not OURA_TOKEN:
@@ -1082,7 +1090,7 @@ async def api_heart_rate():
 
 @app.get("/api/xbox/status")
 async def get_xbox_status():
-    global last_xbox_data
+    global last_xbox_data, _last_xbox_fetch_time
 
     # If using placeholder values, return not_configured immediately (no API call)
     # Detection: ONLY trigger on the exact example placeholder strings from .env.example.
@@ -1090,6 +1098,14 @@ async def get_xbox_status():
     # See comment above the XBL_ assignments for full explanation of detection logic.
     if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
         return {"status": "not_configured", "state": "Unknown", "game": "—"}
+
+    # Simple time-based cache: serve last known good data instantly if still fresh.
+    # This is the main protection against burning the 150 req/h free tier.
+    now = time.time()
+    if last_xbox_data.get("status") == "ok":
+        age = now - _last_xbox_fetch_time
+        if age < XBOX_CACHE_TTL_SECONDS:
+            return last_xbox_data
 
     headers = {
         "X-Authorization": XBL_API_KEY,
@@ -1253,7 +1269,9 @@ async def get_xbox_status():
                 except Exception as e:
                     print(f"Xbox game log error: {e}")
 
-            # Only update cache and return success if we actually got something
+            # Success path: update the shared cache (with timestamp) and return fresh data.
+            # Future calls within XBOX_CACHE_TTL_SECONDS will be served from this without touching xbl.io.
+            fetch_time = time.time()
             last_xbox_data = {
                 "status": "ok",
                 "state": state,
@@ -1264,8 +1282,10 @@ async def get_xbox_status():
                 "tenure": tenure,
                 "real_name": real_name,
                 "account_tier": account_tier,
-                "xuid": xuid or XBL_XUID
+                "xuid": xuid or XBL_XUID,
+                "last_updated": fetch_time
             }
+            _last_xbox_fetch_time = fetch_time
             return last_xbox_data
 
         except Exception as e:
