@@ -1,0 +1,25 @@
+{
+  "rooms": [
+    {
+      "id": "default-room",
+      "name": "Home",
+      "light_ids": [
+        "light.wiz_rgbw_tunable_ef497e",
+        "light.bookshelf_lamp",
+        "light.tv_lamp_1",
+        "light.tv_lamp_2",
+        "light.nicole_s_desk_lamp",
+        "light.kitchen_light_left",
+        "light.living_room_lamp",
+        "light.office_lamp",
+        "light.hallway_light_3",
+        "light.kitchen_light_right",
+        "light.hallway_light_4",
+        "light.hallway_light_1",
+        "light.hallway_light_2",
+        "light.t_v_lights"
+      ]
+    }
+  ],
+  "groups": []
+}

@@ -1614,22 +1614,23 @@ async def get_ha_summary():
         }
 
     data = await get_ha_lights_data()
-    lights_by_area = data.get("lights_by_area", {})
+    rooms = data.get("rooms", [])
     scenes = data.get("scenes", [])
 
     total_lights = data.get("total_lights", 0)
     lights_on = 0
     room_status = []
 
-    for area_name, lights in lights_by_area.items():
-        on_lights = [l for l in lights if l.get("state") == "on"]
-        lights_on += len(on_lights)
-        if lights:
+    for room in rooms:
+        on = room.get("on_count", 0)
+        total = room.get("light_count", 0)
+        lights_on += on
+        if total:
             room_status.append({
-                "name": area_name,
-                "on": len(on_lights),
-                "total": len(lights),
-                "brightness_avg": _avg_brightness(on_lights),
+                "name": room.get("name"),
+                "on": on,
+                "total": total,
+                "brightness_avg": None,  # could enhance later
             })
 
     # Best active scene guess
