@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import os
 import asyncio
+import json
 import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
@@ -746,6 +748,49 @@ async def home(request: Request):
     })
 
 
+@app.get("/xbox", response_class=HTMLResponse)
+async def xbox_page(request: Request):
+    """Dedicated Xbox profile page with current data and game log."""
+    xbox_data = await get_xbox_status()
+    raw_log = load_xbox_log()
+
+    # Enrich log for clean, professional display (formatted dates, safe fields)
+    formatted_log = []
+    for entry in raw_log:
+        ts = entry.get("timestamp", "")
+        played = ts
+        try:
+            # Support both naive ISO and Z-suffixed
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            # e.g. "Feb 3, 2026 • 2:14 PM"
+            played = dt.strftime("%b %-d, %Y • %-I:%M %p")
+        except Exception:
+            pass
+        formatted_log.append({
+            "game": entry.get("game", "—"),
+            "timestamp": ts,
+            "played": played,
+            "device": entry.get("device", "") or "",
+        })
+
+    # Add a few display helpers to xbox data for the template (no mutation of cache)
+    xbox_display = dict(xbox_data) if xbox_data else {}
+    try:
+        gs = int(xbox_display.get("gamerscore") or 0)
+        xbox_display["gamerscore_display"] = f"{gs:,}"
+    except Exception:
+        xbox_display["gamerscore_display"] = xbox_display.get("gamerscore") or "0"
+
+    return _render("xbox.html", {
+        "request": request,
+        "xbox": xbox_display,
+        "log": formatted_log,
+        "public_mode": PUBLIC_MODE,
+        "site_name": SITE_NAME,
+        "display_name": DISPLAY_NAME,
+    })
+
+
 @app.get("/vitals", response_class=HTMLResponse)
 async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
     """The Oura Ring vitals dashboard (moved to /vitals per site structure)."""
@@ -1120,6 +1165,12 @@ async def get_xbox_status():
                     if game != "—":
                         break
 
+            primary_device = ""
+            if devices and isinstance(devices, list) and devices:
+                d0 = devices[0]
+                if isinstance(d0, dict):
+                    primary_device = d0.get("type", "")
+
             # Path 2: direct lastSeenTitle (some response formats)
             if game == "—" and "lastSeenTitle" in data:
                 game = data.get("lastSeenTitle") or "—"
@@ -1148,6 +1199,8 @@ async def get_xbox_status():
             gamerscore = 0
             tenure = 0
             gamertag = XBL_GAMERTAG
+            real_name = ""
+            account_tier = "Gold"
             try:
                 account_res = await client.get("https://xbl.io/api/v2/account", headers=headers, timeout=10)
                 if account_res.status_code == 200:
@@ -1168,8 +1221,37 @@ async def get_xbox_status():
                             tenure = int(settings.get("TenureLevel", 0))
                         except:
                             tenure = 0
+                        # Real name (may not be present on all accounts / privacy settings)
+                        real_name = (
+                            settings.get("RealName")
+                            or settings.get("FirstName")
+                            or ""
+                        )
+                        if not real_name:
+                            fn = settings.get("FirstName", "") or ""
+                            ln = settings.get("LastName", "") or ""
+                            real_name = (fn + " " + ln).strip()
+                        # Account tier (often Gold / Game Pass etc.)
+                        account_tier = settings.get("AccountTier") or settings.get("Tier") or "Gold"
             except Exception as e:
                 print(f"Xbox account fetch error: {e}")
+
+            # Log meaningful game changes (only when game actually changes and is valid)
+            if game and game != "—":
+                try:
+                    log = load_xbox_log()
+                    last_entry = log[0] if log else None
+                    if not last_entry or last_entry.get("game") != game:
+                        entry = {
+                            "game": game,
+                            "timestamp": datetime.now().isoformat(),
+                            "device": primary_device or "",
+                        }
+                        log.insert(0, entry)
+                        log = log[:100]  # keep last 100
+                        save_xbox_log(log)
+                except Exception as e:
+                    print(f"Xbox game log error: {e}")
 
             # Only update cache and return success if we actually got something
             last_xbox_data = {
@@ -1179,7 +1261,10 @@ async def get_xbox_status():
                 "gamertag": gamertag,
                 "gamerpic": gamerpic,
                 "gamerscore": gamerscore,
-                "tenure": tenure
+                "tenure": tenure,
+                "real_name": real_name,
+                "account_tier": account_tier,
+                "xuid": xuid or XBL_XUID
             }
             return last_xbox_data
 
@@ -1189,11 +1274,26 @@ async def get_xbox_status():
 
 
 # =============================================================================
+# Xbox Game Log (persistent recently played)
+# =============================================================================
+XBOX_LOG_FILE = Path("data/xbox_log.json")
+XBOX_LOG_FILE.parent.mkdir(exist_ok=True)
+
+def load_xbox_log():
+    if XBOX_LOG_FILE.exists():
+        try:
+            return json.loads(XBOX_LOG_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+def save_xbox_log(log):
+    XBOX_LOG_FILE.write_text(json.dumps(log, indent=2))
+
+
+# =============================================================================
 # Golf Club Distances (server-persisted, shared across visitors)
 # =============================================================================
-import json
-from pathlib import Path
-
 CLUBS_FILE = Path("data/clubs.json")
 CLUBS_FILE.parent.mkdir(exist_ok=True)
 
