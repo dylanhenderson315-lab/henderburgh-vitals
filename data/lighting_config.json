@@ -23,8 +23,7 @@
       "name": "Living Room",
       "light_ids": [
         "light.living_room_lamp",
-        "light.wiz_rgbw_tunable_ef497e",
-        "light.t_v_lights"
+        "light.wiz_rgbw_tunable_ef497e"
       ]
     },
     {
@@ -35,7 +34,8 @@
         "light.nicole_s_desk_lamp",
         "light.tv_lamp_1",
         "light.tv_lamp_2",
-        "light.bookshelf_lamp"
+        "light.bookshelf_lamp",
+        "light.t_v_lights"
       ]
     },
     {
