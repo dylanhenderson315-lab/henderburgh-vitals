@@ -286,11 +286,11 @@
           <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
 
-        <!-- Status info -->
+        <!-- Status info (simple; detailed + countdown + refresh live inside content for HTMX partials) -->
         <div class="text-xs text-zinc-500 font-medium px-3 py-1.5 rounded-2xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10 flex items-center gap-x-2">
           <span>Updated {{ last_updated }}</span>
           {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}
-          <span class="text-emerald-400">• auto every {{ (auto_refresh_seconds // 60) }}m</span>
+          <span class="text-emerald-400 hidden sm:inline">• auto {{ (auto_refresh_seconds // 60) }}m</span>
           {% endif %}
         </div>
 
@@ -338,12 +338,7 @@
         </div>
         
         {% if not public_mode %}
-        <div class="flex items-center gap-x-3 text-sm">
-          <div class="px-4 py-2 rounded-3xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10 flex items-center gap-x-2">
-            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span class="font-medium">Last ring sync • {{ last_updated }}</span>
-          </div>
-        </div>
+        <!-- Status moved to top nav for less clutter; last-updated + countdown + refresh button live there -->
         {% endif %}
       </div>
 
@@ -408,6 +403,29 @@
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
           </div>
           <div class="text-xs text-zinc-500 mt-1">{{ steps or "—" }} steps • {{ active_calories or "—" }} kcal</div>
+        </div>
+      </div>
+
+      <!-- Update status + manual refresh (prominent, scannable; inside main-content so HTMX fragment refresh keeps it fresh) -->
+      <div class="mb-6 -mt-2">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500 font-medium"
+             data-last-iso="{{ last_updated_iso | default('') }}"
+             data-auto-sec="{{ auto_refresh_seconds | default(0) }}">
+          <span class="inline-flex items-center gap-x-1.5 px-3 py-1 rounded-2xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10">
+            Last updated <span id="last-updated">{{ last_updated }}</span>
+          </span>
+          {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}
+          <span class="inline-flex items-center gap-x-1 text-emerald-400">
+            Next refresh in <span id="countdown">{{ (auto_refresh_seconds // 60) }}m</span>
+          </span>
+          {% endif %}
+          <button id="refresh-btn" onclick="refreshVitals(this)" 
+                  class="inline-flex items-center gap-x-1.5 px-3 py-1 text-[11px] rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 active:scale-[0.985] transition"
+                  title="Pull latest from Oura now (feels instant)">
+            <i class="fa-solid fa-sync refresh-icon"></i>
+            <span>Refresh</span>
+          </button>
+          <span class="text-[10px] text-zinc-400 ml-1 hidden md:inline">(~{{ (auto_refresh_seconds // 60) if auto_refresh_seconds else 15 }}m or manual)</span>
         </div>
       </div>
 
@@ -477,10 +495,10 @@
         </div>
       </div>
 
-      <!-- Recent Activity (real Oura workout/activity sessions) -->
+      <!-- Recent Activity (real Oura workout/activity sessions) - hidden if no data -->
+      {% if recent_activities %}
       <div class="mb-8">
         <div class="section-title text-emerald-400 mb-3">RECENT ACTIVITY</div>
-        {% if recent_activities %}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {% for act in recent_activities %}
           <div class="metric-card card-bg rounded-3xl p-4 border border-zinc-800 light:border-zinc-200">
@@ -505,19 +523,18 @@
           </div>
           {% endfor %}
         </div>
-        {% else %}
-        <div class="text-xs text-zinc-500 px-1 py-1">No recent activity sessions recorded.</div>
-        {% endif %}
       </div>
+      {% endif %}
 
       <!-- Hender Vitals -->
       <div class="mb-3">
         <div class="section-title text-emerald-400">HENDER VITALS</div>
       </div>
-      <!-- Metric Cards Grid -->
+      <!-- Metric Cards Grid (only data-bearing cards rendered to avoid clutter/placeholders) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-10">
         
-        <!-- HRV -->
+        <!-- HRV (prominent) -->
+        {% if hrv is not none %}
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
             <div>
@@ -526,7 +543,7 @@
                 <span class="metric-label">HRV</span>
               </div>
               <div class="mt-3 flex items-baseline gap-x-1">
-                <span class="metric-value text-4xl font-semibold tabular-nums">{{ hrv or "—" }}</span>
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ hrv }}</span>
                 <span class="text-sm text-zinc-500 font-medium">ms</span>
               </div>
             </div>
@@ -538,8 +555,10 @@
           </div>
           <div class="text-[11px] text-zinc-500 mt-5">Average nightly HRV</div>
         </div>
+        {% endif %}
 
-        <!-- Resting HR -->
+        <!-- Resting HR (prominent) -->
+        {% if rhr is not none %}
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
             <div>
@@ -548,7 +567,7 @@
                 <span class="metric-label">Resting HR</span>
               </div>
               <div class="mt-3 flex items-baseline gap-x-1">
-                <span class="metric-value text-4xl font-semibold tabular-nums">{{ rhr or "—" }}</span>
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ rhr }}</span>
                 <span class="text-sm text-zinc-500 font-medium">bpm</span>
               </div>
             </div>
@@ -560,8 +579,10 @@
           </div>
           <div class="text-[11px] text-zinc-500 mt-5">Lowest heart rate overnight</div>
         </div>
+        {% endif %}
 
-        <!-- Heart Rate -->
+        <!-- Live Heart Rate -->
+        {% if latest_hr is not none %}
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
             <div>
@@ -570,7 +591,7 @@
                 <span class="metric-label">Heart Rate</span>
               </div>
               <div class="mt-3 flex items-baseline gap-x-1">
-                <span id="latest-hr-value" class="metric-value text-4xl font-semibold tabular-nums">{{ latest_hr or "—" }}</span>
+                <span id="latest-hr-value" class="metric-value text-4xl font-semibold tabular-nums">{{ latest_hr }}</span>
                 <span class="text-sm text-zinc-500 font-medium">bpm</span>
               </div>
             </div>
@@ -579,7 +600,7 @@
                data-timestamp="{{ latest_hr_timestamp or '' }}"
                data-age-minutes="{{ hr_age_minutes or '' }}">
             {% if hr_age_minutes is not none and hr_age_minutes > 15 %}
-              HENDERBURGH: OPEN OURA FOR FRESH HR
+              OPEN OURA APP FOR FRESH HR
             {% elif latest_hr_timestamp %}
               updated {{ hr_age_minutes }}m ago
             {% else %}
@@ -587,8 +608,10 @@
             {% endif %}
           </div>
         </div>
+        {% endif %}
 
         <!-- Respiratory Rate -->
+        {% if respiratory_rate is not none %}
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
             <div>
@@ -597,15 +620,17 @@
                 <span class="metric-label">Respiratory Rate</span>
               </div>
               <div class="mt-3 flex items-baseline gap-x-1">
-                <span class="metric-value text-4xl font-semibold tabular-nums">{{ respiratory_rate or "—" }}</span>
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ respiratory_rate }}</span>
                 <span class="text-sm text-zinc-500 font-medium">brpm</span>
               </div>
             </div>
           </div>
           <div class="text-[11px] text-zinc-500 mt-5">Average breaths per minute</div>
         </div>
+        {% endif %}
 
         <!-- SpO2 -->
+        {% if spo2 is not none %}
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
             <div>
@@ -614,15 +639,17 @@
                 <span class="metric-label">Average SpO₂</span>
               </div>
               <div class="mt-3 flex items-baseline gap-x-1">
-                <span class="metric-value text-4xl font-semibold tabular-nums">{{ spo2 or "—" }}</span>
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ spo2 }}</span>
                 <span class="text-sm text-zinc-500 font-medium">%</span>
               </div>
             </div>
           </div>
           <div class="text-[11px] text-zinc-500 mt-5">Average overnight SpO₂</div>
         </div>
+        {% endif %}
 
         <!-- Temperature Deviation -->
+        {% if temp_deviation is not none %}
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
             <div>
@@ -631,15 +658,17 @@
                 <span class="metric-label">Skin Temp</span>
               </div>
               <div class="mt-3 flex items-baseline gap-x-1">
-                <span class="metric-value text-4xl font-semibold tabular-nums">{{ "%.1f"|format(temp_deviation) if temp_deviation is not none else "—" }}</span>
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ "%.1f"|format(temp_deviation) }} </span>
                 <span class="text-sm text-zinc-500 font-medium">°C</span>
               </div>
             </div>
           </div>
           <div class="text-[11px] text-zinc-500 mt-5">Deviation from baseline</div>
         </div>
+        {% endif %}
 
         <!-- Stress / Recovery -->
+        {% if stress_summary is not none %}
         <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
           <div class="flex justify-between items-start">
             <div>
@@ -648,12 +677,13 @@
                 <span class="metric-label">Stress</span>
               </div>
               <div class="mt-3">
-                <span class="metric-value text-4xl font-semibold tabular-nums">{{ stress_summary or "—" }}</span>
+                <span class="metric-value text-4xl font-semibold tabular-nums">{{ stress_summary }}</span>
               </div>
             </div>
           </div>
           <div class="text-[11px] text-zinc-500 mt-5">Daily stress summary</div>
         </div>
+        {% endif %}
 
       </div>
 
@@ -774,7 +804,7 @@
         {% if public_mode %}
         <div class="text-xs text-zinc-500 tracking-widest">
           {{ site_name }} • PERSONAL HEALTH DATA FROM {{ display_name }}'S OURA RING<br>
-          <span class="opacity-60">Full refresh ~3 min • Heart rate every ~90s • Not medical advice • Data via Oura API v2</span>
+          <span class="opacity-60">Full refresh ~15 min • Heart rate ~live • Not medical advice • Data via Oura API v2</span>
         </div>
         {% else %}
         <div class="text-[10px] text-center text-zinc-500 tracking-widest">
@@ -953,7 +983,7 @@
       }
     }
 
-    // Re-initialize charts + weather when HTMX swaps the main content
+    // Re-initialize charts + weather + countdown when HTMX swaps the main content
     document.body.addEventListener('htmx:afterSwap', function(evt) {
       if (evt.detail.target.id === 'main-content' || evt.detail.target.id === 'hrvChart' || evt.detail.target.id === 'sleepChart') {
         // Small delay to allow DOM to settle
@@ -961,6 +991,9 @@
           createCharts();
           if (typeof updateWeather === 'function') {
             updateWeather();  // re-fetch fresh weather after HTMX replace
+          }
+          if (typeof startCountdown === 'function') {
+            startCountdown();  // re-start with fresh last-updated from swapped content
           }
         }, 30);
       }
@@ -982,6 +1015,61 @@
       if (diffMin < 60) return `${diffMin}m ago`;
       const h = Math.floor(diffMin / 60);
       return h < 24 ? `${h}h ago` : null;
+    }
+
+    // Countdown + manual refresh (calm, visible, works with HTMX fragment or full reload)
+    let countdownTimer = null;
+
+    function startCountdown() {
+      const container = document.querySelector('[data-last-iso]');
+      const cdEl = document.getElementById('countdown');
+      if (!container || !cdEl) return;
+
+      const lastIso = container.dataset.lastIso || '';
+      const autoSec = parseInt(container.dataset.autoSec || '0', 10);
+      if (!lastIso || !autoSec) return;
+
+      if (countdownTimer) clearInterval(countdownTimer);
+
+      const lastMs = new Date(lastIso).getTime();
+      const intervalMs = autoSec * 1000;
+
+      function tick() {
+        const nowMs = Date.now();
+        const elapsed = nowMs - lastMs;
+        let remainMin = Math.max(0, Math.ceil((intervalMs - elapsed) / 60000));
+        cdEl.textContent = remainMin + 'm';
+        if (remainMin <= 0) {
+          clearInterval(countdownTimer);
+        }
+      }
+      tick();
+      countdownTimer = setInterval(tick, 30000); // update display every 30s
+    }
+
+    function refreshVitals(btnEl) {
+      if (btnEl) btnEl.classList.add('htmx-request');
+
+      const isPublic = {{ public_mode | tojson }};
+      const container = document.querySelector('[data-last-iso]');
+
+      if (isPublic || typeof htmx === 'undefined' || !container) {
+        // full reload (reliable, esp. public mode where fragment is limited)
+        setTimeout(() => {
+          window.location.href = window.location.origin + window.location.pathname;
+        }, 80);
+      } else {
+        // instant partial via fragment (re-inits via afterSwap)
+        htmx.ajax('GET', '/vitals/fragment', {
+          target: '#main-content',
+          swap: 'outerHTML'
+        });
+      }
+
+      // safety cleanup of spin class
+      setTimeout(() => {
+        if (btnEl) btnEl.classList.remove('htmx-request');
+      }, 2200);
     }
 
     // === Live Weather (Myrtle Beach) - defined globally so it can be called after HTMX swaps ===
@@ -1056,6 +1144,11 @@
         }
       })();
 
+      // Start last-updated countdown + next refresh indicator (if auto enabled)
+      setTimeout(() => {
+        if (typeof startCountdown === 'function') startCountdown();
+      }, 120);
+
       // Initial load + refresh every 10 minutes
       updateWeather();
       setInterval(updateWeather, 600000); // 10 minutes
@@ -1078,8 +1171,14 @@
           refreshTimer = setInterval(() => {
             // Only refresh if the page is visible (saves API calls)
             if (document.visibilityState === 'visible') {
-              // Always reload to the clean root URL (no query params)
-              window.location.href = window.location.origin + window.location.pathname;
+              const isPublic = {{ public_mode | tojson }};
+              if (!isPublic && typeof htmx !== 'undefined') {
+                // Instant partial update (re-inits via afterSwap listener)
+                htmx.ajax('GET', '/vitals/fragment', { target: '#main-content', swap: 'outerHTML' });
+              } else {
+                // Full reload (public mode or no htmx)
+                window.location.href = window.location.origin + window.location.pathname;
+              }
             }
           }, autoRefreshSeconds * 1000);
         }

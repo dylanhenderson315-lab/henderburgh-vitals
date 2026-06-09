@@ -51,7 +51,7 @@ HEARTRATE_CACHE_TTL = int(os.getenv("HEARTRATE_CACHE_TTL", "120" if PUBLIC_MODE 
 PORT = int(os.getenv("PORT", 8000))
 
 # Auto-refresh interval in seconds (0 or negative = disabled)
-AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "180" if PUBLIC_MODE else "0"))  # 3 min default in public for fresher data
+AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "900"))  # 15 min sensible default (Oura data is not real-time); override via env for faster in dev if desired
 
 # Admin token for protected actions (e.g. deleting blog messages)
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
@@ -578,6 +578,7 @@ def process_dashboard_data(
     return {
         "name": name,
         "last_updated": now.strftime("%b %d, %H:%M UTC"),
+        "last_updated_iso": now.isoformat(),
         "now": now,
         "time_greeting": time_greeting,
         "days": days,
@@ -978,6 +979,7 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
                     "auto_refresh_seconds": AUTO_REFRESH_SECONDS,
                     "hr_age_minutes": None,
                     "recent_activities": [],
+                    "last_updated_iso": None,
                 },
             )
         return _render(
@@ -991,6 +993,7 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
                 "hr_age_minutes": None,
                 "time_greeting": "HENDERBURGH IS HERE.",
                 "recent_activities": [],
+                "last_updated_iso": None,
             },
         )
 
