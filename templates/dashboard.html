@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% if public_mode %}{{ site_name | upper }} • VITALS{% else %}HENDER VITALS • {{ name }}{% endif %}</title>
+  <title>{% if public_mode %}{{ site_name | upper }} • VITALS{% else %}HENDERBURGH • Vitals{% endif %}</title>
 
   {% if public_mode %}
   <!-- Public site SEO & Social -->
@@ -271,7 +271,7 @@
             <i class="fa-solid fa-ring text-white text-xl"></i>
           </div>
           <a href="/" class="font-semibold text-xl tracking-tighter font-display hover:opacity-80 transition">
-            {% if public_mode %}{{ site_name }}{% else %}HENDER VITALS{% endif %}
+            {% if public_mode %}{{ site_name }}{% else %}HENDERBURGH{% endif %}
           </a>
         </div>
       </div>
@@ -729,10 +729,12 @@
         </div>
       </div>
 
-      <!-- Sleep Breakdown + More Details -->
+      <!-- Sleep Breakdown + More Details (hidden if no core sleep data for calm, trustworthy feel) -->
+      {% if total_sleep or deep_sleep or rem_sleep or light_sleep or readiness_score or rhr or hrv %}
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
         
         <!-- Sleep Stages -->
+        {% if total_sleep or deep_sleep or rem_sleep or light_sleep %}
         <div class="lg:col-span-3 card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
           <div class="font-semibold mb-4 flex items-center gap-x-2">
             <i class="fa-solid fa-bed text-sky-400"></i>
@@ -759,44 +761,62 @@
             </div>
           </div>
         </div>
+        {% endif %}
 
-        <!-- Quick Stats -->
+        <!-- Quick Stats / Key Contributors (only if data) -->
+        {% if readiness_score or rhr or hrv or temp_deviation %}
         <div class="lg:col-span-2 card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
           <div class="font-semibold mb-4">Key Contributors (yesterday)</div>
           
           <div class="space-y-3 text-sm">
-            <div class="flex justify-between items-center">
+            {% if readiness_score %}<div class="flex justify-between items-center">
               <div class="flex items-center gap-x-2 text-zinc-400">
                 <i class="fa-solid fa-moon w-4"></i>
                 <span>Previous night sleep</span>
               </div>
-              <span class="font-medium">{{ readiness_score or "—" }}</span>
-            </div>
-            <div class="flex justify-between items-center">
+              <span class="font-medium">{{ readiness_score }}</span>
+            </div>{% endif %}
+            {% if rhr %}<div class="flex justify-between items-center">
               <div class="flex items-center gap-x-2 text-zinc-400">
                 <i class="fa-solid fa-heart w-4"></i>
                 <span>Resting heart rate</span>
               </div>
-              <span class="font-medium">{{ rhr or "—" }} bpm</span>
-            </div>
-            <div class="flex justify-between items-center">
+              <span class="font-medium">{{ rhr }} bpm</span>
+            </div>{% endif %}
+            {% if hrv %}<div class="flex justify-between items-center">
               <div class="flex items-center gap-x-2 text-zinc-400">
                 <i class="fa-solid fa-heart-pulse w-4"></i>
                 <span>HRV balance</span>
               </div>
-              <span class="font-medium">{{ hrv or "—" }} ms</span>
-            </div>
-            <div class="flex justify-between items-center">
+              <span class="font-medium">{{ hrv }} ms</span>
+            </div>{% endif %}
+            {% if temp_deviation is not none %}<div class="flex justify-between items-center">
               <div class="flex items-center gap-x-2 text-zinc-400">
                 <i class="fa-solid fa-temperature-half w-4"></i>
                 <span>Body temperature</span>
               </div>
-              <span class="font-medium">{{ "%.2f"|format(temp_deviation) if temp_deviation is not none else "—" }} °C</span>
-            </div>
+              <span class="font-medium">{{ "%.2f"|format(temp_deviation) }} °C</span>
+            </div>{% endif %}
           </div>
         </div>
+        {% endif %}
 
       </div>
+      {% endif %}
+
+      <!-- Intelligence / Insights (groundwork for leverage - calm, non-intrusive suggestions based on data) -->
+      {% if hrv or rhr or readiness_score %}
+      <div class="mt-8 p-5 rounded-3xl border border-zinc-800 light:border-zinc-200 bg-white/5 light:bg-black/5">
+        <div class="flex items-center gap-x-2 text-emerald-400 text-sm font-medium mb-2">
+          <i class="fa-solid fa-lightbulb"></i>
+          <span>System Insight</span>
+        </div>
+        <p class="text-sm text-zinc-300 light:text-zinc-700">
+          {% if hrv and hrv > 60 %}Strong HRV suggests excellent recovery.{% elif hrv %}HRV is moderate — prioritize rest tonight.{% else %}Track a few more nights for personalized recovery insights.{% endif %}
+          {% if readiness_score and readiness_score > 80 %} Readiness is high — great window for focused work or training.{% endif %}
+        </p>
+      </div>
+      {% endif %}
 
 
 
@@ -818,6 +838,17 @@
     </div>
     {% endif %}
   </div>
+
+  <!-- Mobile bottom navigation (app-like OS for Vitals) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0b] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+    <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
+      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+    </div>
+  </nav>
 
   <script>
     // Tailwind script configuration

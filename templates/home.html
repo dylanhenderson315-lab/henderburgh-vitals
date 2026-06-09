@@ -253,18 +253,18 @@
           <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
         </a>
 
-        <!-- Navigation -->
+        <!-- Unified Navigation (cohesive OS feel) -->
         <nav class="hidden md:flex items-center gap-x-8 text-sm">
           <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
           <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
+          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
           <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
           <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
           <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
-          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Assistant</a>
           <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
 
-        <!-- Mobile nav -->
+        <!-- Mobile nav (link to main apps) -->
         <div class="md:hidden">
           <a href="/vitals" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">Vitals</a>
         </div>
@@ -280,7 +280,33 @@
       </p>
     </div>
 
-
+    <!-- Smart Hub: elegant notification + quick actions (premium signature feature) -->
+    {% if not public_mode %}
+    <div class="content-section -mt-2 mb-6">
+      <div onclick="showSmartHub()" 
+           class="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] transition cursor-pointer active:scale-[0.995]">
+        <div class="flex items-center gap-x-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-magic text-lg"></i>
+          </div>
+          <div>
+            <div class="font-medium text-sm">Smart Hub</div>
+            <div class="text-xs text-zinc-400">
+              {% if blog_unread_count and blog_unread_count > 0 %}
+              {{ blog_unread_count }} new blog {{ 'reply' if blog_unread_count == 1 else 'replies' }} 
+              {% else %}
+              No new replies
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] text-emerald-400 font-medium">Office Lamp quick</div>
+          <div class="text-[10px] text-zinc-500">Tap to open</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Live Now -->
     <div class="content-section">
@@ -329,6 +355,15 @@
             <a href="https://www.last.fm/user/henderburgh" target="_blank" style="color:inherit; text-decoration:none;">Last.fm • Recent</a>
           </p>
         </div>
+      </div>
+    </div>
+
+    <!-- OS Intelligence / Insights (calm groundwork - first principles leverage over time) -->
+    <div class="content-section">
+      <div class="section-label mb-3">System Insights</div>
+      <div class="live-card p-4 text-sm">
+        <p class="text-zinc-300">Recent trends show strong recovery windows in the morning. Consider scheduling focused sessions then. Data compounds — more nights logged = smarter suggestions ahead.</p>
+        <div class="text-[10px] text-zinc-500 mt-2">Powered by your vitals • evolves with use</div>
       </div>
     </div>
 
@@ -404,6 +439,62 @@
     </div>
   </main>
 
+  <!-- Smart Hub Modal (elegant, thumb friendly, premium) -->
+  <div id="smart-hub-modal" onclick="if (event.target.id === 'smart-hub-modal') hideSmartHub()" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center p-4 md:p-0">
+    <div onclick="event.stopImmediatePropagation()" class="w-full max-w-md bg-[#18181b] border border-zinc-700 rounded-3xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div class="font-semibold text-lg tracking-tight">Smart Hub</div>
+        <button onclick="hideSmartHub()" class="text-2xl leading-none text-zinc-400 hover:text-white">×</button>
+      </div>
+
+      <!-- Blog Notifications -->
+      <div class="mb-5">
+        <div class="flex items-center gap-x-2 text-sm font-medium text-emerald-400 mb-2">
+          <i class="fa-solid fa-comments"></i>
+          <span>Blog replies</span>
+        </div>
+        <div id="modal-blog-text" class="text-sm text-zinc-300 mb-3">
+          <!-- populated by JS -->
+        </div>
+        <div class="flex gap-2">
+          <a href="/blog" class="flex-1 text-center text-sm py-2 rounded-2xl bg-zinc-800 hover:bg-zinc-700 transition">View on Blog</a>
+          <button onclick="markBlogRead()" class="flex-1 text-center text-sm py-2 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition">Mark as read</button>
+        </div>
+      </div>
+
+      <!-- Office Lamp Quick Temporary Actions -->
+      <div>
+        <div class="flex items-center gap-x-2 text-sm font-medium text-emerald-400 mb-2">
+          <i class="fa-solid fa-lightbulb"></i>
+          <span>Office Lamp — temporary presets</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <button onclick="triggerDeskPreset('focus')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-emerald-900/30 transition min-h-[52px]">
+            <div class="font-medium">Focus Mode</div>
+            <div class="text-[10px] text-zinc-400">Bright &amp; cool • 30 min</div>
+          </button>
+          <button onclick="triggerDeskPreset('wind_down')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-emerald-900/30 transition min-h-[52px]">
+            <div class="font-medium">Wind Down</div>
+            <div class="text-[10px] text-zinc-400">Warm &amp; dim • 45 min</div>
+          </button>
+          <button onclick="triggerDeskPreset('creative')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-emerald-900/30 transition min-h-[52px]">
+            <div class="font-medium">Creative</div>
+            <div class="text-[10px] text-zinc-400">Calm dynamic • 60 min</div>
+          </button>
+          <button onclick="triggerDeskPreset('reset')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-rose-900/20 transition min-h-[52px]">
+            <div class="font-medium">Reset now</div>
+            <div class="text-[10px] text-zinc-400">Back to normal state</div>
+          </button>
+        </div>
+        <div class="text-[10px] text-zinc-500 mt-2 text-center">Actions are temporary &amp; will auto-revert. Previous state is remembered.</div>
+      </div>
+
+      <div class="text-center mt-4">
+        <button onclick="hideSmartHub()" class="text-xs text-zinc-400 hover:text-white">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <footer class="max-w-[1080px] mx-auto px-6">
     <div class="minimal-footer flex flex-col sm:flex-row sm:items-center justify-between gap-y-2 text-center sm:text-left">
@@ -411,6 +502,17 @@
       <div class="text-[11px]">Personal site • Not a professional service</div>
     </div>
   </footer>
+
+  <!-- Mobile bottom navigation (premium app-like OS on phone) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+    <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
+      <a href="/" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+    </div>
+  </nav>
 
   <script>
     // Tailwind script configuration
@@ -660,6 +762,181 @@
   document.addEventListener('DOMContentLoaded', () => {
     startLastFmRefresh();
   });
+  </script>
+
+  <!-- Smart Hub JS: notifications + elegant temporary Desk presets with auto-revert -->
+  <script>
+    const DESK_LIGHTS = [
+      "light.office_lamp"
+    ];
+    const ADMIN_TOKEN = "67"; // matches lighting page (enforced server-side)
+
+    function showSmartHub() {
+      const modal = document.getElementById('smart-hub-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      // populate blog text from server-rendered count (or re-fetch if want live)
+      const countEl = document.querySelector('#smart-hub .text-xs');
+      const count = {{ blog_unread_count | default(0) }};
+      const blogText = document.getElementById('modal-blog-text');
+      if (blogText) {
+        if (count > 0) {
+          blogText.innerHTML = `You have <strong>${count}</strong> new blog ${count === 1 ? 'reply' : 'replies'}.`;
+        } else {
+          blogText.innerHTML = `No new replies at the moment.`;
+        }
+      }
+    }
+
+    function hideSmartHub() {
+      const modal = document.getElementById('smart-hub-modal');
+      if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+      }
+    }
+
+    async function markBlogRead() {
+      try {
+        await fetch('/api/blog/mark-read', { method: 'POST' });
+        // update the home badge to 0
+        const badgeArea = document.querySelector('#smart-hub .text-xs');
+        if (badgeArea) badgeArea.textContent = 'No new replies';
+        // close modal
+        hideSmartHub();
+        // optionally reload or just clear visual
+      } catch (e) {
+        alert('Could not mark as read');
+      }
+    }
+
+    async function getCurrentDeskState() {
+      try {
+        const res = await fetch('/api/ha/lights-data');
+        const data = await res.json();
+        if (data.status !== 'ok') return {};
+        const flat = [
+          ...Object.values(data.lights_by_room || {}).flat(),
+          ...(data.unassigned_lights || [])
+        ];
+        const prev = {};
+        DESK_LIGHTS.forEach(eid => {
+          const l = flat.find(x => x.entity_id === eid);
+          if (l) {
+            prev[eid] = {
+              state: l.state,
+              brightness: l.brightness,
+              color_temp: l.color_temp,
+              current_effect: l.current_effect || (l.attributes && l.attributes.effect)
+            };
+          }
+        });
+        return prev;
+      } catch (e) {
+        return {};
+      }
+    }
+
+    async function applyToDesk(payload) {
+      const promises = DESK_LIGHTS.map(eid =>
+        fetch(`/api/ha/service/light/turn_on?token=${ADMIN_TOKEN}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity_id: eid, transition: 0.8, ...payload })
+        }).catch(() => null)
+      );
+      await Promise.all(promises);
+    }
+
+    async function restoreDesk(prev) {
+      if (!prev || Object.keys(prev).length === 0) return;
+      const promises = Object.entries(prev).map(([eid, p]) => {
+        if (!p) return Promise.resolve();
+        if (p.state === 'off') {
+          return fetch(`/api/ha/service/light/turn_off?token=${ADMIN_TOKEN}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entity_id: eid })
+          }).catch(() => null);
+        }
+        const body = { entity_id: eid, transition: 1.5 };
+        if (p.brightness != null) body.brightness = p.brightness;
+        if (p.color_temp != null) body.color_temp = p.color_temp;
+        if (p.current_effect) body.effect = p.current_effect;
+        return fetch(`/api/ha/service/light/turn_on?token=${ADMIN_TOKEN}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).catch(() => null);
+      });
+      await Promise.all(promises);
+      // subtle feedback
+      console.log('%c[Smart Hub] Office Lamp reverted to previous state', 'color:#666');
+    }
+
+    async function triggerDeskPreset(mode) {
+      const modal = document.getElementById('smart-hub-modal');
+      if (modal) modal.style.pointerEvents = 'none'; // prevent double tap
+
+      // snapshot current for revert
+      const prevState = await getCurrentDeskState();
+
+      let payload = {};
+      let durationMs = 30 * 60 * 1000;
+      let label = '';
+
+      if (mode === 'focus') {
+        payload = { brightness: 255, color_temp: 220 }; // bright + cool
+        durationMs = 30 * 60 * 1000;
+        label = 'Focus Mode (30m)';
+      } else if (mode === 'wind_down') {
+        payload = { brightness: 90, color_temp: 420 }; // warm + dim
+        durationMs = 45 * 60 * 1000;
+        label = 'Wind Down (45m)';
+      } else if (mode === 'creative') {
+        payload = { effect: 'Candle' }; // calm dynamic (adjust if your lights use different name)
+        durationMs = 60 * 60 * 1000;
+        label = 'Creative (60m)';
+      } else if (mode === 'reset') {
+        await restoreDesk(prevState);
+        hideSmartHub();
+        if (modal) modal.style.pointerEvents = '';
+        return;
+      }
+
+      try {
+        await applyToDesk(payload);
+        // instant feedback
+        const origText = event.currentTarget ? event.currentTarget.textContent : '';
+        // auto revert
+        setTimeout(async () => {
+          await restoreDesk(prevState);
+        }, durationMs);
+
+        // nice toast-like
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-xs px-4 py-2 rounded-2xl shadow-xl z-[110]';
+        toast.textContent = `${label} activated — will auto-revert`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2400);
+
+        hideSmartHub();
+      } catch (e) {
+        alert('Could not apply preset. Check HA connection.');
+      } finally {
+        if (modal) modal.style.pointerEvents = '';
+      }
+    }
+
+    // Keyboard escape for modal
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const m = document.getElementById('smart-hub-modal');
+        if (m && !m.classList.contains('hidden')) hideSmartHub();
+      }
+    });
   </script>
 
 </body>

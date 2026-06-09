@@ -76,6 +76,10 @@ XBL_XUID = os.getenv("XBL_XUID", "")  # Optional: if set, skip gamertag resoluti
 # plus we always serve the last-known-good data instantly on cache hits or on any failure/rate-limit.
 XBOX_CACHE_TTL_SECONDS = 5 * 60
 
+# Simple in-memory last vitals snapshot for instant structure on /vitals (like HA bootstrap).
+# Allows the page to feel instantly populated with last known scores/metrics + freshness, then background hydrate.
+last_vitals_snapshot = {"data": None, "ts": 0}
+
 # Warn at startup ONLY if using the example placeholder strings (not real values)
 if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
     print("⚠️  WARNING: Using placeholder XBL_API_KEY / XBL_GAMERTAG. Xbox status will be unavailable until you set real values in .env or Railway env vars. See .env.example for instructions.")
@@ -785,6 +789,14 @@ async def home(request: Request):
     except Exception:
         recent_messages = []
 
+    # Compute unread blog replies/comments for the smart hub notification
+    try:
+        last_read = load_last_blog_read()
+        unread_messages = [m for m in all_messages if str(m.get("timestamp", "")) > last_read]
+        blog_unread_count = len(unread_messages)
+    except Exception:
+        blog_unread_count = 0
+
     return _render("home.html", {
         "request": request,
         "public_mode": PUBLIC_MODE,
@@ -793,6 +805,7 @@ async def home(request: Request):
         "steps": steps_ctx,
         "heart_rate": hr_ctx,
         "recent_messages": recent_messages,
+        "blog_unread_count": blog_unread_count,
     })
 
 
@@ -1983,6 +1996,8 @@ def save_clubs(clubs):
 MESSAGES_FILE = Path("data/messages.json")
 MESSAGES_FILE.parent.mkdir(exist_ok=True)
 
+LAST_BLOG_READ_FILE = Path("data/last_blog_read.json")
+
 def load_messages():
     if MESSAGES_FILE.exists():
         try:
@@ -1993,6 +2008,20 @@ def load_messages():
 
 def save_messages(messages):
     MESSAGES_FILE.write_text(json.dumps(messages, indent=2))
+
+def load_last_blog_read():
+    if LAST_BLOG_READ_FILE.exists():
+        try:
+            data = json.loads(LAST_BLOG_READ_FILE.read_text())
+            return data.get("timestamp", "1970-01-01T00:00:00")
+        except Exception:
+            pass
+    return "1970-01-01T00:00:00"
+
+def save_last_blog_read(timestamp=None):
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc).isoformat()
+    LAST_BLOG_READ_FILE.write_text(json.dumps({"timestamp": timestamp}))
 
 @app.get("/api/messages")
 async def get_messages():
@@ -2031,6 +2060,12 @@ async def delete_message(message_id: str, token: str = None):
 
     save_messages(messages)
     return {"status": "deleted"}
+
+@app.post("/api/blog/mark-read")
+async def mark_blog_read():
+    """Mark all current blog messages as read (for the smart notification hub on home). Personal use, no token needed."""
+    save_last_blog_read()
+    return {"status": "marked"}
 
 
 # =============================================================================
