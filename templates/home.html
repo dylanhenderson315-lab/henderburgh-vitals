@@ -446,21 +446,39 @@
       if (data.status === "ok") {
         const state = data.state || "Unknown";
         const gameText = (data.game && data.game !== "—") ? data.game : "No active game";
-        if (gameText === "No active game") {
-          el.innerHTML = `<p><strong>${state} – ${gameText}</strong></p>`;
-        } else {
-          el.innerHTML = `
-            <p><strong>${state}</strong></p>
-            <p>${gameText}</p>
-          `;
-        }
+        const isOnline = state.toLowerCase() === "online";
+        const statusColor = isOnline 
+          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+          : "bg-zinc-700/50 text-zinc-400 border border-zinc-600/30";
+        const statusText = isOnline ? "Online" : "Offline";
+        const pic = data.gamerpic || "";
+        const gt = data.gamertag || "NutNutBiinks";
+        const score = data.gamerscore ? data.gamerscore.toLocaleString() : "";
+        const ten = data.tenure || 0;
+        const bottom = (score || ten) 
+          ? `<div class="text-[10px] text-zinc-500 mt-1.5 tabular-nums">${score}${score && ten ? " • " : ""}${ten ? ten + " years" : ""}</div>` 
+          : "";
+
+        el.innerHTML = `
+          <div class="flex gap-3">
+            ${pic ? `<img src="${pic}" class="w-9 h-9 rounded-full object-cover border border-zinc-700 flex-shrink-0" alt="${gt} gamerpic">` : ''}
+            <div class="flex-1 min-w-0 overflow-hidden">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-semibold text-sm leading-none truncate">${gt}</span>
+                <span class="text-[10px] px-1.5 py-px rounded-full font-medium whitespace-nowrap ${statusColor}">${statusText}</span>
+              </div>
+              <div class="text-xs ${gameText === 'No active game' ? 'text-zinc-500 italic' : 'text-zinc-300'} truncate mt-1 leading-snug">${gameText}</div>
+              ${bottom}
+            </div>
+          </div>
+        `;
       } else if (data.status === "not_configured") {
-        el.innerHTML = `<p><em>Xbox status not configured</em></p>`;
+        el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status not configured</p>`;
       } else {
-        el.innerHTML = `<p><em>Xbox status temporarily unavailable</em></p>`;
+        el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status temporarily unavailable</p>`;
       }
     } catch (error) {
-      el.innerHTML = `<p><em>Xbox status temporarily unavailable</em></p>`;
+      el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status temporarily unavailable</p>`;
     }
   }
 

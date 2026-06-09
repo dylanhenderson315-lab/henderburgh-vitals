@@ -1143,11 +1143,43 @@ async def get_xbox_status():
             if not game or str(game).strip() == "":
                 game = "—"
 
+            # Fetch account profile for gamerpic, gamerscore, tenure (static profile info)
+            gamerpic = ""
+            gamerscore = 0
+            tenure = 0
+            gamertag = XBL_GAMERTAG
+            try:
+                account_res = await client.get("https://xbl.io/api/v2/account", headers=headers, timeout=10)
+                if account_res.status_code == 200:
+                    acc = account_res.json() or {}
+                    acc_content = acc.get("content") or acc
+                    pus = acc_content.get("profileUsers") or []
+                    if pus:
+                        pu = pus[0]
+                        settings_list = pu.get("settings") or []
+                        settings = {s.get("id"): s.get("value") for s in settings_list if isinstance(s, dict)}
+                        gamertag = settings.get("Gamertag") or settings.get("ModernGamertag") or gamertag
+                        gamerpic = settings.get("GameDisplayPicRaw", "")
+                        try:
+                            gamerscore = int(settings.get("Gamerscore", 0))
+                        except:
+                            gamerscore = 0
+                        try:
+                            tenure = int(settings.get("TenureLevel", 0))
+                        except:
+                            tenure = 0
+            except Exception as e:
+                print(f"Xbox account fetch error: {e}")
+
             # Only update cache and return success if we actually got something
             last_xbox_data = {
                 "status": "ok",
                 "state": state,
-                "game": game
+                "game": game,
+                "gamertag": gamertag,
+                "gamerpic": gamerpic,
+                "gamerscore": gamerscore,
+                "tenure": tenure
             }
             return last_xbox_data
 
