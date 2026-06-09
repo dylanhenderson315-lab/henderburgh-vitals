@@ -1019,14 +1019,17 @@
 
             ${curEffect ? `
             <div class="mt-3">
-              <div class="text-xs mb-1 text-zinc-400">Speed</div>
-              <div class="flex gap-1">
-                ${[ {label: 'Slow', val: 25}, {label: 'Normal', val: 50}, {label: 'Fast', val: 100} ].map(item => {
-                  const isActive = curSpeed === item.val ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300' : '';
-                  return `<button onclick="setEffectSpeed('${eid}', ${item.val}, this); openLightDetail('${eid}')" class="ha-btn flex-1 text-xs py-1 min-h-[44px] ${isActive}">${item.label}</button>`;
-                }).join('')}
+              <div class="flex justify-between text-xs mb-1 text-zinc-400">
+                <span>Speed</span>
+                <span id="detail-speed-val" class="text-[10px] tabular-nums">${curSpeed}</span>
               </div>
-              <div class="text-[9px] text-zinc-500 mt-0.5">Affects animated effects (e.g. Fireplace, Party). Applies to the whole Sync Group if any.</div>
+              <input type="range" min="1" max="100" value="${curSpeed}" class="w-full accent-emerald-400"
+                     oninput="debouncedEffectSpeed('${eid}', parseInt(this.value)); const v=document.getElementById('detail-speed-val'); if(v) v.textContent=this.value;">
+              <div class="flex justify-between text-[9px] text-zinc-500 mt-0.5">
+                <span>Slow</span>
+                <span>Normal</span>
+                <span>Fast</span>
+              </div>
             </div>` : ''}
           </div>
         `;
@@ -1656,18 +1659,30 @@
       return (st.effect_speed != null) ? st.effect_speed : 50;
     }
 
-    async function setEffectSpeed(eid, speed, btn) {
-      // Change speed for current dynamic effect. Applies to whole sync group instantly (optimistic + parallel calls).
+    async function setEffectSpeed(eid, speed) {
+      // Immediate (non-debounced) version for discrete changes. Updates whole group.
       const groupLights = getSyncGroupLights(eid);
-      const st = getLightState(eid) || {};
-      const effect = st.current_effect || '';
-      if (!effect) return;
-
       groupLights.forEach(l => updateLightState(l, {effect_speed: speed}));
       renderCurrentView();
 
+      const effect = getLightState(eid).current_effect || '';
+      if (!effect) return;
+
       const promises = groupLights.map(l => callLightService(l, {effect, speed_pct: speed}).catch(()=>{}));
       await Promise.all(promises);
+    }
+
+    function debouncedEffectSpeed(eid, speed) {
+      // For continuous slider: optimistic update immediately, debounce the HA calls (like brightness/color).
+      const groupLights = getSyncGroupLights(eid);
+      groupLights.forEach(l => updateLightState(l, {effect_speed: speed}));
+
+      debounce(async () => {
+        const effect = getLightState(eid).current_effect || '';
+        if (!effect) return;
+        const promises = groupLights.map(l => callLightService(l, {effect, speed_pct: speed}).catch(()=>{}));
+        await Promise.all(promises);
+      }, 'effect-speed-' + eid);
     }
 
     async function roomOrGroupMaster(id, action, isGroup) {
