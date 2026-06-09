@@ -156,50 +156,67 @@
     {% else %}
 
     <!-- Admin / control status -->
-    <div id="admin-banner" class="mb-6 card p-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-[#18181b]">
+    <div id="admin-banner" class="mb-4 card p-3 flex items-center gap-3">
       <div class="flex-1 text-sm">
-        <span id="admin-status-text" class="text-zinc-400">Controls are locked for safety. Enter your admin token to turn devices and scenes on/off.</span>
+        <span id="admin-status-text" class="text-zinc-400">Controls locked. Enter admin token to enable lighting controls.</span>
       </div>
-      <div>
-        <button id="admin-unlock-btn"
-                onclick="enterAdminMode()"
-                class="ha-btn text-xs px-3 py-1.5">
-          <i class="fa-solid fa-key mr-1"></i> Unlock controls
+      <div class="flex gap-2">
+        <button id="admin-unlock-btn" onclick="enterAdminMode()" class="ha-btn text-xs px-3 py-1">
+          <i class="fa-solid fa-key mr-1"></i> Unlock
         </button>
-        <button id="admin-lock-btn" onclick="lockAdminMode()"
-                class="ha-btn text-xs px-3 py-1.5 hidden">
+        <button id="admin-lock-btn" onclick="lockAdminMode()" class="ha-btn text-xs px-3 py-1 hidden">
           <i class="fa-solid fa-lock mr-1"></i> Lock
         </button>
-      </div>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="flex items-center justify-between mb-4">
-      <div class="section-label">Entities by type</div>
-      <div class="flex items-center gap-2">
-        <button onclick="loadEntities()" class="ha-btn flex items-center gap-x-1 text-xs">
+        <button onclick="refreshAllData()" class="ha-btn text-xs px-3 py-1">
           <i class="fa-solid fa-sync-alt"></i>
-          <span>Refresh</span>
         </button>
-        <span class="text-[10px] text-zinc-500" id="last-refresh"></span>
       </div>
     </div>
 
-    <!-- Entities will be rendered here by JS (dynamic for live updates after actions) -->
-    <div id="ha-entities" class="space-y-8">
-      <!-- Populated by JS on load. Server groups available in context if needed for no-script. -->
-      <div class="text-sm text-zinc-500 p-4">Loading entities from Home Assistant...</div>
+    <!-- Top bar: search + last updated -->
+    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      <div class="flex-1 min-w-[200px]">
+        <input id="global-search" type="text" placeholder="Search lights..." 
+               class="w-full bg-[#18181b] border border-[#3f3f46] text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500/50"
+               oninput="filterCurrentView()">
+      </div>
+      <div class="text-[10px] text-zinc-500 tabular-nums" id="last-refresh">—</div>
     </div>
 
-    <div class="mt-10 text-xs text-zinc-500">
-      Only lights, scenes, switches, media players and similar are shown for control. Sensors and binary sensors are filtered for clarity.
-      All actions are sent directly to your local Home Assistant and require a valid admin token.
+    <!-- Main dashboard layout -->
+    <div class="flex flex-col lg:flex-row gap-4">
+      <!-- Sidebar / Room Navigation -->
+      <div class="lg:w-56 flex-shrink-0">
+        <div class="card p-2 lg:sticky lg:top-20">
+          <div class="section-label px-2 pb-1">Rooms</div>
+          <div id="room-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
+            <!-- Populated by JS: All Lights + rooms -->
+          </div>
+
+          <div class="section-label px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">Scenes</div>
+          <button onclick="showScenesView()" 
+                  class="w-full text-left px-3 py-1.5 text-sm rounded hover:bg-[#27272a] flex items-center gap-2 text-emerald-300">
+            <i class="fa-solid fa-magic w-4"></i>
+            <span>All Scenes</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div class="flex-1 min-w-0" id="main-content">
+        <!-- Dynamically rendered by JS: room header + master controls + lights grid, or scenes -->
+        <div id="dashboard-content">
+          <div class="text-sm text-zinc-500 p-8 text-center">Loading lighting data from Home Assistant...</div>
+        </div>
+      </div>
     </div>
 
-    <div class="mt-8">
-      <a href="/" class="inline-flex items-center text-sm text-zinc-400 hover:text-white transition">
-        ← Back to home
-      </a>
+    <div class="mt-8 text-[10px] text-zinc-500">
+      Professional lighting control • Changes sent directly to Home Assistant. Master room controls affect all lights in the room.
+    </div>
+
+    <div class="mt-6">
+      <a href="/" class="inline-flex items-center text-sm text-zinc-400 hover:text-white transition">← Back to home</a>
     </div>
     {% endif %}
   </main>
@@ -212,39 +229,33 @@
   </footer>
 
   <script>
-    // Tailwind + small utils
+    // Tailwind config
     function initTailwind() {
       if (typeof tailwind !== 'undefined') {
-        tailwind.config = {
-          theme: {
-            extend: {
-              fontFamily: {
-                'display': ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif']
-              }
-            }
-          }
-        };
+        tailwind.config = { theme: { extend: { fontFamily: { 'display': ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'] } } } };
       }
     }
 
     let adminToken = null;
-    let entitiesCache = [];
+    let haData = null;           // {areas, lights_by_area, scenes}
+    let lightsState = {};        // entity_id -> current optimistic attrs
+    let currentView = 'all';     // 'all' | area name | 'scenes'
+    let searchTerm = '';
 
     function updateAdminUI() {
       const banner = document.getElementById('admin-banner');
       const statusText = document.getElementById('admin-status-text');
       const unlockBtn = document.getElementById('admin-unlock-btn');
       const lockBtn = document.getElementById('admin-lock-btn');
-
       if (!banner || !statusText || !unlockBtn || !lockBtn) return;
 
       if (adminToken) {
-        statusText.textContent = 'Admin mode active — device controls are enabled.';
+        statusText.textContent = 'Admin mode active — full lighting controls enabled.';
         statusText.className = 'text-emerald-400 text-sm';
         unlockBtn.classList.add('hidden');
         lockBtn.classList.remove('hidden');
       } else {
-        statusText.textContent = 'Controls are locked for safety. Enter your admin token to turn devices and scenes on/off.';
+        statusText.textContent = 'Controls locked for safety. Enter your admin token to control lights and scenes.';
         statusText.className = 'text-zinc-400 text-sm';
         unlockBtn.classList.remove('hidden');
         lockBtn.classList.add('hidden');
@@ -252,203 +263,543 @@
     }
 
     function enterAdminMode() {
-      const token = prompt("Enter admin token (same as used for the blog):");
+      const token = prompt("Enter admin token to enable lighting controls:");
       if (!token) return;
       adminToken = token;
       sessionStorage.setItem('haAdminToken', token);
       updateAdminUI();
-      // Re-render to enable buttons
-      if (entitiesCache.length) renderEntities(entitiesCache);
+      // Re-render current view so controls become active
+      renderCurrentView();
     }
 
     function lockAdminMode() {
       adminToken = null;
       sessionStorage.removeItem('haAdminToken');
       updateAdminUI();
-      if (entitiesCache.length) renderEntities(entitiesCache);
+      renderCurrentView();
     }
 
     function loadAdminToken() {
       const saved = sessionStorage.getItem('haAdminToken');
-      if (saved) {
-        adminToken = saved;
-      }
+      if (saved) adminToken = saved;
       updateAdminUI();
     }
 
-    function formatState(state) {
-      if (!state) return 'unknown';
-      const s = String(state);
-      if (s === 'on' || s === 'true') return 'on';
-      if (s === 'off' || s === 'false') return 'off';
-      return s;
-    }
-
-    function getStateClasses(state) {
-      const s = formatState(state);
-      if (s === 'on' || s === 'playing') return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-      if (s === 'off' || s === 'unavailable') return 'bg-zinc-700/60 text-zinc-400 border border-zinc-600/40';
-      if (s === 'idle') return 'bg-amber-500/10 text-amber-400';
-      return 'bg-zinc-700/50 text-zinc-300';
-    }
-
-    function getFriendly(entity) {
-      const attrs = entity.attributes || {};
-      return attrs.friendly_name || entity.entity_id;
-    }
-
-    function isControllable(domain) {
-      return ['light', 'switch', 'scene', 'media_player', 'input_boolean', 'fan', 'cover'].includes(domain);
-    }
-
-    function renderEntities(entities) {
-      const container = document.getElementById('ha-entities');
-      if (!container) return;
-      entitiesCache = entities || [];
-
-      if (!entities || entities.length === 0) {
-        container.innerHTML = `<div class="card p-6 text-center text-sm text-zinc-400">No controllable entities returned from Home Assistant.</div>`;
-        return;
-      }
-
-      // Group by domain client-side (same as server)
-      const groups = {};
-      for (const e of entities) {
-        const domain = (e.entity_id || '').split('.')[0] || 'other';
-        if (!groups[domain]) groups[domain] = [];
-        groups[domain].push(e);
-      }
-
-      // Preferred order
-      const order = ['light', 'scene', 'switch', 'media_player', 'input_boolean', 'fan', 'cover', 'automation', 'script', 'other'];
-      let html = '';
-
-      for (const dom of order) {
-        if (!groups[dom]) continue;
-        const list = groups[dom];
-        delete groups[dom];
-
-        html += `<div class="mb-8">`;
-        html += `<div class="section-label mb-3 flex items-baseline justify-between">
-                   <span>${dom.replace('_', ' ')} <span class="text-zinc-500 font-normal">(${list.length})</span></span>
-                 </div>`;
-        html += `<div class="entity-grid">`;
-
-        for (const ent of list) {
-          const eid = ent.entity_id;
-          const state = ent.state || 'unknown';
-          const friendly = getFriendly(ent);
-          const stateClass = getStateClasses(state);
-          const controllable = isControllable(dom);
-          const canOnOff = ['light', 'switch', 'input_boolean', 'fan'].includes(dom);
-          const isScene = dom === 'scene';
-          const isMedia = dom === 'media_player';
-
-          html += `<div class="entity-row p-3 flex items-center justify-between gap-3">`;
-          html += `  <div class="min-w-0 flex-1">`;
-          html += `    <div class="font-medium text-sm truncate" title="${eid}">${friendly}</div>`;
-          html += `    <div class="flex items-center gap-2 mt-1">`;
-          html += `      <span class="status-pill text-[10px] ${stateClass}">${state}</span>`;
-          html += `    </div>`;
-          html += `  </div>`;
-
-          html += `  <div class="flex gap-1.5 flex-shrink-0">`;
-          if (controllable && adminToken) {
-            if (canOnOff) {
-              html += `<button onclick="callService('${dom}', 'turn_on', '${eid}')" class="ha-btn">On</button>`;
-              html += `<button onclick="callService('${dom}', 'turn_off', '${eid}')" class="ha-btn">Off</button>`;
-            } else if (isScene) {
-              html += `<button onclick="callService('scene', 'turn_on', '${eid}')" class="ha-btn">Activate</button>`;
-            } else if (isMedia) {
-              html += `<button onclick="callService('media_player', 'turn_on', '${eid}')" class="ha-btn">On</button>`;
-              html += `<button onclick="callService('media_player', 'turn_off', '${eid}')" class="ha-btn">Off</button>`;
-            } else {
-              html += `<button onclick="callService('${dom}', 'toggle', '${eid}')" class="ha-btn">Toggle</button>`;
-            }
-          } else if (controllable && !adminToken) {
-            html += `<span class="text-[10px] text-zinc-500 px-1">locked</span>`;
-          }
-          html += `  </div>`;
-          html += `</div>`;
-        }
-
-        html += `</div></div>`;
-      }
-
-      // Any remaining domains
-      for (const [dom, list] of Object.entries(groups)) {
-        // same rendering abbreviated
-        html += `<div class="mb-8"><div class="section-label mb-3">${dom} (${list.length})</div><div class="text-xs text-zinc-500 px-1">Read-only in this view.</div></div>`;
-      }
-
-      container.innerHTML = html;
-
-      const lr = document.getElementById('last-refresh');
-      if (lr) lr.textContent = 'updated just now';
-    }
-
-    async function loadEntities() {
-      const container = document.getElementById('ha-entities');
-      if (!container) return;
-
-      container.innerHTML = `<div class="text-sm text-zinc-500 p-4">Refreshing from Home Assistant...</div>`;
-
+    async function fetchLightsData() {
       try {
-        const res = await fetch('/api/ha/states');
+        const res = await fetch('/api/ha/lights-data');
         const data = await res.json();
-        if (data.status === 'ok' && Array.isArray(data.entities)) {
-          renderEntities(data.entities);
-        } else {
-          container.innerHTML = `<div class="card p-6 text-sm text-amber-400">Unable to load entities (HA may be unreachable from here).</div>`;
+        if (data.status === 'ok') {
+          haData = data;
+          // Initialize live state from server data
+          lightsState = {};
+          Object.values(data.lights_by_area || {}).flat().forEach(l => {
+            lightsState[l.entity_id] = { ...l.attributes, state: l.state };
+          });
+          return true;
         }
       } catch (e) {
-        container.innerHTML = `<div class="card p-6 text-sm text-rose-400">Error contacting server or HA: ${e}</div>`;
+        console.error('Failed to load lights data', e);
       }
+      return false;
     }
 
-    async function callService(domain, service, entityId) {
-      if (!adminToken) {
-        alert("Admin token required. Click 'Unlock controls' first.");
+    function buildRoomNav() {
+      const container = document.getElementById('room-nav');
+      if (!container || !haData) return;
+
+      let html = '';
+
+      // All Lights
+      const allCount = haData.total_lights || 0;
+      html += `
+        <button data-view="all" onclick="switchView('all')"
+                class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${currentView === 'all' ? 'bg-[#27272a] text-white' : ''}">
+          <span class="flex items-center gap-2"><i class="fa-solid fa-globe w-4"></i> All Lights</span>
+          <span class="text-xs text-zinc-500 tabular-nums">${allCount}</span>
+        </button>`;
+
+      // Rooms
+      (haData.areas || []).forEach(area => {
+        const lights = (haData.lights_by_area || {})[area.name] || [];
+        const onCount = lights.filter(l => (lightsState[l.entity_id]?.state || l.state) === 'on').length;
+        const isActive = currentView === area.name;
+        html += `
+          <button data-view="${area.name}" onclick="switchView('${area.name}')"
+                  class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${isActive ? 'bg-[#27272a] text-white' : ''}">
+            <span class="truncate">${area.name}</span>
+            <span class="text-xs text-zinc-500 tabular-nums ml-2">${onCount}/${lights.length}</span>
+          </button>`;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function switchView(view) {
+      currentView = view;
+      buildRoomNav();
+      renderCurrentView();
+    }
+
+    function showScenesView() {
+      currentView = 'scenes';
+      buildRoomNav();
+      renderCurrentView();
+    }
+
+    function filterCurrentView() {
+      searchTerm = (document.getElementById('global-search') || {}).value || '';
+      renderCurrentView();
+    }
+
+    function getLightState(eid) {
+      return lightsState[eid] || {};
+    }
+
+    function updateLightState(eid, patch) {
+      if (!lightsState[eid]) lightsState[eid] = {};
+      Object.assign(lightsState[eid], patch);
+      // Also update the original data if present for counts
+    }
+
+    function renderCurrentView() {
+      const container = document.getElementById('dashboard-content');
+      if (!container || !haData) {
+        container.innerHTML = `<div class="card p-8 text-center text-sm">No lighting data loaded.</div>`;
         return;
       }
 
-      const btns = document.querySelectorAll('button');
-      btns.forEach(b => b.disabled = true);
+      const searchLower = searchTerm.toLowerCase();
 
-      try {
-        const url = `/api/ha/service/${encodeURIComponent(domain)}/${encodeURIComponent(service)}?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(entityId)}`;
-        const res = await fetch(url, { method: 'POST' });
-        const body = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          const msg = body.detail || 'Action failed';
-          alert('Action failed: ' + msg);
+      if (currentView === 'scenes') {
+        const scenes = (haData.scenes || []).filter(s => 
+          !searchLower || s.friendly_name.toLowerCase().includes(searchLower)
+        );
+        let html = `<div class="mb-3 section-label">Scenes</div><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">`;
+        if (scenes.length === 0) {
+          html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No scenes found.</div>`;
         } else {
-          // Optimistic: reload the list shortly after
-          setTimeout(() => {
-            loadEntities();
-          }, 350);
+          scenes.forEach(scene => {
+            html += `
+              <div class="card p-4 flex flex-col">
+                <div class="font-medium text-sm mb-1 truncate">${scene.friendly_name}</div>
+                ${scene.description ? `<div class="text-[10px] text-zinc-500 mb-3 line-clamp-2">${scene.description}</div>` : ''}
+                <button onclick="activateScene('${scene.entity_id}', this)"
+                        class="mt-auto ha-btn bg-emerald-600/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-600/20 text-xs py-1.5">
+                  <i class="fa-solid fa-play mr-1"></i> Activate
+                </button>
+              </div>`;
+          });
         }
-      } catch (err) {
-        alert('Network error calling Home Assistant: ' + err);
-      } finally {
-        btns.forEach(b => b.disabled = false);
+        html += `</div>`;
+        container.innerHTML = html;
+        return;
+      }
+
+      // Lights view (room or all)
+      let lights = [];
+      let roomName = 'All Lights';
+      let areaIdForMaster = null;
+
+      if (currentView === 'all') {
+        lights = Object.values(haData.lights_by_area || {}).flat();
+      } else {
+        lights = (haData.lights_by_area || {})[currentView] || [];
+        roomName = currentView;
+        const area = (haData.areas || []).find(a => a.name === currentView);
+        areaIdForMaster = area ? area.id : null;
+      }
+
+      // Apply search
+      if (searchLower) {
+        lights = lights.filter(l => l.friendly_name.toLowerCase().includes(searchLower));
+      }
+
+      // Sort
+      lights.sort((a,b) => a.friendly_name.localeCompare(b.friendly_name));
+
+      // Room master controls
+      let masterHtml = '';
+      if (currentView !== 'all' && lights.length > 0) {
+        masterHtml = `
+          <div class="card p-4 mb-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-semibold">Room Controls — ${roomName}</div>
+              <div class="flex gap-2">
+                <button onclick="roomMasterAction('${currentView}', 'turn_on')" class="ha-btn text-emerald-400">All On</button>
+                <button onclick="roomMasterAction('${currentView}', 'turn_off')" class="ha-btn">All Off</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div class="flex justify-between text-xs mb-1"><span>Brightness</span><span id="master-bright-val">—</span></div>
+                <input type="range" min="0" max="100" value="80" 
+                       class="w-full accent-emerald-400" id="master-bright"
+                       oninput="updateMasterVal('bright', this.value)" onchange="roomMasterBrightness('${currentView}', this.value)">
+              </div>
+              <div>
+                <div class="flex justify-between text-xs mb-1"><span>Color Temperature</span><span id="master-temp-val">—</span></div>
+                <input type="range" min="0" max="100" value="50" 
+                       class="w-full accent-amber-400" id="master-temp"
+                       oninput="updateMasterVal('temp', this.value)" onchange="roomMasterColorTemp('${currentView}', this.value)">
+              </div>
+            </div>
+          </div>`;
+      }
+
+      // Lights grid
+      let lightsHtml = '';
+      if (lights.length === 0) {
+        lightsHtml = `<div class="card p-8 text-center text-sm text-zinc-400">No lights match your search in this view.</div>`;
+      } else {
+        lights.forEach(light => {
+          const eid = light.entity_id;
+          const st = getLightState(eid);
+          const isOn = (st.state || light.state) === 'on';
+          const bright = st.brightness != null ? Math.round(st.brightness / 255 * 100) : (light.brightness != null ? Math.round(light.brightness / 255 * 100) : null);
+          const friendly = light.friendly_name;
+          const supportsTemp = (light.supported_color_modes || []).includes('color_temp');
+          const supportsRgb = (light.supported_color_modes || []).some(m => ['rgb', 'rgbw', 'hs'].includes(m));
+
+          lightsHtml += `
+            <div class="card p-4" data-eid="${eid}">
+              <div class="flex items-start justify-between mb-3">
+                <div class="min-w-0">
+                  <div class="font-semibold text-[15px] leading-tight truncate">${friendly}</div>
+                  <div class="text-[10px] text-zinc-500 mt-0.5">${light.area_name}</div>
+                </div>
+                <div onclick="toggleLight('${eid}', this)" class="cursor-pointer select-none">
+                  <span class="inline-block w-9 h-5 rounded-full transition ${isOn ? 'bg-emerald-500' : 'bg-zinc-600'} relative">
+                    <span class="absolute top-0.5 ${isOn ? 'right-0.5' : 'left-0.5'} w-4 h-4 bg-white rounded-full shadow transition"></span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Status line -->
+              <div class="text-xs text-zinc-400 mb-3 h-4">
+                ${isOn ? 
+                  (bright != null ? `${bright}%` : 'On') + 
+                  (st.color_temp ? ` • ${st.color_temp} mired` : '') +
+                  (st.rgb_color ? ` • RGB` : '')
+                  : 'Off'}
+              </div>
+
+              <!-- Brightness -->
+              <div class="mb-3">
+                <div class="flex justify-between text-[10px] mb-1 text-zinc-400">
+                  <span>Brightness</span>
+                  <span class="tabular-nums">${bright != null ? bright : '—'}%</span>
+                </div>
+                <input type="range" min="0" max="100" value="${bright != null ? bright : (isOn ? 80 : 0)}" 
+                       class="w-full accent-emerald-400" 
+                       oninput="debouncedBrightness('${eid}', this.value, this)" 
+                       onchange="debouncedBrightness('${eid}', this.value, this)">
+              </div>
+
+              ${supportsTemp ? `
+              <div class="mb-3">
+                <div class="flex justify-between text-[10px] mb-1 text-zinc-400">
+                  <span class="text-amber-300">Warm</span>
+                  <span class="text-sky-300">Cool</span>
+                </div>
+                <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
+                       oninput="debouncedColorTemp('${eid}', this.value, this)" 
+                       onchange="debouncedColorTemp('${eid}', this.value, this)">
+              </div>` : ''}
+
+              ${supportsRgb ? `
+              <div class="mb-2">
+                <div class="text-[10px] mb-1 text-zinc-400">Color</div>
+                <div class="flex items-center gap-2">
+                  <input type="color" value="#ffcc99" class="w-9 h-7 p-0 bg-transparent border border-[#3f3f46] rounded cursor-pointer"
+                         oninput="debouncedColor('${eid}', this.value, this)" onchange="debouncedColor('${eid}', this.value, this)">
+                  <div class="flex gap-1 flex-wrap">` + 
+                    createPresetButtons(eid) + `
+                  </div>
+                </div>
+              </div>` : ''}
+
+              <div class="text-[9px] text-zinc-500 mt-1 tabular-nums">${eid}</div>
+            </div>`;
+        });
+      }
+
+      const header = currentView === 'all' 
+        ? `<div class="section-label mb-2">All Lights <span class="text-zinc-500">(${lights.length})</span></div>`
+        : `<div class="mb-2"><span class="text-xl font-semibold">${roomName}</span> <span class="text-xs text-zinc-500">(${lights.length} lights)</span></div>`;
+
+      container.innerHTML = masterHtml + header + `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">${lightsHtml}</div>`;
+    }
+
+    function createPresetButtons(eid) {
+      // Nice professional presets (warm to cool + accent colors)
+      const presets = [
+        {label: 'Warm', color: '#ffcc99'},
+        {label: 'Neutral', color: '#ffe4b5'},
+        {label: 'Cool', color: '#e0f2fe'},
+        {label: 'Relax', color: '#f4a261'},
+        {label: 'Focus', color: '#a5d8ff'},
+        {label: 'Accent', color: '#c026d3'},
+      ];
+      return presets.map(p => 
+        `<button onclick="applyPreset('${eid}', '${p.color}', this)" 
+                 class="w-5 h-5 rounded-full border border-[#3f3f46] hover:scale-110 transition" 
+                 style="background:${p.color}" title="${p.label}"></button>`
+      ).join('');
+    }
+
+    // Debounced control helpers
+    const debounceTimers = {};
+    function debounce(fn, key, delay = 380) {
+      clearTimeout(debounceTimers[key]);
+      debounceTimers[key] = setTimeout(() => {
+        fn();
+        delete debounceTimers[key];
+      }, delay);
+    }
+
+    async function callLightService(eid, extra) {
+      if (!adminToken) {
+        alert("Unlock controls first using the admin token.");
+        return false;
+      }
+      try {
+        const payload = { entity_id: eid, ...extra };
+        const res = await fetch(`/api/ha/service/light/turn_on?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(()=>({}));
+          console.error('Light control failed', err);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
       }
     }
 
-    // Boot
-    document.addEventListener('DOMContentLoaded', function() {
+    async function turnLightOff(eid) {
+      if (!adminToken) return;
+      try {
+        await fetch(`/api/ha/service/light/turn_off?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({entity_id: eid})
+        });
+      } catch(e){}
+    }
+
+    function toggleLight(eid, el) {
+      const st = getLightState(eid);
+      const currentlyOn = (st.state || 'off') === 'on';
+      const newState = currentlyOn ? 'off' : 'on';
+
+      // Optimistic
+      updateLightState(eid, {state: newState});
+      renderCurrentView(); // simple re-render for correctness
+
+      if (currentlyOn) {
+        turnLightOff(eid);
+      } else {
+        callLightService(eid, {brightness: 255}); // turn on at full for safety
+      }
+    }
+
+    function debouncedBrightness(eid, percent, inputEl) {
+      const brightness = Math.max(1, Math.round(parseInt(percent) * 2.55)); // 1-255
+      updateLightState(eid, {brightness, state: 'on'});
+
+      // Update the card's status text live
+      const card = inputEl.closest('[data-eid]');
+      if (card) {
+        const status = card.querySelector('.text-xs.text-zinc-400');
+        if (status) status.textContent = `${percent}%`;
+      }
+
+      debounce(async () => {
+        const ok = await callLightService(eid, {brightness});
+        if (!ok) {
+          // revert could be done but for simplicity just refresh on error
+          refreshAllData();
+        }
+      }, 'bright-' + eid);
+    }
+
+    function debouncedColorTemp(eid, val, inputEl) {
+      // Map 0-100 slider to mired range ~500 (warm) to 153 (cool)
+      const mired = Math.round(500 - (parseInt(val) / 100) * (500 - 153));
+      updateLightState(eid, {color_temp: mired, state: 'on'});
+
+      debounce(async () => {
+        await callLightService(eid, {color_temp: mired});
+      }, 'temp-' + eid);
+    }
+
+    function debouncedColor(eid, hex, inputEl) {
+      const rgb = hexToRgb(hex);
+      updateLightState(eid, {rgb_color: rgb, state: 'on'});
+
+      debounce(async () => {
+        await callLightService(eid, {rgb_color: rgb});
+      }, 'color-' + eid);
+    }
+
+    function hexToRgb(hex) {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return [r, g, b];
+    }
+
+    function applyPreset(eid, hex, btn) {
+      const rgb = hexToRgb(hex);
+      updateLightState(eid, {rgb_color: rgb, state: 'on'});
+      renderCurrentView();
+
+      callLightService(eid, {rgb_color: rgb});
+    }
+
+    async function roomMasterAction(roomName, action) {
+      if (!adminToken) { alert("Unlock controls first."); return; }
+      const lights = (haData.lights_by_area || {})[roomName] || [];
+      if (lights.length === 0) return;
+
+      // Optimistic
+      const newState = action === 'turn_on' ? 'on' : 'off';
+      lights.forEach(l => updateLightState(l.entity_id, {state: newState}));
+      renderCurrentView();
+
+      const promises = lights.map(l => 
+        fetch(`/api/ha/service/light/${action}?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({entity_id: l.entity_id})
+        })
+      );
+      await Promise.all(promises);
+    }
+
+    async function roomMasterBrightness(roomName, percent) {
+      if (!adminToken) return;
+      const lights = (haData.lights_by_area || {})[roomName] || [];
+      const brightness = Math.max(1, Math.round(parseInt(percent) * 2.55));
+
+      lights.forEach(l => updateLightState(l.entity_id, {brightness, state: 'on'}));
+      renderCurrentView();
+
+      const promises = lights.map(l => 
+        callLightService(l.entity_id, {brightness}).catch(()=>null)
+      );
+      await Promise.all(promises);
+    }
+
+    async function roomMasterColorTemp(roomName, sliderVal) {
+      if (!adminToken) return;
+      const lights = (haData.lights_by_area || {})[roomName] || [];
+      const mired = Math.round(500 - (parseInt(sliderVal) / 100) * (500 - 153));
+
+      lights.forEach(l => {
+        const supports = (l.supported_color_modes || []);
+        if (supports.includes('color_temp')) {
+          updateLightState(l.entity_id, {color_temp: mired, state: 'on'});
+        }
+      });
+      renderCurrentView();
+
+      const promises = lights.map(l => {
+        const supports = (l.supported_color_modes || []);
+        if (supports.includes('color_temp')) {
+          return callLightService(l.entity_id, {color_temp: mired}).catch(()=>null);
+        }
+      });
+      await Promise.all(promises.filter(Boolean));
+    }
+
+    function updateMasterVal(type, val) {
+      const el = document.getElementById(type === 'bright' ? 'master-bright-val' : 'master-temp-val');
+      if (el) el.textContent = val + (type === 'bright' ? '%' : '');
+    }
+
+    async function activateScene(eid, btn) {
+      if (!adminToken) { alert("Unlock controls first."); return; }
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Activating...`;
+
+      try {
+        await fetch(`/api/ha/service/scene/turn_on?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({entity_id: eid})
+        });
+        // Optimistic: briefly show success
+        btn.innerHTML = `<i class="fa-solid fa-check mr-1"></i> Activated`;
+        setTimeout(() => {
+          if (btn && btn.parentNode) btn.innerHTML = original;
+          btn.disabled = false;
+          // Refresh data so states update
+          refreshAllData();
+        }, 1200);
+      } catch (e) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert('Failed to activate scene');
+      }
+    }
+
+    async function refreshAllData() {
+      const content = document.getElementById('dashboard-content');
+      const old = content.innerHTML;
+      content.innerHTML = `<div class="text-sm text-zinc-500 p-8 text-center">Refreshing from Home Assistant...</div>`;
+
+      const ok = await fetchLightsData();
+      if (ok) {
+        buildRoomNav();
+        renderCurrentView();
+        const lr = document.getElementById('last-refresh');
+        if (lr) lr.textContent = 'updated just now';
+      } else {
+        content.innerHTML = old;
+        alert('Failed to refresh data from Home Assistant.');
+      }
+    }
+
+    async function initializeDashboard() {
       initTailwind();
       loadAdminToken();
 
-      const entitiesEl = document.getElementById('ha-entities');
-      if (entitiesEl && !document.querySelector('.fa-lock')) {
-        // Only auto-load when we are in the enabled section
-        loadEntities();
-        // Light auto-refresh every 45s while the tab is open (private page)
-        setInterval(() => {
-          if (document.visibilityState === 'visible') loadEntities();
-        }, 45000);
+      const ok = await fetchLightsData();
+      if (!ok) {
+        const c = document.getElementById('dashboard-content');
+        if (c) c.innerHTML = `<div class="card p-8 text-center text-rose-400 text-sm">Could not load lighting data. Check HA connection and token.</div>`;
+        return;
+      }
+
+      // Default to first room or All
+      currentView = (haData.areas && haData.areas.length) ? haData.areas[0].name : 'all';
+
+      buildRoomNav();
+      renderCurrentView();
+
+      const lr = document.getElementById('last-refresh');
+      if (lr) lr.textContent = 'updated just now';
+
+      // Light periodic refresh (private page)
+      setInterval(() => {
+        if (document.visibilityState === 'visible' && !Object.keys(debounceTimers).length) {
+          fetchLightsData().then(ok => { if (ok) { buildRoomNav(); renderCurrentView(); } });
+        }
+      }, 45000);
+    }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', () => {
+      const contentArea = document.getElementById('dashboard-content');
+      if (contentArea && !document.querySelector('.fa-lock')) {
+        initializeDashboard();
       }
     });
   </script>

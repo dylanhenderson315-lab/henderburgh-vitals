@@ -523,7 +523,19 @@
         const on = data.lights_on || 0;
         const tot = data.total_lights || 0;
         const scene = data.active_scene && data.active_scene !== "—" ? data.active_scene : "No active scene";
-        const quick = (data.quick_status || []).slice(0, 2).join(" • ") || "Quiet";
+
+        // New room-aware summary for the professional dashboard
+        let roomsHtml = '';
+        const rooms = (data.active_rooms && data.active_rooms.length) ? data.active_rooms : (data.rooms || []).slice(0, 2);
+        if (rooms.length) {
+          roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1 space-x-1">` +
+            rooms.map(r => {
+              const pct = r.brightness_avg ? ` ${r.brightness_avg}%` : '';
+              return `<span class="tabular-nums">${r.name.split(' ')[0]}: ${r.on}/${r.total}${pct}</span>`;
+            }).join(' ') + `</div>`;
+        } else {
+          roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1">${(data.quick_status || []).slice(0,1).join('')}</div>`;
+        }
 
         el.innerHTML = `
           <div class="text-sm">
@@ -531,8 +543,8 @@
               <span class="font-semibold tabular-nums">${on}/${tot}</span>
               <span class="text-xs text-zinc-400">lights on</span>
             </div>
-            <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-zinc-500 italic' : 'text-zinc-300'} truncate">${scene}</div>
-            <div class="text-[10px] text-zinc-500 mt-1 truncate">${quick}</div>
+            <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-zinc-500 italic' : 'text-emerald-300'} truncate">${scene}</div>
+            ${roomsHtml}
           </div>
         `;
       } else if (data.status === "disabled") {
@@ -546,7 +558,6 @@
   }
 
   // Load once on boot. The card only appears in private mode.
-  // No frequent polling here (summary is cheap but we keep it on-demand / on navigation).
   loadHA();
   </script>
 

@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import Body, FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -1375,21 +1375,36 @@ async def api_ha_states():
     return {"status": "ok", "entities": states}
 
 
+@app.get("/api/ha/lights-data")
+async def api_ha_lights_data():
+    """Rich data for the professional lighting dashboard: areas, lights grouped by room, scenes."""
+    if not HA_ENABLED:
+        return {"status": "disabled"}
+    data = await get_ha_lights_data()
+    return {"status": "ok", **data}
+
+
 @app.post("/api/ha/service/{domain}/{service}")
 async def api_ha_service(
     domain: str,
     service: str,
-    entity_id: Optional[str] = None,
     token: Optional[str] = None,
+    payload: dict = Body(default={}),
 ):
-    """Generic service caller. Requires ?token= matching ADMIN_TOKEN.
-    Used by the private HA control page for on/off/activate actions.
+    """Generic service caller with rich payload support.
+    Requires ?token= matching ADMIN_TOKEN.
+    payload can include: entity_id, brightness (0-255), color_temp (mireds), rgb_color: [r,g,b], etc.
+    Used by the professional lighting dashboard.
     """
     if not ADMIN_TOKEN or token != ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid admin token")
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
-    result = await call_ha_service(domain, service, entity_id)
+
+    entity_id = payload.get("entity_id")
+    extra = {k: v for k, v in payload.items() if k != "entity_id"}
+
+    result = await call_ha_service(domain, service, entity_id, extra)
     return {"status": "ok", "domain": domain, "service": service, "entity_id": entity_id, "result": result}
 
 
@@ -1416,7 +1431,7 @@ def save_xbox_log(log):
 # =============================================================================
 
 async def get_ha_states():
-    """Fetch all entity states from Home Assistant. Returns [] if disabled or error."""
+    """Fetch all entity state from Home Assistant. Returns [] if disabled or error."""
     if not HA_ENABLED:
         return []
     try:
@@ -1429,8 +1444,38 @@ async def get_ha_states():
         return []
 
 
+async def get_ha_areas():
+    """Fetch areas (rooms) from HA config."""
+    if not HA_ENABLED:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{HA_URL}/api/config/areas", headers=HA_HEADERS)
+            resp.raise_for_status()
+            return resp.json() or []
+    except Exception as e:
+        print(f"HA areas fetch error: {e}")
+        return []
+
+
+async def get_ha_entity_registry():
+    """Fetch entity registry for area assignments."""
+    if not HA_ENABLED:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{HA_URL}/api/config/entity_registry", headers=HA_HEADERS)
+            resp.raise_for_status()
+            return resp.json() or []
+    except Exception as e:
+        print(f"HA entity registry fetch error: {e}")
+        return []
+
+
 async def get_ha_summary():
-    """Compact summary for the homepage Live Now card. Read-only, no auth required."""
+    """Improved summary for homepage Live Now card with room-level status.
+    Uses the same area logic as the dashboard for consistency.
+    """
     if not HA_ENABLED:
         return {
             "status": "disabled",
@@ -1439,54 +1484,69 @@ async def get_ha_summary():
             "active_scene": "—",
             "message": "Home Assistant available in local/private mode only."
         }
-    states = await get_ha_states()
-    if not states:
-        return {"status": "unavailable", "lights_on": 0, "total_lights": 0, "active_scene": "—"}
 
-    lights = [s for s in states if str(s.get("entity_id", "")).startswith("light.")]
-    lights_on = [l for l in lights if l.get("state") == "on"]
+    data = await get_ha_lights_data()
+    lights_by_area = data.get("lights_by_area", {})
+    scenes = data.get("scenes", [])
 
-    # Look for an "active" scene (rare for scene entities to report 'on', but check)
+    total_lights = data.get("total_lights", 0)
+    lights_on = 0
+    room_status = []
+
+    for area_name, lights in lights_by_area.items():
+        on_lights = [l for l in lights if l.get("state") == "on"]
+        lights_on += len(on_lights)
+        if lights:
+            room_status.append({
+                "name": area_name,
+                "on": len(on_lights),
+                "total": len(lights),
+                "brightness_avg": _avg_brightness(on_lights),
+            })
+
+    # Best active scene guess
     active_scene = None
-    for s in states:
-        if str(s.get("entity_id", "")).startswith("scene."):
-            attrs = s.get("attributes", {}) or {}
-            if s.get("state") in ("on", "scening") or attrs.get("current") or "active" in str(attrs).lower():
-                active_scene = attrs.get("friendly_name") or s.get("entity_id").split(".", 1)[-1].replace("_", " ").title()
-                break
-    if not active_scene:
-        # Fallback: look for common scene selectors or just "—"
-        for s in states:
-            eid = str(s.get("entity_id", ""))
-            if "scene" in eid or "mode" in eid or "input_select" in eid:
-                val = s.get("state")
-                if val and val not in ("unknown", "unavailable", ""):
-                    active_scene = s.get("attributes", {}).get("friendly_name") or val
-                    break
+    for sc in scenes:
+        if sc.get("state") in ("on", "scening"):
+            active_scene = sc.get("friendly_name")
+            break
+    if not active_scene and scenes:
+        # pick first as "favorite" hint, but prefer "—"
+        active_scene = None
 
-    # Quick status for a few important areas (heuristic by name)
-    quick = []
-    keywords = ["living", "kitchen", "bed", "office", "hall", "front", "back"]
-    for s in states:
-        eid = str(s.get("entity_id", "")).lower()
-        if any(k in eid for k in keywords) and s.get("state") in ("on", "playing", "true"):
-            fn = (s.get("attributes") or {}).get("friendly_name") or s["entity_id"]
-            quick.append(fn)
-            if len(quick) >= 3:
-                break
+    # Top active rooms for the card
+    active_rooms = sorted(
+        [r for r in room_status if r["on"] > 0],
+        key=lambda r: (r["on"], r["total"]),
+        reverse=True
+    )[:3]
 
     return {
         "status": "ok",
-        "lights_on": len(lights_on),
-        "total_lights": len(lights),
+        "lights_on": lights_on,
+        "total_lights": total_lights,
         "active_scene": active_scene or "—",
-        "quick_status": quick or ["All quiet"],
+        "rooms": room_status,
+        "active_rooms": active_rooms,
         "last_updated": time.time(),
     }
 
 
+def _avg_brightness(lights: List[Dict]) -> Optional[int]:
+    vals = []
+    for l in lights:
+        b = l.get("attributes", {}).get("brightness")
+        if b is not None:
+            vals.append(int(b))
+    if not vals:
+        return None
+    return int(sum(vals) / len(vals) / 255 * 100)  # percent
+
+
 async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = None, extra: Optional[dict] = None):
-    """Call a Home Assistant service. Internal; protection done at route level."""
+    """Call a Home Assistant service. Internal; protection done at route level.
+    extra can contain brightness, color_temp, rgb_color etc.
+    """
     if not HA_ENABLED:
         raise HTTPException(status_code=503, detail="Home Assistant not enabled (public mode or no token)")
     payload: dict = extra.copy() if extra else {}
@@ -1508,6 +1568,103 @@ async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = 
     except Exception as e:
         print(f"HA service call failed: {domain}/{service} {entity_id} - {e}")
         raise HTTPException(status_code=502, detail=f"Failed to reach Home Assistant: {str(e)}")
+
+
+async def get_ha_lights_data():
+    """Rich data for lighting dashboard: areas + lights grouped by area + scenes.
+    Uses entity registry for accurate area assignment.
+    """
+    if not HA_ENABLED:
+        return {"areas": [], "lights_by_area": {}, "scenes": []}
+
+    states = await get_ha_states()
+    areas_raw = await get_ha_areas()
+    registry = await get_ha_entity_registry()
+
+    area_by_id = {a.get("area_id"): {"id": a.get("area_id"), "name": a.get("name", "Unknown")} for a in areas_raw}
+    area_by_id["unassigned"] = {"id": "unassigned", "name": "Unassigned"}
+
+    # Build entity -> area_id map from registry
+    entity_to_area = {}
+    for entry in registry:
+        eid = entry.get("entity_id")
+        aid = entry.get("area_id")
+        if eid and aid:
+            entity_to_area[eid] = aid
+
+    lights_by_area: Dict[str, List[Dict]] = {}
+    lights = []
+
+    for s in states:
+        eid = str(s.get("entity_id", ""))
+        if not eid.startswith("light."):
+            continue
+        attrs = s.get("attributes", {}) or {}
+        aid = entity_to_area.get(eid)
+        if not aid:
+            # Fallback: try to infer from name or leave unassigned
+            name_lower = (attrs.get("friendly_name") or eid).lower()
+            aid = "unassigned"
+            for a in areas_raw:
+                aname = (a.get("name") or "").lower()
+                if aname and aname in name_lower:
+                    aid = a.get("area_id")
+                    break
+
+        area_info = area_by_id.get(aid, area_by_id["unassigned"])
+        area_name = area_info["name"]
+
+        light = {
+            "entity_id": eid,
+            "state": s.get("state", "off"),
+            "attributes": attrs,
+            "area_id": aid,
+            "area_name": area_name,
+            "friendly_name": attrs.get("friendly_name") or eid.split(".", 1)[1].replace("_", " ").title(),
+            "supported_color_modes": attrs.get("supported_color_modes", []),
+            "brightness": attrs.get("brightness"),
+            "color_temp": attrs.get("color_temp"),
+            "rgb_color": attrs.get("rgb_color"),
+        }
+        lights.append(light)
+        lights_by_area.setdefault(area_name, []).append(light)
+
+    # Sort lights inside areas
+    for area_name in lights_by_area:
+        lights_by_area[area_name].sort(key=lambda x: x["friendly_name"].lower())
+
+    # Scenes (focus on light related if possible)
+    scenes = []
+    for s in states:
+        if str(s.get("entity_id", "")).startswith("scene."):
+            attrs = s.get("attributes", {}) or {}
+            scenes.append({
+                "entity_id": s["entity_id"],
+                "state": s.get("state"),
+                "friendly_name": attrs.get("friendly_name") or s["entity_id"].split(".", 1)[1].replace("_", " ").title(),
+                "description": attrs.get("description") or ""
+            })
+
+    # Sort areas: put common rooms first, then unassigned at end
+    area_order = ["Living Room", "Kitchen", "Office", "Bedroom", "Hall", "Unassigned"]
+    sorted_areas = []
+    seen = set()
+    for preferred in area_order:
+        for aname, _ in lights_by_area.items():
+            if aname.lower() == preferred.lower() and aname not in seen:
+                sorted_areas.append({"id": area_by_id.get(aname, {}).get("id", aname), "name": aname})
+                seen.add(aname)
+    for aname in lights_by_area:
+        if aname not in seen:
+            sorted_areas.append({"id": area_by_id.get(aname, {}).get("id", aname), "name": aname})
+            seen.add(aname)
+
+    return {
+        "areas": sorted_areas,
+        "lights_by_area": lights_by_area,
+        "scenes": sorted(scenes, key=lambda x: x["friendly_name"].lower()),
+        "total_lights": len(lights),
+    }
 
 
 # =============================================================================
