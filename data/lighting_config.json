@@ -1,15 +1,13 @@
 {
   "rooms": [
     {
-      "id": "living-room",
-      "name": "Living Room",
+      "id": "hallway",
+      "name": "Hallway",
       "light_ids": [
-        "light.wiz_rgbw_tunable_ef497e",
-        "light.bookshelf_lamp",
-        "light.tv_lamp_1",
-        "light.tv_lamp_2",
-        "light.living_room_lamp",
-        "light.t_v_lights"
+        "light.hallway_light_1",
+        "light.hallway_light_2",
+        "light.hallway_light_3",
+        "light.hallway_light_4"
       ]
     },
     {
@@ -21,22 +19,39 @@
       ]
     },
     {
-      "id": "hallway",
-      "name": "Hallway",
+      "id": "living-room",
+      "name": "Living Room",
       "light_ids": [
-        "light.hallway_light_3",
-        "light.hallway_light_4",
-        "light.hallway_light_1",
-        "light.hallway_light_2"
+        "light.living_room_lamp",
+        "light.wiz_rgbw_tunable_ef497e"
       ]
     },
     {
-      "id": "office",
-      "name": "Office",
+      "id": "game-room",
+      "name": "Game Room",
       "light_ids": [
+        "light.office_lamp",
         "light.nicole_s_desk_lamp",
-        "light.office_lamp"
+        "light.tv_lamp_1",
+        "light.tv_lamp_2",
+        "light.bookshelf_lamp",
+        "light.t_v_lights"
       ]
+    },
+    {
+      "id": "bedroom",
+      "name": "Bedroom",
+      "light_ids": []
+    },
+    {
+      "id": "3rd-bedroom",
+      "name": "3rd Bedroom",
+      "light_ids": []
+    },
+    {
+      "id": "master-bedroom",
+      "name": "Master Bedroom",
+      "light_ids": []
     }
   ],
   "groups": []

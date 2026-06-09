@@ -1830,24 +1830,31 @@ async def get_ha_lights_data():
     ) or len(current_rooms) == 0
 
     if is_initial_state:
+        # Pre-seed based on user's actual organization from floor plan / Companion app
         smart_defs = [
-            {"id": "living", "name": "Living Room"},
-            {"id": "kitchen", "name": "Kitchen"},
             {"id": "hallway", "name": "Hallway"},
-            {"id": "office", "name": "Office"},
-            {"id": "bedroom", "name": "Master Bedroom"},
+            {"id": "kitchen", "name": "Kitchen"},
+            {"id": "living-room", "name": "Living Room"},
+            {"id": "game-room", "name": "Game Room"},
+            {"id": "bedroom", "name": "Bedroom"},
+            {"id": "3rd-bedroom", "name": "3rd Bedroom"},
+            {"id": "master-bedroom", "name": "Master Bedroom"},
         ]
         def guess_room_id(eid: str, friendly: str) -> str | None:
             n = ((friendly or "") + " " + eid).lower()
-            if "kitchen" in n:
-                return "kitchen"
             if "hallway" in n:
                 return "hallway"
-            if any(k in n for k in ["office", "desk", "nicole"]):
-                return "office"
-            if any(k in n for k in ["tv", "living", "bookshelf", "t_v", "wiz"]):
-                return "living"
-            if any(k in n for k in ["bed", "master", "bedroom"]):
+            if "kitchen" in n:
+                return "kitchen"
+            if "living" in n:
+                return "living-room"
+            if any(k in n for k in ["game", "office", "desk", "nicole", "tv", "bookshelf", "t_v"]):
+                return "game-room"
+            if "3rd" in n or "third" in n:
+                return "3rd-bedroom"
+            if "master" in n:
+                return "master-bedroom"
+            if "bed" in n:
                 return "bedroom"
             return None
 
@@ -1859,7 +1866,7 @@ async def get_ha_lights_data():
                     if sr["id"] == rid:
                         sr["light_ids"].append(l["entity_id"])
                         break
-            # unmatched lights stay unassigned (user drags them in)
+            # unmatched stay unassigned
 
         config["rooms"] = seeded_rooms
         save_lighting_config(config)
