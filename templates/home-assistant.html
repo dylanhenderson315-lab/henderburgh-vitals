@@ -87,6 +87,38 @@
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
 
+    .floor-plan-room {
+      border: 1px solid #3f3f46;
+      background: #18181b;
+      border-radius: 8px;
+      padding: 6px;
+      min-height: 70px;
+      transition: all 0.15s ease;
+    }
+    .floor-plan-room.drop-target {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+    }
+    .light-pill {
+      font-size: 10px;
+      padding: 1px 4px;
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      border-radius: 4px;
+      margin: 1px;
+      display: inline-block;
+      cursor: grab;
+      user-select: none;
+    }
+    .light-pill.dragging {
+      opacity: 0.5;
+    }
+    .drop-target {
+      border-color: #10b981 !important;
+      background-color: rgba(16, 185, 129, 0.08) !important;
+    }
+
     .light-card {
       transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
     }
@@ -185,6 +217,16 @@
       <div class="text-[10px] text-zinc-500 tabular-nums" id="last-refresh">—</div>
     </div>
 
+    <!-- View tabs for clean main experience vs visual floor plan reference -->
+    <div class="flex gap-1 mb-3">
+      <button onclick="switchView('organize')" id="tab-organize"
+              class="px-3 py-1 text-xs rounded-full bg-zinc-800 text-white border border-zinc-700">Organize</button>
+      <button onclick="switchView('floorplan')" id="tab-floorplan"
+              class="px-3 py-1 text-xs rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800">Floor Plan</button>
+      <div class="flex-1"></div>
+      <button onclick="refreshAllData()" class="ha-btn text-xs px-2 py-0.5"><i class="fa-solid fa-sync-alt"></i> Refresh</button>
+    </div>
+
     <!-- Main dashboard layout -->
     <div class="flex flex-col lg:flex-row gap-4">
       <!-- Sidebar / Room Navigation -->
@@ -276,7 +318,7 @@
     let adminToken = "67";
     let haData = null;           // {rooms, lights_by_room, groups, scenes, ...}
     let lightsState = {};        // entity_id -> current optimistic attrs
-    let currentView = 'all';     // 'all' | room name | group name | 'unassigned' | 'scenes'
+    let currentView = 'organize';     // 'organize' (default clean view) | 'floorplan' | room name etc for sub views
     let searchTerm = '';
 
     async function fetchLightsData() {
@@ -330,6 +372,8 @@
               <span class="truncate">${room.name}</span>
               <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${room.light_count || 0}</span>
             </button>
+            <button onclick="event.stopImmediatePropagation(); renameRoom('${room.id}', '${room.name.replace(/'/g, "\\'")}')" 
+                    class="px-1 text-xs text-zinc-400 hover:text-white opacity-0 group-hover:opacity-100" title="Rename">✎</button>
             <button onclick="event.stopImmediatePropagation(); deleteRoom('${room.id}')" 
                     class="px-1 text-xs text-zinc-500 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
           </div>`;
@@ -363,6 +407,8 @@
                 <span class="truncate">${group.name}</span>
                 <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${group.light_count || 0}</span>
               </button>
+              <button onclick="event.stopImmediatePropagation(); renameGroup('${group.id}', '${group.name.replace(/'/g, "\\'")}')" 
+                      class="px-1 text-xs text-zinc-400 hover:text-white opacity-0 group-hover:opacity-100" title="Rename">✎</button>
               <button onclick="event.stopImmediatePropagation(); deleteGroup('${group.id}')" 
                       class="px-1 text-xs text-zinc-500 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
             </div>`;
@@ -372,7 +418,22 @@
     }
 
     function switchView(view) {
+      if (view === 'organize') {
+        view = 'all';  // organize tab shows the full clean list / last subview; 'all' is the default organize content
+      }
       currentView = view;
+      // highlight tabs
+      const org = document.getElementById('tab-organize');
+      const fp = document.getElementById('tab-floorplan');
+      if (org && fp) {
+        if (view === 'floorplan') {
+          org.className = 'px-3 py-1 text-xs rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800';
+          fp.className = 'px-3 py-1 text-xs rounded-full bg-zinc-800 text-white border border-zinc-700';
+        } else {
+          fp.className = 'px-3 py-1 text-xs rounded-full bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800';
+          org.className = 'px-3 py-1 text-xs rounded-full bg-zinc-800 text-white border border-zinc-700';
+        }
+      }
       buildRoomNav();
       renderCurrentView();
     }
@@ -599,6 +660,32 @@
       } catch (e) { alert("Error creating sync group"); }
     }
 
+    async function renameRoom(roomId, currentName) {
+      const newName = prompt("Rename room:", currentName);
+      if (!newName || newName === currentName) return;
+      try {
+        const res = await fetch(`/api/ha/lighting/room/rename?token=${encodeURIComponent(adminToken)}&room_id=${encodeURIComponent(roomId)}&name=${encodeURIComponent(newName)}`, { method: 'POST' });
+        if (res.ok) {
+          await refreshAllData();
+        } else {
+          alert("Failed to rename");
+        }
+      } catch (e) { alert("Error renaming room"); }
+    }
+
+    async function renameGroup(groupId, currentName) {
+      const newName = prompt("Rename sync group:", currentName);
+      if (!newName || newName === currentName) return;
+      try {
+        const res = await fetch(`/api/ha/lighting/group/rename?token=${encodeURIComponent(adminToken)}&group_id=${encodeURIComponent(groupId)}&name=${encodeURIComponent(newName)}`, { method: 'POST' });
+        if (res.ok) {
+          await refreshAllData();
+        } else {
+          alert("Failed to rename");
+        }
+      } catch (e) { alert("Error renaming sync group"); }
+    }
+
     async function deleteRoom(roomId) {
       if (!confirm("Delete this room? Lights will become unassigned.")) return;
       try {
@@ -649,6 +736,11 @@
       const container = document.getElementById('dashboard-content');
       if (!container || !haData) {
         container.innerHTML = `<div class="card p-8 text-center text-sm">No lighting data loaded.</div>`;
+        return;
+      }
+
+      if (currentView === 'floorplan') {
+        renderFloorPlanView(container);
         return;
       }
 
@@ -839,6 +931,63 @@
       lightsHtml += '</div>';
 
       container.innerHTML = masterHtml + lightsHtml;
+    }
+
+    function renderFloorPlanView(container) {
+      // Visual reference + interactive organization using the smart rooms as a "map".
+      // Shows user's floor plan image (if provided at /static/floorplan.jpg) for context.
+      // The room boxes below act as a simple house layout you can drag lights onto.
+      // Main organize view (sidebar + grid) remains the fast daily driver.
+      const rooms = haData.rooms || [];
+      const allLightsFlat = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+
+      let roomBoxes = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">';
+      rooms.forEach(room => {
+        const roomLights = allLightsFlat.filter(l => (room.light_ids || []).includes(l.entity_id));
+        let pills = '';
+        roomLights.forEach(l => {
+          const short = (l.friendly_name || l.entity_id).split(' ').slice(0,2).join(' ');
+          pills += `<span draggable="true" ondragstart="handleLightDragStart(event, '${l.entity_id}')" ondragend="handleDragEnd(event)"
+                         onclick="event.stopImmediatePropagation(); openLightDetail('${l.entity_id}')"
+                         class="light-pill" data-eid="${l.entity_id}">${short}</span>`;
+        });
+        roomBoxes += `
+          <div class="floor-plan-room p-2 text-xs" 
+               ondragover="event.preventDefault(); this.classList.add('drop-target');"
+               ondragleave="this.classList.remove('drop-target');"
+               ondrop="event.preventDefault(); this.classList.remove('drop-target'); handleDropToRoom(event, '${room.id}');">
+            <div class="font-medium text-emerald-300 mb-1 flex items-center justify-between">
+              <span>${room.name}</span>
+              <span class="text-[10px] text-zinc-500">${roomLights.length}</span>
+            </div>
+            <div class="min-h-[36px] flex flex-wrap gap-0.5 content-start">
+              ${pills || '<span class="text-zinc-500 text-[10px]">empty — drag lights here</span>'}
+            </div>
+          </div>`;
+      });
+      roomBoxes += '</div>';
+
+      const imgHtml = `
+        <div class="mb-3">
+          <div class="text-xs text-zinc-500 mb-1">Floor Plan Reference (add your blueprint image as <code>static/floorplan.jpg</code> to see it here)</div>
+          <img src="/static/floorplan.jpg" class="w-full max-h-64 object-contain rounded border border-zinc-800 bg-zinc-950" 
+               onerror="this.outerHTML = '<div class=\\'p-3 border border-dashed border-zinc-700 rounded text-xs text-zinc-400\\'>Your floor plan image will appear here as visual context. Use the interactive room layout below to drag & drop lights for organization. The main Organize view (with sidebar) stays fast for daily control.</div>' ">
+        </div>
+      `;
+
+      container.innerHTML = `
+        <div class="card p-4">
+          <div class="mb-2 flex items-center gap-2">
+            <i class="fa-solid fa-map text-emerald-400"></i>
+            <span class="font-medium">Floor Plan View</span>
+            <span class="text-[10px] text-zinc-500">(visual reference + drag to assign)</span>
+          </div>
+          ${imgHtml}
+          <div class="text-xs text-zinc-400 mb-2">Drag light pills between rooms below (or use the main Organize sidebar for the full list view). Changes are saved instantly.</div>
+          ${roomBoxes}
+          <div class="mt-3 text-[10px] text-zinc-500">Tip: Use the Organize tab for the full advanced grid with effects, detail panels, and sync groups.</div>
+        </div>
+      `;
     }
 
     // --- Helpers (consolidated, no duplicates) ---
@@ -1079,6 +1228,11 @@
 
       const ok = await fetchLightsData();
       if (ok) {
+        if (currentView === 'floorplan') {
+          // keep floorplan
+        } else {
+          currentView = 'all';
+        }
         buildRoomNav();
         renderCurrentView();
         const lr = document.getElementById('last-refresh');

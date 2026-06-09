@@ -631,6 +631,14 @@ def process_dashboard_data(
 app = FastAPI(title="HENDERBURGH", docs_url=None, redoc_url=None)
 templates = Jinja2Templates(directory="templates")
 
+# Serve static assets (e.g. your floor plan blueprint image as visual reference in /home-assistant).
+# Put the image at static/floorplan.jpg (or update the <img src> in the template).
+# The floor plan view uses it as context while the main organize view (with drag/drop, sync groups, detail panels) stays clean/fast.
+import os
+from fastapi.staticfiles import StaticFiles
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Global client (simple singleton for local dashboard)
 oura_client: Optional[OuraClient] = None
 
@@ -1484,6 +1492,19 @@ async def assign_light_to_group(token: Optional[str] = None, entity_id: str = ""
     raise HTTPException(404, "Group not found")
 
 
+@app.post("/api/ha/lighting/group/rename")
+async def rename_group(token: Optional[str] = None, group_id: str = "", name: str = ""):
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    config = load_lighting_config()
+    for group in config.get("groups", []):
+        if group["id"] == group_id:
+            group["name"] = name.strip()
+            save_lighting_config(config)
+            return {"status": "ok"}
+    raise HTTPException(404, "Group not found")
+
+
 @app.post("/api/ha/service/{domain}/{service}")
 async def api_ha_service(
     domain: str,
@@ -1534,7 +1555,7 @@ LIGHTING_CONFIG_FILE.parent.mkdir(exist_ok=True)
 
 DEFAULT_LIGHTING_CONFIG = {
     "rooms": [],   # list of {"id": str, "name": str, "light_ids": list[str]}
-    "groups": []   # same structure
+    "groups": []   # same structure, used as Sync Groups / Pairs
 }
 
 def load_lighting_config():
@@ -1795,6 +1816,54 @@ async def get_ha_lights_data():
     for rname in lights_by_room:
         lights_by_room[rname].sort(key=lambda x: x["friendly_name"].lower())
     unassigned_lights.sort(key=lambda x: x["friendly_name"].lower())
+
+    # Smart default rooms: pre-create useful rooms based on actual light names/keywords.
+    # Only seed if it looks like the initial "everything in Home" state (so user doesn't lose custom structure).
+    # New rooms start EMPTY; lights are distributed by heuristic and user can drag to refine.
+    # This makes the page immediately useful without forcing manual room creation from scratch.
+    config = load_lighting_config()
+    current_rooms = config.get("rooms", [])
+    is_initial_state = (
+        len(current_rooms) <= 1 and
+        any((r.get("name") or "").lower() == "home" for r in current_rooms) and
+        sum(len(r.get("light_ids", [])) for r in current_rooms) > 5
+    ) or len(current_rooms) == 0
+
+    if is_initial_state:
+        smart_defs = [
+            {"id": "living", "name": "Living Room"},
+            {"id": "kitchen", "name": "Kitchen"},
+            {"id": "hallway", "name": "Hallway"},
+            {"id": "office", "name": "Office"},
+            {"id": "bedroom", "name": "Master Bedroom"},
+        ]
+        def guess_room_id(eid: str, friendly: str) -> str | None:
+            n = ((friendly or "") + " " + eid).lower()
+            if "kitchen" in n:
+                return "kitchen"
+            if "hallway" in n:
+                return "hallway"
+            if any(k in n for k in ["office", "desk", "nicole"]):
+                return "office"
+            if any(k in n for k in ["tv", "living", "bookshelf", "t_v", "wiz"]):
+                return "living"
+            if any(k in n for k in ["bed", "master", "bedroom"]):
+                return "bedroom"
+            return None
+
+        seeded_rooms = [{**d, "light_ids": []} for d in smart_defs]
+        for l in all_lights:
+            rid = guess_room_id(l["entity_id"], l.get("friendly_name", ""))
+            if rid:
+                for sr in seeded_rooms:
+                    if sr["id"] == rid:
+                        sr["light_ids"].append(l["entity_id"])
+                        break
+            # unmatched lights stay unassigned (user drags them in)
+
+        config["rooms"] = seeded_rooms
+        save_lighting_config(config)
+        rooms = seeded_rooms  # use for the rest of this function
 
     # Scenes
     scenes = []
