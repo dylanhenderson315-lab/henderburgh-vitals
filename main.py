@@ -88,6 +88,28 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 last_xbox_data = {"status": "unavailable", "state": "Unknown", "game": "—", "last_updated": 0}
 _last_xbox_fetch_time: float = 0.0  # epoch seconds of the last *successful* network fetch (for cache decision)
 
+# =============================================================================
+# Home Assistant (local only, disabled in PUBLIC_MODE)
+# Connection is to a local instance; only meaningful when running on the LAN.
+# Controls are protected by ADMIN_TOKEN (same as blog).
+# =============================================================================
+HA_URL = os.getenv("HA_URL", "http://192.168.40.203:8123").rstrip("/")
+HA_TOKEN = os.getenv("HA_TOKEN", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIxYjI4YzRmNWEyYzE0NTNlYTA3MmI1MjE2N2RjMTM1ZSIsImlhdCI6MTc4MDk3MzU4NCwiZXhwIjoyMDk2MzMzNTg0fQ.vu-g86YpAOhNfTxnYKwj0peETr6_iqctfoOks8q1iHM")
+HA_ENABLED = (not PUBLIC_MODE) and bool(HA_TOKEN) and bool(HA_URL)
+
+HA_HEADERS = {
+    "Authorization": f"Bearer {HA_TOKEN}",
+    "Content-Type": "application/json",
+} if HA_TOKEN else {}
+
+if not PUBLIC_MODE and not HA_TOKEN:
+    print("⚠️  HA_TOKEN not set. Home Assistant features will be unavailable.")
+
+if PUBLIC_MODE and HA_TOKEN:
+    print("ℹ️  HA integration loaded but disabled because PUBLIC_MODE=true (controls hidden).")
+
+# =============================================================================
+
 if PUBLIC_MODE:
     if not OURA_TOKEN:
         raise RuntimeError(
@@ -799,6 +821,47 @@ async def xbox_page(request: Request):
     })
 
 
+@app.get("/home-assistant", response_class=HTMLResponse)
+async def ha_page(request: Request):
+    """Private Home Assistant control page. Controls require admin token (see blog pattern).
+    In PUBLIC_MODE the page renders but shows disabled state and no controls.
+    """
+    states = await get_ha_states() if HA_ENABLED else []
+    # Group entities by domain for clean organization (lights, scenes, switches, media_player, etc.)
+    groups: Dict[str, List[Dict]] = {}
+    for s in states:
+        eid = s.get("entity_id", "unknown.unknown")
+        domain = eid.split(".", 1)[0] if "." in eid else "other"
+        # Skip noisy read-only domains on the control UI by default (can be expanded)
+        if domain in ("sensor", "binary_sensor", "sun", "zone", "device_tracker", "weather"):
+            continue
+        groups.setdefault(domain, []).append(s)
+
+    # Sort groups and within groups by friendly name
+    for dom in groups:
+        groups[dom].sort(key=lambda e: (e.get("attributes", {}).get("friendly_name") or e.get("entity_id")).lower())
+
+    # Sort domains with preferred order
+    domain_order = ["light", "scene", "switch", "media_player", "input_boolean", "automation", "script", "cover", "fan", "other"]
+    ordered_groups = []
+    for d in domain_order:
+        if d in groups:
+            ordered_groups.append((d, groups.pop(d)))
+    for d, ents in sorted(groups.items()):
+        ordered_groups.append((d, ents))
+
+    return _render("home-assistant.html", {
+        "request": request,
+        "groups": ordered_groups,
+        "entity_count": len(states),
+        "ha_enabled": HA_ENABLED,
+        "public_mode": PUBLIC_MODE,
+        "has_admin_token": bool(ADMIN_TOKEN),
+        "site_name": SITE_NAME,
+        "display_name": DISPLAY_NAME,
+    })
+
+
 @app.get("/vitals", response_class=HTMLResponse)
 async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
     """The Oura Ring vitals dashboard (moved to /vitals per site structure)."""
@@ -1294,6 +1357,43 @@ async def get_xbox_status():
 
 
 # =============================================================================
+# Home Assistant API (read for summary/home card; writes protected by admin token)
+# =============================================================================
+
+@app.get("/api/ha/summary")
+async def api_ha_summary():
+    """Lightweight summary used by the homepage Live Now card. Always safe to call."""
+    return await get_ha_summary()
+
+
+@app.get("/api/ha/states")
+async def api_ha_states():
+    """Full entity list for the /home-assistant control UI (read-only)."""
+    if not HA_ENABLED:
+        return {"status": "disabled", "entities": []}
+    states = await get_ha_states()
+    return {"status": "ok", "entities": states}
+
+
+@app.post("/api/ha/service/{domain}/{service}")
+async def api_ha_service(
+    domain: str,
+    service: str,
+    entity_id: Optional[str] = None,
+    token: Optional[str] = None,
+):
+    """Generic service caller. Requires ?token= matching ADMIN_TOKEN.
+    Used by the private HA control page for on/off/activate actions.
+    """
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    if PUBLIC_MODE or not HA_ENABLED:
+        raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
+    result = await call_ha_service(domain, service, entity_id)
+    return {"status": "ok", "domain": domain, "service": service, "entity_id": entity_id, "result": result}
+
+
+# =============================================================================
 # Xbox Game Log (persistent recently played)
 # =============================================================================
 XBOX_LOG_FILE = Path("data/xbox_log.json")
@@ -1309,6 +1409,105 @@ def load_xbox_log():
 
 def save_xbox_log(log):
     XBOX_LOG_FILE.write_text(json.dumps(log, indent=2))
+
+
+# =============================================================================
+# Home Assistant helpers
+# =============================================================================
+
+async def get_ha_states():
+    """Fetch all entity states from Home Assistant. Returns [] if disabled or error."""
+    if not HA_ENABLED:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{HA_URL}/api/states", headers=HA_HEADERS)
+            resp.raise_for_status()
+            return resp.json() or []
+    except Exception as e:
+        print(f"HA states fetch error: {e}")
+        return []
+
+
+async def get_ha_summary():
+    """Compact summary for the homepage Live Now card. Read-only, no auth required."""
+    if not HA_ENABLED:
+        return {
+            "status": "disabled",
+            "lights_on": 0,
+            "total_lights": 0,
+            "active_scene": "—",
+            "message": "Home Assistant available in local/private mode only."
+        }
+    states = await get_ha_states()
+    if not states:
+        return {"status": "unavailable", "lights_on": 0, "total_lights": 0, "active_scene": "—"}
+
+    lights = [s for s in states if str(s.get("entity_id", "")).startswith("light.")]
+    lights_on = [l for l in lights if l.get("state") == "on"]
+
+    # Look for an "active" scene (rare for scene entities to report 'on', but check)
+    active_scene = None
+    for s in states:
+        if str(s.get("entity_id", "")).startswith("scene."):
+            attrs = s.get("attributes", {}) or {}
+            if s.get("state") in ("on", "scening") or attrs.get("current") or "active" in str(attrs).lower():
+                active_scene = attrs.get("friendly_name") or s.get("entity_id").split(".", 1)[-1].replace("_", " ").title()
+                break
+    if not active_scene:
+        # Fallback: look for common scene selectors or just "—"
+        for s in states:
+            eid = str(s.get("entity_id", ""))
+            if "scene" in eid or "mode" in eid or "input_select" in eid:
+                val = s.get("state")
+                if val and val not in ("unknown", "unavailable", ""):
+                    active_scene = s.get("attributes", {}).get("friendly_name") or val
+                    break
+
+    # Quick status for a few important areas (heuristic by name)
+    quick = []
+    keywords = ["living", "kitchen", "bed", "office", "hall", "front", "back"]
+    for s in states:
+        eid = str(s.get("entity_id", "")).lower()
+        if any(k in eid for k in keywords) and s.get("state") in ("on", "playing", "true"):
+            fn = (s.get("attributes") or {}).get("friendly_name") or s["entity_id"]
+            quick.append(fn)
+            if len(quick) >= 3:
+                break
+
+    return {
+        "status": "ok",
+        "lights_on": len(lights_on),
+        "total_lights": len(lights),
+        "active_scene": active_scene or "—",
+        "quick_status": quick or ["All quiet"],
+        "last_updated": time.time(),
+    }
+
+
+async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = None, extra: Optional[dict] = None):
+    """Call a Home Assistant service. Internal; protection done at route level."""
+    if not HA_ENABLED:
+        raise HTTPException(status_code=503, detail="Home Assistant not enabled (public mode or no token)")
+    payload: dict = extra.copy() if extra else {}
+    if entity_id:
+        payload.setdefault("entity_id", entity_id)
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            url = f"{HA_URL}/api/services/{domain}/{service}"
+            resp = await client.post(url, headers=HA_HEADERS, json=payload)
+            if resp.status_code >= 400:
+                print(f"HA service error {resp.status_code}: {resp.text[:200]}")
+            resp.raise_for_status()
+            try:
+                return resp.json()
+            except Exception:
+                return {"status": "called"}
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"HA error: {e.response.text[:200] if e.response else str(e)}")
+    except Exception as e:
+        print(f"HA service call failed: {domain}/{service} {entity_id} - {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to reach Home Assistant: {str(e)}")
 
 
 # =============================================================================

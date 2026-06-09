@@ -181,7 +181,7 @@
 
     @media (min-width: 768px) {
       .live-now-main {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
       }
     }
 
@@ -260,6 +260,7 @@
           <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
           <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
           <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
+          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Assistant</a>
           <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
 
@@ -292,6 +293,14 @@
           <h3>Xbox</h3>
           <div id="xbox-status">Checking status...</div>
         </a>
+
+        <!-- Home Assistant (only in private/local deploys) -->
+        {% if not public_mode %}
+        <a href="/home-assistant" class="live-card block cursor-pointer" title="Open Home Assistant control panel">
+          <h3>Home Assistant</h3>
+          <div id="ha-status">Loading...</div>
+        </a>
+        {% endif %}
 
         <!-- Heart Rate -->
         <div class="live-card">
@@ -498,6 +507,47 @@
   // reasonably fresh status + the last known game when the cache is being served.
   loadXbox();
   setInterval(loadXbox, 300000);
+  </script>
+
+  <!-- Home Assistant summary card (only rendered in !public_mode) -->
+  <script>
+  async function loadHA() {
+    const el = document.getElementById("ha-status");
+    if (!el) return;
+
+    try {
+      const res = await fetch("/api/ha/summary");
+      const data = await res.json();
+
+      if (data.status === "ok") {
+        const on = data.lights_on || 0;
+        const tot = data.total_lights || 0;
+        const scene = data.active_scene && data.active_scene !== "—" ? data.active_scene : "No active scene";
+        const quick = (data.quick_status || []).slice(0, 2).join(" • ") || "Quiet";
+
+        el.innerHTML = `
+          <div class="text-sm">
+            <div class="flex items-baseline gap-x-1.5">
+              <span class="font-semibold tabular-nums">${on}/${tot}</span>
+              <span class="text-xs text-zinc-400">lights on</span>
+            </div>
+            <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-zinc-500 italic' : 'text-zinc-300'} truncate">${scene}</div>
+            <div class="text-[10px] text-zinc-500 mt-1 truncate">${quick}</div>
+          </div>
+        `;
+      } else if (data.status === "disabled") {
+        el.innerHTML = `<p class="text-xs text-zinc-500">Home Assistant (local only)</p>`;
+      } else {
+        el.innerHTML = `<p class="text-xs text-zinc-500">HA status unavailable</p>`;
+      }
+    } catch (error) {
+      el.innerHTML = `<p class="text-xs text-zinc-500">HA status unavailable</p>`;
+    }
+  }
+
+  // Load once on boot. The card only appears in private mode.
+  // No frequent polling here (summary is cheap but we keep it on-demand / on navigation).
+  loadHA();
   </script>
 
   <!-- Last.fm Recent Tracks -->

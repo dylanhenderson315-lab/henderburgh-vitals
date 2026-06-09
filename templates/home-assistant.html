@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home Assistant • HENDERBURGH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+
+    body {
+      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #737373;
+      font-weight: 600;
+    }
+
+    .card {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card:hover {
+      border-color: #52525b;
+    }
+
+    .nav-link {
+      color: #a1a1aa;
+      transition: color 0.15s ease;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .nav-link:hover {
+      color: #f4f4f5;
+    }
+
+    .entity-row {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 10px;
+    }
+
+    .status-pill {
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 9999px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      display: inline-block;
+    }
+
+    .ha-btn {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #3f3f46;
+      background: #27272a;
+      color: #e4e4e7;
+      transition: all 0.1s ease;
+    }
+    .ha-btn:hover {
+      background: #3f3f46;
+      border-color: #52525b;
+    }
+    .ha-btn:active {
+      transform: translateY(1px);
+    }
+    .ha-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .entity-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+  </style>
+</head>
+<body class="bg-[#0a0a0b] text-zinc-200 antialiased">
+  <!-- Header -->
+  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-[1080px] mx-auto px-6">
+      <div class="h-16 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-x-2.5 group">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
+            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
+          </div>
+          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-x-8 text-sm">
+          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
+          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
+          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
+          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
+          <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
+          <a href="/home-assistant" class="hover:text-white text-white font-semibold transition">Assistant</a>
+          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
+        </nav>
+
+        <div class="md:hidden">
+          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">← Home</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
+    <!-- Page header -->
+    <div class="mb-8">
+      <div class="flex items-center gap-x-3 mb-2">
+        <div class="w-9 h-9 rounded-2xl bg-emerald-900/30 flex items-center justify-center">
+          <i class="fa-solid fa-house-signal text-emerald-400 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-4xl font-semibold tracking-tighter">Home Assistant</h1>
+          <p class="text-lg text-zinc-400">Local smart home control • {{ entity_count or 0 }} entities</p>
+        </div>
+      </div>
+      <div class="text-xs text-zinc-500">Connected to local instance. Changes affect the real house.</div>
+    </div>
+
+    {% if public_mode or not ha_enabled %}
+    <!-- Disabled state (public or no token) -->
+    <div class="max-w-xl">
+      <div class="card p-8">
+        <div class="flex items-start gap-4">
+          <i class="fa-solid fa-lock text-2xl text-amber-400 mt-1"></i>
+          <div>
+            <h2 class="text-xl font-semibold tracking-tight mb-2">Control panel disabled</h2>
+            <p class="text-sm text-zinc-400 mb-4">
+              Home Assistant integration and controls are only available when running in private/local mode (PUBLIC_MODE=false) on the same network as your HA instance.
+            </p>
+            <div class="text-xs text-zinc-500">
+              The summary card on the homepage is also hidden in public deployments.
+            </div>
+            <div class="mt-6">
+              <a href="/" class="inline-flex items-center text-sm text-zinc-400 hover:text-white transition">← Back to home</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+
+    <!-- Admin / control status -->
+    <div id="admin-banner" class="mb-6 card p-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-[#18181b]">
+      <div class="flex-1 text-sm">
+        <span id="admin-status-text" class="text-zinc-400">Controls are locked for safety. Enter your admin token to turn devices and scenes on/off.</span>
+      </div>
+      <div>
+        <button id="admin-unlock-btn"
+                onclick="enterAdminMode()"
+                class="ha-btn text-xs px-3 py-1.5">
+          <i class="fa-solid fa-key mr-1"></i> Unlock controls
+        </button>
+        <button id="admin-lock-btn" onclick="lockAdminMode()"
+                class="ha-btn text-xs px-3 py-1.5 hidden">
+          <i class="fa-solid fa-lock mr-1"></i> Lock
+        </button>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="flex items-center justify-between mb-4">
+      <div class="section-label">Entities by type</div>
+      <div class="flex items-center gap-2">
+        <button onclick="loadEntities()" class="ha-btn flex items-center gap-x-1 text-xs">
+          <i class="fa-solid fa-sync-alt"></i>
+          <span>Refresh</span>
+        </button>
+        <span class="text-[10px] text-zinc-500" id="last-refresh"></span>
+      </div>
+    </div>
+
+    <!-- Entities will be rendered here by JS (dynamic for live updates after actions) -->
+    <div id="ha-entities" class="space-y-8">
+      <!-- Populated by JS on load. Server groups available in context if needed for no-script. -->
+      <div class="text-sm text-zinc-500 p-4">Loading entities from Home Assistant...</div>
+    </div>
+
+    <div class="mt-10 text-xs text-zinc-500">
+      Only lights, scenes, switches, media players and similar are shown for control. Sensors and binary sensors are filtered for clarity.
+      All actions are sent directly to your local Home Assistant and require a valid admin token.
+    </div>
+
+    <div class="mt-8">
+      <a href="/" class="inline-flex items-center text-sm text-zinc-400 hover:text-white transition">
+        ← Back to home
+      </a>
+    </div>
+    {% endif %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="max-w-[1080px] mx-auto px-6 pb-10">
+    <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-500 text-center">
+      Local Home Assistant • HENDERBURGH
+    </div>
+  </footer>
+
+  <script>
+    // Tailwind + small utils
+    function initTailwind() {
+      if (typeof tailwind !== 'undefined') {
+        tailwind.config = {
+          theme: {
+            extend: {
+              fontFamily: {
+                'display': ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif']
+              }
+            }
+          }
+        };
+      }
+    }
+
+    let adminToken = null;
+    let entitiesCache = [];
+
+    function updateAdminUI() {
+      const banner = document.getElementById('admin-banner');
+      const statusText = document.getElementById('admin-status-text');
+      const unlockBtn = document.getElementById('admin-unlock-btn');
+      const lockBtn = document.getElementById('admin-lock-btn');
+
+      if (!banner || !statusText || !unlockBtn || !lockBtn) return;
+
+      if (adminToken) {
+        statusText.textContent = 'Admin mode active — device controls are enabled.';
+        statusText.className = 'text-emerald-400 text-sm';
+        unlockBtn.classList.add('hidden');
+        lockBtn.classList.remove('hidden');
+      } else {
+        statusText.textContent = 'Controls are locked for safety. Enter your admin token to turn devices and scenes on/off.';
+        statusText.className = 'text-zinc-400 text-sm';
+        unlockBtn.classList.remove('hidden');
+        lockBtn.classList.add('hidden');
+      }
+    }
+
+    function enterAdminMode() {
+      const token = prompt("Enter admin token (same as used for the blog):");
+      if (!token) return;
+      adminToken = token;
+      sessionStorage.setItem('haAdminToken', token);
+      updateAdminUI();
+      // Re-render to enable buttons
+      if (entitiesCache.length) renderEntities(entitiesCache);
+    }
+
+    function lockAdminMode() {
+      adminToken = null;
+      sessionStorage.removeItem('haAdminToken');
+      updateAdminUI();
+      if (entitiesCache.length) renderEntities(entitiesCache);
+    }
+
+    function loadAdminToken() {
+      const saved = sessionStorage.getItem('haAdminToken');
+      if (saved) {
+        adminToken = saved;
+      }
+      updateAdminUI();
+    }
+
+    function formatState(state) {
+      if (!state) return 'unknown';
+      const s = String(state);
+      if (s === 'on' || s === 'true') return 'on';
+      if (s === 'off' || s === 'false') return 'off';
+      return s;
+    }
+
+    function getStateClasses(state) {
+      const s = formatState(state);
+      if (s === 'on' || s === 'playing') return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+      if (s === 'off' || s === 'unavailable') return 'bg-zinc-700/60 text-zinc-400 border border-zinc-600/40';
+      if (s === 'idle') return 'bg-amber-500/10 text-amber-400';
+      return 'bg-zinc-700/50 text-zinc-300';
+    }
+
+    function getFriendly(entity) {
+      const attrs = entity.attributes || {};
+      return attrs.friendly_name || entity.entity_id;
+    }
+
+    function isControllable(domain) {
+      return ['light', 'switch', 'scene', 'media_player', 'input_boolean', 'fan', 'cover'].includes(domain);
+    }
+
+    function renderEntities(entities) {
+      const container = document.getElementById('ha-entities');
+      if (!container) return;
+      entitiesCache = entities || [];
+
+      if (!entities || entities.length === 0) {
+        container.innerHTML = `<div class="card p-6 text-center text-sm text-zinc-400">No controllable entities returned from Home Assistant.</div>`;
+        return;
+      }
+
+      // Group by domain client-side (same as server)
+      const groups = {};
+      for (const e of entities) {
+        const domain = (e.entity_id || '').split('.')[0] || 'other';
+        if (!groups[domain]) groups[domain] = [];
+        groups[domain].push(e);
+      }
+
+      // Preferred order
+      const order = ['light', 'scene', 'switch', 'media_player', 'input_boolean', 'fan', 'cover', 'automation', 'script', 'other'];
+      let html = '';
+
+      for (const dom of order) {
+        if (!groups[dom]) continue;
+        const list = groups[dom];
+        delete groups[dom];
+
+        html += `<div class="mb-8">`;
+        html += `<div class="section-label mb-3 flex items-baseline justify-between">
+                   <span>${dom.replace('_', ' ')} <span class="text-zinc-500 font-normal">(${list.length})</span></span>
+                 </div>`;
+        html += `<div class="entity-grid">`;
+
+        for (const ent of list) {
+          const eid = ent.entity_id;
+          const state = ent.state || 'unknown';
+          const friendly = getFriendly(ent);
+          const stateClass = getStateClasses(state);
+          const controllable = isControllable(dom);
+          const canOnOff = ['light', 'switch', 'input_boolean', 'fan'].includes(dom);
+          const isScene = dom === 'scene';
+          const isMedia = dom === 'media_player';
+
+          html += `<div class="entity-row p-3 flex items-center justify-between gap-3">`;
+          html += `  <div class="min-w-0 flex-1">`;
+          html += `    <div class="font-medium text-sm truncate" title="${eid}">${friendly}</div>`;
+          html += `    <div class="flex items-center gap-2 mt-1">`;
+          html += `      <span class="status-pill text-[10px] ${stateClass}">${state}</span>`;
+          html += `    </div>`;
+          html += `  </div>`;
+
+          html += `  <div class="flex gap-1.5 flex-shrink-0">`;
+          if (controllable && adminToken) {
+            if (canOnOff) {
+              html += `<button onclick="callService('${dom}', 'turn_on', '${eid}')" class="ha-btn">On</button>`;
+              html += `<button onclick="callService('${dom}', 'turn_off', '${eid}')" class="ha-btn">Off</button>`;
+            } else if (isScene) {
+              html += `<button onclick="callService('scene', 'turn_on', '${eid}')" class="ha-btn">Activate</button>`;
+            } else if (isMedia) {
+              html += `<button onclick="callService('media_player', 'turn_on', '${eid}')" class="ha-btn">On</button>`;
+              html += `<button onclick="callService('media_player', 'turn_off', '${eid}')" class="ha-btn">Off</button>`;
+            } else {
+              html += `<button onclick="callService('${dom}', 'toggle', '${eid}')" class="ha-btn">Toggle</button>`;
+            }
+          } else if (controllable && !adminToken) {
+            html += `<span class="text-[10px] text-zinc-500 px-1">locked</span>`;
+          }
+          html += `  </div>`;
+          html += `</div>`;
+        }
+
+        html += `</div></div>`;
+      }
+
+      // Any remaining domains
+      for (const [dom, list] of Object.entries(groups)) {
+        // same rendering abbreviated
+        html += `<div class="mb-8"><div class="section-label mb-3">${dom} (${list.length})</div><div class="text-xs text-zinc-500 px-1">Read-only in this view.</div></div>`;
+      }
+
+      container.innerHTML = html;
+
+      const lr = document.getElementById('last-refresh');
+      if (lr) lr.textContent = 'updated just now';
+    }
+
+    async function loadEntities() {
+      const container = document.getElementById('ha-entities');
+      if (!container) return;
+
+      container.innerHTML = `<div class="text-sm text-zinc-500 p-4">Refreshing from Home Assistant...</div>`;
+
+      try {
+        const res = await fetch('/api/ha/states');
+        const data = await res.json();
+        if (data.status === 'ok' && Array.isArray(data.entities)) {
+          renderEntities(data.entities);
+        } else {
+          container.innerHTML = `<div class="card p-6 text-sm text-amber-400">Unable to load entities (HA may be unreachable from here).</div>`;
+        }
+      } catch (e) {
+        container.innerHTML = `<div class="card p-6 text-sm text-rose-400">Error contacting server or HA: ${e}</div>`;
+      }
+    }
+
+    async function callService(domain, service, entityId) {
+      if (!adminToken) {
+        alert("Admin token required. Click 'Unlock controls' first.");
+        return;
+      }
+
+      const btns = document.querySelectorAll('button');
+      btns.forEach(b => b.disabled = true);
+
+      try {
+        const url = `/api/ha/service/${encodeURIComponent(domain)}/${encodeURIComponent(service)}?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(entityId)}`;
+        const res = await fetch(url, { method: 'POST' });
+        const body = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          const msg = body.detail || 'Action failed';
+          alert('Action failed: ' + msg);
+        } else {
+          // Optimistic: reload the list shortly after
+          setTimeout(() => {
+            loadEntities();
+          }, 350);
+        }
+      } catch (err) {
+        alert('Network error calling Home Assistant: ' + err);
+      } finally {
+        btns.forEach(b => b.disabled = false);
+      }
+    }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', function() {
+      initTailwind();
+      loadAdminToken();
+
+      const entitiesEl = document.getElementById('ha-entities');
+      if (entitiesEl && !document.querySelector('.fa-lock')) {
+        // Only auto-load when we are in the enabled section
+        loadEntities();
+        // Light auto-refresh every 45s while the tab is open (private page)
+        setInterval(() => {
+          if (document.visibilityState === 'visible') loadEntities();
+        }, 45000);
+      }
+    });
+  </script>
+</body>
+</html>
