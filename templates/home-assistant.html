@@ -86,6 +86,26 @@
       gap: 10px;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
+
+    .light-card {
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+    .light-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+    }
+    .dragging {
+      opacity: 0.55;
+      transform: scale(0.96);
+    }
+    .drop-target {
+      border-color: #10b981 !important;
+      background-color: rgba(16, 185, 129, 0.08) !important;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+    #light-detail {
+      box-shadow: -8px 0 30px -10px rgb(0 0 0 / 0.6);
+    }
   </style>
 </head>
 <body class="bg-[#0a0a0b] text-zinc-200 antialiased">
@@ -172,18 +192,27 @@
         <div class="card p-2 lg:sticky lg:top-20">
           <div class="flex items-center justify-between px-2 pb-1">
             <div class="section-label">Rooms</div>
-            <button onclick="createNewRoom()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new room">+</button>
+            <button onclick="createNewRoom()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new empty room">+</button>
           </div>
           <div id="room-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
             <!-- Populated by JS -->
           </div>
 
           <div class="flex items-center justify-between px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">
-            <div class="section-label">Groups</div>
-            <button onclick="createNewGroup()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new group">+</button>
+            <div class="section-label">Sync Groups</div>
+            <button onclick="createNewGroup()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new Sync Group (pair)">+</button>
           </div>
           <div id="group-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
             <!-- Populated by JS -->
+          </div>
+          <!-- Drop zone for creating new sync groups by dragging lights -->
+          <div 
+            id="new-sync-drop"
+            ondragover="event.preventDefault(); this.classList.add('drop-target');"
+            ondragleave="this.classList.remove('drop-target');"
+            ondrop="handleDropToNewSyncGroup(event)"
+            class="mt-1 mx-1 p-2 text-center text-[10px] border border-dashed border-emerald-500/40 rounded text-emerald-400/80 hover:bg-emerald-900/10 transition cursor-pointer">
+            Drop lights here to create Sync Group
           </div>
 
           <div class="section-label px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">Scenes</div>
@@ -201,6 +230,20 @@
         <div id="dashboard-content">
           <div class="text-sm text-zinc-500 p-8 text-center">Loading lighting data from Home Assistant...</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Light Detail Panel (Apple-like slide-in / modal for full controls) -->
+    <div id="light-detail" class="hidden fixed inset-y-0 right-0 w-full max-w-md bg-[#0a0a0b] border-l border-zinc-800 shadow-2xl z-[100] flex flex-col transform transition-transform duration-200 translate-x-full">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-[#111113]">
+        <div id="detail-title" class="font-semibold text-lg truncate pr-2"></div>
+        <button onclick="closeLightDetail()" class="text-2xl leading-none text-zinc-400 hover:text-white px-2">&times;</button>
+      </div>
+      <div id="detail-content" class="flex-1 overflow-auto p-4 space-y-5 text-sm">
+        <!-- populated dynamically by openLightDetail -->
+      </div>
+      <div class="p-3 border-t border-zinc-800 text-[10px] text-zinc-500">
+        Changes are sent live to Home Assistant. Sync Groups keep paired lights in step.
       </div>
     </div>
 
@@ -345,8 +388,193 @@
       renderCurrentView();
     }
 
+    // --- Sync Groups (Pairs) support ---
+    function getSyncPeers(eid) {
+      if (!haData || !haData.groups) return [];
+      const peers = new Set();
+      (haData.groups || []).forEach(g => {
+        const ids = g.light_ids || [];
+        if (ids.includes(eid)) {
+          ids.forEach(id => { if (id !== eid) peers.add(id); });
+        }
+      });
+      return Array.from(peers);
+    }
+
+    async function handleDropToNewSyncGroup(ev) {
+      ev.preventDefault();
+      const src = ev.dataTransfer.getData("text/plain");
+      const zone = document.getElementById('new-sync-drop');
+      if (zone) zone.classList.remove('drop-target');
+      if (!src) return;
+      const name = prompt("Name for new Sync Group:", "New Sync Group");
+      if (!name) return;
+      try {
+        const createRes = await fetch(`/api/ha/lighting/group/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
+        const data = await createRes.json();
+        if (data && data.group && data.group.id) {
+          await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(src)}&group_id=${encodeURIComponent(data.group.id)}&add=true`, { method: 'POST' });
+          await refreshAllData();
+        }
+      } catch (e) { alert("Failed to create sync group"); }
+    }
+
+    async function handleDropOntoLight(ev, targetEid) {
+      ev.preventDefault();
+      const card = ev.currentTarget;
+      card.classList.remove('ring-2', 'ring-emerald-400');
+      const srcEid = ev.dataTransfer.getData("text/plain");
+      if (!srcEid || srcEid === targetEid) return;
+
+      // Find names for nice prompt (best effort)
+      const allLights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      const srcL = allLights.find(l => l.entity_id === srcEid);
+      const tgtL = allLights.find(l => l.entity_id === targetEid);
+      const suggested = `Pair ${srcL ? srcL.friendly_name : srcEid} + ${tgtL ? tgtL.friendly_name : targetEid}`;
+      const name = prompt("Create Sync Group with these lights?", suggested);
+      if (!name) return;
+
+      try {
+        const createRes = await fetch(`/api/ha/lighting/group/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
+        const data = await createRes.json();
+        if (data && data.group && data.group.id) {
+          const gid = data.group.id;
+          await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(srcEid)}&group_id=${encodeURIComponent(gid)}&add=true`, { method: 'POST' });
+          await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(targetEid)}&group_id=${encodeURIComponent(gid)}&add=true`, { method: 'POST' });
+          await refreshAllData();
+        }
+      } catch (e) { alert("Failed to pair lights"); }
+    }
+
+    function getLightName(eid) {
+      const all = [...Object.values(haData?.lights_by_room || {}).flat(), ...(haData?.unassigned_lights || [])];
+      const l = all.find(x => x.entity_id === eid);
+      return l ? l.friendly_name : eid;
+    }
+
+    function handleLightDragStart(ev, eid) {
+      ev.dataTransfer.setData("text/plain", eid);
+      const card = ev.target.closest('.card');
+      if (card) card.classList.add('dragging');
+    }
+
+    function handleDragEnd(ev) {
+      document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+      document.querySelectorAll('.drop-target, .ring-2').forEach(el => el.classList.remove('drop-target', 'ring-2', 'ring-emerald-400'));
+    }
+
+    // --- Light Detail View (premium slide-in panel) ---
+    function openLightDetail(eid) {
+      const panel = document.getElementById('light-detail');
+      const content = document.getElementById('detail-content');
+      const title = document.getElementById('detail-title');
+      if (!panel || !content || !haData) return;
+
+      const allLights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      const light = allLights.find(l => l.entity_id === eid) || {};
+      const st = getLightState(eid) || {};
+      const friendly = light.friendly_name || eid;
+      const isOn = (st.state || light.state || 'off') === 'on';
+      const bri = st.brightness || light.brightness || (isOn ? 255 : 0);
+      const briPct = Math.round((bri || 0) / 2.55);
+      const effectList = light.effect_list || st.effect_list || (light.attributes && light.attributes.effect_list) || [];
+      const curEffect = st.current_effect || light.current_effect || '';
+      const supportsCt = (light.supported_color_modes || []).includes('color_temp');
+      const supportsRgb = (light.supported_color_modes || []).some(m => m.includes('rgb') || m.includes('hs'));
+
+      const syncs = (haData.groups || []).filter(g => (g.light_ids || []).includes(eid)).map(g => g.name).join(', ');
+
+      title.innerHTML = `${friendly} <span class="text-xs text-zinc-500 font-normal">${isOn ? 'On' : 'Off'}</span>`;
+
+      let html = `
+        <div class="flex items-center gap-3 mb-4">
+          <button onclick="toggleLight('${eid}', this); setTimeout(() => openLightDetail('${eid}'), 120)" class="flex-1 py-2 rounded-xl text-sm font-medium ${isOn ? 'bg-emerald-500 text-white' : 'bg-zinc-800'}">
+            <i class="fa-solid fa-power-off mr-2"></i> ${isOn ? 'Turn Off' : 'Turn On'}
+          </button>
+        </div>
+
+        <div>
+          <div class="flex justify-between text-xs mb-1"><span>Brightness</span><span>${briPct}%</span></div>
+          <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400 mb-3"
+                 oninput="debouncedBrightness('${eid}', this.value, this); document.getElementById('detail-bri-val').textContent = this.value + '%' ">
+          <div id="detail-bri-val" class="text-[10px] text-right text-zinc-500">${briPct}%</div>
+        </div>
+      `;
+
+      if (supportsCt) {
+        html += `
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
+            <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400 mb-1"
+                   oninput="debouncedColorTemp('${eid}', this.value, this)">
+          </div>
+        `;
+      }
+
+      if (supportsRgb) {
+        html += `
+          <div>
+            <div class="text-xs mb-1 text-zinc-400">Color</div>
+            <div class="flex items-center gap-2 mb-3">
+              <input type="color" value="#ffcc99" class="w-9 h-7 p-0 border-0 bg-transparent" oninput="debouncedColor('${eid}', this.value, this)">
+              ${typeof createPresetButtons === 'function' ? createPresetButtons(eid) : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      if (effectList.length) {
+        html += `
+          <div>
+            <div class="text-xs mb-1 text-zinc-400">Mode & Effects</div>
+            <div class="flex gap-1 mb-2">
+              <button onclick="setLightMode('${eid}', 'static', this); openLightDetail('${eid}')" class="ha-btn text-xs flex-1 ${!curEffect ? 'bg-zinc-700' : ''}">Static</button>
+              <button onclick="setLightMode('${eid}', 'dynamic', this); openLightDetail('${eid}')" class="ha-btn text-xs flex-1 ${curEffect ? 'bg-zinc-700' : ''}">Dynamic</button>
+            </div>
+            <div class="grid grid-cols-2 gap-1 text-[10px] max-h-32 overflow-auto border border-zinc-800 rounded p-1">
+              ${effectList.map(eff => {
+                const safe = eff.replace(/'/g, "\\'");
+                const active = curEffect === eff ? 'bg-emerald-600/30 border-emerald-500' : '';
+                return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}')" class="ha-btn text-left px-2 py-0.5 truncate ${active}">${eff}</button>`;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      if (syncs) {
+        html += `<div class="text-[10px] text-emerald-400 mt-3"><i class="fa-solid fa-link mr-1"></i> Synced with: ${syncs}</div>`;
+      }
+
+      html += `<div class="text-[10px] text-zinc-500 mt-4">Tap outside or × to close. All changes sync across the group if applicable.</div>`;
+
+      content.innerHTML = html;
+
+      panel.classList.remove('hidden', 'translate-x-full');
+      panel.classList.add('flex');
+    }
+
+    function closeLightDetail() {
+      const panel = document.getElementById('light-detail');
+      if (!panel) return;
+      panel.classList.add('translate-x-full');
+      panel.classList.remove('flex');
+      // small delay then hide to let transition play
+      setTimeout(() => panel.classList.add('hidden'), 180);
+    }
+
+    // Keyboard close for detail
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const p = document.getElementById('light-detail');
+        if (p && !p.classList.contains('hidden') && !p.classList.contains('translate-x-full')) {
+          closeLightDetail();
+        }
+      }
+    });
+
     async function createNewRoom() {
-      const name = prompt("New room name:");
+      const name = prompt("New room name (starts empty — drag lights into it):");
       if (!name) return;
       try {
         const res = await fetch(`/api/ha/lighting/room/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
@@ -359,16 +587,16 @@
     }
 
     async function createNewGroup() {
-      const name = prompt("New group name (e.g. Movie Lights):");
+      const name = prompt("New Sync Group name (e.g. Hallway Pair or Kitchen Lights):");
       if (!name) return;
       try {
         const res = await fetch(`/api/ha/lighting/group/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
         if (res.ok) {
           await refreshAllData();
         } else {
-          alert("Failed to create group");
+          alert("Failed to create sync group");
         }
-      } catch (e) { alert("Error creating group"); }
+      } catch (e) { alert("Error creating sync group"); }
     }
 
     async function deleteRoom(roomId) {
@@ -541,19 +769,30 @@
         const supportsCt = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => m === 'color_temp');
         const supportsRgb = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => ['rgb','rgbw','rgbww','hs','xy'].includes(m));
 
+        // Sync groups this light belongs to (for badge + behavior)
+        const syncNames = (haData.groups || []).filter(g => (g.light_ids || []).includes(eid)).map(g => g.name).join(', ');
+
         lightsHtml += `
-          <div class="card p-3" data-eid="${eid}">
+          <div class="card p-3 light-card cursor-pointer transition" data-eid="${eid}"
+               draggable="true"
+               ondragstart="handleLightDragStart(event, '${eid}')"
+               ondragend="handleDragEnd(event)"
+               ondragover="event.preventDefault(); this.classList.add('ring-2','ring-emerald-400');"
+               ondragleave="this.classList.remove('ring-2','ring-emerald-400');"
+               ondrop="handleDropOntoLight(event, '${eid}')"
+               onclick="if (!event.target.closest('button,input,select')) openLightDetail('${eid}');">
             <div class="flex items-start justify-between mb-2">
-              <div>
+              <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');">
                 <div class="font-medium text-sm truncate">${friendly}</div>
+                ${syncNames ? `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${syncNames}</div>` : ''}
                 <div class="text-[10px] text-zinc-500">${isOn ? 'On' : 'Off'}${curEffect ? ' • ' + curEffect : ''}</div>
               </div>
-              <button onclick="toggleLight('${eid}', this)" class="ha-btn text-[10px] px-2 py-0.5 ${isOn ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : ''}">
+              <button onclick="event.stopImmediatePropagation(); toggleLight('${eid}', this)" class="ha-btn text-[10px] px-2 py-0.5 ${isOn ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : ''}">
                 ${isOn ? 'On' : 'Off'}
               </button>
             </div>
 
-            <div class="mb-2">
+            <div class="mb-2" onclick="event.stopImmediatePropagation();">
               <div class="flex justify-between text-[10px] mb-0.5 text-zinc-400">
                 <span>Brightness</span>
                 <span class="tabular-nums text-xs text-zinc-400">${briPct}%</span>
@@ -563,7 +802,7 @@
             </div>
 
             ${supportsCt ? `
-            <div class="mb-2">
+            <div class="mb-2" onclick="event.stopImmediatePropagation();">
               <div class="flex justify-between text-[10px] mb-0.5">
                 <span class="text-amber-300">Warm</span>
                 <span class="text-sky-300">Cool</span>
@@ -573,7 +812,7 @@
             </div>` : ''}
 
             ${supportsRgb ? `
-            <div class="mb-2">
+            <div class="mb-2" onclick="event.stopImmediatePropagation();">
               <div class="text-[10px] text-zinc-400 mb-1">Color</div>
               <div class="flex items-center gap-1.5">
                 <input type="color" value="#ffcc99" class="w-7 h-5 p-0 border-0 bg-transparent" oninput="debouncedColor('${eid}', this.value, this)">
@@ -582,7 +821,7 @@
             </div>` : ''}
 
             ${effectList.length > 0 ? `
-            <div class="mt-1">
+            <div class="mt-1" onclick="event.stopImmediatePropagation();">
               <div class="flex gap-1 text-[10px] mb-1">
                 <button onclick="setLightMode('${eid}', 'static', this)" class="ha-btn text-[9px] px-1.5 py-0 ${mode !== 'dynamic' ? 'bg-zinc-700' : ''}">Static</button>
                 <button onclick="setLightMode('${eid}', 'dynamic', this)" class="ha-btn text-[9px] px-1.5 py-0 ${mode === 'dynamic' ? 'bg-zinc-700' : ''}">Dynamic</button>
@@ -611,8 +850,11 @@
 
     async function applyEffect(eid, effect, btn) {
       updateLightState(eid, {current_effect: effect, state: 'on'});
+      const peers = getSyncPeers(eid);
+      peers.forEach(p => updateLightState(p, {current_effect: effect, state: 'on'}));
       renderCurrentView();
       await callLightService(eid, {effect});
+      peers.forEach(p => callLightService(p, {effect}).catch(()=>{}));
     }
 
     async function roomOrGroupMaster(id, action, isGroup) {
@@ -718,19 +960,26 @@
       const currentlyOn = (st.state || 'off') === 'on';
       const newState = currentlyOn ? 'off' : 'on';
 
+      // Optimistic + sync peers
       updateLightState(eid, {state: newState});
+      const peers = getSyncPeers(eid);
+      peers.forEach(p => updateLightState(p, {state: newState}));
       renderCurrentView();
 
       if (currentlyOn) {
         turnLightOff(eid);
+        peers.forEach(p => turnLightOff(p));
       } else {
         callLightService(eid, {brightness: 255});
+        peers.forEach(p => callLightService(p, {brightness: 255}));
       }
     }
 
     function debouncedBrightness(eid, percent, inputEl) {
       const brightness = Math.max(1, Math.round(parseInt(percent) * 2.55));
       updateLightState(eid, {brightness, state: 'on'});
+      const peers = getSyncPeers(eid);
+      peers.forEach(p => updateLightState(p, {brightness, state: 'on'}));
 
       const card = inputEl.closest('[data-eid]');
       if (card) {
@@ -741,24 +990,31 @@
       debounce(async () => {
         const ok = await callLightService(eid, {brightness});
         if (!ok) refreshAllData();
+        peers.forEach(p => callLightService(p, {brightness}).catch(()=>{}));
       }, 'bright-' + eid);
     }
 
     function debouncedColorTemp(eid, val, inputEl) {
       const mired = Math.round(500 - (parseInt(val) / 100) * (500 - 153));
       updateLightState(eid, {color_temp: mired, state: 'on'});
+      const peers = getSyncPeers(eid);
+      peers.forEach(p => updateLightState(p, {color_temp: mired, state: 'on'}));
 
       debounce(async () => {
         await callLightService(eid, {color_temp: mired});
+        peers.forEach(p => callLightService(p, {color_temp: mired}).catch(()=>{}));
       }, 'temp-' + eid);
     }
 
     function debouncedColor(eid, hex, inputEl) {
       const rgb = hexToRgb(hex);
       updateLightState(eid, {rgb_color: rgb, state: 'on'});
+      const peers = getSyncPeers(eid);
+      peers.forEach(p => updateLightState(p, {rgb_color: rgb, state: 'on'}));
 
       debounce(async () => {
         await callLightService(eid, {rgb_color: rgb});
+        peers.forEach(p => callLightService(p, {rgb_color: rgb}).catch(()=>{}));
       }, 'color-' + eid);
     }
 
@@ -769,11 +1025,27 @@
       return [r, g, b];
     }
 
+    async function callLightService(eid, extra) {
+      try {
+        // Premium default transition (0.4s fade) — backend/HA honors it; can be overridden via extra
+        const payload = { entity_id: eid, transition: 0.4, ...extra };
+        const res = await fetch(`/api/ha/service/light/turn_on?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        return res.ok;
+      } catch (e) { return false; }
+    }
+
     function applyPreset(eid, hex, btn) {
       const rgb = hexToRgb(hex);
       updateLightState(eid, {rgb_color: rgb, state: 'on'});
+      const peers = getSyncPeers(eid);
+      peers.forEach(p => updateLightState(p, {rgb_color: rgb, state: 'on'}));
       renderCurrentView();
       callLightService(eid, {rgb_color: rgb});
+      peers.forEach(p => callLightService(p, {rgb_color: rgb}).catch(()=>{}));
     }
 
     async function activateScene(eid, btn) {
