@@ -56,6 +56,7 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 # Xbox (OpenXBL) configuration for Live Now section
 # XBL_API_KEY and XBL_GAMERTAG must be set in Railway (production) or .env (local) for this to work.
 # See .env.example for setup instructions.
+# Optional: XBL_XUID can be set to bypass gamertag-to-XUID lookup (useful if profile API fails for your key).
 #
 # Placeholder detection: we only consider the values as "not configured" if they exactly match
 # the example placeholder strings from .env.example ("your_real_xbl_key_here" or "your_exact_gamertag_here").
@@ -64,6 +65,7 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 # but will now attempt API (and fail gracefully) instead of forcing not_configured.
 XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
 XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
+XBL_XUID = os.getenv("XBL_XUID", "")  # Optional: if set, skip gamertag resolution and use this XUID directly for presence call
 
 # Warn at startup ONLY if using the example placeholder strings (not real values)
 if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
@@ -1051,27 +1053,33 @@ async def get_xbox_status():
 
     async with httpx.AsyncClient() as client:
         try:
-            # Step 1: Resolve gamertag to XUID
-            profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
-            profile_res = await client.get(profile_url, headers=headers, timeout=10)
-
-            if profile_res.status_code != 200:
-                print(f"Xbox API error (profile): status={profile_res.status_code} body={profile_res.text[:300]}")
-                return last_xbox_data
-
-            profile = profile_res.json()
-            xuid = profile.get("xuid")
-
+            xuid = XBL_XUID
             if not xuid:
-                print("Xbox API error: no xuid returned in profile response")
-                return last_xbox_data
+                # Step 1: Resolve gamertag to XUID (only if no direct XUID provided)
+                profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
+                profile_res = await client.get(profile_url, headers=headers, timeout=10)
 
-            # Step 2: Get presence
+                if profile_res.status_code != 200:
+                    key_preview = XBL_API_KEY[:8] + "..." if XBL_API_KEY else "None"
+                    print(f"Xbox API error (profile): status={profile_res.status_code} body={profile_res.text[:300]} key_preview={key_preview} gamertag={XBL_GAMERTAG}")
+                    if profile_res.status_code == 401:
+                        print("Xbox: Invalid API key detected - verify your XBL_API_KEY from xbl.io app console (it should return 200 on /account test).")
+                    return last_xbox_data
+
+                profile = profile_res.json()
+                xuid = profile.get("xuid")
+
+                if not xuid:
+                    print("Xbox API error: no xuid returned in profile response")
+                    return last_xbox_data
+
+            # Step 2: Get presence using XUID (either from resolution or direct XBL_XUID)
             presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
             presence_res = await client.get(presence_url, headers=headers, timeout=10)
 
             if presence_res.status_code != 200:
-                print(f"Xbox API error (presence): status={presence_res.status_code} body={presence_res.text[:300]}")
+                key_preview = XBL_API_KEY[:8] + "..." if XBL_API_KEY else "None"
+                print(f"Xbox API error (presence): status={presence_res.status_code} body={presence_res.text[:300]} key_preview={key_preview} xuid={xuid}")
                 return last_xbox_data
 
             presence = presence_res.json() or {}
