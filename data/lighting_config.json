@@ -22,8 +22,7 @@
       "id": "living-room",
       "name": "Living Room",
       "light_ids": [
-        "light.living_room_lamp",
-        "light.wiz_rgbw_tunable_ef497e"
+        "light.living_room_lamp"
       ]
     },
     {
@@ -31,27 +30,25 @@
       "name": "Game Room",
       "light_ids": [
         "light.office_lamp",
-        "light.nicole_s_desk_lamp",
-        "light.tv_lamp_1",
-        "light.tv_lamp_2",
-        "light.bookshelf_lamp",
-        "light.t_v_lights"
+        "light.wiz_rgbw_tunable_ef497e",
+        "light.t_v_lights",
+        "light.bookshelf_lamp"
+      ]
+    },
+    {
+      "id": "3rd-bedroom",
+      "name": "3rd Bedroom",
+      "light_ids": [
+        "light.nicole_s_desk_lamp"
       ]
     },
     {
       "id": "bedroom",
       "name": "Bedroom",
-      "light_ids": []
-    },
-    {
-      "id": "3rd-bedroom",
-      "name": "3rd Bedroom",
-      "light_ids": []
-    },
-    {
-      "id": "master-bedroom",
-      "name": "Master Bedroom",
-      "light_ids": []
+      "light_ids": [
+        "light.tv_lamp_1",
+        "light.tv_lamp_2"
+      ]
     }
   ],
   "groups": []

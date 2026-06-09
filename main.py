@@ -1723,8 +1723,9 @@ async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = 
 async def get_ha_lights_data():
     """Rich data for lighting dashboard.
     Uses HA for discovering lights + effects.
-    Uses custom persisted rooms/groups for organization (user can create, move lights, etc.).
-    If no custom rooms, auto-seeds from HA areas for good first experience.
+    Uses exact rooms/groups from lighting_config.json for organization (user can create, move lights, rename, etc.).
+    No auto-seeding - config.json is the source of truth for room assignments.
+    New/unmatched lights go to Unassigned.
     """
     if not HA_ENABLED:
         return {"rooms": [], "groups": [], "lights_by_room": {}, "unassigned_lights": [], "scenes": [], "total_lights": 0}
@@ -1748,19 +1749,8 @@ async def get_ha_lights_data():
     rooms = config.get("rooms", [])
     groups = config.get("groups", [])
 
-    # Auto-seed rooms from HA areas if user has none yet (great first-run experience)
-    if not rooms and areas_raw:
-        rooms = []
-        for a in areas_raw:
-            rooms.append({
-                "id": a.get("area_id") or str(uuid.uuid4()),
-                "name": a.get("name", "Room"),
-                "light_ids": []
-            })
-        config["rooms"] = rooms
-        save_lighting_config(config)
-
     # Build set of all custom room light ids for unassigned detection
+    # NO auto-seed logic - use exact mapping from config.json only
     assigned_light_ids = set()
     for room in rooms:
         assigned_light_ids.update(room.get("light_ids", []))
@@ -1777,20 +1767,13 @@ async def get_ha_lights_data():
         attrs = s.get("attributes", {}) or {}
         friendly = attrs.get("friendly_name") or eid.split(".", 1)[1].replace("_", " ").title()
 
-        # Find which custom room this light belongs to (by id)
+        # Find which custom room this light belongs to (by id) - strictly from config
         room_name = "Unassigned"
         for room in rooms:
             if eid in room.get("light_ids", []):
                 room_name = room["name"]
                 break
-        else:
-            # Not in any custom room -> try HA area name or Unassigned
-            ha_area = entity_to_ha_area.get(eid)
-            if ha_area:
-                # For first time, we could auto-assign, but since we seeded rooms, user can move
-                room_name = ha_area  # show under HA name temporarily if no custom assignment
-            else:
-                room_name = "Unassigned"
+        # No fallback to HA area - new lights stay Unassigned until manually assigned
 
         light = {
             "entity_id": eid,
@@ -1816,61 +1799,6 @@ async def get_ha_lights_data():
     for rname in lights_by_room:
         lights_by_room[rname].sort(key=lambda x: x["friendly_name"].lower())
     unassigned_lights.sort(key=lambda x: x["friendly_name"].lower())
-
-    # Smart default rooms: pre-create useful rooms based on actual light names/keywords.
-    # Only seed if it looks like the initial "everything in Home" state (so user doesn't lose custom structure).
-    # New rooms start EMPTY; lights are distributed by heuristic and user can drag to refine.
-    # This makes the page immediately useful without forcing manual room creation from scratch.
-    config = load_lighting_config()
-    current_rooms = config.get("rooms", [])
-    is_initial_state = (
-        len(current_rooms) <= 1 and
-        any((r.get("name") or "").lower() == "home" for r in current_rooms) and
-        sum(len(r.get("light_ids", [])) for r in current_rooms) > 5
-    ) or len(current_rooms) == 0
-
-    if is_initial_state:
-        # Pre-seed based on user's actual organization from floor plan / Companion app
-        smart_defs = [
-            {"id": "hallway", "name": "Hallway"},
-            {"id": "kitchen", "name": "Kitchen"},
-            {"id": "living-room", "name": "Living Room"},
-            {"id": "game-room", "name": "Game Room"},
-            {"id": "bedroom", "name": "Bedroom"},
-            {"id": "3rd-bedroom", "name": "3rd Bedroom"},
-            {"id": "master-bedroom", "name": "Master Bedroom"},
-        ]
-        def guess_room_id(eid: str, friendly: str) -> str | None:
-            n = ((friendly or "") + " " + eid).lower()
-            if "hallway" in n:
-                return "hallway"
-            if "kitchen" in n:
-                return "kitchen"
-            if "living" in n:
-                return "living-room"
-            if any(k in n for k in ["game", "office", "desk", "nicole", "tv", "bookshelf", "t_v"]):
-                return "game-room"
-            if "3rd" in n or "third" in n:
-                return "3rd-bedroom"
-            if "master" in n:
-                return "master-bedroom"
-            if "bed" in n:
-                return "bedroom"
-            return None
-
-        seeded_rooms = [{**d, "light_ids": []} for d in smart_defs]
-        for l in all_lights:
-            rid = guess_room_id(l["entity_id"], l.get("friendly_name", ""))
-            if rid:
-                for sr in seeded_rooms:
-                    if sr["id"] == rid:
-                        sr["light_ids"].append(l["entity_id"])
-                        break
-            # unmatched stay unassigned
-
-        config["rooms"] = seeded_rooms
-        save_lighting_config(config)
-        rooms = seeded_rooms  # use for the rest of this function
 
     # Scenes
     scenes = []
