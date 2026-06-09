@@ -602,13 +602,18 @@
           const allRoomLights = Object.values(data.lights_by_room || {}).flat();
           const all = [...allRoomLights, ...(data.unassigned_lights || [])];
           all.forEach(l => {
+            const prev = lightsState[l.entity_id] || {};
+            const newEffect = l.current_effect || (l.attributes && l.attributes.effect) || '';
+            // Preserve last-used effect speed across refreshes if the effect is still the same (so speed control feels persistent)
+            const keepSpeed = newEffect && prev.current_effect === newEffect && prev.effect_speed != null ? prev.effect_speed : undefined;
+
             if (!lightsState[l.entity_id]) lightsState[l.entity_id] = {};
-            // Only overwrite with server if we don't have a fresher optimistic value, but for simplicity we take server as source of truth after success
             lightsState[l.entity_id] = {
               ...l.attributes,
               state: l.state,
-              current_effect: l.current_effect || (l.attributes && l.attributes.effect),
+              current_effect: newEffect,
               brightness: l.brightness,
+              ...(keepSpeed != null ? { effect_speed: keepSpeed } : {}),
             };
           });
           isHydrated = true;
@@ -951,6 +956,7 @@
       const briPct = Math.round((bri || 0) / 2.55);
       const effectList = light.effect_list || st.effect_list || (light.attributes && light.attributes.effect_list) || [];
       const curEffect = st.current_effect || light.current_effect || '';
+      const curSpeed = getEffectSpeed(eid);
       const supportsCt = (light.supported_color_modes || []).includes('color_temp');
       const supportsRgb = (light.supported_color_modes || []).some(m => m.includes('rgb') || m.includes('hs'));
 
@@ -1010,6 +1016,18 @@
                 return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}')" class="ha-btn text-left px-2 py-0.5 truncate ${active}">${eff}</button>`;
               }).join('')}
             </div>
+
+            ${curEffect ? `
+            <div class="mt-3">
+              <div class="text-xs mb-1 text-zinc-400">Speed</div>
+              <div class="flex gap-1">
+                ${[ {label: 'Slow', val: 25}, {label: 'Normal', val: 50}, {label: 'Fast', val: 100} ].map(item => {
+                  const isActive = curSpeed === item.val ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300' : '';
+                  return `<button onclick="setEffectSpeed('${eid}', ${item.val}, this); openLightDetail('${eid}')" class="ha-btn flex-1 text-xs py-1 min-h-[44px] ${isActive}">${item.label}</button>`;
+                }).join('')}
+              </div>
+              <div class="text-[9px] text-zinc-500 mt-0.5">Affects animated effects (e.g. Fireplace, Party). Applies to the whole Sync Group if any.</div>
+            </div>` : ''}
           </div>
         `;
       }
@@ -1626,9 +1644,29 @@
     async function applyEffect(eid, effect, btn) {
       // Act as ONE: whole sync group gets the exact same effect at the same time
       const groupLights = getSyncGroupLights(eid);
-      groupLights.forEach(l => updateLightState(l, {current_effect: effect, state: 'on'}));
+      const speed = getEffectSpeed(eid);
+      groupLights.forEach(l => updateLightState(l, {current_effect: effect, state: 'on', effect_speed: speed}));
       renderCurrentView();
-      const promises = groupLights.map(l => callLightService(l, {effect}).catch(()=>{}));
+      const promises = groupLights.map(l => callLightService(l, {effect, speed_pct: speed}).catch(()=>{}));
+      await Promise.all(promises);
+    }
+
+    function getEffectSpeed(eid) {
+      const st = getLightState(eid) || {};
+      return (st.effect_speed != null) ? st.effect_speed : 50;
+    }
+
+    async function setEffectSpeed(eid, speed, btn) {
+      // Change speed for current dynamic effect. Applies to whole sync group instantly (optimistic + parallel calls).
+      const groupLights = getSyncGroupLights(eid);
+      const st = getLightState(eid) || {};
+      const effect = st.current_effect || '';
+      if (!effect) return;
+
+      groupLights.forEach(l => updateLightState(l, {effect_speed: speed}));
+      renderCurrentView();
+
+      const promises = groupLights.map(l => callLightService(l, {effect, speed_pct: speed}).catch(()=>{}));
       await Promise.all(promises);
     }
 
