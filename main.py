@@ -56,7 +56,7 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 # Xbox (OpenXBL) configuration for Live Now section
 # XBL_API_KEY and XBL_GAMERTAG must be set in Railway (production) or .env (local) for this to work.
 # See .env.example for setup instructions.
-# Optional: XBL_XUID can be set to bypass gamertag-to-XUID lookup (useful if profile API fails for your key).
+# XBL_XUID is now set (from xbl.io /account lookup) to bypass gamertag profile resolution (the /gamertag endpoint was returning 500 NOT_FOUND even with valid key).
 #
 # Placeholder detection: we only consider the values as "not configured" if they exactly match
 # the example placeholder strings from .env.example ("your_real_xbl_key_here" or "your_exact_gamertag_here").
@@ -1084,25 +1084,34 @@ async def get_xbox_status():
 
             presence = presence_res.json() or {}
 
-            state = presence.get("state", "Unknown")
+            # The xbl.io /presence (and /account) responses wrap the actual data under "content"
+            data = presence.get("content") or presence
+
+            state = data.get("state", "Unknown")
 
             # Step 3: Extract current game/app name - try multiple paths for robustness
             game = "—"
 
             # Path 1: devices[0].titles (most common for current activity)
-            devices = presence.get("devices") or []
+            devices = data.get("devices") or []
             if isinstance(devices, list) and len(devices) > 0:
                 for device in devices:
                     if not isinstance(device, dict):
                         continue
                     titles = device.get("titles") or []
                     if isinstance(titles, list) and len(titles) > 0:
-                        # Prefer active title if present
+                        # Prefer Full placement active title (the main game), then any Active
                         for title in titles:
                             if isinstance(title, dict):
-                                if title.get("placement") == "Active" or title.get("state") == "Active":
+                                if title.get("placement") == "Full" and (title.get("state") == "Active" or title.get("placement") == "Full"):
                                     game = title.get("name") or title.get("titleName") or "—"
                                     break
+                        if game == "—":
+                            for title in titles:
+                                if isinstance(title, dict):
+                                    if title.get("placement") == "Active" or title.get("state") == "Active":
+                                        game = title.get("name") or title.get("titleName") or "—"
+                                        break
                         if game == "—":
                             # fallback to first title
                             first_title = titles[0]
@@ -1112,21 +1121,21 @@ async def get_xbox_status():
                         break
 
             # Path 2: direct lastSeenTitle (some response formats)
-            if game == "—" and "lastSeenTitle" in presence:
-                game = presence.get("lastSeenTitle") or "—"
+            if game == "—" and "lastSeenTitle" in data:
+                game = data.get("lastSeenTitle") or "—"
 
             # Path 3: lastSeen.titleName
             if game == "—":
-                last_seen = presence.get("lastSeen") or {}
+                last_seen = data.get("lastSeen") or {}
                 if isinstance(last_seen, dict):
                     game = last_seen.get("titleName") or last_seen.get("name") or "—"
 
             # Path 4: other possible top-level fields (handle different formats)
             if game == "—":
                 game = (
-                    presence.get("titleName")
-                    or presence.get("name")
-                    or (presence.get("title") or {}).get("name") if isinstance(presence.get("title"), dict) else presence.get("title")
+                    data.get("titleName")
+                    or data.get("name")
+                    or (data.get("title") or {}).get("name") if isinstance(data.get("title"), dict) else data.get("title")
                     or "—"
                 )
 

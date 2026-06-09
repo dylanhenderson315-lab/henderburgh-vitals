@@ -446,10 +446,14 @@
       if (data.status === "ok") {
         const state = data.state || "Unknown";
         const gameText = (data.game && data.game !== "—") ? data.game : "No active game";
-        el.innerHTML = `
-          <p><strong>${state}</strong></p>
-          <p>${gameText}</p>
-        `;
+        if (gameText === "No active game") {
+          el.innerHTML = `<p><strong>${state} – ${gameText}</strong></p>`;
+        } else {
+          el.innerHTML = `
+            <p><strong>${state}</strong></p>
+            <p>${gameText}</p>
+          `;
+        }
       } else if (data.status === "not_configured") {
         el.innerHTML = `<p><em>Xbox status not configured</em></p>`;
       } else {
