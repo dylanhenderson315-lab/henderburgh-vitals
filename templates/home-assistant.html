@@ -188,9 +188,20 @@
       <!-- Sidebar / Room Navigation -->
       <div class="lg:w-56 flex-shrink-0">
         <div class="card p-2 lg:sticky lg:top-20">
-          <div class="section-label px-2 pb-1">Rooms</div>
+          <div class="flex items-center justify-between px-2 pb-1">
+            <div class="section-label">Rooms</div>
+            <button onclick="createNewRoom()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new room">+</button>
+          </div>
           <div id="room-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
-            <!-- Populated by JS: All Lights + rooms -->
+            <!-- Populated by JS -->
+          </div>
+
+          <div class="flex items-center justify-between px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">
+            <div class="section-label">Groups</div>
+            <button onclick="createNewGroup()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new group">+</button>
+          </div>
+          <div id="group-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
+            <!-- Populated by JS -->
           </div>
 
           <div class="section-label px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">Scenes</div>
@@ -291,10 +302,15 @@
         const data = await res.json();
         if (data.status === 'ok') {
           haData = data;
-          // Initialize live state from server data
+          // Initialize live state
           lightsState = {};
-          Object.values(data.lights_by_area || {}).flat().forEach(l => {
-            lightsState[l.entity_id] = { ...l.attributes, state: l.state };
+          const allRoomLights = Object.values(data.lights_by_room || {}).flat();
+          [...allRoomLights, ...(data.unassigned_lights || [])].forEach(l => {
+            lightsState[l.entity_id] = { 
+              ...l.attributes, 
+              state: l.state,
+              current_effect: l.current_effect || l.attributes?.effect
+            };
           });
           return true;
         }
@@ -305,34 +321,71 @@
     }
 
     function buildRoomNav() {
-      const container = document.getElementById('room-nav');
-      if (!container || !haData) return;
+      const roomContainer = document.getElementById('room-nav');
+      const groupContainer = document.getElementById('group-nav');
+      if (!roomContainer || !haData) return;
 
-      let html = '';
+      // Rooms
+      let roomHtml = '';
+      const totalOn = (haData.total_lights || 0) - (haData.unassigned_lights || []).filter(l => (lightsState[l.entity_id]?.state || l.state) !== 'on').length; // rough
 
-      // All Lights
-      const allCount = haData.total_lights || 0;
-      html += `
+      roomHtml += `
         <button data-view="all" onclick="switchView('all')"
                 class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${currentView === 'all' ? 'bg-[#27272a] text-white' : ''}">
           <span class="flex items-center gap-2"><i class="fa-solid fa-globe w-4"></i> All Lights</span>
-          <span class="text-xs text-zinc-500 tabular-nums">${allCount}</span>
+          <span class="text-xs text-zinc-500 tabular-nums">${haData.total_lights || 0}</span>
         </button>`;
 
-      // Rooms
-      (haData.areas || []).forEach(area => {
-        const lights = (haData.lights_by_area || {})[area.name] || [];
-        const onCount = lights.filter(l => (lightsState[l.entity_id]?.state || l.state) === 'on').length;
-        const isActive = currentView === area.name;
-        html += `
-          <button data-view="${area.name}" onclick="switchView('${area.name}')"
-                  class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${isActive ? 'bg-[#27272a] text-white' : ''}">
-            <span class="truncate">${area.name}</span>
-            <span class="text-xs text-zinc-500 tabular-nums ml-2">${onCount}/${lights.length}</span>
-          </button>`;
+      (haData.rooms || []).forEach(room => {
+        const isActive = currentView === room.name || currentView === room.id;
+        const on = room.on_count || 0;
+        roomHtml += `
+          <div class="group flex items-center gap-1 nav-room-btn ${isActive ? 'bg-[#27272a] text-white' : ''} rounded" 
+               draggable="true" ondragover="event.preventDefault()" ondrop="handleDropToRoom(event, '${room.id}')">
+            <button data-view="${room.name}" onclick="switchView('${room.name}')"
+                    class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
+              <span class="truncate">${room.name}</span>
+              <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${room.light_count || 0}</span>
+            </button>
+            <button onclick="event.stopImmediatePropagation(); deleteRoom('${room.id}')" 
+                    class="px-1 text-xs text-zinc-500 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
+          </div>`;
       });
 
-      container.innerHTML = html;
+      // Unassigned
+      const unCount = (haData.unassigned_lights || []).length;
+      if (unCount > 0 || true) {
+        const isUn = currentView === 'unassigned';
+        roomHtml += `
+          <button data-view="unassigned" onclick="switchView('unassigned')"
+                  class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${isUn ? 'bg-[#27272a] text-white' : ''} text-amber-300">
+            <span class="flex items-center gap-2"><i class="fa-solid fa-question w-4"></i> Unassigned</span>
+            <span class="text-xs text-zinc-500 tabular-nums">${unCount}</span>
+          </button>`;
+      }
+
+      roomContainer.innerHTML = roomHtml;
+
+      // Groups
+      if (groupContainer) {
+        let gHtml = '';
+        (haData.groups || []).forEach(group => {
+          const isActive = currentView === group.name || currentView === group.id;
+          const on = group.on_count || 0;
+          gHtml += `
+            <div class="group flex items-center gap-1 nav-room-btn ${isActive ? 'bg-[#27272a] text-white' : ''} rounded" 
+                 draggable="true" ondragover="event.preventDefault()" ondrop="handleDropToGroup(event, '${group.id}')">
+              <button data-view="${group.name}" onclick="switchView('${group.name}')"
+                      class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
+                <span class="truncate">${group.name}</span>
+                <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${group.light_count || 0}</span>
+              </button>
+              <button onclick="event.stopImmediatePropagation(); deleteGroup('${group.id}')" 
+                      class="px-1 text-xs text-zinc-500 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
+            </div>`;
+        });
+        groupContainer.innerHTML = gHtml || '<div class="px-3 py-1 text-xs text-zinc-500">No groups yet</div>';
+      }
     }
 
     function switchView(view) {
@@ -350,6 +403,76 @@
     function filterCurrentView() {
       searchTerm = (document.getElementById('global-search') || {}).value || '';
       renderCurrentView();
+    }
+
+    async function createNewRoom() {
+      if (!adminToken) {
+        alert("Unlock controls with your admin token first.");
+        return;
+      }
+      const name = prompt("New room name:");
+      if (!name) return;
+      try {
+        const res = await fetch(`/api/ha/lighting/room/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
+        if (res.ok) {
+          await refreshAllData();
+        } else {
+          alert("Failed to create room");
+        }
+      } catch (e) { alert("Error creating room"); }
+    }
+
+    async function createNewGroup() {
+      if (!adminToken) {
+        alert("Unlock controls with your admin token first.");
+        return;
+      }
+      const name = prompt("New group name (e.g. Movie Lights):");
+      if (!name) return;
+      try {
+        const res = await fetch(`/api/ha/lighting/group/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
+        if (res.ok) {
+          await refreshAllData();
+        } else {
+          alert("Failed to create group");
+        }
+      } catch (e) { alert("Error creating group"); }
+    }
+
+    async function deleteRoom(roomId) {
+      if (!adminToken || !confirm("Delete this room? Lights will become unassigned.")) return;
+      try {
+        const res = await fetch(`/api/ha/lighting/room/delete?token=${encodeURIComponent(adminToken)}&room_id=${encodeURIComponent(roomId)}`, { method: 'POST' });
+        if (res.ok) await refreshAllData();
+      } catch (e) {}
+    }
+
+    async function deleteGroup(groupId) {
+      if (!adminToken || !confirm("Delete this group?")) return;
+      try {
+        const res = await fetch(`/api/ha/lighting/group/delete?token=${encodeURIComponent(adminToken)}&group_id=${encodeURIComponent(groupId)}`, { method: 'POST' });
+        if (res.ok) await refreshAllData();
+      } catch (e) {}
+    }
+
+    async function handleDropToRoom(ev, roomId) {
+      ev.preventDefault();
+      const eid = ev.dataTransfer.getData("text/plain");
+      if (!eid || !adminToken) return;
+      try {
+        await fetch(`/api/ha/lighting/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(eid)}&room_id=${encodeURIComponent(roomId)}`, { method: 'POST' });
+        await refreshAllData();
+      } catch (e) {}
+    }
+
+    async function handleDropToGroup(ev, groupId) {
+      ev.preventDefault();
+      const eid = ev.dataTransfer.getData("text/plain");
+      if (!eid || !adminToken) return;
+      try {
+        await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(eid)}&group_id=${encodeURIComponent(groupId)}&add=true`, { method: 'POST' });
+        await refreshAllData();
+      } catch (e) {}
     }
 
     function getLightState(eid) {
@@ -396,140 +519,244 @@
         return;
       }
 
-      // Lights view (room or all)
+      // Determine lights for current view (support custom rooms + unassigned + groups)
       let lights = [];
-      let roomName = 'All Lights';
-      let areaIdForMaster = null;
+      let viewTitle = 'All Lights';
+      let isCustomRoom = false;
+      let isGroup = false;
+      let currentRoomId = null;
+      let currentGroupId = null;
 
       if (currentView === 'all') {
-        lights = Object.values(haData.lights_by_area || {}).flat();
+        lights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      } else if (currentView === 'unassigned') {
+        lights = haData.unassigned_lights || [];
+        viewTitle = 'Unassigned Lights';
+      } else if (currentView === 'scenes') {
+        // handled above
       } else {
-        lights = (haData.lights_by_area || {})[currentView] || [];
-        roomName = currentView;
-        const area = (haData.areas || []).find(a => a.name === currentView);
-        areaIdForMaster = area ? area.id : null;
+        // Try to find as room
+        const room = (haData.rooms || []).find(r => r.name === currentView || r.id === currentView);
+        if (room) {
+          lights = (haData.lights_by_room || {})[room.name] || [];
+          viewTitle = room.name;
+          isCustomRoom = true;
+          currentRoomId = room.id;
+        } else {
+          // Try as group
+          const group = (haData.groups || []).find(g => g.name === currentView || g.id === currentView);
+          if (group) {
+            // collect lights for group
+            const all = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+            lights = all.filter(l => (group.light_ids || []).includes(l.entity_id));
+            viewTitle = group.name;
+            isGroup = true;
+            currentGroupId = group.id;
+          } else {
+            lights = Object.values(haData.lights_by_room || {}).flat();
+          }
+        }
       }
 
       // Apply search
       if (searchLower) {
         lights = lights.filter(l => l.friendly_name.toLowerCase().includes(searchLower));
       }
-
-      // Sort
       lights.sort((a,b) => a.friendly_name.localeCompare(b.friendly_name));
 
-      // Room master controls
+      // Master controls for room or group
       let masterHtml = '';
-      if (currentView !== 'all' && lights.length > 0) {
+      if ((isCustomRoom || isGroup) && lights.length > 0) {
+        const label = isGroup ? 'Group' : 'Room';
         masterHtml = `
           <div class="card p-4 mb-4">
             <div class="flex items-center justify-between mb-3">
-              <div class="font-semibold">Room Controls — ${roomName}</div>
+              <div class="font-semibold">${label} Controls — ${viewTitle}</div>
               <div class="flex gap-2">
-                <button onclick="roomMasterAction('${currentView}', 'turn_on')" class="ha-btn text-emerald-400">All On</button>
-                <button onclick="roomMasterAction('${currentView}', 'turn_off')" class="ha-btn">All Off</button>
+                <button onclick="roomOrGroupMaster('${currentRoomId || currentGroupId}', 'turn_on', ${isGroup})" class="ha-btn text-emerald-400">All On</button>
+                <button onclick="roomOrGroupMaster('${currentRoomId || currentGroupId}', 'turn_off', ${isGroup})" class="ha-btn">All Off</button>
               </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div class="flex justify-between text-xs mb-1"><span>Brightness</span><span id="master-bright-val">—</span></div>
-                <input type="range" min="0" max="100" value="80" 
-                       class="w-full accent-emerald-400" id="master-bright"
-                       oninput="updateMasterVal('bright', this.value)" onchange="roomMasterBrightness('${currentView}', this.value)">
+                <input type="range" min="0" max="100" value="70" class="w-full accent-emerald-400" 
+                       oninput="updateMasterVal('bright', this.value)" onchange="roomOrGroupMasterBrightness('${currentRoomId || currentGroupId}', this.value, ${isGroup})">
               </div>
               <div>
-                <div class="flex justify-between text-xs mb-1"><span>Color Temperature</span><span id="master-temp-val">—</span></div>
-                <input type="range" min="0" max="100" value="50" 
-                       class="w-full accent-amber-400" id="master-temp"
-                       oninput="updateMasterVal('temp', this.value)" onchange="roomMasterColorTemp('${currentView}', this.value)">
+                <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
+                <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400" 
+                       oninput="updateMasterVal('temp', this.value)" onchange="roomOrGroupMasterColorTemp('${currentRoomId || currentGroupId}', this.value, ${isGroup})">
               </div>
             </div>
+            <div class="text-[10px] text-zinc-500 mt-2">Master controls apply to every light in this ${label.toLowerCase()}.</div>
           </div>`;
       }
 
-      // Lights grid
-      let lightsHtml = '';
-      if (lights.length === 0) {
-        lightsHtml = `<div class="card p-8 text-center text-sm text-zinc-400">No lights match your search in this view.</div>`;
-      } else {
-        lights.forEach(light => {
-          const eid = light.entity_id;
-          const st = getLightState(eid);
-          const isOn = (st.state || light.state) === 'on';
-          const bright = st.brightness != null ? Math.round(st.brightness / 255 * 100) : (light.brightness != null ? Math.round(light.brightness / 255 * 100) : null);
-          const friendly = light.friendly_name;
-          const supportsTemp = (light.supported_color_modes || []).includes('color_temp');
-          const supportsRgb = (light.supported_color_modes || []).some(m => ['rgb', 'rgbw', 'hs'].includes(m));
+      // (Full modern renderCurrentView + helpers are defined above. This removes the duplicate old render body.)
+    }
 
-          lightsHtml += `
-            <div class="card p-4" data-eid="${eid}">
-              <div class="flex items-start justify-between mb-3">
-                <div class="min-w-0">
-                  <div class="font-semibold text-[15px] leading-tight truncate">${friendly}</div>
-                  <div class="text-[10px] text-zinc-500 mt-0.5">${light.area_name}</div>
-                </div>
-                <div onclick="toggleLight('${eid}', this)" class="cursor-pointer select-none">
-                  <span class="inline-block w-9 h-5 rounded-full transition ${isOn ? 'bg-emerald-500' : 'bg-zinc-600'} relative">
-                    <span class="absolute top-0.5 ${isOn ? 'right-0.5' : 'left-0.5'} w-4 h-4 bg-white rounded-full shadow transition"></span>
-                  </span>
-                </div>
-              </div>
-
-              <!-- Status line -->
-              <div class="text-xs text-zinc-400 mb-3 h-4">
-                ${isOn ? 
-                  (bright != null ? `${bright}%` : 'On') + 
-                  (st.color_temp ? ` • ${st.color_temp} mired` : '') +
-                  (st.rgb_color ? ` • RGB` : '')
-                  : 'Off'}
-              </div>
-
-              <!-- Brightness -->
-              <div class="mb-3">
-                <div class="flex justify-between text-[10px] mb-1 text-zinc-400">
-                  <span>Brightness</span>
-                  <span class="tabular-nums">${bright != null ? bright : '—'}%</span>
-                </div>
-                <input type="range" min="0" max="100" value="${bright != null ? bright : (isOn ? 80 : 0)}" 
-                       class="w-full accent-emerald-400" 
-                       oninput="debouncedBrightness('${eid}', this.value, this)" 
-                       onchange="debouncedBrightness('${eid}', this.value, this)">
-              </div>
-
-              ${supportsTemp ? `
-              <div class="mb-3">
-                <div class="flex justify-between text-[10px] mb-1 text-zinc-400">
-                  <span class="text-amber-300">Warm</span>
-                  <span class="text-sky-300">Cool</span>
-                </div>
-                <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
-                       oninput="debouncedColorTemp('${eid}', this.value, this)" 
-                       onchange="debouncedColorTemp('${eid}', this.value, this)">
-              </div>` : ''}
-
-              ${supportsRgb ? `
-              <div class="mb-2">
-                <div class="text-[10px] mb-1 text-zinc-400">Color</div>
-                <div class="flex items-center gap-2">
-                  <input type="color" value="#ffcc99" class="w-9 h-7 p-0 bg-transparent border border-[#3f3f46] rounded cursor-pointer"
-                         oninput="debouncedColor('${eid}', this.value, this)" onchange="debouncedColor('${eid}', this.value, this)">
-                  <div class="flex gap-1 flex-wrap">` + 
-                    createPresetButtons(eid) + `
-                  </div>
-                </div>
-              </div>` : ''}
-
-              <div class="text-[9px] text-zinc-500 mt-1 tabular-nums">${eid}</div>
-            </div>`;
+    async function callLightService(eid, extra) {
+      if (!adminToken) return false;
+      try {
+        const payload = { entity_id: eid, ...extra };
+        const res = await fetch(`/api/ha/service/light/turn_on?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
+        return res.ok;
+      } catch (e) { return false; }
+    }
+
+    async function initializeDashboard() {
+      initTailwind();
+      loadAdminToken();
+
+      const ok = await fetchLightsData();
+      if (!ok) {
+        const c = document.getElementById('dashboard-content');
+        if (c) c.innerHTML = `<div class="card p-8 text-center text-rose-400 text-sm">Could not load lighting data from Home Assistant.</div>`;
+        return;
       }
 
-      const header = currentView === 'all' 
-        ? `<div class="section-label mb-2">All Lights <span class="text-zinc-500">(${lights.length})</span></div>`
-        : `<div class="mb-2"><span class="text-xl font-semibold">${roomName}</span> <span class="text-xs text-zinc-500">(${lights.length} lights)</span></div>`;
+      currentView = (haData.rooms && haData.rooms.length) ? haData.rooms[0].name : 'all';
 
-      container.innerHTML = masterHtml + header + `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">${lightsHtml}</div>`;
+      buildRoomNav();
+      renderCurrentView();
+
+      const lr = document.getElementById('last-refresh');
+      if (lr) lr.textContent = 'updated just now';
+
+      setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          fetchLightsData().then(ok => { if (ok) { buildRoomNav(); renderCurrentView(); } });
+        }
+      }, 45000);
     }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', () => {
+      const contentArea = document.getElementById('dashboard-content');
+      if (contentArea && !document.querySelector('.fa-lock')) {
+        initializeDashboard();
+      }
+    });
+  </script>
+</body>
+</html>
+
+    function setLightMode(eid, mode, btn) {
+      updateLightState(eid, {mode});
+      // re-render to show/hide sections
+      renderCurrentView();
+    }
+
+    async function applyEffect(eid, effect, btn) {
+      if (!adminToken) { alert("Unlock first"); return; }
+      updateLightState(eid, {current_effect: effect, state: 'on'});
+      renderCurrentView();
+      await callLightService(eid, {effect});
+    }
+
+    // === Missing helpers for master controls and drag (Apple-like polish) ===
+
+    async function roomOrGroupMaster(id, action, isGroup) {
+      if (!adminToken) { alert("Unlock controls first."); return; }
+      const lights = isGroup 
+        ? (haData.groups || []).find(g => g.id === id)?.light_ids || []
+        : (haData.rooms || []).find(r => r.id === id)?.light_ids || [];
+      const allLights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+
+      const targetLights = allLights.filter(l => lights.includes(l.entity_id));
+      const newState = action === 'turn_on' ? 'on' : 'off';
+
+      targetLights.forEach(l => updateLightState(l.entity_id, {state: newState}));
+      renderCurrentView();
+
+      const promises = targetLights.map(l => 
+        fetch(`/api/ha/service/light/${action}?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({entity_id: l.entity_id})
+        })
+      );
+      await Promise.all(promises);
+    }
+
+    async function roomOrGroupMasterBrightness(id, percent, isGroup) {
+      if (!adminToken) return;
+      const lightIds = isGroup 
+        ? (haData.groups || []).find(g => g.id === id)?.light_ids || []
+        : (haData.rooms || []).find(r => r.id === id)?.light_ids || [];
+      const allLights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      const target = allLights.filter(l => lightIds.includes(l.entity_id));
+      const brightness = Math.max(1, Math.round(parseInt(percent) * 2.55));
+
+      target.forEach(l => updateLightState(l.entity_id, {brightness, state: 'on'}));
+      renderCurrentView();
+
+      const promises = target.map(l => callLightService(l.entity_id, {brightness}).catch(()=>{}));
+      await Promise.all(promises);
+    }
+
+    async function roomOrGroupMasterColorTemp(id, val, isGroup) {
+      if (!adminToken) return;
+      const lightIds = isGroup 
+        ? (haData.groups || []).find(g => g.id === id)?.light_ids || []
+        : (haData.rooms || []).find(r => r.id === id)?.light_ids || [];
+      const allLights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      const target = allLights.filter(l => lightIds.includes(l.entity_id));
+      const mired = Math.round(500 - (parseInt(val) / 100) * (500 - 153));
+
+      target.forEach(l => {
+        if ((l.supported_color_modes || []).includes('color_temp')) {
+          updateLightState(l.entity_id, {color_temp: mired, state: 'on'});
+        }
+      });
+      renderCurrentView();
+
+      const promises = target.map(l => {
+        if ((l.supported_color_modes || []).includes('color_temp')) {
+          return callLightService(l.entity_id, {color_temp: mired}).catch(()=>{});
+        }
+      });
+      await Promise.all(promises.filter(Boolean));
+    }
+
+    function updateMasterVal(type, val) {
+      const el = document.getElementById(type === 'bright' ? 'master-bright-val' : 'master-temp-val');
+      if (el) el.textContent = val + (type === 'bright' ? '%' : '');
+    }
+
+    // Drag & drop support on light cards (already set in render)
+    // Additional: allow dropping unassigned lights etc. is handled in buildRoomNav drop handlers.
+
+    async function refreshAllData() {
+      const content = document.getElementById('dashboard-content');
+      const oldHTML = content ? content.innerHTML : '';
+      if (content) content.innerHTML = `<div class="text-sm text-zinc-500 p-8 text-center">Refreshing...</div>`;
+
+      const ok = await fetchLightsData();
+      if (ok) {
+        buildRoomNav();
+        renderCurrentView();
+        const lr = document.getElementById('last-refresh');
+        if (lr) lr.textContent = 'updated just now';
+      } else if (content) {
+        content.innerHTML = oldHTML;
+      }
+    }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', () => {
+      const contentArea = document.getElementById('dashboard-content');
+      if (contentArea && !document.querySelector('.fa-lock')) {
+        initializeDashboard();
+      }
+    });
+  </script>
+</body>
+</html>
 
     function createPresetButtons(eid) {
       // Nice professional presets (warm to cool + accent colors)

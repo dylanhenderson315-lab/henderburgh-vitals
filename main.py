@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import asyncio
 import json
+import uuid
 import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -1377,11 +1378,110 @@ async def api_ha_states():
 
 @app.get("/api/ha/lights-data")
 async def api_ha_lights_data():
-    """Rich data for the professional lighting dashboard: areas, lights grouped by room, scenes."""
+    """Rich data for the professional lighting dashboard: custom rooms, groups, lights, scenes, unassigned."""
     if not HA_ENABLED:
         return {"status": "disabled"}
     data = await get_ha_lights_data()
     return {"status": "ok", **data}
+
+
+# --- Lighting management (rooms, groups, assignments) - protected by ADMIN_TOKEN ---
+
+@app.post("/api/ha/lighting/room/create")
+async def create_room(token: Optional[str] = None, name: str = ""):
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    if not name.strip():
+        raise HTTPException(400, "Room name required")
+    config = load_lighting_config()
+    new_room = {"id": str(uuid.uuid4()), "name": name.strip(), "light_ids": []}
+    config["rooms"].append(new_room)
+    save_lighting_config(config)
+    return {"status": "ok", "room": new_room}
+
+
+@app.post("/api/ha/lighting/room/rename")
+async def rename_room(token: Optional[str] = None, room_id: str = "", name: str = ""):
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    config = load_lighting_config()
+    for room in config["rooms"]:
+        if room["id"] == room_id:
+            room["name"] = name.strip()
+            save_lighting_config(config)
+            return {"status": "ok"}
+    raise HTTPException(404, "Room not found")
+
+
+@app.post("/api/ha/lighting/room/delete")
+async def delete_room(token: Optional[str] = None, room_id: str = ""):
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    config = load_lighting_config()
+    config["rooms"] = [r for r in config["rooms"] if r["id"] != room_id]
+    save_lighting_config(config)
+    return {"status": "ok"}
+
+
+@app.post("/api/ha/lighting/assign")
+async def assign_light_to_room(token: Optional[str] = None, entity_id: str = "", room_id: str = ""):
+    """Assign (move) a light to a room. Pass room_id="" to unassign."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    config = load_lighting_config()
+    # Remove from all rooms first
+    for room in config["rooms"]:
+        if entity_id in room.get("light_ids", []):
+            room["light_ids"].remove(entity_id)
+    if room_id:
+        for room in config["rooms"]:
+            if room["id"] == room_id:
+                if entity_id not in room.get("light_ids", []):
+                    room.setdefault("light_ids", []).append(entity_id)
+                break
+    save_lighting_config(config)
+    return {"status": "ok"}
+
+
+@app.post("/api/ha/lighting/group/create")
+async def create_group(token: Optional[str] = None, name: str = ""):
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    if not name.strip():
+        raise HTTPException(400, "Group name required")
+    config = load_lighting_config()
+    new_group = {"id": str(uuid.uuid4()), "name": name.strip(), "light_ids": []}
+    config["groups"].append(new_group)
+    save_lighting_config(config)
+    return {"status": "ok", "group": new_group}
+
+
+@app.post("/api/ha/lighting/group/delete")
+async def delete_group(token: Optional[str] = None, group_id: str = ""):
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    config = load_lighting_config()
+    config["groups"] = [g for g in config["groups"] if g["id"] != group_id]
+    save_lighting_config(config)
+    return {"status": "ok"}
+
+
+@app.post("/api/ha/lighting/group/assign")
+async def assign_light_to_group(token: Optional[str] = None, entity_id: str = "", group_id: str = "", add: bool = True):
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    config = load_lighting_config()
+    for group in config["groups"]:
+        if group["id"] == group_id:
+            if add:
+                if entity_id not in group.get("light_ids", []):
+                    group.setdefault("light_ids", []).append(entity_id)
+            else:
+                if entity_id in group.get("light_ids", []):
+                    group["light_ids"].remove(entity_id)
+            save_lighting_config(config)
+            return {"status": "ok"}
+    raise HTTPException(404, "Group not found")
 
 
 @app.post("/api/ha/service/{domain}/{service}")
@@ -1424,6 +1524,34 @@ def load_xbox_log():
 
 def save_xbox_log(log):
     XBOX_LOG_FILE.write_text(json.dumps(log, indent=2))
+
+
+# =============================================================================
+# Home Assistant Lighting Config (custom rooms + groups, persistent)
+# =============================================================================
+LIGHTING_CONFIG_FILE = Path("data/lighting_config.json")
+LIGHTING_CONFIG_FILE.parent.mkdir(exist_ok=True)
+
+DEFAULT_LIGHTING_CONFIG = {
+    "rooms": [],   # list of {"id": str, "name": str, "light_ids": list[str]}
+    "groups": []   # same structure
+}
+
+def load_lighting_config():
+    if LIGHTING_CONFIG_FILE.exists():
+        try:
+            config = json.loads(LIGHTING_CONFIG_FILE.read_text())
+            if "rooms" not in config:
+                config["rooms"] = []
+            if "groups" not in config:
+                config["groups"] = []
+            return config
+        except Exception:
+            pass
+    return DEFAULT_LIGHTING_CONFIG.copy()
+
+def save_lighting_config(config):
+    LIGHTING_CONFIG_FILE.write_text(json.dumps(config, indent=2))
 
 
 # =============================================================================
@@ -1571,69 +1699,103 @@ async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = 
 
 
 async def get_ha_lights_data():
-    """Rich data for lighting dashboard: areas + lights grouped by area + scenes.
-    Uses entity registry for accurate area assignment.
+    """Rich data for lighting dashboard.
+    Uses HA for discovering lights + effects.
+    Uses custom persisted rooms/groups for organization (user can create, move lights, etc.).
+    If no custom rooms, auto-seeds from HA areas for good first experience.
     """
     if not HA_ENABLED:
-        return {"areas": [], "lights_by_area": {}, "scenes": []}
+        return {"rooms": [], "groups": [], "lights_by_room": {}, "unassigned_lights": [], "scenes": [], "total_lights": 0}
 
     states = await get_ha_states()
     areas_raw = await get_ha_areas()
     registry = await get_ha_entity_registry()
 
-    area_by_id = {a.get("area_id"): {"id": a.get("area_id"), "name": a.get("name", "Unknown")} for a in areas_raw}
-    area_by_id["unassigned"] = {"id": "unassigned", "name": "Unassigned"}
+    # Build HA area name map
+    ha_area_names = {a.get("area_id"): a.get("name", "Unknown") for a in areas_raw}
 
-    # Build entity -> area_id map from registry
-    entity_to_area = {}
+    # entity -> ha_area_name fallback
+    entity_to_ha_area = {}
     for entry in registry:
         eid = entry.get("entity_id")
         aid = entry.get("area_id")
-        if eid and aid:
-            entity_to_area[eid] = aid
+        if eid and aid and aid in ha_area_names:
+            entity_to_ha_area[eid] = ha_area_names[aid]
 
-    lights_by_area: Dict[str, List[Dict]] = {}
-    lights = []
+    config = load_lighting_config()
+    rooms = config.get("rooms", [])
+    groups = config.get("groups", [])
+
+    # Auto-seed rooms from HA areas if user has none yet (great first-run experience)
+    if not rooms and areas_raw:
+        rooms = []
+        for a in areas_raw:
+            rooms.append({
+                "id": a.get("area_id") or str(uuid.uuid4()),
+                "name": a.get("name", "Room"),
+                "light_ids": []
+            })
+        config["rooms"] = rooms
+        save_lighting_config(config)
+
+    # Build set of all custom room light ids for unassigned detection
+    assigned_light_ids = set()
+    for room in rooms:
+        assigned_light_ids.update(room.get("light_ids", []))
+
+    lights_by_room: Dict[str, List[Dict]] = {}
+    unassigned_lights = []
+    all_lights = []
 
     for s in states:
         eid = str(s.get("entity_id", ""))
         if not eid.startswith("light."):
             continue
-        attrs = s.get("attributes", {}) or {}
-        aid = entity_to_area.get(eid)
-        if not aid:
-            # Fallback: try to infer from name or leave unassigned
-            name_lower = (attrs.get("friendly_name") or eid).lower()
-            aid = "unassigned"
-            for a in areas_raw:
-                aname = (a.get("name") or "").lower()
-                if aname and aname in name_lower:
-                    aid = a.get("area_id")
-                    break
 
-        area_info = area_by_id.get(aid, area_by_id["unassigned"])
-        area_name = area_info["name"]
+        attrs = s.get("attributes", {}) or {}
+        friendly = attrs.get("friendly_name") or eid.split(".", 1)[1].replace("_", " ").title()
+
+        # Find which custom room this light belongs to (by id)
+        room_name = "Unassigned"
+        for room in rooms:
+            if eid in room.get("light_ids", []):
+                room_name = room["name"]
+                break
+        else:
+            # Not in any custom room -> try HA area name or Unassigned
+            ha_area = entity_to_ha_area.get(eid)
+            if ha_area:
+                # For first time, we could auto-assign, but since we seeded rooms, user can move
+                room_name = ha_area  # show under HA name temporarily if no custom assignment
+            else:
+                room_name = "Unassigned"
 
         light = {
             "entity_id": eid,
             "state": s.get("state", "off"),
             "attributes": attrs,
-            "area_id": aid,
-            "area_name": area_name,
-            "friendly_name": attrs.get("friendly_name") or eid.split(".", 1)[1].replace("_", " ").title(),
+            "friendly_name": friendly,
             "supported_color_modes": attrs.get("supported_color_modes", []),
+            "effect_list": attrs.get("effect_list", []),  # for dynamic mode
             "brightness": attrs.get("brightness"),
             "color_temp": attrs.get("color_temp"),
             "rgb_color": attrs.get("rgb_color"),
+            "current_effect": attrs.get("effect"),
+            "room_name": room_name,
         }
-        lights.append(light)
-        lights_by_area.setdefault(area_name, []).append(light)
+        all_lights.append(light)
 
-    # Sort lights inside areas
-    for area_name in lights_by_area:
-        lights_by_area[area_name].sort(key=lambda x: x["friendly_name"].lower())
+        if room_name == "Unassigned":
+            unassigned_lights.append(light)
+        else:
+            lights_by_room.setdefault(room_name, []).append(light)
 
-    # Scenes (focus on light related if possible)
+    # Sort lights in each room
+    for rname in lights_by_room:
+        lights_by_room[rname].sort(key=lambda x: x["friendly_name"].lower())
+    unassigned_lights.sort(key=lambda x: x["friendly_name"].lower())
+
+    # Scenes
     scenes = []
     for s in states:
         if str(s.get("entity_id", "")).startswith("scene."):
@@ -1644,26 +1806,38 @@ async def get_ha_lights_data():
                 "friendly_name": attrs.get("friendly_name") or s["entity_id"].split(".", 1)[1].replace("_", " ").title(),
                 "description": attrs.get("description") or ""
             })
+    scenes.sort(key=lambda x: x["friendly_name"].lower())
 
-    # Sort areas: put common rooms first, then unassigned at end
-    area_order = ["Living Room", "Kitchen", "Office", "Bedroom", "Hall", "Unassigned"]
-    sorted_areas = []
-    seen = set()
-    for preferred in area_order:
-        for aname, _ in lights_by_area.items():
-            if aname.lower() == preferred.lower() and aname not in seen:
-                sorted_areas.append({"id": area_by_id.get(aname, {}).get("id", aname), "name": aname})
-                seen.add(aname)
-    for aname in lights_by_area:
-        if aname not in seen:
-            sorted_areas.append({"id": area_by_id.get(aname, {}).get("id", aname), "name": aname})
-            seen.add(aname)
+    # Prepare rooms list for UI (include counts)
+    rooms_for_ui = []
+    for room in rooms:
+        rlights = [l for l in all_lights if l["entity_id"] in room.get("light_ids", [])]
+        rooms_for_ui.append({
+            "id": room["id"],
+            "name": room["name"],
+            "light_ids": room.get("light_ids", []),
+            "light_count": len(rlights),
+            "on_count": sum(1 for l in rlights if l["state"] == "on")
+        })
+
+    groups_for_ui = []
+    for group in groups:
+        glights = [l for l in all_lights if l["entity_id"] in group.get("light_ids", [])]
+        groups_for_ui.append({
+            "id": group["id"],
+            "name": group["name"],
+            "light_ids": group.get("light_ids", []),
+            "light_count": len(glights),
+            "on_count": sum(1 for l in glights if l["state"] == "on")
+        })
 
     return {
-        "areas": sorted_areas,
-        "lights_by_area": lights_by_area,
-        "scenes": sorted(scenes, key=lambda x: x["friendly_name"].lower()),
-        "total_lights": len(lights),
+        "rooms": rooms_for_ui,
+        "groups": groups_for_ui,
+        "lights_by_room": lights_by_room,   # only lights assigned to custom rooms
+        "unassigned_lights": unassigned_lights,
+        "scenes": scenes,
+        "total_lights": len(all_lights),
     }
 
 
