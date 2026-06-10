@@ -280,12 +280,12 @@
       </p>
     </div>
 
-    <!-- Quirky little notification icon: click it and the office lamp does a temporary fun "poke" dance to signal you -->
+    <!-- Quirky little notification icon: click it and the office lamp temporarily flashes to physically signal you (or someone else) poked it -->
     {% if not public_mode %}
     <div class="flex justify-center mb-7">
       <button onclick="triggerOfficeLampNotificationPoke()"
               class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
-              title="Poke the office lamp — it will briefly light up in a special way to let you know about a notification or reply">
+              title="Poke the office lamp — it will flash temporarily so you see the lamp react and know someone poked/notified you">
         <i class="fa-solid fa-lightbulb text-lg text-emerald-400 group-hover:text-emerald-300 transition-colors"></i>
         {% if blog_unread_count and blog_unread_count > 0 %}
         <span class="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
@@ -773,9 +773,24 @@
       await Promise.all(promises);
     }
 
-    // The genius bit: tiny icon click → office lamp briefly becomes a physical notification beacon.
-    // It does a short, noticeable, friendly "double-nudge" in a cool distinctive color, then fully reverts.
-    // Feels like the lamp is personally tapping you on the shoulder to say "someone left you a note".
+    // Small helpers for the flash poke sequence
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function turnOffDesk() {
+      const promises = DESK_LIGHTS.map(eid =>
+        fetch(`/api/ha/service/light/turn_off?token=${ADMIN_TOKEN}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity_id: eid })
+        }).catch(() => null)
+      );
+      await Promise.all(promises);
+    }
+
+    // The physical poke signal: clicking the icon (or a notification) makes the office lamp
+    // do a clear, temporary series of bright cool flashes (on bright -> off -> on bright -> off -> final bright hold).
+    // Then it fully reverts to whatever it was doing before. This way if you're in the room you *see*
+    // the lamp flash and instantly know "someone just poked me / new notification".
     async function triggerOfficeLampNotificationPoke() {
       const btn = document.querySelector('button[onclick*="triggerOfficeLampNotificationPoke"]');
       if (!btn) return;
@@ -788,60 +803,12 @@
       if (bulb) bulb.style.transition = 'color 120ms ease';
       if (bulb) bulb.style.color = '#34d399';
 
-      // snapshot whatever the lamp is doing right now
+      // snapshot whatever the lamp is doing right now (so we can perfectly revert)
       const prevState = await getCurrentDeskState();
 
       try {
-        // === The temporary "someone is notifying/poking you" signal ===
-        // Very cool color temp + full brightness grabs attention in the room.
-        // A quick brightness dip + recover makes the lamp feel alive and intentional (the "nudge").
-        await applyToDesk({
-          brightness: 255,
-          color_temp: 170,
-          transition: 0.28
-        });
-
-        // second little reactive blip ~0.95s later — the lamp "responds"
-        setTimeout(async () => {
-          try {
-            await applyToDesk({
-              brightness: 135,
-              color_temp: 170,
-              transition: 0.18
-            });
-            // recover to the bright cool state
-            setTimeout(async () => {
-              try {
-                await applyToDesk({
-                  brightness: 255,
-                  color_temp: 170,
-                  transition: 0.16
-                });
-              } catch (e) {}
-            }, 380);
-          } catch (e) {}
-        }, 950);
-
-        // visible special state for ~4.1s total, then graceful long fade back to exactly what it was
-        setTimeout(async () => {
-          await restoreDesk(prevState);
-          // settle the icon
-          btn.style.transform = 'scale(1)';
-          if (bulb) bulb.style.color = '#10b981';
-          setTimeout(() => {
-            if (bulb) bulb.style.color = '';
-            btn.style.transform = '';
-          }, 620);
-        }, 4100);
-
-        // tiny elegant toast — feels like a personal OS whisper
-        const toast = document.createElement('div');
-        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 text-[11px] px-4 py-1.5 rounded-3xl bg-[#18181b] border border-zinc-700 text-zinc-300 shadow-xl z-[200]';
-        toast.textContent = 'Office lamp waved back at you';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 1750);
-
-        // clear unread state (mark read so next load has no badge, and remove visible badge now)
+        // Fire confirmation bits early so the UI feels instant.
+        // The *physical* signal is the lamp flashing in the room.
         setTimeout(async () => {
           try {
             await fetch('/api/blog/mark-read', { method: 'POST' });
@@ -849,10 +816,48 @@
           // remove any ping badge that was on this button
           const pings = btn.querySelectorAll('.animate-ping, span.relative.inline-flex');
           pings.forEach(p => p.remove());
-        }, 520);
+        }, 180);
+
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 text-[11px] px-4 py-1.5 rounded-3xl bg-[#18181b] border border-zinc-700 text-zinc-300 shadow-xl z-[200]';
+        toast.textContent = 'Office lamp flashed';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 1650);
+
+        // === Temporary flash sequence (the actual "someone poked it" physical signal) ===
+        // Bright cool attention flash, quick off, bright again, quick off, final bright hold.
+        // Short enough to be a clear "flash" alert, then we restore exactly what the lamp was doing.
+        const flash = { brightness: 255, color_temp: 153, transition: 0.05 }; // cool bright white flash for visibility
+
+        // Flash cycle 1
+        await applyToDesk(flash);
+        await sleep(220);
+        await turnOffDesk();
+        await sleep(130);
+
+        // Flash cycle 2
+        await applyToDesk(flash);
+        await sleep(220);
+        await turnOffDesk();
+        await sleep(130);
+
+        // Final bright hold (lamp stays lit in the attention state for a moment)
+        await applyToDesk(flash);
+        await sleep(780);
+
+        // Graceful restore to the exact previous state (including off if it was off before)
+        await restoreDesk(prevState);
+
+        // settle the icon back to normal
+        btn.style.transform = 'scale(1)';
+        if (bulb) bulb.style.color = '#10b981';
+        setTimeout(() => {
+          if (bulb) bulb.style.color = '';
+          btn.style.transform = '';
+        }, 550);
 
       } catch (e) {
-        // best effort revert UI + state
+        // best effort revert UI + lamp state
         btn.style.transform = '';
         if (bulb) bulb.style.color = '';
         if (prevState) {
