@@ -281,8 +281,10 @@
         <nav class="hidden md:flex items-center gap-x-5 text-sm mr-3">
           <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
           <a href="/vitals" class="text-white font-medium">Vitals</a>
+          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
           <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
           <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
+          <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
           <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
 
@@ -342,8 +344,8 @@
         {% endif %}
       </div>
 
-      <!-- Hero Scores -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-9">
+      <!-- Hero Scores - Prioritized key metrics for scannability (Readiness, Sleep, HRV/RHR/Steps/Activity focus) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <!-- Readiness -->
         <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
           <div class="flex items-center justify-between mb-4">
@@ -388,7 +390,7 @@
           <div class="text-xs text-zinc-500 mt-1">Last night • {{ total_sleep }}</div>
         </div>
 
-        <!-- Activity -->
+        <!-- Activity / Steps (prominent) -->
         <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-x-2">
@@ -404,6 +406,28 @@
           </div>
           <div class="text-xs text-zinc-500 mt-1">{{ steps or "—" }} steps • {{ active_calories or "—" }} kcal</div>
         </div>
+      </div>
+
+      <!-- Additional prioritized: HRV / RHR quick row if data (clean, scannable) -->
+      <div class="grid grid-cols-2 gap-4 mb-8">
+        {% if hrv is not none %}
+        <div class="card-bg rounded-2xl p-4 border border-zinc-800 light:border-zinc-200 flex items-center justify-between">
+          <div>
+            <div class="text-xs text-zinc-500">HRV</div>
+            <div class="text-2xl font-semibold tabular-nums">{{ hrv }} <span class="text-xs">ms</span></div>
+          </div>
+          {% if hrv_trend.arrow %}<div class="text-emerald-400 text-sm">{{ hrv_trend.arrow }} {{ hrv_trend.pct }}</div>{% endif %}
+        </div>
+        {% endif %}
+        {% if rhr is not none %}
+        <div class="card-bg rounded-2xl p-4 border border-zinc-800 light:border-zinc-200 flex items-center justify-between">
+          <div>
+            <div class="text-xs text-zinc-500">Resting HR</div>
+            <div class="text-2xl font-semibold tabular-nums">{{ rhr }} <span class="text-xs">bpm</span></div>
+          </div>
+          {% if rhr_trend.arrow %}<div class="text-emerald-400 text-sm">{{ rhr_trend.arrow }} {{ rhr_trend.pct }}</div>{% endif %}
+        </div>
+        {% endif %}
       </div>
 
       <!-- Update status + manual refresh (prominent, scannable; inside main-content so HTMX fragment refresh keeps it fresh) -->
@@ -828,7 +852,7 @@
         </div>
         {% else %}
         <div class="text-[10px] text-center text-zinc-500 tracking-widest">
-          DATA FROM OURA API v2 • PULLED LIVE • NOT MEDICAL ADVICE
+          DATA FROM OURA API v2 • PULLED LIVE • PART OF HENDERBURGH OS
         </div>
         {% endif %}
       </div>
@@ -839,13 +863,15 @@
     {% endif %}
   </div>
 
-  <!-- Mobile bottom navigation (app-like OS for Vitals) -->
+  <!-- Mobile bottom navigation (premium app-like OS, consistent across all pages) -->
   <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0b] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
     <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
       <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
       <a href="/vitals" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
       <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
       <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/xbox" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
       <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
     </div>
   </nav>
