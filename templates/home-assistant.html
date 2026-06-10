@@ -470,7 +470,6 @@
         <button onclick="setPrimaryView('lights')" id="vs-lights">Lights</button>
         <button onclick="setPrimaryView('groups')" id="vs-groups">Groups</button>
         <button onclick="setPrimaryView('scenes')" id="vs-scenes">Scenes</button>
-        <button onclick="setPrimaryView('plan')" id="vs-plan">Plan</button>
       </div>
       <div class="flex-1"></div>
       <div class="text-[10px] text-emerald-400/70">Premium lighting • instant &amp; calm</div>
@@ -483,7 +482,6 @@
         <div class="card p-2 lg:sticky lg:top-20">
           <div class="flex items-center justify-between px-2 pb-1">
             <div class="section-label">Rooms</div>
-            <button onclick="createNewRoom()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new empty room">+</button>
           </div>
           <div id="room-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
             <!-- Populated by JS -->
@@ -491,7 +489,6 @@
 
           <div class="flex items-center justify-between px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">
             <div class="section-label">Sync Groups</div>
-            <button onclick="createNewGroup()" class="text-emerald-400 hover:text-emerald-300 text-lg leading-none" title="Create new Sync Group (pair)">+</button>
           </div>
           <div id="group-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
             <!-- Populated by JS -->
@@ -500,15 +497,6 @@
           <!-- Wiz Sync Box / external sync controls (discovered from HA if present) -->
           <div id="sync-nav" class="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1 mt-1">
             <!-- Populated by JS when sync_controls present -->
-          </div>
-          <!-- Drop zone for creating new sync groups by dragging lights -->
-          <div 
-            id="new-sync-drop"
-            ondragover="event.preventDefault(); this.classList.add('drop-target');"
-            ondragleave="this.classList.remove('drop-target');"
-            ondrop="handleDropToNewSyncGroup(event)"
-            class="mt-1 mx-1 p-2 text-center text-[10px] border border-dashed border-emerald-500/40 rounded text-emerald-400/80 hover:bg-emerald-900/10 transition cursor-pointer">
-            Drop lights here to create Sync Group
           </div>
 
           <div class="section-label px-2 pt-3 pb-1 border-t border-[#3f3f46] mt-2">Scenes</div>
@@ -553,10 +541,6 @@
       <button class="bottom-nav-btn" onclick="setPrimaryView('scenes')" id="bn-scenes" aria-label="Scenes">
         <i class="fa-solid fa-magic"></i>
         <span>Scenes</span>
-      </button>
-      <button class="bottom-nav-btn" onclick="setPrimaryView('plan')" id="bn-plan" aria-label="Floor Plan">
-        <i class="fa-solid fa-map"></i>
-        <span>Plan</span>
       </button>
     </nav>
 
@@ -789,8 +773,7 @@
       (haData.rooms || []).forEach(room => {
         const on = room.on_count || 0;
         roomHtml += `
-          <div class="group flex items-center gap-1 nav-room-btn ${ (primaryView==='rooms') ? 'bg-[#27272a] text-white' : ''} rounded" 
-               draggable="true" ondragover="event.preventDefault()" ondrop="handleDropToRoom(event, '${room.id}')">
+          <div class="group flex items-center gap-1 nav-room-btn ${ (primaryView==='rooms') ? 'bg-[#27272a] text-white' : ''} rounded">
             <button data-view="${room.name}" onclick="jumpToRoom('${room.id}')"
                     class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
               <span class="truncate">${room.name}</span>
@@ -820,8 +803,7 @@
         (haData.groups || []).forEach(group => {
           const on = group.on_count || 0;
           gHtml += `
-            <div class="group flex items-center gap-1 nav-room-btn ${ (primaryView==='groups') ? 'bg-[#27272a] text-white' : ''} rounded" 
-                 draggable="true" ondragover="event.preventDefault()" ondrop="handleDropToGroup(event, '${group.id}')">
+            <div class="group flex items-center gap-1 nav-room-btn ${ (primaryView==='groups') ? 'bg-[#27272a] text-white' : ''} rounded">
               <button data-view="${group.name}" onclick="setPrimaryView('groups')"
                       class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
                 <span class="truncate">${group.name}</span>
@@ -906,135 +888,30 @@
       return lights.filter(id => id !== eid);
     }
 
-    async function handleDropToNewSyncGroup(ev) {
-      ev.preventDefault();
-      const src = ev.dataTransfer.getData("text/plain");
-      const zone = document.getElementById('new-sync-drop');
-      if (zone) zone.classList.remove('drop-target');
-      if (!src) return;
-      const name = prompt("Name for new Sync Group:", "New Sync Group");
-      if (!name) return;
-      try {
-        const createRes = await fetch(`/api/ha/lighting/group/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
-        const data = await createRes.json();
-        if (data && data.group && data.group.id) {
-          await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(src)}&group_id=${encodeURIComponent(data.group.id)}&add=true`, { method: 'POST' });
-          await refreshAllData();
-        }
-      } catch (e) { alert("Failed to create sync group"); }
-    }
+    // Drag drop handlers removed (no more drag-to-sync or drag lights).
 
-    async function handleDropOntoLight(ev, targetEid) {
-      ev.preventDefault();
-      const card = ev.currentTarget;
-      card.classList.remove('ring-2', 'ring-emerald-400');
-      const srcEid = ev.dataTransfer.getData("text/plain");
-      if (!srcEid || srcEid === targetEid) return;
-
-      // Find names for nice prompt (best effort)
-      const allLights = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
-      const srcL = allLights.find(l => l.entity_id === srcEid);
-      const tgtL = allLights.find(l => l.entity_id === targetEid);
-      const suggested = `Pair ${srcL ? srcL.friendly_name : srcEid} + ${tgtL ? tgtL.friendly_name : targetEid}`;
-      const name = prompt("Create Sync Group with these lights?", suggested);
-      if (!name) return;
-
-      try {
-        const createRes = await fetch(`/api/ha/lighting/group/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
-        const data = await createRes.json();
-        if (data && data.group && data.group.id) {
-          const gid = data.group.id;
-          await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(srcEid)}&group_id=${encodeURIComponent(gid)}&add=true`, { method: 'POST' });
-          await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(targetEid)}&group_id=${encodeURIComponent(gid)}&add=true`, { method: 'POST' });
-          await refreshAllData();
-        }
-      } catch (e) { alert("Failed to pair lights"); }
-    }
-
+    // getLightName kept for other uses if any; drag functions removed. Touch long-press quick actions preserved in simplified init below.
     function getLightName(eid) {
       const all = [...Object.values(haData?.lights_by_room || {}).flat(), ...(haData?.unassigned_lights || [])];
       const l = all.find(x => x.entity_id === eid);
       return l ? l.friendly_name : eid;
     }
 
-    function handleLightDragStart(ev, eid) {
-      ev.dataTransfer.setData("text/plain", eid);
-      const card = ev.target.closest('.card');
-      if (card) card.classList.add('dragging');
-    }
-
-    function handleDragEnd(ev) {
-      document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
-      document.querySelectorAll('.drop-target, .ring-2').forEach(el => el.classList.remove('drop-target', 'ring-2', 'ring-emerald-400'));
-    }
-
-    // --- Mobile touch drag & drop (works alongside desktop HTML5 drag) ---
+    // --- Simplified mobile touch (long-press quick actions only; no drag-to-move/assign) ---
     let touchDragEid = null;
     let touchDragEl = null;
 
     function initTouchDrag(el, eid) {
       let pressTimer = null;
       el.addEventListener('touchstart', (e) => {
-        // Do not start card drag if interacting with controls (sliders, buttons) - fixes drag conflict
-        if (e.target.closest('input[type="range"], button, select, .mode-toggle, .effect-btn')) {
-          return;
-        }
-        touchDragEid = eid;
-        touchDragEl = el;
-        el.classList.add('dragging');
-        // Long press for quick actions (500ms)
+        if (e.target.closest('input[type="range"], button, select, .mode-toggle, .effect-btn')) return;
         pressTimer = setTimeout(() => {
           showQuickActions(eid, e.touches[0]);
-          // cancel drag if long press
-          if (touchDragEl) touchDragEl.classList.remove('dragging');
-          touchDragEid = null;
-          touchDragEl = null;
-        }, 520);
+        }, 500);
       }, {passive: true});
-
-      el.addEventListener('touchend', () => {
-        clearTimeout(pressTimer);
-        if (touchDragEl) touchDragEl.classList.remove('dragging');
-        touchDragEid = null;
-        touchDragEl = null;
-      }, {passive: true});
-
-      el.addEventListener('touchmove', (e) => {
-        clearTimeout(pressTimer);
-        if (!touchDragEid) return;
-        const touch = e.touches[0];
-        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        // highlight drop zones
-        document.querySelectorAll('.floor-plan-room, .nav-room-btn, [data-view]').forEach(dz => dz.classList.remove('drop-target'));
-        if (target) {
-          const dropZone = target.closest('.floor-plan-room, .nav-room-btn, [data-view]');
-          if (dropZone) dropZone.classList.add('drop-target');
-        }
-      }, {passive: true});
-
-      el.addEventListener('touchend', (e) => {
-        if (!touchDragEid) return;
-        const touch = e.changedTouches[0];
-        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        const dropZone = target ? target.closest('.floor-plan-room, .nav-room-btn, [data-view]') : null;
-        document.querySelectorAll('.drop-target').forEach(dz => dz.classList.remove('drop-target'));
-
-        if (dropZone) {
-          const roomId = dropZone.getAttribute('data-view') || dropZone.dataset.roomId || dropZone.getAttribute('data-eid') ? '' : null;
-          // Simple: if it's a room nav or floor room, use handle logic
-          if (dropZone.classList.contains('nav-room-btn') || dropZone.classList.contains('floor-plan-room')) {
-            const id = dropZone.getAttribute('data-view') || dropZone.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || '';
-            if (id) {
-              // reuse assign
-              fetch(`/api/ha/lighting/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(touchDragEid)}&room_id=${encodeURIComponent(id)}`, {method:'POST'})
-                .then(() => refreshAllData());
-            }
-          }
-        }
-        if (touchDragEl) touchDragEl.classList.remove('dragging');
-        touchDragEid = null;
-        touchDragEl = null;
-      }, {passive: true});
+      const clear = () => clearTimeout(pressTimer);
+      el.addEventListener('touchend', clear, {passive: true});
+      el.addEventListener('touchcancel', clear, {passive: true});
     }
 
     // Long-press quick actions popover (thumb friendly on mobile)
@@ -1109,7 +986,7 @@
           <div class="flex justify-between text-xs mb-1"><span>Brightness</span><span>${briPct}%</span></div>
           <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400 mb-3"
                  oninput="debouncedBrightness('${eid}', this.value, this); const v=document.getElementById('detail-bri-val'); if(v) v.textContent=this.value+'%' "
-                 onpointerdown="event.stopPropagation()" ondragstart="event.stopPropagation()">
+                 onpointerdown="event.stopPropagation()">
           <div id="detail-bri-val" class="text-[10px] text-right text-zinc-500">${briPct}%</div>
         </div>
       `;
@@ -1120,7 +997,7 @@
             <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
             <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400 mb-1"
                    oninput="debouncedColorTemp('${eid}', this.value, this)"
-                   onpointerdown="event.stopPropagation()" ondragstart="event.stopPropagation()">
+                   onpointerdown="event.stopPropagation()">
           </div>
         `;
       }
@@ -1129,17 +1006,16 @@
         html += `
           <div>
             <div class="text-xs mb-1 text-zinc-400">Color</div>
-            <div class="flex items-center gap-3 mb-2">
-              <input type="color" value="#ffcc99" class="w-12 h-9 p-0 border border-zinc-700 bg-transparent rounded-md cursor-pointer" oninput="debouncedColor('${eid}', this.value, this)"
+            <div class="flex items-center gap-3 mb-1">
+              <input type="color" value="#ffcc99" class="w-14 h-10 p-0 border border-zinc-700 bg-transparent rounded-xl cursor-pointer shadow-sm" oninput="debouncedColor('${eid}', this.value, this)"
                      onpointerdown="event.stopPropagation()">
               <div class="flex-1">
-                <div class="text-[10px] text-zinc-500 mb-1">Presets</div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                   ${typeof createPresetButtons === 'function' ? createPresetButtons(eid) : ''}
                 </div>
               </div>
             </div>
-            <div class="text-[9px] text-zinc-500">Tap swatch or use the picker for custom colors. Changes sync across the group.</div>
+            <div class="text-[9px] text-zinc-500">Picker + quick palettes. Applies live to the group.</div>
           </div>
         `;
       }
@@ -1147,20 +1023,25 @@
       if (effectList.length || (light.options && light.options.length)) {
         html += `
           <div>
-            <div class="text-xs mb-1 text-zinc-400">Mode & Effects</div>
-            <!-- Clean modern toggle (premium, not cheap segmented) -->
-            <div class="mode-toggle mb-2 w-full">
+            <div class="text-xs mb-1 text-zinc-400">Mode</div>
+            <!-- Clean modern toggle -->
+            <div class="mode-toggle mb-3 w-full">
               <button onclick="setLightMode('${eid}', 'static', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="flex-1 ${!curEffect ? 'active' : ''}">Static</button>
               <button onclick="setLightMode('${eid}', 'dynamic', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="flex-1 ${curEffect ? 'active' : ''}">Dynamic</button>
             </div>
-            <!-- Calmer, more scannable effects grid with better spacing and feedback -->
+
             ${effectList.length ? `
-            <div class="effect-grid grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[10px] max-h-32 overflow-auto border border-zinc-800 rounded p-1.5 bg-[#111113]">
-              ${effectList.map(eff => {
-                const safe = eff.replace(/'/g, "\\'");
-                const active = curEffect === eff ? 'active' : '';
-                return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="effect-btn text-left px-2 py-1 ${active}">${eff}</button>`;
-              }).join('')}
+            <div>
+              <div class="text-xs mb-1.5 text-zinc-400">Effect</div>
+              <!-- Genius & easy: large, readable, generous tap targets (no more tiny cramped grid of 9px text). Current stands out strongly. Scroll if many. -->
+              <div class="flex flex-wrap gap-1.5 max-h-[168px] overflow-auto p-1 bg-[#111113] border border-zinc-800 rounded-2xl">
+                ${effectList.map(eff => {
+                  const safe = eff.replace(/'/g, "\\'");
+                  const active = curEffect === eff ? 'active !bg-emerald-500/20 !border-emerald-400 !text-white' : '';
+                  return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" 
+                          class="effect-btn flex-1 basis-[48%] min-w-[110px] text-left px-3 py-2 text-[13px] leading-tight ${active} rounded-xl">${eff}</button>`;
+                }).join('')}
+              </div>
             </div>` : ''}
 
             ${curEffect ? `
@@ -1171,7 +1052,7 @@
               </div>
               <input type="range" min="1" max="100" value="${curSpeed}" class="w-full accent-emerald-400"
                      oninput="debouncedEffectSpeed('${eid}', parseInt(this.value)); const v=document.getElementById('detail-speed-val'); if(v) v.textContent=this.value;"
-                     onpointerdown="event.stopPropagation()" ondragstart="event.stopPropagation()">
+                     onpointerdown="event.stopPropagation()">
               <div class="flex justify-between text-[9px] text-zinc-500 mt-0.5">
                 <span>Slow</span>
                 <span>Normal</span>
@@ -1182,17 +1063,16 @@
             ${ (light.options && light.options.length) ? `
             <div class="mt-3 pt-2 border-t border-zinc-800">
               <div class="text-[10px] text-amber-300 mb-1 flex items-center gap-1">
-                <i class="fa-solid fa-magic"></i> Sync / Wiz modes
-                <span class="text-[9px] text-zinc-500">(Vivid, Theater, etc. — only if your device reports them)</span>
+                <i class="fa-solid fa-magic"></i> Sync / Wiz modes <span class="text-[9px] text-zinc-500">(device-reported only)</span>
               </div>
-              <div class="flex flex-wrap gap-1">
+              <div class="flex flex-wrap gap-1.5">
                 ${light.options.map(opt => {
                   const safeOpt = String(opt).replace(/'/g, "\\'");
-                  const active = (curEffect === opt) ? 'active' : '';
-                  return `<button onclick="applySelectOption('${eid}', '${safeOpt}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="effect-btn text-left px-2 py-0.5 text-[10px] ${active}">${opt}</button>`;
+                  const active = (curEffect === opt) ? 'active !bg-emerald-500/20 !border-emerald-400 !text-white' : '';
+                  return `<button onclick="applySelectOption('${eid}', '${safeOpt}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" 
+                          class="effect-btn text-left px-3 py-1.5 text-sm ${active} rounded-xl">${opt}</button>`;
                 }).join('')}
               </div>
-              <div class="text-[9px] text-zinc-500 mt-1">For TV lights + Wiz Sync Box. Tap to set the mode on the box/control.</div>
             </div>` : ''}
           </div>
         `;
@@ -1244,31 +1124,7 @@
       }
     });
 
-    async function createNewRoom() {
-      const name = prompt("New room name (starts empty — drag lights into it):");
-      if (!name) return;
-      try {
-        const res = await fetch(`/api/ha/lighting/room/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
-        if (res.ok) {
-          await refreshAllData();
-        } else {
-          alert("Failed to create room");
-        }
-      } catch (e) { alert("Error creating room"); }
-    }
-
-    async function createNewGroup() {
-      const name = prompt("New Sync Group name (e.g. Hallway Pair or Kitchen Lights):");
-      if (!name) return;
-      try {
-        const res = await fetch(`/api/ha/lighting/group/create?token=${encodeURIComponent(adminToken)}&name=${encodeURIComponent(name)}`, { method: 'POST' });
-        if (res.ok) {
-          await refreshAllData();
-        } else {
-          alert("Failed to create sync group");
-        }
-      } catch (e) { alert("Error creating sync group"); }
-    }
+    // Room/group creation removed — structure is fixed and correct in lighting_config.json (TV lamps, kitchen, hallway etc. already properly grouped). Use rename/delete only if needed via other means or future.
 
     async function renameRoom(roomId, currentName) {
       const newName = prompt("Rename room:", currentName);
@@ -1312,25 +1168,7 @@
       } catch (e) {}
     }
 
-    async function handleDropToRoom(ev, roomId) {
-      ev.preventDefault();
-      const eid = ev.dataTransfer.getData("text/plain");
-      if (!eid) return;
-      try {
-        await fetch(`/api/ha/lighting/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(eid)}&room_id=${encodeURIComponent(roomId)}`, { method: 'POST' });
-        await refreshAllData();
-      } catch (e) {}
-    }
-
-    async function handleDropToGroup(ev, groupId) {
-      ev.preventDefault();
-      const eid = ev.dataTransfer.getData("text/plain");
-      if (!eid) return;
-      try {
-        await fetch(`/api/ha/lighting/group/assign?token=${encodeURIComponent(adminToken)}&entity_id=${encodeURIComponent(eid)}&group_id=${encodeURIComponent(groupId)}&add=true`, { method: 'POST' });
-        await refreshAllData();
-      } catch (e) {}
-    }
+    // Drop-to-assign removed (drag-to-sync / drag lights fully disabled; structure fixed in config).
 
     function getLightState(eid) {
       return lightsState[eid] || {};
@@ -1521,7 +1359,7 @@
             <div class="entity-grid mt-1">`;
 
         if (roomLights.length === 0) {
-          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-zinc-700 rounded">Empty room — drag lights here from the Lights view or Unassigned.</div>`;
+          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-zinc-700 rounded">No lights in this room (fixed in configuration).</div>`;
         } else {
           roomLights.forEach(l => { html += createLightCardHTML(l); });
         }
@@ -1560,7 +1398,7 @@
       let html = `<div class="mb-2"><span class="section-label">Sync Groups</span> <span class="text-xs text-emerald-400/80">— act as one</span></div>`;
 
       if (groups.length === 0) {
-        html += `<div class="card p-6 text-sm">No sync groups. Create powerful groups that stay perfectly in sync (effects fire together, brightness together).</div>`;
+        html += `<div class="card p-6 text-sm">No sync groups configured.</div>`;
         container.innerHTML = html;
         return;
       }
@@ -1609,7 +1447,7 @@
           html += createLightCardHTML(l, /*forceSyncBadge*/ group.name);
         });
         if (gLights.length === 0) {
-          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-emerald-900/40 rounded">This group is empty — drag lights onto it from the Lights view or sidebar.</div>`;
+          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-emerald-900/40 rounded">This group is empty (lights fixed in configuration).</div>`;
         }
         html += `</div></div>`;
       });
@@ -1639,12 +1477,6 @@
 
       return `
         <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}"
-             draggable="true"
-             ondragstart="handleLightDragStart(event, '${eid}')"
-             ondragend="handleDragEnd(event)"
-             ondragover="event.preventDefault(); this.classList.add('ring-2','ring-emerald-400');"
-             ondragleave="this.classList.remove('ring-2','ring-emerald-400');"
-             ondrop="handleDropOntoLight(event, '${eid}')"
              onclick="if (!event.target.closest('button,input,select,.control-wrapper,.mode-toggle,.effect-btn')) openLightDetail('${eid}');">
           <div class="flex items-start justify-between mb-2">
             <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');">
@@ -1658,29 +1490,29 @@
             </button>
           </div>
 
-          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();" ondragstart="event.stopPropagation();">
+          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();">
             <div class="flex justify-between text-[10px] mb-0.5 text-zinc-400">
               <span>Brightness</span>
               <span class="tabular-nums text-xs text-zinc-400">${state === 'unknown' ? '—' : briPct + '%'}</span>
             </div>
             <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400"
                    oninput="debouncedBrightness('${eid}', this.value, this)"
-                   onpointerdown="event.stopPropagation()" ondragstart="event.stopPropagation()">
+                   onpointerdown="event.stopPropagation()">
           </div>
 
           ${supportsCt ? `
-          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();" ondragstart="event.stopPropagation();">
+          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();">
             <div class="flex justify-between text-[10px] mb-0.5">
               <span class="text-amber-300">Warm</span>
               <span class="text-sky-300">Cool</span>
             </div>
             <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
                    oninput="debouncedColorTemp('${eid}', this.value, this)"
-                   onpointerdown="event.stopPropagation()" ondragstart="event.stopPropagation()">
+                   onpointerdown="event.stopPropagation()">
           </div>` : ''}
 
           ${supportsRgb ? `
-          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();" ondragstart="event.stopPropagation();">
+          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();">
             <div class="text-[10px] text-zinc-400 mb-1">Color</div>
             <div>
               <input type="color" value="#ffcc99" class="w-8 h-6 p-0 border-0 bg-transparent rounded" oninput="debouncedColor('${eid}', this.value, this)"
@@ -1694,13 +1526,8 @@
               <button onclick="setLightMode('${eid}', 'static', this); event.stopImmediatePropagation();" class="${mode !== 'dynamic' ? 'active' : ''}">Static</button>
               <button onclick="setLightMode('${eid}', 'dynamic', this); event.stopImmediatePropagation();" class="${mode === 'dynamic' ? 'active' : ''}">Dynamic</button>
             </div>
-            ${mode === 'dynamic' ? `
-            <div class="effect-grid grid grid-cols-3 sm:grid-cols-4 gap-1 text-[9px] max-h-24 overflow-auto">
-              ${effectList.map(eff => {
-                const safeEff = eff.replace(/'/g, "\\'");
-                return `<button onclick="applyEffect('${eid}', '${safeEff}', this); event.stopImmediatePropagation();" class="effect-btn ${curEffect === eff ? 'active' : ''}">${eff}</button>`;
-              }).join('')}
-            </div>` : ''}
+            ${mode === 'dynamic' && curEffect ? `
+            <div class="text-[9px] text-emerald-300 mt-0.5 truncate">• ${curEffect}</div>` : ''}
           </div>` : '' }
         </div>`;
     }
@@ -1723,44 +1550,30 @@
     }
 
     function renderFloorPlanView(container) {
-      // Visual reference + interactive organization using the smart rooms as a "map".
-      // Shows user's floor plan image (if provided at /static/floorplan.jpg) for context.
-      // The room boxes below act as a simple house layout you can drag lights onto.
-      // Main organize view (sidebar + grid) remains the fast daily driver.
+      // Pure visual reference (all drag-to-organize removed; rooms & sync groups are fixed/correct per config).
       const rooms = haData.rooms || [];
       const allLightsFlat = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
 
       let roomBoxes = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">';
       rooms.forEach(room => {
         const roomLights = allLightsFlat.filter(l => (room.light_ids || []).includes(l.entity_id));
-        let pills = '';
-        roomLights.forEach(l => {
-          const short = (l.friendly_name || l.entity_id).split(' ').slice(0,2).join(' ');
-          pills += `<span draggable="true" ondragstart="handleLightDragStart(event, '${l.entity_id}')" ondragend="handleDragEnd(event)"
-                         onclick="event.stopImmediatePropagation(); openLightDetail('${l.entity_id}')"
-                         class="light-pill" data-eid="${l.entity_id}">${short}</span>`;
-        });
+        const names = roomLights.map(l => (l.friendly_name || l.entity_id).split(' ').slice(0,1).join(' ')).join(', ') || '—';
         roomBoxes += `
-          <div class="floor-plan-room p-2 text-xs" 
-               ondragover="event.preventDefault(); this.classList.add('drop-target');"
-               ondragleave="this.classList.remove('drop-target');"
-               ondrop="event.preventDefault(); this.classList.remove('drop-target'); handleDropToRoom(event, '${room.id}');">
+          <div class="floor-plan-room p-2 text-xs">
             <div class="font-medium text-emerald-300 mb-1 flex items-center justify-between">
               <span>${room.name}</span>
               <span class="text-[10px] text-zinc-500">${roomLights.length}</span>
             </div>
-            <div class="min-h-[36px] flex flex-wrap gap-0.5 content-start">
-              ${pills || '<span class="text-zinc-500 text-[10px]">empty — drag lights here</span>'}
-            </div>
+            <div class="text-[10px] text-zinc-400 truncate">${names}</div>
           </div>`;
       });
       roomBoxes += '</div>';
 
       const imgHtml = `
         <div class="mb-3">
-          <div class="text-xs text-zinc-500 mb-1">Floor Plan Reference — place your blueprint image at <code>static/floorplan.jpg</code> (or .png) to show the real photo as visual context (the interactive room areas below act as the "plan" for dragging lights onto rooms).</div>
+          <div class="text-xs text-zinc-500 mb-1">Floor Plan Reference — place your blueprint image at <code>static/floorplan.jpg</code> (or .png) to show the real photo as visual context.</div>
           <img src="/static/floorplan.jpg" class="w-full max-h-64 object-contain rounded border border-zinc-800 bg-zinc-950 mb-2" 
-               onerror="this.outerHTML = '<div class=\\'text-[10px] text-zinc-400 p-2 border border-dashed border-zinc-700 rounded\\'>Add your floor plan blueprint image as static/floorplan.jpg to see it here as reference. The boxes below provide the interactive visual organization map matching your rooms.</div>'; ">
+               onerror="this.outerHTML = '<div class=\\'text-[10px] text-zinc-400 p-2 border border-dashed border-zinc-700 rounded\\'>Add your floor plan blueprint image as static/floorplan.jpg to see it here as reference.</div>'; ">
         </div>
       `;
 
@@ -1769,44 +1582,14 @@
           <div class="mb-2 flex items-center gap-2">
             <i class="fa-solid fa-map text-emerald-400"></i>
             <span class="font-medium">Floor Plan</span>
-            <span class="text-[10px] text-zinc-500">(drag lights onto rooms)</span>
           </div>
           ${imgHtml}
-          <div class="text-xs text-zinc-400 mb-2">Visual reference. Drag light pills or cards onto the room boxes below (or use the sidebar / Lights view). Changes persist instantly.</div>
-          <!-- The interactive visual "plan" using your actual rooms as drop zones -->
+          <div class="text-xs text-zinc-400 mb-2">Visual reference only. Room & group assignments are fixed in the saved configuration.</div>
           <div class="border border-zinc-700 rounded-lg p-2 bg-zinc-950 mb-3" style="min-height: 120px;">
             ${roomBoxes}
           </div>
-          <!-- Unassigned always shown for new HA lights -->
-          <div class="mt-1">
-            <div class="text-xs text-amber-400 mb-1">Unassigned — drag to any room box</div>
-            <div class="floor-plan-room p-2 text-xs border-amber-700" 
-                 ondragover="event.preventDefault(); this.classList.add('drop-target');"
-                 ondragleave="this.classList.remove('drop-target');"
-                 ondrop="event.preventDefault(); this.classList.remove('drop-target'); handleDropToRoom(event, '');">
-              ${(() => {
-                const un = (haData.unassigned_lights || []);
-                if (!un.length) return '<span class="text-zinc-500 text-[10px]">No unassigned lights</span>';
-                return un.map(l => {
-                  const short = (l.friendly_name || l.entity_id).split(' ').slice(0,2).join(' ');
-                  return `<span draggable="true" ondragstart="handleLightDragStart(event, '${l.entity_id}')" ondragend="handleDragEnd(event)" onclick="event.stopImmediatePropagation(); openLightDetail('${l.entity_id}')" class="light-pill" data-eid="${l.entity_id}">${short}</span>`;
-                }).join('');
-              })()}
-            </div>
-          </div>
         </div>
       `;
-
-      // Mobile touch init for floor plan pills/boxes
-      if (window.innerWidth < 768) {
-        container.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(el => {
-          const eid = el.dataset.eid;
-          if (eid && !el._touchInit) {
-            initTouchDrag(el, eid);
-            el._touchInit = true;
-          }
-        });
-      }
     }
 
     // --- Helpers (consolidated, no duplicates) ---
@@ -2061,8 +1844,7 @@
           return await callWithRetry(() => callLightService(l, {effect, speed_pct: speed}), 2);
         }));
         if (results.some(r => !r)) {
-          // non-fatal for slider; user is actively dragging
-          // could show subtle indicator but avoid noise
+          // non-fatal for continuous slider
         }
       }, 'effect-speed-' + eid);
     }
@@ -2149,17 +1931,18 @@
     }
 
     function createPresetButtons(eid) {
-      // Reduced & cleaned presets for seamless/intuitive color customization (only in detail sheet)
+      // Larger, seamless presets for quick beautiful colors (detail only). Easy thumb taps, nice harmony with the calm design.
       const presets = [
         {label: 'Warm', color: '#ffcc99'},
-        {label: 'Cool', color: '#e0f2fe'},
-        {label: 'Red', color: '#ff6b6b'},
-        {label: 'Blue', color: '#4dabf7'},
-        {label: 'Purple', color: '#9775fa'},
+        {label: 'Cool', color: '#bae6fd'},
+        {label: 'Amber', color: '#fcd34d'},
+        {label: 'Red', color: '#fda4af'},
+        {label: 'Blue', color: '#93c5fd'},
+        {label: 'Purple', color: '#c4b5fd'},
       ];
       return presets.map(p => 
         `<button onclick="applyPreset('${eid}', '${p.color}', this)" 
-                 class="w-8 h-8 rounded-full border border-[#3f3f46] hover:scale-110 transition shadow-sm" 
+                 class="w-9 h-9 rounded-full border border-[#3f3f46] hover:scale-105 active:scale-95 transition shadow-sm" 
                  style="background:${p.color}" title="${p.label}"></button>`
       ).join('');
     }
