@@ -1406,8 +1406,8 @@
             <div class="text-xs mb-1 text-zinc-400">Mode</div>
             <!-- Clean modern toggle -->
             <div class="mode-toggle mb-3 w-full">
-              <button onclick="setLightMode('${eid}', 'static', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="flex-1 ${!curEffect ? 'active' : ''}">Static</button>
-              <button onclick="setLightMode('${eid}', 'dynamic', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="flex-1 ${curEffect ? 'active' : ''}">Dynamic</button>
+              <button onclick="setLightMode('${eid}', 'static', this); event.stopImmediatePropagation();" class="flex-1 ${!curEffect ? 'active' : ''}">Static</button>
+              <button onclick="setLightMode('${eid}', 'dynamic', this); event.stopImmediatePropagation();" class="flex-1 ${curEffect ? 'active' : ''}">Dynamic</button>
             </div>
 
             ${effectList.length ? `
@@ -1418,7 +1418,7 @@
                 ${effectList.map(eff => {
                   const safe = eff.replace(/'/g, "\\'");
                   const active = curEffect === eff ? 'active !bg-emerald-500/20 !border-emerald-400 !text-white' : '';
-                  return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" 
+                  return `<button onclick="applyEffect('${eid}', '${safe}', this); event.stopImmediatePropagation();" 
                           class="effect-btn flex-1 basis-[48%] min-w-[110px] text-left px-3 py-2 text-[13px] leading-tight ${active} rounded-xl">${eff}</button>`;
                 }).join('')}
               </div>
@@ -1449,7 +1449,7 @@
                 ${light.options.map(opt => {
                   const safeOpt = String(opt).replace(/'/g, "\\'");
                   const active = (curEffect === opt) ? 'active !bg-emerald-500/20 !border-emerald-400 !text-white' : '';
-                  return `<button onclick="applySelectOption('${eid}', '${safeOpt}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" 
+                  return `<button onclick="applySelectOption('${eid}', '${safeOpt}', this); event.stopImmediatePropagation();" 
                           class="effect-btn text-left px-3 py-1.5 text-sm ${active} rounded-xl">${opt}</button>`;
                 }).join('')}
               </div>
@@ -1895,11 +1895,12 @@
 
           ${supportsRgb ? `
           <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();">
-            <div class="text-[10px] text-zinc-400 mb-1">Color</div>
-            <div>
-              <input type="color" value="#ffcc99" class="w-8 h-6 p-0 border-0 bg-transparent rounded" oninput="debouncedColor('${eid}', this.value, this)"
-                     onpointerdown="event.stopPropagation()">
+            <div class="flex items-center justify-between text-[10px] mb-0.5">
+              <span class="text-zinc-400">Color</span>
+              <span class="text-[9px] text-zinc-500">tap for more</span>
             </div>
+            <input type="color" value="#ffcc99" class="w-10 h-8 p-0 border border-zinc-600 bg-transparent rounded-lg cursor-pointer shadow-sm" oninput="debouncedColor('${eid}', this.value, this)"
+                   onpointerdown="event.stopPropagation()">
           </div>` : ''}
 
           ${effectList.length > 0 ? `
@@ -1909,7 +1910,7 @@
               <button onclick="setLightMode('${eid}', 'dynamic', this); event.stopImmediatePropagation();" class="${mode === 'dynamic' ? 'active' : ''}">Dynamic</button>
             </div>
             ${mode === 'dynamic' && curEffect ? `
-            <div class="text-[9px] text-emerald-300 mt-0.5 truncate">• ${curEffect}</div>` : ''}
+            <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');" class="text-[9px] text-emerald-300 mt-0.5 truncate cursor-pointer hover:underline">• ${curEffect} (tap for options)</div>` : ''}
           </div>` : '' }
         </div>`;
     }
@@ -2063,31 +2064,48 @@
         let allSucceeded = true;
 
         if (mode === 'static') {
-          // To go static: call turn_on without an effect param (tells many lights to stop any running dynamic effect)
+          // To go static reliably: clear effect + send a solid command (brightness or last color) so the light exits dynamic mode
           const results = await Promise.all(groupLights.map(async (l) => {
-            const ok = await callWithRetry(() => callLightService(l, {} /* no effect */), 3);
+            const snap = prevSnapshots[l] || getLightState(l) || {};
+            const payload = {};
+            if (snap.brightness != null) payload.brightness = snap.brightness;
+            if (snap.rgb_color) payload.rgb_color = snap.rgb_color;
+            else if (snap.color_temp != null) payload.color_temp = snap.color_temp;
+            const ok = await callWithRetry(() => callLightService(l, payload), 3);
             return { l, ok };
           }));
           allSucceeded = results.every(r => r.ok);
 
-          if (applyId < window.__lastApplyId) return; // superseded by newer tap
+          if (applyId < window.__lastApplyId) return;
 
           if (!allSucceeded) {
-            results.filter(r => !r.ok).forEach(r => updateLightState(r.l, prevSnapshots[r.l]));
+            results.filter(r => !r.ok).forEach(r => updateLightState(r.l, prevSnapshots[r.l] || {}));
             renderCurrentView();
             showFeedback('Some lights did not switch to Static after retries.', true);
           }
         } else {
-          // Dynamic: the mode flag is UI only. Real "dynamic" happens when an effect is chosen.
-          // We just ensure the light is on so effects can play.
+          // Dynamic: make it actually do something useful immediately.
+          // If no effect is currently active on the light, auto-apply a sensible first effect (if the light reports any).
+          // This makes tapping "Dynamic" start a dynamic mode right away.
           const results = await Promise.all(groupLights.map(async (l) => {
             const st = getLightState(l) || {};
             const payload = {};
             if (st.brightness != null) payload.brightness = st.brightness;
+
+            // Auto-start a dynamic effect if none is set
+            const lightInfo = (haData ? [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])].find(x => x.entity_id === l) : null) || {};
+            const effects = lightInfo.effect_list || st.effect_list || [];
+            const currentEff = st.current_effect || '';
+            if (!currentEff && effects.length > 0) {
+              const firstEffect = effects[0];
+              payload.effect = firstEffect;
+              // also update local state immediately for this light
+              updateLightState(l, { current_effect: firstEffect, mode: 'dynamic' });
+            }
+
             const ok = await callWithRetry(() => callLightService(l, payload), 2);
             return { l, ok };
           }));
-          // Dynamic doesn't require success for the flag (user will pick effect next); only log issues
           if (applyId < window.__lastApplyId) return;
         }
 
@@ -2392,8 +2410,12 @@
       groupLights.forEach(l => updateLightState(l, {color_temp: mired, state: 'on'}));
 
       debounce(async () => {
-        const promises = groupLights.map(l => callLightService(l, {color_temp: mired}).catch(()=>{}));
-        await Promise.all(promises);
+        const results = await Promise.all(groupLights.map(async (l) => {
+          return await callWithRetry(() => callLightService(l, {color_temp: mired}), 2);
+        }));
+        if (results.some(r => !r)) {
+          showFeedback('Some color temperature updates had issues.', true);
+        }
       }, 'temp-' + eid);
     }
 
@@ -2403,8 +2425,12 @@
       groupLights.forEach(l => updateLightState(l, {rgb_color: rgb, state: 'on'}));
 
       debounce(async () => {
-        const promises = groupLights.map(l => callLightService(l, {rgb_color: rgb}).catch(()=>{}));
-        await Promise.all(promises);
+        const results = await Promise.all(groupLights.map(async (l) => {
+          return await callWithRetry(() => callLightService(l, {rgb_color: rgb}), 2);
+        }));
+        if (results.some(r => !r)) {
+          showFeedback('Some color updates had issues.', true);
+        }
       }, 'color-' + eid);
     }
 
@@ -2422,8 +2448,14 @@
       const groupLights = getSyncGroupLights(eid);
       groupLights.forEach(l => updateLightState(l, {rgb_color: rgb, state: 'on'}));
       renderCurrentView();
-      const promises = groupLights.map(l => callLightService(l, {rgb_color: rgb}).catch(()=>{}));
-      Promise.all(promises);
+      (async () => {
+        const results = await Promise.all(groupLights.map(async (l) => {
+          return await callWithRetry(() => callLightService(l, {rgb_color: rgb}), 2);
+        }));
+        if (results.some(r => !r)) {
+          showFeedback('Some preset colors had issues after retries.', true);
+        }
+      })();
     }
 
     async function activateScene(eid, btn) {
