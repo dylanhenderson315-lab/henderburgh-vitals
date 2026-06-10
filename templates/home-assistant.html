@@ -1859,9 +1859,9 @@
 
       return `
         <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}"
-             onclick="if (!event.target.closest('button,input,select,.control-wrapper,.mode-toggle,.effect-btn')) openLightDetail('${eid}');">
+             onclick="if (!event.target.closest('button,input,select,.effect-btn')) openLightDetail('${eid}');">
           <div class="flex items-start justify-between mb-2">
-            <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');">
+            <div>
               <div class="font-medium text-sm truncate">${friendly}</div>
               ${syncNames ? `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${syncNames}</div>` : ''}
               ${light && light.is_sync ? `<div class="text-[9px] text-amber-400 inline px-1 rounded bg-amber-900/30 mr-1">SYNC BOX</div>` : ''}
@@ -1872,7 +1872,7 @@
             </button>
           </div>
 
-          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();">
+          <div class="mb-2 control-wrapper">
             <div class="flex justify-between text-[10px] mb-0.5 text-zinc-400">
               <span>Brightness</span>
               <span class="tabular-nums text-xs text-zinc-400">${state === 'unknown' ? '—' : briPct + '%'}</span>
@@ -1883,7 +1883,7 @@
           </div>
 
           ${supportsCt ? `
-          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();">
+          <div class="mb-2 control-wrapper">
             <div class="flex justify-between text-[10px] mb-0.5">
               <span class="text-amber-300">Warm</span>
               <span class="text-sky-300">Cool</span>
@@ -1894,7 +1894,7 @@
           </div>` : ''}
 
           ${supportsRgb ? `
-          <div class="mb-2 control-wrapper" onclick="event.stopImmediatePropagation();" onpointerdown="event.stopPropagation();">
+          <div class="mb-2 control-wrapper">
             <div class="flex items-center justify-between text-[10px] mb-0.5">
               <span class="text-zinc-400">Color</span>
               <span class="text-[9px] text-zinc-500">tap for more</span>
@@ -1904,13 +1904,11 @@
           </div>` : ''}
 
           ${effectList.length > 0 ? `
-          <div class="mt-1 control-wrapper" onclick="event.stopImmediatePropagation();">
+          <div class="mt-1 control-wrapper">
             <div class="mode-toggle mb-1">
               <button onclick="setLightMode('${eid}', 'static', this); event.stopImmediatePropagation();" class="${mode !== 'dynamic' ? 'active' : ''}">Static</button>
               <button onclick="setLightMode('${eid}', 'dynamic', this); event.stopImmediatePropagation();" class="${mode === 'dynamic' ? 'active' : ''}">Dynamic</button>
             </div>
-            ${mode === 'dynamic' && curEffect ? `
-            <div onclick="event.stopImmediatePropagation(); openLightDetail('${eid}');" class="text-[9px] text-emerald-300 mt-0.5 truncate cursor-pointer hover:underline">• ${curEffect} (tap for options)</div>` : ''}
           </div>` : '' }
         </div>`;
     }
@@ -2087,10 +2085,10 @@
           // Dynamic: make it actually do something useful immediately.
           // If no effect is currently active on the light, auto-apply a sensible first effect (if the light reports any).
           // This makes tapping "Dynamic" start a dynamic mode right away.
+          // Use clean payload (brightness + effect + transition only) and robust retries.
           const results = await Promise.all(groupLights.map(async (l) => {
             const st = getLightState(l) || {};
-            const payload = {};
-            if (st.brightness != null) payload.brightness = st.brightness;
+            const brightness = (st.brightness != null) ? st.brightness : null;
 
             // Auto-start a dynamic effect if none is set
             const lightInfo = (haData ? [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])].find(x => x.entity_id === l) : null) || {};
@@ -2098,15 +2096,29 @@
             const currentEff = st.current_effect || '';
             if (!currentEff && effects.length > 0) {
               const firstEffect = effects[0];
-              payload.effect = firstEffect;
-              // also update local state immediately for this light
+              // Optimistic already done at top for mode; patch effect for this member
               updateLightState(l, { current_effect: firstEffect, mode: 'dynamic' });
+              // Clean effect payload via the service (no rgb/ct/speed mixed)
+              const p = { effect: firstEffect, transition: 0 };
+              if (brightness != null) p.brightness = brightness;
+              const ok = await callWithRetry(() => callLightService(l, p), 3);
+              return { l, ok };
             }
-
-            const ok = await callWithRetry(() => callLightService(l, payload), 2);
-            return { l, ok };
+            // No auto-start needed for this member: still ensure brightness if provided (keeps light on)
+            if (brightness != null) {
+              const ok = await callWithRetry(() => callLightService(l, { brightness }), 2);
+              return { l, ok };
+            }
+            return { l, ok: true };
           }));
           if (applyId < window.__lastApplyId) return;
+
+          // Ensure cards and open detail reflect the auto-started effect(s)
+          renderCurrentView();
+          const dp = document.getElementById('light-detail');
+          if (dp && !dp.classList.contains('hidden')) {
+            openLightDetail(eid);
+          }
         }
 
         if (btn) {
@@ -2124,57 +2136,45 @@
 
       // Act as ONE for the sync group (or single)
       const groupLights = getSyncGroupLights(eid);
-      // Use default speed when applying (or switching) an effect. Speed is often effect-specific;
-      // the slider can be used immediately after to adjust. This prevents carrying an old effect's
-      // speed value into a new effect, which could cause the change to be rejected.
-      const speed = 50;
-
-      // Capture pre-switch effect names *before* optimistic update, so the clear logic can detect
-      // actual switches (optimistic changes the state immediately).
-      const preEffectStates = {};
-      groupLights.forEach(l => {
-        preEffectStates[l] = (getLightState(l) || {}).current_effect || '';
-      });
 
       // Optimistic update immediately for responsiveness (whole group)
       const prevSnapshots = {};
       groupLights.forEach(l => {
         prevSnapshots[l] = { ...(getLightState(l) || {}) };
-        updateLightState(l, { current_effect: effect, state: 'on', effect_speed: speed, mode: 'dynamic' });
+        updateLightState(l, { current_effect: effect, state: 'on', effect_speed: 50, mode: 'dynamic' });
       });
       renderCurrentView();
 
       if (btn) btn.classList.add('applying');
 
-      // First wave: parallel calls for closest possible simultaneous start across group
+      // Always send a CLEAN light.turn_on payload for effects.
+      // - Never mix effect with rgb_color or color_temp in the same call.
+      // - When changing to a *different* effect, explicitly clear the previous one first
+      //   by using the effect parameter (effect: '') in a dedicated clean service call.
+      // - Target effect call uses only {effect, brightness?, transition:0}.
+      // - Uses callWithRetry + applyId race guard + optimistic + revert on final failure.
+      // - After completion (success or partial), force UI update for both compact cards and detail panel.
       const firstWave = await Promise.all(groupLights.map(async (l) => {
-        const st = getLightState(l) || prevSnapshots[l] || {};
-        const currentEff = preEffectStates[l] || '';
-        let ok = true;
+        const prevSnap = prevSnapshots[l] || {};
+        const prevEffect = prevSnap.current_effect || '';
+        const st = getLightState(l) || prevSnap || {};
+        const brightness = (st.brightness != null) ? st.brightness : (prevSnap.brightness != null ? prevSnap.brightness : null);
 
-        if (currentEff && currentEff !== effect) {
-          // When switching effects, explicitly "clear" the old one first by asserting a solid on state.
-          // This forces many lights (e.g. Wiz) to exit the previous dynamic mode before accepting the new one.
-          const clearPayload = {};
-          if (st.brightness != null) clearPayload.brightness = st.brightness;
-          // Use transition 0 for instant
-          clearPayload.transition = 0;
-          await callWithRetry(
-            () => callLightService(l, clearPayload),
-            1  // single quick attempt for the clear step
-          ).catch(() => false);
+        if (prevEffect && prevEffect !== effect) {
+          // Explicit clear of previous effect using the effect parameter (empty clears prior dynamic mode on many platforms e.g. Wiz).
+          // Clean payload: effect:'' + brightness (to keep light on) + transition:0. No rgb/ct/speed.
+          const clearPayload = { effect: '', transition: 0 };
+          if (brightness != null) clearPayload.brightness = brightness;
+          await callWithRetry(() => callLightService(l, clearPayload), 2);
+          // Proceed to set the new effect regardless of clear result.
         }
 
-        // Now apply the desired new effect (with brightness to set intensity, transition 0 for instant activation)
-        const payload = { effect, transition: 0 };
-        if (speed != null) payload.speed_pct = speed;
-        if (st.brightness != null) payload.brightness = st.brightness;
-        ok = await callWithRetry(
-          () => callLightService(l, payload),
-          3
-        );
+        // Clean set for the desired effect. Only effect + optional brightness + transition. No conflicts.
+        const setPayload = { effect, transition: 0 };
+        if (brightness != null) setPayload.brightness = brightness;
+        const setOk = await callWithRetry(() => callLightService(l, setPayload), 3);
 
-        return { l, ok };
+        return { l, ok: setOk };
       }));
 
       if (applyId < window.__lastApplyId) {
@@ -2210,6 +2210,14 @@
             if (btn) btn.classList.remove('success-flash');
           }, 650);
         }
+      }
+
+      // After a successful (or completed) effect change: immediately update the UI for both
+      // the detail panel and compact cards to reflect the new effect. This runs for non-stale applies.
+      renderCurrentView();
+      const dp = document.getElementById('light-detail');
+      if (dp && !dp.classList.contains('hidden')) {
+        openLightDetail(eid);
       }
     }
 
