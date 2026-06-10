@@ -1866,6 +1866,7 @@ async def get_ha_lights_data():
             "current_effect": attrs.get("effect"),
             "room_name": "Unassigned",
             "is_sync": bool(is_sync_related),
+            "options": attrs.get("options", []),  # for select.* sync modes (Vivid, Theater, etc.) if the entity exposes them
         }
 
         # Sync box / non-plain-light sync controls get their own list (so UI can highlight them)

@@ -202,6 +202,38 @@
       transform: scale(0.985);
     }
 
+    /* Reliability visual states for effect/mode buttons */
+    .effect-btn.applying {
+      opacity: 0.65;
+      pointer-events: none;
+      position: relative;
+    }
+    .effect-btn.applying::after {
+      content: '';
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 9px;
+      height: 9px;
+      border: 1.5px solid #10b981;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: ha-spin 0.7s linear infinite;
+    }
+    @keyframes ha-spin {
+      to { transform: translateY(-50%) rotate(360deg); }
+    }
+    .effect-btn.success-flash {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.18);
+      transition: all 0.2s ease;
+    }
+    .mode-toggle button.applying {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
     /* Mobile-first: large tap targets, responsive grids, touch friendly */
     @media (max-width: 640px) {
       .entity-grid {
@@ -690,6 +722,7 @@
               current_effect: newEffect,
               brightness: l.brightness,
               ...(keepSpeed != null ? { effect_speed: keepSpeed } : {}),
+              ...(l.options ? { options: l.options } : {}),
             };
           });
           isHydrated = true;
@@ -804,16 +837,19 @@
       }
 
       // Wiz Sync Box / sync controls (if backend discovered any)
+      // These appear here (amber) so you can quickly tap e.g. your TV Wiz Sync Box and pick Vivid / Theater / etc. modes in the detail sheet (only options/effects that your actual HA entities report will show).
       const syncContainer = document.getElementById('sync-nav');
       if (syncContainer && haData && Array.isArray(haData.sync_controls) && haData.sync_controls.length) {
         let sHtml = '';
         haData.sync_controls.forEach(s => {
           const on = (lightsState[s.entity_id]?.state || s.state) === 'on' ? 1 : 0;
+          const eidSafe = s.entity_id.replace(/'/g, "\\'");
           sHtml += `
-            <button data-view="sync" onclick="setPrimaryView('lights'); lightsFilter='all'; renderPrimaryView();"
-                    class="nav-room-btn w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] text-amber-300">
+            <button data-view="sync" onclick="openLightDetail('${eidSafe}');"
+                    class="nav-room-btn w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] text-amber-300"
+                    title="Open ${s.friendly_name} — choose sync modes (Vivid, Theater...) if supported by your Wiz setup">
               <span class="flex items-center gap-2"><i class="fa-solid fa-magic w-4"></i> ${s.friendly_name}</span>
-              <span class="text-xs text-zinc-500 tabular-nums">${on ? 'on' : 'off'}</span>
+              <span class="text-[10px] opacity-70">${on ? 'on' : 'off'}</span>
             </button>`;
         });
         syncContainer.innerHTML = sHtml;
@@ -1108,7 +1144,7 @@
         `;
       }
 
-      if (effectList.length) {
+      if (effectList.length || (light.options && light.options.length)) {
         html += `
           <div>
             <div class="text-xs mb-1 text-zinc-400">Mode & Effects</div>
@@ -1118,13 +1154,14 @@
               <button onclick="setLightMode('${eid}', 'dynamic', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="flex-1 ${curEffect ? 'active' : ''}">Dynamic</button>
             </div>
             <!-- Calmer, more scannable effects grid with better spacing and feedback -->
+            ${effectList.length ? `
             <div class="effect-grid grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[10px] max-h-32 overflow-auto border border-zinc-800 rounded p-1.5 bg-[#111113]">
               ${effectList.map(eff => {
                 const safe = eff.replace(/'/g, "\\'");
                 const active = curEffect === eff ? 'active' : '';
                 return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="effect-btn text-left px-2 py-1 ${active}">${eff}</button>`;
               }).join('')}
-            </div>
+            </div>` : ''}
 
             ${curEffect ? `
             <div class="mt-3">
@@ -1140,6 +1177,22 @@
                 <span>Normal</span>
                 <span>Fast</span>
               </div>
+            </div>` : ''}
+
+            ${ (light.options && light.options.length) ? `
+            <div class="mt-3 pt-2 border-t border-zinc-800">
+              <div class="text-[10px] text-amber-300 mb-1 flex items-center gap-1">
+                <i class="fa-solid fa-magic"></i> Sync / Wiz modes
+                <span class="text-[9px] text-zinc-500">(Vivid, Theater, etc. — only if your device reports them)</span>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                ${light.options.map(opt => {
+                  const safeOpt = String(opt).replace(/'/g, "\\'");
+                  const active = (curEffect === opt) ? 'active' : '';
+                  return `<button onclick="applySelectOption('${eid}', '${safeOpt}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" class="effect-btn text-left px-2 py-0.5 text-[10px] ${active}">${opt}</button>`;
+                }).join('')}
+              </div>
+              <div class="text-[9px] text-zinc-500 mt-1">For TV lights + Wiz Sync Box. Tap to set the mode on the box/control.</div>
             </div>` : ''}
           </div>
         `;
@@ -1758,19 +1811,219 @@
 
     // --- Helpers (consolidated, no duplicates) ---
 
+    // --- Robust helpers for mode & effect changes (retries, races, feedback, optimistic safety) ---
+
+    // Global apply sequencing to prevent old rapid taps from reverting newer optimistic states
+    window.__lastApplyId = 0;
+
+    function showFeedback(message, isError = false) {
+      const existing = document.getElementById('ha-feedback-toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.id = 'ha-feedback-toast';
+      toast.className = `fixed bottom-5 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded-2xl text-xs shadow-xl border ${isError ? 'bg-[#3f1f1f] border-red-500/40 text-red-300' : 'bg-[#18181b] border-zinc-700 text-zinc-200'}`;
+      toast.innerHTML = message;
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+      }, isError ? 4200 : 2200);
+    }
+
+    async function callLightService(eid, extra) {
+      try {
+        const payload = { entity_id: eid, transition: 0.4, ...extra };
+        const res = await fetch(`/api/ha/service/light/turn_on?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        return res.ok;
+      } catch (e) { return false; }
+    }
+
+    // General service caller (for select.* sync modes etc.)
+    async function callHAService(domain, service, entity_id, extra = {}) {
+      try {
+        const payload = { entity_id, ...extra };
+        const res = await fetch(`/api/ha/service/${domain}/${service}?token=${encodeURIComponent(adminToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        return res.ok;
+      } catch (e) { return false; }
+    }
+
+    async function callWithRetry(callFn, maxRetries = 3) {
+      // callFn is async () => bool
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const ok = await callFn();
+        if (ok) return true;
+        if (attempt < maxRetries - 1) {
+          await new Promise(r => setTimeout(r, 140 * Math.pow(1.6, attempt))); // ~140ms, 225ms, 360ms
+        }
+      }
+      return false;
+    }
+
     function setLightMode(eid, mode, btn) {
-      updateLightState(eid, {mode});
+      const groupLights = getSyncGroupLights(eid);
+      const applyId = ++window.__lastApplyId;
+
+      // Optimistic: flip mode flag locally for UI (hides/shows effects grid) and clear effect on static
+      groupLights.forEach(l => {
+        const patch = { mode };
+        if (mode === 'static') patch.current_effect = '';
+        updateLightState(l, patch);
+      });
       renderCurrentView();
+
+      if (btn) btn.classList.add('applying');
+
+      // Actually perform the change with reliability for the group
+      (async () => {
+        const prevSnapshots = {};
+        groupLights.forEach(l => { prevSnapshots[l] = { ...(getLightState(l) || {}) }; });
+
+        let allSucceeded = true;
+
+        if (mode === 'static') {
+          // To go static: call turn_on without an effect param (tells many lights to stop any running dynamic effect)
+          const results = await Promise.all(groupLights.map(async (l) => {
+            const ok = await callWithRetry(() => callLightService(l, {} /* no effect */), 3);
+            return { l, ok };
+          }));
+          allSucceeded = results.every(r => r.ok);
+
+          if (applyId < window.__lastApplyId) return; // superseded by newer tap
+
+          if (!allSucceeded) {
+            results.filter(r => !r.ok).forEach(r => updateLightState(r.l, prevSnapshots[r.l]));
+            renderCurrentView();
+            showFeedback('Some lights did not switch to Static after retries.', true);
+          }
+        } else {
+          // Dynamic: the mode flag is UI only. Real "dynamic" happens when an effect is chosen.
+          // We just ensure the light is on so effects can play.
+          const results = await Promise.all(groupLights.map(async (l) => {
+            const st = getLightState(l) || {};
+            const payload = {};
+            if (st.brightness != null) payload.brightness = st.brightness;
+            const ok = await callWithRetry(() => callLightService(l, payload), 2);
+            return { l, ok };
+          }));
+          // Dynamic doesn't require success for the flag (user will pick effect next); only log issues
+          if (applyId < window.__lastApplyId) return;
+        }
+
+        if (btn) {
+          btn.classList.remove('applying');
+          if (allSucceeded && mode === 'static') {
+            btn.classList.add('success-flash');
+            setTimeout(() => btn && btn.classList.remove('success-flash'), 650);
+          }
+        }
+      })();
     }
 
     async function applyEffect(eid, effect, btn) {
-      // Act as ONE: whole sync group gets the exact same effect at the same time
+      const applyId = ++window.__lastApplyId;
+
+      // Act as ONE for the sync group (or single)
       const groupLights = getSyncGroupLights(eid);
       const speed = getEffectSpeed(eid);
-      groupLights.forEach(l => updateLightState(l, {current_effect: effect, state: 'on', effect_speed: speed}));
+
+      // Optimistic update immediately for responsiveness (whole group)
+      const prevSnapshots = {};
+      groupLights.forEach(l => {
+        prevSnapshots[l] = { ...(getLightState(l) || {}) };
+        updateLightState(l, { current_effect: effect, state: 'on', effect_speed: speed, mode: 'dynamic' });
+      });
       renderCurrentView();
-      const promises = groupLights.map(l => callLightService(l, {effect, speed_pct: speed}).catch(()=>{}));
-      await Promise.all(promises);
+
+      if (btn) btn.classList.add('applying');
+
+      // First wave: parallel calls for closest possible simultaneous start across group
+      const firstWave = await Promise.all(groupLights.map(async (l) => {
+        const ok = await callWithRetry(
+          () => callLightService(l, { effect, speed_pct: speed }),
+          3
+        );
+        return { l, ok };
+      }));
+
+      if (applyId < window.__lastApplyId) {
+        // A newer tap superseded this one — do not revert or show feedback for the stale attempt
+        if (btn) btn.classList.remove('applying');
+        return;
+      }
+
+      const failures = firstWave.filter(r => !r.ok);
+
+      if (failures.length > 0) {
+        // Revert only the ones that truly failed all retries (safety net)
+        failures.forEach(f => {
+          if (prevSnapshots[f.l]) updateLightState(f.l, prevSnapshots[f.l]);
+        });
+        renderCurrentView();
+
+        const failedNames = failures.map(f => {
+          const l = (haData.lights_by_room ? Object.values(haData.lights_by_room).flat() : []).concat(haData.unassigned_lights || []).find(x => x.entity_id === f.l);
+          return (l && l.friendly_name) || f.l.split('.').pop();
+        }).join(', ');
+
+        const msg = failures.length === groupLights.length
+          ? `Failed to start effect “${effect}” on the group after retries.`
+          : `Effect “${effect}” failed on: ${failedNames}. Other lights in group updated.`;
+        showFeedback(msg, true);
+      } else {
+        // All good — nice micro success on the tapped button
+        if (btn) {
+          btn.classList.remove('applying');
+          btn.classList.add('success-flash');
+          setTimeout(() => {
+            if (btn) btn.classList.remove('success-flash');
+          }, 650);
+        }
+      }
+    }
+
+    // Robust applicator for select.* sync controls (e.g. Wiz sync box modes: Vivid, Theater, etc.)
+    // Only used when the entity actually reports "options" from HA — no hard-coded modes.
+    async function applySelectOption(eid, option, btn) {
+      const applyId = ++window.__lastApplyId;
+
+      // Optimistic: reflect the chosen mode locally
+      updateLightState(eid, { current_effect: option, state: 'on' }); // reuse current_effect slot for display
+      renderCurrentView();
+
+      if (btn) btn.classList.add('applying');
+
+      const prev = { ...(getLightState(eid) || {}) };
+
+      const ok = await callWithRetry(
+        () => callHAService('select', 'select_option', eid, { option }),
+        3
+      );
+
+      if (applyId < window.__lastApplyId) {
+        if (btn) btn.classList.remove('applying');
+        return;
+      }
+
+      if (!ok) {
+        updateLightState(eid, prev);
+        renderCurrentView();
+        showFeedback(`Failed to set “${option}” on sync control after retries.`, true);
+      } else {
+        if (btn) {
+          btn.classList.remove('applying');
+          btn.classList.add('success-flash');
+          setTimeout(() => btn && btn.classList.remove('success-flash'), 650);
+        }
+      }
     }
 
     function getEffectSpeed(eid) {
@@ -1779,7 +2032,7 @@
     }
 
     async function setEffectSpeed(eid, speed) {
-      // Immediate (non-debounced) version for discrete changes. Updates whole group.
+      // Immediate (non-debounced) version for discrete changes. Updates whole group with retries for reliability.
       const groupLights = getSyncGroupLights(eid);
       groupLights.forEach(l => updateLightState(l, {effect_speed: speed}));
       renderCurrentView();
@@ -1787,8 +2040,13 @@
       const effect = getLightState(eid).current_effect || '';
       if (!effect) return;
 
-      const promises = groupLights.map(l => callLightService(l, {effect, speed_pct: speed}).catch(()=>{}));
-      await Promise.all(promises);
+      const results = await Promise.all(groupLights.map(async (l) => {
+        const ok = await callWithRetry(() => callLightService(l, {effect, speed_pct: speed}), 2);
+        return ok;
+      }));
+      if (!results.every(Boolean)) {
+        showFeedback('Speed update had some issues on the group (partial).', true);
+      }
     }
 
     function debouncedEffectSpeed(eid, speed) {
@@ -1799,8 +2057,13 @@
       debounce(async () => {
         const effect = getLightState(eid).current_effect || '';
         if (!effect) return;
-        const promises = groupLights.map(l => callLightService(l, {effect, speed_pct: speed}).catch(()=>{}));
-        await Promise.all(promises);
+        const results = await Promise.all(groupLights.map(async (l) => {
+          return await callWithRetry(() => callLightService(l, {effect, speed_pct: speed}), 2);
+        }));
+        if (results.some(r => !r)) {
+          // non-fatal for slider; user is actively dragging
+          // could show subtle indicator but avoid noise
+        }
       }, 'effect-speed-' + eid);
     }
 
@@ -1975,18 +2238,7 @@
       return [r, g, b];
     }
 
-    async function callLightService(eid, extra) {
-      try {
-        // Premium default transition (0.4s fade) — backend/HA honors it; can be overridden via extra
-        const payload = { entity_id: eid, transition: 0.4, ...extra };
-        const res = await fetch(`/api/ha/service/light/turn_on?token=${encodeURIComponent(adminToken)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        return res.ok;
-      } catch (e) { return false; }
-    }
+    // (callLightService + callHAService + retry logic now live in the robust helpers block above)
 
     function applyPreset(eid, hex, btn) {
       const rgb = hexToRgb(hex);
