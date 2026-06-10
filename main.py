@@ -782,19 +782,33 @@ async def home(request: Request):
         "updated_ago": hr_updated_ago,
     }
 
-    # Load real recent messages from the message board for the blog teaser
+    # Blog content for the home hub: recent top-level posts (neat teaser) + unread count for the lamp poke notifier.
+    # We surface actual blog activity directly on the main screen as first-class content.
+    recent_messages = []
+    blog_unread_count = 0
     try:
         all_messages = load_messages()
-        recent_messages = all_messages[:3]  # Show latest 3
-    except Exception:
-        recent_messages = []
 
-    # Compute unread blog replies/comments for the smart hub notification
-    try:
+        # Unread (for the quirky office-lamp poke icon) — counts replies too
         last_read = load_last_blog_read()
         unread_messages = [m for m in all_messages if str(m.get("timestamp", "")) > last_read]
         blog_unread_count = len(unread_messages)
+
+        # Teaser for main screen: only top-level "posts", sorted newest first, last 3.
+        # Enrich with a clean display_date so the UI stays pretty without JS.
+        top_level = [m for m in all_messages if not m.get("parent_id")]
+        top_level.sort(key=lambda m: m.get("timestamp", ""), reverse=True)
+        recent_messages = top_level[:3]
+
+        for m in recent_messages:
+            ts = str(m.get("timestamp", ""))
+            try:
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                m["display_date"] = dt.strftime("%b %-d")
+            except Exception:
+                m["display_date"] = ts[:10] if ts else "—"
     except Exception:
+        recent_messages = []
         blog_unread_count = 0
 
     return _render("home.html", {

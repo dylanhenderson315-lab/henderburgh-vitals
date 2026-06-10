@@ -280,31 +280,20 @@
       </p>
     </div>
 
-    <!-- Smart Hub: elegant notification + quick actions (premium signature feature) -->
+    <!-- Quirky little notification icon: click it and the office lamp does a temporary fun "poke" dance to signal you -->
     {% if not public_mode %}
-    <div class="content-section -mt-2 mb-6">
-      <div onclick="showSmartHub()" 
-           class="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] transition cursor-pointer active:scale-[0.995]">
-        <div class="flex items-center gap-x-3">
-          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <i class="fa-solid fa-magic text-lg"></i>
-          </div>
-          <div>
-            <div class="font-medium text-sm">Smart Hub</div>
-            <div class="text-xs text-zinc-400">
-              {% if blog_unread_count and blog_unread_count > 0 %}
-              {{ blog_unread_count }} new blog {{ 'reply' if blog_unread_count == 1 else 'replies' }} 
-              {% else %}
-              No new replies
-              {% endif %}
-            </div>
-          </div>
-        </div>
-        <div class="text-right">
-          <div class="text-[10px] text-emerald-400 font-medium">Office Lamp quick</div>
-          <div class="text-[10px] text-zinc-500">Tap to open</div>
-        </div>
-      </div>
+    <div class="flex justify-center mb-7">
+      <button onclick="triggerOfficeLampNotificationPoke()"
+              class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
+              title="Poke the office lamp — it will briefly light up in a special way to let you know about a notification or reply">
+        <i class="fa-solid fa-lightbulb text-lg text-emerald-400 group-hover:text-emerald-300 transition-colors"></i>
+        {% if blog_unread_count and blog_unread_count > 0 %}
+        <span class="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+        </span>
+        {% endif %}
+      </button>
     </div>
     {% endif %}
 
@@ -356,6 +345,37 @@
           </p>
         </div>
       </div>
+    </div>
+
+    <!-- Blog posts directly on the main screen — last 3 top-level messages, neat & scannable like the rest of the OS -->
+    <div class="content-section">
+      <div class="flex items-baseline justify-between mb-3">
+        <div>
+          <div class="section-label">Blog</div>
+          <p style="margin-top: 4px; color: #525252; font-size: 0.95rem;">Latest messages &amp; thoughts from the board.</p>
+        </div>
+        <a href="/blog" class="text-sm text-zinc-400 hover:text-white transition flex items-center gap-x-1 mt-1">
+          All messages <span class="text-xs">→</span>
+        </a>
+      </div>
+
+      {% if recent_messages %}
+      <div class="space-y-3">
+        {% for msg in recent_messages %}
+        <div class="live-card !p-4 cursor-pointer" onclick="window.location.href='/blog'">
+          <div class="flex items-baseline justify-between gap-x-2">
+            <span class="font-medium text-sm">{{ msg.name or 'Anonymous' }}</span>
+            <span class="text-[10px] text-zinc-500 tabular-nums">{{ msg.display_date }}</span>
+          </div>
+          <p class="mt-1.5 text-[13px] text-zinc-300 leading-snug line-clamp-3">{{ msg.text }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="live-card p-4 text-sm text-zinc-500">
+        No messages yet. Be the first to say something on the <a href="/blog" class="underline hover:text-white">blog</a>.
+      </div>
+      {% endif %}
     </div>
 
     <!-- OS Intelligence / Insights (calm groundwork - first principles leverage over time) -->
@@ -412,88 +432,9 @@
       </div>
     </div>
 
-    <!-- From the Message Board -->
-    <div class="content-section">
-      <div class="flex items-baseline justify-between mb-4">
-        <div class="section-label">Recent Messages</div>
-        <a href="/blog" class="text-sm text-zinc-400 hover:text-white transition flex items-center gap-x-1">
-          All messages <span class="text-xs">→</span>
-        </a>
-      </div>
-
-      {% if recent_messages %}
-      <div class="space-y-4">
-        {% for msg in recent_messages %}
-        <div>
-          <div class="flex items-baseline gap-x-2">
-            <span class="font-medium">{{ msg.name }}</span>
-            <span class="text-xs text-zinc-500">{{ msg.timestamp[:10] }}</span>
-          </div>
-          <p class="text-sm text-zinc-400 mt-0.5 line-clamp-2">{{ msg.text }}</p>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-zinc-500">No messages yet. Be the first to say something on the <a href="/blog" class="underline">blog</a>.</p>
-      {% endif %}
-    </div>
   </main>
 
-  <!-- Smart Hub Modal (elegant, thumb friendly, premium) -->
-  <div id="smart-hub-modal" onclick="if (event.target.id === 'smart-hub-modal') hideSmartHub()" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center p-4 md:p-0">
-    <div onclick="event.stopImmediatePropagation()" class="w-full max-w-md bg-[#18181b] border border-zinc-700 rounded-3xl p-6 shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
-        <div class="font-semibold text-lg tracking-tight">Smart Hub</div>
-        <button onclick="hideSmartHub()" class="text-2xl leading-none text-zinc-400 hover:text-white">×</button>
-      </div>
-
-      <!-- Blog Notifications -->
-      <div class="mb-5">
-        <div class="flex items-center gap-x-2 text-sm font-medium text-emerald-400 mb-2">
-          <i class="fa-solid fa-comments"></i>
-          <span>Blog replies</span>
-        </div>
-        <div id="modal-blog-text" class="text-sm text-zinc-300 mb-3">
-          <!-- populated by JS -->
-        </div>
-        <div class="flex gap-2">
-          <a href="/blog" class="flex-1 text-center text-sm py-2 rounded-2xl bg-zinc-800 hover:bg-zinc-700 transition">View on Blog</a>
-          <button onclick="markBlogRead()" class="flex-1 text-center text-sm py-2 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition">Mark as read</button>
-        </div>
-      </div>
-
-      <!-- Office Lamp Quick Temporary Actions -->
-      <div>
-        <div class="flex items-center gap-x-2 text-sm font-medium text-emerald-400 mb-2">
-          <i class="fa-solid fa-lightbulb"></i>
-          <span>Office Lamp — temporary presets</span>
-        </div>
-        <div class="grid grid-cols-2 gap-2 text-sm">
-          <button onclick="triggerDeskPreset('focus')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-emerald-900/30 transition min-h-[52px]">
-            <div class="font-medium">Focus Mode</div>
-            <div class="text-[10px] text-zinc-400">Bright &amp; cool • 30 min</div>
-          </button>
-          <button onclick="triggerDeskPreset('wind_down')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-emerald-900/30 transition min-h-[52px]">
-            <div class="font-medium">Wind Down</div>
-            <div class="text-[10px] text-zinc-400">Warm &amp; dim • 45 min</div>
-          </button>
-          <button onclick="triggerDeskPreset('creative')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-emerald-900/30 transition min-h-[52px]">
-            <div class="font-medium">Creative</div>
-            <div class="text-[10px] text-zinc-400">Calm dynamic • 60 min</div>
-          </button>
-          <button onclick="triggerDeskPreset('reset')" class="text-left px-3 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 active:bg-rose-900/20 transition min-h-[52px]">
-            <div class="font-medium">Reset now</div>
-            <div class="text-[10px] text-zinc-400">Back to normal state</div>
-          </button>
-        </div>
-        <div class="text-[10px] text-zinc-500 mt-2 text-center">Actions are temporary &amp; will auto-revert. Previous state is remembered.</div>
-      </div>
-
-      <div class="text-center mt-4">
-        <button onclick="hideSmartHub()" class="text-xs text-zinc-400 hover:text-white">Close</button>
-      </div>
-    </div>
-  </div>
+  <!-- The quirky notification poke is handled directly by the icon — no heavy modal needed. Genius physical alert via your lamp. -->
 
   <!-- Footer -->
   <footer class="max-w-[1080px] mx-auto px-6">
@@ -764,54 +705,12 @@
   });
   </script>
 
-  <!-- Smart Hub JS: notifications + elegant temporary Desk presets with auto-revert -->
+  <!-- Office Lamp Notification Poke (the little quirky icon that makes the physical lamp temporarily "wave" at you) -->
   <script>
-    const DESK_LIGHTS = [
-      "light.office_lamp"
-    ];
+    const DESK_LIGHTS = ["light.office_lamp"];
     const ADMIN_TOKEN = "67"; // matches lighting page (enforced server-side)
 
-    function showSmartHub() {
-      const modal = document.getElementById('smart-hub-modal');
-      if (!modal) return;
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-
-      // populate blog text from server-rendered count (or re-fetch if want live)
-      const countEl = document.querySelector('#smart-hub .text-xs');
-      const count = {{ blog_unread_count | default(0) }};
-      const blogText = document.getElementById('modal-blog-text');
-      if (blogText) {
-        if (count > 0) {
-          blogText.innerHTML = `You have <strong>${count}</strong> new blog ${count === 1 ? 'reply' : 'replies'}.`;
-        } else {
-          blogText.innerHTML = `No new replies at the moment.`;
-        }
-      }
-    }
-
-    function hideSmartHub() {
-      const modal = document.getElementById('smart-hub-modal');
-      if (modal) {
-        modal.classList.remove('flex');
-        modal.classList.add('hidden');
-      }
-    }
-
-    async function markBlogRead() {
-      try {
-        await fetch('/api/blog/mark-read', { method: 'POST' });
-        // update the home badge to 0
-        const badgeArea = document.querySelector('#smart-hub .text-xs');
-        if (badgeArea) badgeArea.textContent = 'No new replies';
-        // close modal
-        hideSmartHub();
-        // optionally reload or just clear visual
-      } catch (e) {
-        alert('Could not mark as read');
-      }
-    }
-
+    // Snapshot current state for the office lamp only (reused by poke + any future quick actions)
     async function getCurrentDeskState() {
       try {
         const res = await fetch('/api/ha/lights-data');
@@ -872,71 +771,95 @@
         }).catch(() => null);
       });
       await Promise.all(promises);
-      // subtle feedback
-      console.log('%c[Smart Hub] Office Lamp reverted to previous state', 'color:#666');
     }
 
-    async function triggerDeskPreset(mode) {
-      const modal = document.getElementById('smart-hub-modal');
-      if (modal) modal.style.pointerEvents = 'none'; // prevent double tap
+    // The genius bit: tiny icon click → office lamp briefly becomes a physical notification beacon.
+    // It does a short, noticeable, friendly "double-nudge" in a cool distinctive color, then fully reverts.
+    // Feels like the lamp is personally tapping you on the shoulder to say "someone left you a note".
+    async function triggerOfficeLampNotificationPoke() {
+      const btn = document.querySelector('button[onclick*="triggerOfficeLampNotificationPoke"]');
+      if (!btn) return;
 
-      // snapshot current for revert
+      const bulb = btn.querySelector('i');
+
+      // immediate delightful feedback on the icon
+      btn.style.transition = 'transform 90ms ease, box-shadow 120ms ease';
+      btn.style.transform = 'scale(0.82)';
+      if (bulb) bulb.style.transition = 'color 120ms ease';
+      if (bulb) bulb.style.color = '#34d399';
+
+      // snapshot whatever the lamp is doing right now
       const prevState = await getCurrentDeskState();
 
-      let payload = {};
-      let durationMs = 30 * 60 * 1000;
-      let label = '';
-
-      if (mode === 'focus') {
-        payload = { brightness: 255, color_temp: 220 }; // bright + cool
-        durationMs = 30 * 60 * 1000;
-        label = 'Focus Mode (30m)';
-      } else if (mode === 'wind_down') {
-        payload = { brightness: 90, color_temp: 420 }; // warm + dim
-        durationMs = 45 * 60 * 1000;
-        label = 'Wind Down (45m)';
-      } else if (mode === 'creative') {
-        payload = { effect: 'Candle' }; // calm dynamic (adjust if your lights use different name)
-        durationMs = 60 * 60 * 1000;
-        label = 'Creative (60m)';
-      } else if (mode === 'reset') {
-        await restoreDesk(prevState);
-        hideSmartHub();
-        if (modal) modal.style.pointerEvents = '';
-        return;
-      }
-
       try {
-        await applyToDesk(payload);
-        // instant feedback
-        const origText = event.currentTarget ? event.currentTarget.textContent : '';
-        // auto revert
+        // === The temporary "someone is notifying/poking you" signal ===
+        // Very cool color temp + full brightness grabs attention in the room.
+        // A quick brightness dip + recover makes the lamp feel alive and intentional (the "nudge").
+        await applyToDesk({
+          brightness: 255,
+          color_temp: 170,
+          transition: 0.28
+        });
+
+        // second little reactive blip ~0.95s later — the lamp "responds"
+        setTimeout(async () => {
+          try {
+            await applyToDesk({
+              brightness: 135,
+              color_temp: 170,
+              transition: 0.18
+            });
+            // recover to the bright cool state
+            setTimeout(async () => {
+              try {
+                await applyToDesk({
+                  brightness: 255,
+                  color_temp: 170,
+                  transition: 0.16
+                });
+              } catch (e) {}
+            }, 380);
+          } catch (e) {}
+        }, 950);
+
+        // visible special state for ~4.1s total, then graceful long fade back to exactly what it was
         setTimeout(async () => {
           await restoreDesk(prevState);
-        }, durationMs);
+          // settle the icon
+          btn.style.transform = 'scale(1)';
+          if (bulb) bulb.style.color = '#10b981';
+          setTimeout(() => {
+            if (bulb) bulb.style.color = '';
+            btn.style.transform = '';
+          }, 620);
+        }, 4100);
 
-        // nice toast-like
+        // tiny elegant toast — feels like a personal OS whisper
         const toast = document.createElement('div');
-        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-xs px-4 py-2 rounded-2xl shadow-xl z-[110]';
-        toast.textContent = `${label} activated — will auto-revert`;
+        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 text-[11px] px-4 py-1.5 rounded-3xl bg-[#18181b] border border-zinc-700 text-zinc-300 shadow-xl z-[200]';
+        toast.textContent = 'Office lamp waved back at you';
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2400);
+        setTimeout(() => toast.remove(), 1750);
 
-        hideSmartHub();
+        // clear unread state (mark read so next load has no badge, and remove visible badge now)
+        setTimeout(async () => {
+          try {
+            await fetch('/api/blog/mark-read', { method: 'POST' });
+          } catch (e) {}
+          // remove any ping badge that was on this button
+          const pings = btn.querySelectorAll('.animate-ping, span.relative.inline-flex');
+          pings.forEach(p => p.remove());
+        }, 520);
+
       } catch (e) {
-        alert('Could not apply preset. Check HA connection.');
-      } finally {
-        if (modal) modal.style.pointerEvents = '';
+        // best effort revert UI + state
+        btn.style.transform = '';
+        if (bulb) bulb.style.color = '';
+        if (prevState) {
+          restoreDesk(prevState).catch(() => {});
+        }
       }
     }
-
-    // Keyboard escape for modal
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') {
-        const m = document.getElementById('smart-hub-modal');
-        if (m && !m.classList.contains('hidden')) hideSmartHub();
-      }
-    });
   </script>
 
 </body>
