@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir -U pip && \
         uvicorn[standard] \
         httpx \
         jinja2 \
-        python-dotenv
+        python-dotenv \
+        python-multipart
 
 # Copy application code
 COPY . .
