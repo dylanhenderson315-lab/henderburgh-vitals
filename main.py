@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, Request, HTTPException
+from fastapi import Body, FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -1595,6 +1595,52 @@ async def api_ha_service(
     return {"status": "ok", "domain": domain, "service": service, "entity_id": entity_id, "result": result}
 
 
+@app.post("/api/ha/access-request")
+async def post_access_request(request: Request, name: str = Form(""), message: str = Form("")):
+    """Anyone can submit an access request when the lighting page is locked.
+    No admin token required. Logs basic info + user message.
+    """
+    if not message or not message.strip():
+        raise HTTPException(400, "Message is required")
+
+    ip = request.client.host if request.client else "unknown"
+    ua = request.headers.get("user-agent", "unknown")
+    ts = datetime.now(timezone.utc).isoformat()
+
+    req = {
+        "id": str(uuid.uuid4())[:8],
+        "name": (name or "Anonymous").strip(),
+        "message": message.strip(),
+        "ip": ip,
+        "user_agent": ua,
+        "timestamp": ts
+    }
+
+    reqs = load_access_requests()
+    reqs.insert(0, req)  # newest first
+    save_access_requests(reqs)
+    return {"status": "received"}
+
+
+@app.get("/api/ha/access-requests")
+async def get_access_requests(token: Optional[str] = None):
+    """Protected: list access requests (only when page is unlocked with valid token)."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    return load_access_requests()
+
+
+@app.delete("/api/ha/access-requests/{req_id}")
+async def delete_access_request(req_id: str, token: Optional[str] = None):
+    """Protected: delete a specific request."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(403, "Invalid admin token")
+    reqs = load_access_requests()
+    reqs = [r for r in reqs if r.get("id") != req_id]
+    save_access_requests(reqs)
+    return {"status": "deleted"}
+
+
 # =============================================================================
 # Xbox Game Log (persistent recently played)
 # =============================================================================
@@ -1653,6 +1699,24 @@ def get_persisted_lighting_structure() -> Dict[str, Any]:
         "total": snap.get("total", 0),
         "ts": last_ha_lights_snapshot.get("ts", 0),
     }
+
+
+# =============================================================================
+# Access Requests (for locked lighting page - simple request logging)
+# =============================================================================
+ACCESS_REQUESTS_FILE = Path("data/access_requests.json")
+ACCESS_REQUESTS_FILE.parent.mkdir(exist_ok=True)
+
+def load_access_requests():
+    if ACCESS_REQUESTS_FILE.exists():
+        try:
+            return json.loads(ACCESS_REQUESTS_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+def save_access_requests(reqs):
+    ACCESS_REQUESTS_FILE.write_text(json.dumps(reqs, indent=2))
 
 
 # =============================================================================

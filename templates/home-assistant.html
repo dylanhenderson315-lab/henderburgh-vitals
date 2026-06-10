@@ -81,6 +81,82 @@
       cursor: not-allowed;
     }
 
+    /* View-only / locked mode styles */
+    .view-only .light-card {
+      opacity: 0.75;
+      filter: saturate(0.7);
+    }
+    .view-only .control-wrapper,
+    .view-only input[type="range"],
+    .view-only button:not(.unlock-btn),
+    .view-only .mode-toggle,
+    .view-only .effect-btn {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+    .view-only-banner {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .full-control-indicator {
+      font-size: 11px;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .lock-btn {
+      font-size: 10px;
+      padding: 1px 8px;
+      border-radius: 6px;
+      background: #27272a;
+      border: 1px solid #3f3f46;
+    }
+
+    /* Simple accessible modals */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+    }
+    .modal.open { display: flex; }
+    .modal-content {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 420px;
+      margin: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    }
+    .modal input, .modal textarea {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: #e4e4e7;
+      width: 100%;
+      font-size: 15px;
+    }
+    .modal input:focus, .modal textarea:focus {
+      border-color: #10b981;
+      outline: none;
+    }
+    .modal .btn {
+      min-height: 48px;
+      font-size: 15px;
+    }
+
     .entity-grid {
       display: grid;
       gap: 10px;
@@ -559,6 +635,45 @@
       </div>
     </div>
 
+    <!-- Unlock Modal -->
+    <div id="unlock-modal" class="modal">
+      <div class="modal-content">
+        <h3 class="text-lg font-semibold mb-2">Unlock Lighting Controls</h3>
+        <p class="text-sm text-zinc-400 mb-4">Enter the admin token to gain full control. This device can remember the unlock.</p>
+
+        <input id="unlock-token" type="password" placeholder="Admin token" class="mb-3" value="" style="font-family: monospace;">
+
+        <label class="flex items-center gap-2 text-sm mb-4 cursor-pointer">
+          <input type="checkbox" id="remember-token" checked class="w-4 h-4">
+          <span>Remember on this device</span>
+        </label>
+
+        <div class="flex gap-2">
+          <button onclick="submitUnlock()" class="btn flex-1 bg-emerald-600 hover:bg-emerald-500">Unlock</button>
+          <button onclick="closeUnlockModal()" class="btn flex-1">Cancel</button>
+        </div>
+        <div id="unlock-error" class="text-rose-400 text-xs mt-2 hidden">Incorrect token.</div>
+      </div>
+    </div>
+
+    <!-- Access Request Modal (shown from locked state) -->
+    <div id="request-modal" class="modal">
+      <div class="modal-content">
+        <h3 class="text-lg font-semibold mb-2">Request Temporary Access</h3>
+        <p class="text-sm text-zinc-400 mb-3">Your request will be logged with basic info (IP, time, browser). The owner can review it when unlocked.</p>
+
+        <input id="req-name" type="text" placeholder="Your name (optional)" class="mb-2">
+
+        <textarea id="req-message" placeholder="Why would you like to control the lights?" rows="3" class="mb-3" required></textarea>
+
+        <div class="flex gap-2">
+          <button onclick="submitAccessRequest()" class="btn flex-1 bg-emerald-600 hover:bg-emerald-500">Send Request</button>
+          <button onclick="closeRequestModal()" class="btn flex-1">Cancel</button>
+        </div>
+        <div id="request-success" class="hidden text-emerald-400 text-sm mt-2">Request sent. Thank you!</div>
+      </div>
+    </div>
+
     <div class="mt-8 text-[10px] text-zinc-500">
       Professional lighting control • Part of HENDERBURGH OS • Changes sent directly to Home Assistant.
     </div>
@@ -592,14 +707,262 @@
       }
     }
 
-    // Auto-unlocked by default (no prompt on refresh). Backend still enforces ADMIN_TOKEN on all writes.
-    let adminToken = "67";
+    // === Persistent unlock via localStorage + nice locked/unlocked experience ===
+    let adminToken = "";
+    let isUnlocked = false;
     let haData = null;           // {rooms, lights_by_room, groups, scenes, ...} from live or synthesized
     let lightsState = {};        // entity_id -> current optimistic attrs
     let primaryView = 'rooms';   // 'rooms' (default), 'lights', 'groups', 'scenes', 'plan'
     let lightsFilter = 'all';    // for the Lights view: 'all' | 'on' | 'off' | 'unassigned' | 'nogroup'
     let searchTerm = '';
     let isHydrated = false;      // true after first successful live data
+
+    function loadSavedToken() {
+      try {
+        const saved = localStorage.getItem('ha_admin_token');
+        if (saved === "67") {
+          adminToken = "67";
+          isUnlocked = true;
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
+    function saveToken(remember) {
+      if (remember) {
+        try { localStorage.setItem('ha_admin_token', '67'); } catch (e) {}
+      }
+      adminToken = "67";
+      isUnlocked = true;
+    }
+
+    function clearSavedToken() {
+      try { localStorage.removeItem('ha_admin_token'); } catch (e) {}
+      adminToken = "";
+      isUnlocked = false;
+    }
+
+    function applyViewOnlyState() {
+      // Add view-only class to main content so cards look softer + controls are non-interactive
+      const main = document.getElementById('main-content');
+      if (main) main.classList.add('view-only');
+    }
+
+    function removeViewOnlyState() {
+      const main = document.getElementById('main-content');
+      if (main) main.classList.remove('view-only');
+    }
+
+    // === Modal + Unlock / Request logic ===
+    function showUnlockModal() {
+      const modal = document.getElementById('unlock-modal');
+      const err = document.getElementById('unlock-error');
+      if (err) err.classList.add('hidden');
+      const input = document.getElementById('unlock-token');
+      if (input) input.value = '';
+      if (modal) modal.classList.add('open');
+      setTimeout(() => { if (input) input.focus(); }, 50);
+    }
+
+    function closeUnlockModal() {
+      const modal = document.getElementById('unlock-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function submitUnlock() {
+      const input = document.getElementById('unlock-token');
+      const remember = document.getElementById('remember-token');
+      const err = document.getElementById('unlock-error');
+      if (!input) return;
+
+      const val = (input.value || '').trim();
+      if (val === "67") {
+        const doRemember = remember ? remember.checked : true;
+        saveToken(doRemember);
+        closeUnlockModal();
+        removeViewOnlyState();
+        // Re-render everything with full controls
+        if (haData) {
+          renderPrimaryView();
+        }
+        // Show the full control indicator + lock button
+        showControlIndicator();
+      } else {
+        if (err) {
+          err.classList.remove('hidden');
+          setTimeout(() => err.classList.add('hidden'), 2200);
+        }
+      }
+    }
+
+    function showRequestModal() {
+      const modal = document.getElementById('request-modal');
+      const success = document.getElementById('request-success');
+      if (success) success.classList.add('hidden');
+      // clear form
+      const name = document.getElementById('req-name');
+      const msg = document.getElementById('req-message');
+      if (name) name.value = '';
+      if (msg) msg.value = '';
+      if (modal) modal.classList.add('open');
+    }
+
+    function closeRequestModal() {
+      const modal = document.getElementById('request-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    async function submitAccessRequest() {
+      const nameEl = document.getElementById('req-name');
+      const msgEl = document.getElementById('req-message');
+      const success = document.getElementById('request-success');
+
+      const message = msgEl ? msgEl.value.trim() : '';
+      if (!message) {
+        alert("Please enter a message.");
+        return;
+      }
+
+      const name = nameEl ? nameEl.value.trim() : '';
+
+      try {
+        const form = new URLSearchParams();
+        form.append('name', name);
+        form.append('message', message);
+
+        const res = await fetch('/api/ha/access-request', {
+          method: 'POST',
+          body: form
+        });
+
+        if (res.ok) {
+          if (success) {
+            success.classList.remove('hidden');
+          }
+          setTimeout(() => {
+            closeRequestModal();
+            if (success) success.classList.add('hidden');
+          }, 1400);
+        } else {
+          alert("Could not send request. Please try again later.");
+        }
+      } catch (e) {
+        alert("Request failed. Please try again.");
+      }
+    }
+
+    function showControlIndicator() {
+      // Add a small indicator + lock button in the top bar area if not present
+      let ind = document.getElementById('control-indicator');
+      if (!ind) {
+        const topBar = document.querySelector('.flex.items-center.justify-between.mb-3');
+        if (topBar) {
+          ind = document.createElement('div');
+          ind.id = 'control-indicator';
+          ind.className = 'ml-auto flex items-center gap-2 text-xs';
+          topBar.appendChild(ind);
+        } else {
+          return;
+        }
+      }
+      ind.innerHTML = `
+        <span class="full-control-indicator flex items-center gap-1 px-2.5 py-0.5">
+          <i class="fa-solid fa-unlock text-[10px]"></i>
+          <span>Full control</span>
+        </span>
+        <button onclick="lockControls()" class="lock-btn text-zinc-400 hover:text-white">Lock</button>
+      `;
+    }
+
+    function lockControls() {
+      clearSavedToken();
+      // Reload so the page starts in locked state cleanly
+      location.reload();
+    }
+
+    async function showAccessRequests() {
+      if (!isUnlocked) return;
+      try {
+        const res = await fetch(`/api/ha/access-requests?token=${encodeURIComponent(adminToken)}`);
+        if (!res.ok) {
+          alert('Could not load requests (token issue?)');
+          return;
+        }
+        const reqs = await res.json();
+
+        const pop = document.createElement('div');
+        pop.className = 'fixed inset-0 z-[350] flex items-center justify-center bg-black/70';
+        pop.innerHTML = `
+          <div class="bg-[#18181b] border border-zinc-700 rounded-2xl w-full max-w-lg mx-3 p-4 max-h-[70vh] overflow-auto">
+            <div class="flex justify-between items-center mb-3">
+              <div class="font-semibold">Access Requests (${reqs.length})</div>
+              <button class="text-xl leading-none px-2" onclick="this.closest('.fixed').remove()">×</button>
+            </div>
+            ${reqs.length === 0 ? '<div class="text-sm text-zinc-500">No requests yet.</div>' : ''}
+            <div class="space-y-3 text-sm">
+              ${reqs.map(r => `
+                <div class="border border-zinc-800 rounded-xl p-3">
+                  <div class="flex justify-between text-xs text-zinc-400">
+                    <div>${r.timestamp ? r.timestamp.slice(0,16).replace('T',' ') : ''}</div>
+                    <div>${r.ip || ''}</div>
+                  </div>
+                  <div class="mt-1"><strong>${r.name}</strong></div>
+                  <div class="mt-1 text-zinc-300 whitespace-pre-wrap">${r.message}</div>
+                  <button onclick="deleteAccessRequest('${r.id}', this)" class="mt-2 text-xs text-rose-400 hover:text-rose-300">Delete</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        document.body.appendChild(pop);
+      } catch (e) {
+        alert('Failed to load access requests.');
+      }
+    }
+
+    async function deleteAccessRequest(id, btnEl) {
+      if (!confirm('Delete this request?')) return;
+      try {
+        const res = await fetch(`/api/ha/access-requests/${id}?token=${encodeURIComponent(adminToken)}`, { method: 'DELETE' });
+        if (res.ok) {
+          btnEl.closest('.border').remove();
+        }
+      } catch(e) {}
+    }
+
+    function renderLockedBannerIfNeeded(container) {
+      if (isUnlocked) return;
+
+      // Inject a nice view-only banner at the top of the main content if not already there
+      let banner = document.getElementById('view-only-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'view-only-banner';
+        banner.className = 'view-only-banner mb-4';
+        banner.innerHTML = `
+          <div class="flex flex-col sm:flex-row items-center gap-3">
+            <div class="flex-1 text-center sm:text-left">
+              <div class="font-medium">View Only Mode</div>
+              <div class="text-xs text-zinc-400 mt-0.5">Live states update automatically. All controls are locked.</div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="showRequestModal()" class="btn px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 min-h-[44px]">
+                Request access
+              </button>
+              <button onclick="showUnlockModal()" class="btn px-4 py-2 text-sm border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/10 min-h-[44px]">
+                Unlock with token
+              </button>
+            </div>
+          </div>
+        `;
+        // Insert at the very top of dashboard-content or main
+        const dash = document.getElementById('dashboard-content');
+        if (dash && dash.parentNode) {
+          dash.parentNode.insertBefore(banner, dash);
+        }
+      }
+    }
 
     // --- Instant bootstrap from persisted config (lighting_config.json embedded at render time) ---
     function bootstrapFromInitial() {
@@ -838,6 +1201,19 @@
       } else if (syncContainer) {
         syncContainer.innerHTML = '';
       }
+
+      // When unlocked, show Access Requests quick link
+      if (isUnlocked && groupContainer) {
+        let reqBtn = document.getElementById('access-req-link');
+        if (!reqBtn) {
+          reqBtn = document.createElement('button');
+          reqBtn.id = 'access-req-link';
+          reqBtn.className = 'mt-2 w-full text-left px-3 py-1.5 text-sm rounded hover:bg-[#27272a] flex items-center gap-2 text-amber-300';
+          reqBtn.onclick = showAccessRequests;
+          groupContainer.parentNode.appendChild(reqBtn);
+        }
+        reqBtn.innerHTML = `<i class="fa-solid fa-inbox w-4"></i> <span>Access Requests</span>`;
+      }
     }
 
     // New primary view switcher (powers bottom nav on mobile + desktop pills). Keeps experience consistent.
@@ -975,7 +1351,11 @@
 
       title.innerHTML = `${friendly} <span class="text-xs text-zinc-500 font-normal">${isOn ? 'On' : 'Off'}</span>`;
 
-      let html = `
+      let html = '';
+      if (!isUnlocked) {
+        html += `<div class="mb-3 p-2 text-xs rounded bg-zinc-900 border border-zinc-700 text-amber-300">View only mode. <button onclick="showUnlockModal(); closeLightDetail(); return false;" class="underline">Unlock with token</button></div>`;
+      }
+      html += `
         <div class="flex items-center gap-3 mb-4">
           <button onclick="toggleLight('${eid}', this); setTimeout(() => openLightDetail('${eid}'), 120)" class="flex-1 py-2 rounded-xl text-sm font-medium ${isOn ? 'bg-emerald-500 text-white' : 'bg-zinc-800'}">
             <i class="fa-solid fa-power-off mr-2"></i> ${isOn ? 'Turn Off' : 'Turn On'}
@@ -1324,8 +1704,8 @@
         const onCount = room.on_count || 0;
         const total = room.light_count || roomLights.length;
 
-        // Per-room master controls (big, thumb friendly)
-        let master = `
+        // Per-room master controls (big, thumb friendly) — view-only when locked
+        let master = isUnlocked ? `
           <div class="flex items-center gap-2 mb-3 flex-wrap">
             <button onclick="roomOrGroupMaster('${room.id}', 'turn_on', false)" class="ha-btn text-emerald-400 min-h-[44px] px-4">All On</button>
             <button onclick="roomOrGroupMaster('${room.id}', 'turn_off', false)" class="ha-btn min-h-[44px] px-4">All Off</button>
@@ -1347,7 +1727,8 @@
               <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
                      onchange="roomOrGroupMasterColorTemp('${room.id}', this.value, false)">
             </div>
-          </div>`;
+          </div>` : `
+          <div class="text-[11px] text-zinc-500 mb-3 italic">View only — unlock to use room masters</div>`;
 
         html += `
           <div class="card p-4 mb-4" data-room-section="${room.id}">
@@ -1412,7 +1793,7 @@
         const onC = group.on_count || 0;
         const tot = group.light_count || gLights.length;
 
-        const master = `
+        const master = isUnlocked ? `
           <div class="flex items-center gap-2 mb-3 flex-wrap">
             <button onclick="roomOrGroupMaster('${group.id}', 'turn_on', true)" class="ha-btn text-emerald-400 min-h-[44px] px-4">All On</button>
             <button onclick="roomOrGroupMaster('${group.id}', 'turn_off', true)" class="ha-btn min-h-[44px] px-4">All Off</button>
@@ -1432,7 +1813,8 @@
               <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400" onchange="roomOrGroupMasterColorTemp('${group.id}', this.value, true)">
             </div>
           </div>
-          <div class="text-[10px] text-emerald-400/70 mb-2">True sync: brightness, color, and dynamic effects start at the exact same moment across all lights in this group.</div>`;
+          <div class="text-[10px] text-emerald-400/70 mb-2">True sync: brightness, color, and dynamic effects start at the exact same moment across all lights in this group.</div>` : `
+          <div class="text-[11px] text-zinc-500 mb-3 italic">View only — unlock to use group masters</div>`;
 
         html += `
           <div class="card p-4 mb-4">
@@ -1615,6 +1997,10 @@
     }
 
     async function callLightService(eid, extra) {
+      if (!isUnlocked || !adminToken) {
+        showFeedback('Unlock controls to make changes.', true);
+        return false;
+      }
       try {
         const payload = { entity_id: eid, transition: 0.4, ...extra };
         const res = await fetch(`/api/ha/service/light/turn_on?token=${encodeURIComponent(adminToken)}`, {
@@ -1628,6 +2014,10 @@
 
     // General service caller (for select.* sync modes etc.)
     async function callHAService(domain, service, entity_id, extra = {}) {
+      if (!isUnlocked || !adminToken) {
+        showFeedback('Unlock controls to make changes.', true);
+        return false;
+      }
       try {
         const payload = { entity_id, ...extra };
         const res = await fetch(`/api/ha/service/${domain}/${service}?token=${encodeURIComponent(adminToken)}`, {
@@ -1850,6 +2240,10 @@
     }
 
     async function roomOrGroupMaster(id, action, isGroup) {
+      if (!isUnlocked) {
+        showFeedback('Unlock to use master controls.', true);
+        return;
+      }
       const lights = isGroup 
         ? (haData.groups || []).find(g => g.id === id || g.name === id)?.light_ids || []
         : (haData.rooms || []).find(r => r.id === id || r.name === id)?.light_ids || [];
@@ -2084,16 +2478,33 @@
     function initializeDashboard() {
       initTailwind();
 
+      // Check persistent unlock first (localStorage)
+      loadSavedToken();
+
+      if (isUnlocked) {
+        removeViewOnlyState();
+      } else {
+        applyViewOnlyState();
+      }
+
       // 1. INSTANT: show persisted rooms + sync groups + skeleton states from lighting_config.json
       const bootstrapped = bootstrapFromInitial();
+
+      // Show locked banner early if needed (before live data)
+      if (!isUnlocked) {
+        setTimeout(() => {
+          const dash = document.getElementById('dashboard-content');
+          if (dash) renderLockedBannerIfNeeded(dash);
+        }, 10);
+      }
 
       // 2. Always kick background live fetch from HA (hydrates names, real states, new unassigned lights, counts)
       // Use setTimeout so the first paint is completely unblocked.
       setTimeout(() => {
         hydrateLiveStates(true).then(() => {
-          // After first successful hydrate, if user is still on default view the data is rich now
-          if (!searchTerm) {
-            // no-op; renderPrimaryView already called inside hydrate
+          if (!isUnlocked) {
+            const dash = document.getElementById('dashboard-content');
+            if (dash) renderLockedBannerIfNeeded(dash);
           }
         }).catch(() => {});
       }, bootstrapped ? 40 : 120);
@@ -2107,6 +2518,11 @@
 
       // Make sure active buttons reflect default
       updateActiveViewButtons();
+
+      // If unlocked from storage, show the control indicator
+      if (isUnlocked) {
+        setTimeout(showControlIndicator, 250);
+      }
 
       // Keyboard hint (desktop)
       document.addEventListener('keydown', (e) => {
