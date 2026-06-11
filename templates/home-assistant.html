@@ -1909,7 +1909,7 @@
 
       return `
         <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}"
-             onclick="if (!event.target.closest('button,input,select,.effect-btn')) openLightDetail('${eid}');">
+             onclick="var _ex=(window.innerWidth<640?'button,input,select,.effect-btn':'button,input[type=range],select,.effect-btn');if(!event.target.closest(_ex))openLightDetail('${eid}');">
           <div class="flex items-start justify-between mb-2">
             <div>
               <div class="font-medium text-sm truncate">${displayName}</div>
@@ -1950,7 +1950,7 @@
               <span class="text-[9px] text-zinc-500">tap for more</span>
             </div>
             <input type="color" value="#ffcc99" class="w-10 h-8 p-0 border border-zinc-600 bg-transparent rounded-lg cursor-pointer shadow-sm" oninput="debouncedColor('${eid}', this.value, this)"
-                   onpointerdown="event.stopPropagation()">
+                   onpointerdown="event.stopPropagation()" onclick="if(window.innerWidth>=640)event.preventDefault();">
           </div>` : ''}
 
           ${effectList.length > 0 ? `
