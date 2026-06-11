@@ -6,6 +6,7 @@
   <title>Home Assistant • HENDERBURGH</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
@@ -455,6 +456,63 @@
       border-radius: 4px;
       background: #27272a;
       color: #71717a;
+    }
+
+    /* === Premium micro polish (Anime.js driven interactions + calmer hierarchy) === */
+    .light-card {
+      transition: border-color 0.2s ease, box-shadow 0.2s ease; /* keep some, anime handles transform on tap */
+    }
+    .light-card:hover {
+      border-color: #52525b;
+    }
+
+    /* Calmer, more refined spacing + visual hierarchy inside cards */
+    .light-card {
+      padding-top: 0.65rem;
+      padding-bottom: 0.65rem;
+    }
+    .light-card > .flex.items-start {
+      margin-bottom: 0.55rem;
+    }
+    .light-card .text-\[10px\],
+    .light-card .text-xs {
+      letter-spacing: 0.2px;
+    }
+    .light-card .control-wrapper {
+      margin-bottom: 0.35rem;
+    }
+    .light-card .mode-toggle {
+      margin-top: 0.1rem;
+    }
+
+    /* Sync group cards (the outer .card in Groups view) - refined */
+    .card:has(i.fa-link.text-emerald-400) {
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+    }
+
+    /* Mode toggle buttons */
+    .mode-toggle button {
+      transition: transform 0.12s ease, background 0.1s ease, color 0.1s ease;
+    }
+
+    /* Detail modal content: calmer breathing room + hierarchy */
+    #light-detail #detail-content {
+      padding: 1.15rem 1.1rem 1rem;
+    }
+    #light-detail .space-y-5 > * + * {
+      margin-top: 1.1rem;
+    }
+    #light-detail .text-xs {
+      letter-spacing: 0.3px;
+    }
+    #light-detail .flex.justify-between.text-xs {
+      margin-bottom: 0.35rem;
+    }
+    #light-detail .mode-toggle {
+      margin-bottom: 0.6rem;
+    }
+    #detail-title {
+      letter-spacing: -0.2px;
     }
   </style>
 </head>
@@ -1466,31 +1524,97 @@
 
       content.innerHTML = html;
 
-      // Mobile bottom sheet vs desktop slide
+      // Mobile bottom sheet vs desktop slide - now powered by Anime.js for premium motion
       panel.classList.remove('hidden');
-      if (window.innerWidth < 640) {
-        panel.classList.add('flex', 'open');
-        panel.style.transform = 'translateY(0)';
+      if (typeof anime !== 'undefined') {
+        if (window.innerWidth < 640) {
+          // mobile: smooth bottom-sheet rise + fade
+          panel.classList.add('flex', 'open');
+          panel.style.transform = 'translateY(100%)';
+          panel.style.opacity = '0';
+          anime({
+            targets: panel,
+            translateY: '0%',
+            opacity: 1,
+            duration: 340,
+            easing: 'easeOutCubic'
+          });
+        } else {
+          // desktop: clean slide-in from right + fade
+          panel.classList.add('flex');
+          panel.classList.remove('translate-x-full');
+          panel.style.transform = 'translateX(100%)';
+          panel.style.opacity = '0';
+          anime({
+            targets: panel,
+            translateX: '0%',
+            opacity: 1,
+            duration: 280,
+            easing: 'easeOutCubic'
+          });
+        }
       } else {
-        panel.classList.add('flex');
-        panel.classList.remove('translate-x-full');
+        // fallback (no anime)
+        if (window.innerWidth < 640) {
+          panel.classList.add('flex', 'open');
+          panel.style.transform = 'translateY(0)';
+        } else {
+          panel.classList.add('flex');
+          panel.classList.remove('translate-x-full');
+        }
       }
     }
 
     function closeLightDetail() {
       const panel = document.getElementById('light-detail');
       if (!panel) return;
-      if (window.innerWidth < 640) {
-        panel.style.transform = 'translateY(100%)';
-        setTimeout(() => {
-          panel.classList.remove('flex', 'open');
-          panel.classList.add('hidden');
-          panel.style.transform = '';
-        }, 180);
+      if (typeof anime !== 'undefined') {
+        if (window.innerWidth < 640) {
+          // mobile bottom sheet descend
+          anime({
+            targets: panel,
+            translateY: '100%',
+            opacity: 0,
+            duration: 220,
+            easing: 'easeInCubic',
+            complete: () => {
+              panel.classList.remove('flex', 'open');
+              panel.classList.add('hidden');
+              panel.style.transform = '';
+              panel.style.opacity = '';
+            }
+          });
+        } else {
+          // desktop slide out + fade
+          anime({
+            targets: panel,
+            translateX: '100%',
+            opacity: 0,
+            duration: 200,
+            easing: 'easeInCubic',
+            complete: () => {
+              panel.classList.add('translate-x-full');
+              panel.classList.remove('flex');
+              panel.classList.add('hidden');
+              panel.style.transform = '';
+              panel.style.opacity = '';
+            }
+          });
+        }
       } else {
-        panel.classList.add('translate-x-full');
-        panel.classList.remove('flex');
-        setTimeout(() => panel.classList.add('hidden'), 180);
+        // fallback unchanged timing
+        if (window.innerWidth < 640) {
+          panel.style.transform = 'translateY(100%)';
+          setTimeout(() => {
+            panel.classList.remove('flex', 'open');
+            panel.classList.add('hidden');
+            panel.style.transform = '';
+          }, 180);
+        } else {
+          panel.classList.add('translate-x-full');
+          panel.classList.remove('flex');
+          setTimeout(() => panel.classList.add('hidden'), 180);
+        }
       }
     }
 
@@ -2651,6 +2775,118 @@
     // Boot
     document.addEventListener('DOMContentLoaded', () => {
       initializeDashboard();
+
+      // === Anime.js micro-interactions & premium polish (non-invasive delegation) ===
+      if (typeof anime !== 'undefined') {
+        // 1. Every .light-card gets subtle lift + scale on tap (press feedback)
+        // Uses pointer events for mouse + touch. Resets gracefully. Existing handlers untouched.
+        let activeCard = null;
+        document.addEventListener('pointerdown', (e) => {
+          const card = e.target.closest('.light-card');
+          if (!card) return;
+          activeCard = card;
+          // subtle press (scale in + tiny sink for tactile "tap" feel; release will lift)
+          anime.remove(card);
+          anime({
+            targets: card,
+            scale: 0.975,
+            translateY: '1.5px',
+            duration: 90,
+            easing: 'easeOutQuad'
+          });
+        }, { passive: true });
+
+        const resetCardAnim = (card) => {
+          if (!card) return;
+          anime.remove(card);
+          anime({
+            targets: card,
+            scale: 1,
+            translateY: 0,
+            duration: 380,
+            easing: 'easeOutElastic(1, 0.7)'
+          });
+        };
+
+        document.addEventListener('pointerup', (e) => {
+          if (activeCard) {
+            resetCardAnim(activeCard);
+            activeCard = null;
+          }
+        }, { passive: true });
+
+        document.addEventListener('pointercancel', () => {
+          if (activeCard) {
+            resetCardAnim(activeCard);
+            activeCard = null;
+          }
+        }, { passive: true });
+
+        // also reset if pointer leaves the card while pressed
+        document.addEventListener('pointerleave', (e) => {
+          const card = e.target.closest('.light-card');
+          if (card && card === activeCard) {
+            resetCardAnim(card);
+            activeCard = null;
+          }
+        }, { passive: true });
+
+        // 2. Gentle hover lift on sync group cards (the prominent group .card containers)
+        document.addEventListener('mouseenter', (e) => {
+          const sg = e.target.closest('.card');
+          if (sg && sg.querySelector('.fa-link') && sg.querySelector('.font-semibold.text-lg')) {
+            anime.remove(sg);
+            anime({
+              targets: sg,
+              translateY: -2.5,
+              scale: 1.003,
+              duration: 220,
+              easing: 'easeOutQuad'
+            });
+          }
+        }, true);
+
+        document.addEventListener('mouseleave', (e) => {
+          const sg = e.target.closest('.card');
+          if (sg && sg.querySelector('.fa-link') && sg.querySelector('.font-semibold.text-lg')) {
+            anime.remove(sg);
+            anime({
+              targets: sg,
+              translateY: 0,
+              scale: 1,
+              duration: 260,
+              easing: 'easeOutQuad'
+            });
+          }
+        }, true);
+
+        // 3. Gentle hover lift + micro pop on mode toggle buttons (both in cards + detail)
+        document.addEventListener('mouseenter', (e) => {
+          const btn = e.target.closest('.mode-toggle button');
+          if (btn && !btn.disabled) {
+            anime.remove(btn);
+            anime({
+              targets: btn,
+              translateY: -1,
+              duration: 140,
+              easing: 'easeOutQuad'
+            });
+          }
+        }, true);
+
+        document.addEventListener('mouseleave', (e) => {
+          const btn = e.target.closest('.mode-toggle button');
+          if (btn && !btn.disabled) {
+            anime.remove(btn);
+            anime({
+              targets: btn,
+              translateY: 0,
+              duration: 180,
+              easing: 'easeOutQuad'
+            });
+          }
+        }, true);
+      }
 
       // Mobile touch drag init on load (for any early cards)
       if (window.innerWidth < 768) {
