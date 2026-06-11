@@ -119,16 +119,24 @@
     }
 
     .content-section {
-      margin-bottom: 80px;
+      margin-bottom: 3rem; /* tighter for better visual balance, no large gaps */
     }
 
     /* Calmer breathing room and hierarchy */
     .section-label {
-      margin-bottom: 0.85rem;
+      margin-bottom: 0.75rem;
     }
 
     h1, .font-display {
       letter-spacing: -0.025em;
+    }
+
+    /* Live Now specific balance */
+    .live-now {
+      gap: 12px;
+    }
+    .live-now-secondary {
+      margin-top: 0.5rem;
     }
 
     /* Polished Game Clips horizontal scroller */
@@ -315,24 +323,11 @@
       40% { transform: scale(1.1); opacity: 1; }
     }
 
-    /* Aceternity-inspired subtle aurora / relaxing background (status-driven) */
-    .aurora-bg {
-      position: absolute;
-      inset: -20%;
-      background: 
-        radial-gradient(circle at 30% 20%, rgba(74,222,128,0.08) 0%, transparent 50%),
-        radial-gradient(circle at 70% 80%, rgba(96,165,250,0.06) 0%, transparent 60%);
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0.6;
-      animation: aurora-drift 18s ease-in-out infinite;
-    }
-    @keyframes aurora-drift {
-      0%,100% { transform: translate(0,0) rotate(0deg); }
-      50% { transform: translate(2%, -3%) rotate(1deg); }
-    }
-    .status-relaxing .aurora-bg {
-      opacity: 0.9;
+    /* Hero green gradient is applied via body style for full viewport height top coverage, full width (no dark sides in hero area) */
+
+    /* Clean Live Now balance */
+    .live-now {
+      gap: 12px;
     }
   </style>
 </head>
@@ -368,35 +363,39 @@
     </div>
   </header>
 
-  <main class="max-w-[1080px] mx-auto px-6 pt-12 pb-20">
-    <!-- Personal Intro + OS Hub feel -->
-    <div class="mb-8 max-w-2xl">
-      <p class="text-lg text-zinc-300">
-        HENDERBURGH'S PERSONAL OS. Instant state at a glance.
-      </p>
-    </div>
+  <!-- Hero section with full green gradient/background covering full viewport height (below header), full width to eliminate dark sides in hero -->
+  <div class="hero w-full bg-gradient-to-b from-emerald-950 via-[#0a0a0b] to-[#0a0a0b] min-h-[calc(100vh-4rem)] flex items-center">
+    <div class="max-w-[1080px] mx-auto px-6 w-full">
+      <!-- Personal Intro + OS Hub feel -->
+      <div class="mb-8 max-w-2xl">
+        <p class="text-lg text-zinc-300">
+          HENDERBURGH'S PERSONAL OS. Instant state at a glance.
+        </p>
+      </div>
 
-    <!-- Quirky little notification icon: click it and the office lamp temporarily flashes to physically signal you (or someone else) poked it -->
-    {% if not public_mode %}
-    <div class="flex justify-center mb-7">
-      <button onclick="triggerOfficeLampNotificationPoke()"
-              class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
-              title="Poke the office lamp — it will flash temporarily so you see the lamp react and know someone poked/notified you">
-        <i class="fa-solid fa-lightbulb text-lg text-emerald-400 group-hover:text-emerald-300 transition-colors"></i>
-        {% if blog_unread_count and blog_unread_count > 0 %}
-        <span class="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70"></span>
-          <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-        </span>
-        {% endif %}
-      </button>
+      <!-- Quirky little notification icon: click it and the office lamp temporarily flashes to physically signal you (or someone else) poked it -->
+      {% if not public_mode %}
+      <div class="flex justify-center mb-7">
+        <button onclick="triggerOfficeLampNotificationPoke()"
+                class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
+                title="Poke the office lamp — it will flash temporarily so you see the lamp react and know someone poked/notified you">
+          <i class="fa-solid fa-lightbulb text-lg text-emerald-400 group-hover:text-emerald-300 transition-colors"></i>
+          {% if blog_unread_count and blog_unread_count > 0 %}
+          <span class="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          </span>
+          {% endif %}
+        </button>
+      </div>
+      {% endif %}
     </div>
-    {% endif %}
+  </div>
 
-    <!-- Live Now (bento grid + aurora when relaxing) -->
-    <div class="content-section relative status-relaxing" id="live-now-section">
-      <div class="aurora-bg"></div>
-      <div class="section-label mb-3 relative z-10">Live Now</div>
+  <main class="max-w-[1080px] mx-auto px-6 pt-8 pb-8">
+    <!-- Live Now -->
+    <div class="content-section" id="live-now-section">
+      <div class="section-label mb-3">Live Now</div>
 
       <!-- First row: 4 balanced cards (bento-inspired) -->
       <div class="live-now live-now-main relative z-10">
@@ -431,14 +430,14 @@
 
       </div>
 
-      <!-- Last.fm on its own row below for balance -->
-      <div class="live-now live-now-secondary mt-3">
+      <!-- Last.fm on its own row below for balance (clean spacing, premium contrast) -->
+      <div class="live-now live-now-secondary mt-4">
         <!-- Last.fm -->
         <div class="live-card">
           <h3>Last.fm</h3>
-          <div id="lastfm-status"><p><em>Loading recent tracks...</em></p></div>
-          <p style="font-size:0.85rem; color:#666; margin-top:4px;">
-            <a href="https://www.last.fm/user/henderburgh" target="_blank" style="color:inherit; text-decoration:none;">Last.fm • Recent</a>
+          <div id="lastfm-status"><p class="text-sm text-zinc-400"><em>Loading recent tracks...</em></p></div>
+          <p class="text-xs text-zinc-400 mt-2">
+            <a href="https://www.last.fm/user/henderburgh" target="_blank" class="hover:text-white transition">Last.fm • Recent</a>
           </p>
         </div>
       </div>
