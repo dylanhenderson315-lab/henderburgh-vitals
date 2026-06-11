@@ -12,11 +12,19 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
     :root {
-      --accent: #111111;
+      --bg: #0f1115;
+      --card: #161a20;
+      --accent-green: #4ade80;
+      --accent-blue: #60a5fa;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --status-relax: #22c55e;
     }
 
     body {
       font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1115;
+      color: #e2e8f0;
     }
 
     .font-display {
@@ -136,17 +144,28 @@
     .clip-card {
       flex: 0 0 280px;
       scroll-snap-align: start;
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 14px;
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
       overflow: hidden;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .clip-card:hover {
-      border-color: #52525b;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      position: relative;
+    }
+    .clip-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(74,222,128,0.06), transparent);
+      opacity: 0;
+      transition: opacity 500ms ease;
+      pointer-events: none;
+    }
+    .clip-card:hover::after {
+      opacity: 1;
+    }
+    .clip-card:hover {
+      border-color: rgba(74, 222, 128, 0.3);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
     }
 
     .clip-card video {
@@ -214,42 +233,43 @@
     }
 
     .live-card {
-      border: 1px solid #3f3f46;
-      border-radius: 14px;
-      padding: 20px 20px;
-      background: #18181b;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem; /* rounded-3xl softness */
+      padding: 2rem; /* generous p-8 */
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
     }
     .live-card:hover {
-      border-color: #52525b;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      border-color: rgba(74, 222, 128, 0.3); /* soft green accent */
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
     }
     .live-card h3 {
       font-size: 10px;
-      letter-spacing: 2px;
+      letter-spacing: 2.8px;
       text-transform: uppercase;
-      color: #525252;
+      color: #94a3b8;
       margin-bottom: 8px;
       font-weight: 600;
     }
     .live-card p {
       font-size: 13.5px;
-      line-height: 1.45;
-      color: #d4d4d8;
+      line-height: 1.5;
+      color: #e2e8f0;
       margin: 1px 0;
     }
 
     .top-option {
-      background: #18181b;
-      border-color: #3f3f46;
-      color: #e4e4e7;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #e2e8f0;
+      border-radius: 1.5rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      padding: 2rem 1.75rem;
     }
     .top-option:hover {
-      background: #27272a;
-      border-color: #52525b;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15);
+      border-color: rgba(74, 222, 128, 0.3);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
     }
 
     .live-card .big-number {
@@ -262,8 +282,57 @@
 
     .live-card .comparison {
       font-size: 11px;
-      color: #666;
+      color: #94a3b8;
       margin-top: 5px;
+    }
+
+    /* Consistent .card base for bento / overview */
+    .card {
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+    }
+
+    /* NeonDrift / Dotmatrix loader (port of @dotmatrix/neon-drift for calm expressive loading) */
+    .neon-drift {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .neon-drift .dot {
+      width: 6px;
+      height: 6px;
+      background: #4ade80;
+      border-radius: 9999px;
+      box-shadow: 0 0 8px #4ade80;
+      animation: neon-drift 1.2s infinite ease-in-out;
+    }
+    .neon-drift .dot:nth-child(2) { animation-delay: 0.2s; }
+    .neon-drift .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes neon-drift {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40% { transform: scale(1.1); opacity: 1; }
+    }
+
+    /* Aceternity-inspired subtle aurora / relaxing background (status-driven) */
+    .aurora-bg {
+      position: absolute;
+      inset: -20%;
+      background: 
+        radial-gradient(circle at 30% 20%, rgba(74,222,128,0.08) 0%, transparent 50%),
+        radial-gradient(circle at 70% 80%, rgba(96,165,250,0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.6;
+      animation: aurora-drift 18s ease-in-out infinite;
+    }
+    @keyframes aurora-drift {
+      0%,100% { transform: translate(0,0) rotate(0deg); }
+      50% { transform: translate(2%, -3%) rotate(1deg); }
+    }
+    .status-relaxing .aurora-bg {
+      opacity: 0.9;
     }
   </style>
 </head>
@@ -324,12 +393,13 @@
     </div>
     {% endif %}
 
-    <!-- Live Now -->
-    <div class="content-section">
-      <div class="section-label mb-3">Live Now</div>
+    <!-- Live Now (bento grid + aurora when relaxing) -->
+    <div class="content-section relative status-relaxing" id="live-now-section">
+      <div class="aurora-bg"></div>
+      <div class="section-label mb-3 relative z-10">Live Now</div>
 
-      <!-- First row: 4 balanced cards -->
-      <div class="live-now live-now-main">
+      <!-- First row: 4 balanced cards (bento-inspired) -->
+      <div class="live-now live-now-main relative z-10">
         <!-- Xbox -->
         <a href="/xbox" class="live-card block cursor-pointer" title="View full Xbox profile &amp; game log">
           <h3>Xbox</h3>
@@ -598,6 +668,32 @@
           });
         }
       }, true);
+
+      // Magnetic hover (Componentry-inspired) on key interactive cards using Anime + mouse tracking
+      document.querySelectorAll('.live-card, .top-option, .clip-card').forEach(card => {
+        card.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width - 0.5) * 8; // subtle tilt range
+          const y = ((e.clientY - rect.top) / rect.height - 0.5) * 8;
+          anime.remove(card);
+          anime({
+            targets: card,
+            rotateX: -y,
+            rotateY: x,
+            duration: 120,
+            easing: 'easeOutQuad'
+          });
+        });
+        card.addEventListener('mouseleave', () => {
+          anime({
+            targets: card,
+            rotateX: 0,
+            rotateY: 0,
+            duration: 420,
+            easing: 'easeOutElastic(1, .7)'
+          });
+        });
+      });
     }
 
     // Boot
@@ -613,6 +709,9 @@
   <script>
   async function loadXbox() {
     const el = document.getElementById("xbox-status");
+    if (el) {
+      el.innerHTML = `<div class="flex justify-center py-3"><div class="neon-drift"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+    }
 
     try {
       const res = await fetch("/api/xbox/status");
@@ -657,6 +756,25 @@
             </div>
           </div>
         `);
+
+        // Anime.js calm number animation for gamerscore (production data polish)
+        if (score) {
+          setTimeout(() => {
+            const scoreNode = el.querySelector('.tabular-nums');
+            if (scoreNode) {
+              const targetScore = parseInt(score.replace(/,/g, '')) || 0;
+              anime({
+                targets: { val: 0 },
+                val: targetScore,
+                duration: 850,
+                easing: 'easeOutExpo',
+                update: (anim) => {
+                  scoreNode.textContent = Math.floor(anim.animations[0].currentValue).toLocaleString();
+                }
+              });
+            }
+          }, 180);
+        }
       } else if (data.status === "not_configured") {
         el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status not configured</p>`;
       } else {
@@ -680,6 +798,8 @@
     const el = document.getElementById("ha-status");
     if (!el) return;
 
+    el.innerHTML = `<div class="flex justify-center py-3"><div class="neon-drift"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+
     try {
       const res = await fetch("/api/ha/summary");
       const data = await res.json();
@@ -702,16 +822,34 @@
           roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1">${(data.quick_status || []).slice(0,1).join('')}</div>`;
         }
 
-        smoothUpdate(el, `
+        const haHtml = `
           <div class="text-sm">
             <div class="flex items-baseline gap-x-1.5">
-              <span class="font-semibold tabular-nums">${on}/${tot}</span>
-              <span class="text-xs text-zinc-400">lights on</span>
+              <span class="font-semibold tabular-nums" id="ha-lights-count">${on}/${tot}</span>
+              <span class="text-xs text-[#94a3b8]">lights on</span>
             </div>
-            <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-zinc-500 italic' : 'text-emerald-300'} truncate">${scene}</div>
+            <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-[#94a3b8] italic' : 'text-[#4ade80]'} truncate">${scene}</div>
             ${roomsHtml}
           </div>
-        `);
+        `;
+        smoothUpdate(el, haHtml);
+
+        // Anime number animation for lights count (calm data refresh)
+        setTimeout(() => {
+          const countEl = el.querySelector('#ha-lights-count');
+          if (countEl) {
+            anime({
+              targets: { val: 0 },
+              val: on,
+              duration: 720,
+              easing: 'easeOutExpo',
+              update: (anim) => {
+                const current = Math.floor(anim.animations[0].currentValue);
+                countEl.textContent = `${current}/${tot}`;
+              }
+            });
+          }
+        }, 120);
       } else if (data.status === "disabled") {
         el.innerHTML = `<p class="text-xs text-zinc-500">Home Assistant (local only)</p>`;
       } else {

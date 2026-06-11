@@ -10,8 +10,14 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
+    :root {
+      --bg: #0f1115; --card: #161a20; --accent-green: #4ade80;
+      --text-primary: #e2e8f0; --text-secondary: #94a3b8;
+    }
     body {
       font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1115;
+      color: #e2e8f0;
     }
     .font-display {
       font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
@@ -38,12 +44,20 @@
     }
 
     .stat-card {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      border-radius: 12px;
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
       padding: 18px 18px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
+
+    /* NeonDrift + aurora for consistency */
+    .neon-drift { display: inline-flex; gap: 6px; }
+    .neon-drift .dot { width:6px;height:6px;background:#4ade80;border-radius:9999px;box-shadow:0 0 8px #4ade80;animation:neon-drift 1.2s infinite ease-in-out; }
+    .neon-drift .dot:nth-child(2){animation-delay:.2s}.neon-drift .dot:nth-child(3){animation-delay:.4s}
+    @keyframes neon-drift{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1.1);opacity:1}}
+    .aurora-bg{position:absolute;inset:-20%;background:radial-gradient(circle at 30% 20%,rgba(74,222,128,.08) 0%,transparent 50%),radial-gradient(circle at 70% 80%,rgba(96,165,250,.06) 0%,transparent 60%);pointer-events:none;z-index:0;opacity:.55;animation:aurora-drift 18s ease-in-out infinite}
+    @keyframes aurora-drift{0%,100%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(2%,-3%) rotate(1deg)}}
 
     table {
       border-collapse: separate;

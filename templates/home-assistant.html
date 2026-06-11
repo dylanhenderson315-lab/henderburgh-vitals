@@ -10,8 +10,20 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
+    :root {
+      --bg: #0f1115;
+      --card: #161a20;
+      --accent-green: #4ade80;
+      --accent-blue: #60a5fa;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --status-relax: #22c55e;
+    }
+
     body {
       font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1115;
+      color: #e2e8f0;
     }
     .font-display {
       font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
@@ -26,15 +38,15 @@
     }
 
     .card {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 14px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
     .card:hover {
-      border-color: #52525b;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      border-color: rgba(74, 222, 128, 0.3);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
     }
 
     .nav-link {
@@ -200,13 +212,26 @@
     }
 
     .light-card {
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      padding: 1.25rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .light-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(74,222,128,0.06), transparent);
+      opacity: 0; transition: opacity 500ms ease; pointer-events: none;
     }
     .light-card:hover {
-      border-color: #52525b;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      border-color: rgba(74, 222, 128, 0.3);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
     }
+    .light-card:hover::before { opacity: 1; }
     .dragging {
       opacity: 0.55;
       transform: scale(0.96);
@@ -301,6 +326,26 @@
     }
     .effect-btn:active {
       transform: scale(0.985);
+    }
+
+    /* NeonDrift loader + aurora (consistent with DESIGN.md) */
+    .neon-drift { display: inline-flex; gap: 6px; }
+    .neon-drift .dot {
+      width: 6px; height: 6px; background: #4ade80; border-radius: 9999px;
+      box-shadow: 0 0 8px #4ade80; animation: neon-drift 1.2s infinite ease-in-out;
+    }
+    .neon-drift .dot:nth-child(2) { animation-delay: .2s; }
+    .neon-drift .dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes neon-drift {
+      0%,80%,100% { transform: scale(.6); opacity:.4; }
+      40% { transform: scale(1.1); opacity:1; }
+    }
+    .aurora-bg {
+      position:absolute; inset:-20%;
+      background: radial-gradient(circle at 30% 20%, rgba(74,222,128,.08) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 80%, rgba(96,165,250,.06) 0%, transparent 60%);
+      pointer-events:none; z-index:0; opacity:.55;
+      animation: aurora-drift 18s ease-in-out infinite;
     }
 
     /* Reliability visual states for effect/mode buttons */
