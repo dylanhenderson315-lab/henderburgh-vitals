@@ -379,7 +379,7 @@
       <div class="flex justify-center">
         <button onclick="triggerOfficeLampNotificationPoke()"
                 class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
-                title="Poke the office lamp — it will flash temporarily so you see the lamp react and know someone poked/notified you">
+                title="Poke the office lamp (instant blink) — or signals notifications (blue temp via backend)">
           <i class="fa-solid fa-lightbulb text-lg text-emerald-400 group-hover:text-emerald-300 transition-colors"></i>
           {% if blog_unread_count and blog_unread_count > 0 %}
           <span class="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
@@ -531,7 +531,7 @@
 
   </main>
 
-  <!-- The quirky notification poke is handled directly by the icon — no heavy modal needed. Genius physical alert via your lamp. -->
+  <!-- Poke icon: click triggers snappy blink (via /api/ha/poke). Notification behavior (temp blue via /api/ha/notify) available for system signals. Both backend-driven for reliability + instant client feel. 3s rate limit on button. -->
 
   <!-- Footer -->
   <footer class="max-w-[1080px] mx-auto px-6">
@@ -967,163 +967,74 @@
 
   <!-- Office Lamp Notification Poke (the little quirky icon that makes the physical lamp temporarily "wave" at you) -->
   <script>
-    const DESK_LIGHTS = ["light.office_lamp"];
     const ADMIN_TOKEN = "67"; // matches lighting page (enforced server-side)
+    const OFFICE_LAMP = "light.office_lamp";
+    let lastPokeTime = 0;
 
-    // Snapshot current state for the office lamp only (reused by poke + any future quick actions)
-    async function getCurrentDeskState() {
-      try {
-        const res = await fetch('/api/ha/lights-data');
-        const data = await res.json();
-        if (data.status !== 'ok') return {};
-        const flat = [
-          ...Object.values(data.lights_by_room || {}).flat(),
-          ...(data.unassigned_lights || [])
-        ];
-        const prev = {};
-        DESK_LIGHTS.forEach(eid => {
-          const l = flat.find(x => x.entity_id === eid);
-          if (l) {
-            prev[eid] = {
-              state: l.state,
-              brightness: l.brightness,
-              color_temp: l.color_temp,
-              current_effect: l.current_effect || (l.attributes && l.attributes.effect)
-            };
-          }
-        });
-        return prev;
-      } catch (e) {
-        return {};
-      }
-    }
-
-    async function applyToDesk(payload) {
-      const promises = DESK_LIGHTS.map(eid =>
-        fetch(`/api/ha/service/light/turn_on?token=${ADMIN_TOKEN}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity_id: eid, transition: 0.8, ...payload })
-        }).catch(() => null)
-      );
-      await Promise.all(promises);
-    }
-
-    async function restoreDesk(prev) {
-      if (!prev || Object.keys(prev).length === 0) return;
-      const promises = Object.entries(prev).map(([eid, p]) => {
-        if (!p) return Promise.resolve();
-        if (p.state === 'off') {
-          return fetch(`/api/ha/service/light/turn_off?token=${ADMIN_TOKEN}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ entity_id: eid })
-          }).catch(() => null);
-        }
-        const body = { entity_id: eid, transition: 1.5 };
-        if (p.brightness != null) body.brightness = p.brightness;
-        if (p.color_temp != null) body.color_temp = p.color_temp;
-        if (p.current_effect) body.effect = p.current_effect;
-        return fetch(`/api/ha/service/light/turn_on?token=${ADMIN_TOKEN}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        }).catch(() => null);
-      });
-      await Promise.all(promises);
-    }
-
-    // Small helpers for the flash poke sequence
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-    async function turnOffDesk() {
-      const promises = DESK_LIGHTS.map(eid =>
-        fetch(`/api/ha/service/light/turn_off?token=${ADMIN_TOKEN}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity_id: eid })
-        }).catch(() => null)
-      );
-      await Promise.all(promises);
-    }
-
-    // The physical poke signal: clicking the icon (or a notification) makes the office lamp
-    // do a clear, temporary series of bright cool flashes (on bright -> off -> on bright -> off -> final bright hold).
-    // Then it fully reverts to whatever it was doing before. This way if you're in the room you *see*
-    // the lamp flash and instantly know "someone just poked me / new notification".
+    // Updated poke button behavior:
+    // - Poke: instantaneous blink (off for ~0.25s then back on) via backend. Snappy, no client delay.
+    // - Rate limit: 3s between uses on the button.
+    // - Notification behavior: separate /api/ha/notify for temp blue (can be triggered as needed, e.g. for actual notifications).
+    // Backend handles snapshot/sequence/reliable restore in background task so response is instant.
     async function triggerOfficeLampNotificationPoke() {
       const btn = document.querySelector('button[onclick*="triggerOfficeLampNotificationPoke"]');
       if (!btn) return;
 
+      const now = Date.now();
+      if (now - lastPokeTime < 3000) {
+        // rate limited - quick visual cue
+        const origOpacity = btn.style.opacity;
+        btn.style.transition = 'opacity 80ms ease';
+        btn.style.opacity = '0.4';
+        setTimeout(() => {
+          if (btn) btn.style.opacity = origOpacity || '';
+        }, 400);
+        return;
+      }
+      lastPokeTime = now;
+
       const bulb = btn.querySelector('i');
 
-      // immediate delightful feedback on the icon
-      btn.style.transition = 'transform 90ms ease, box-shadow 120ms ease';
-      btn.style.transform = 'scale(0.82)';
-      if (bulb) bulb.style.transition = 'color 120ms ease';
-      if (bulb) bulb.style.color = '#34d399';
-
-      // snapshot whatever the lamp is doing right now (so we can perfectly revert)
-      const prevState = await getCurrentDeskState();
-
-      try {
-        // Fire confirmation bits early so the UI feels instant.
-        // The *physical* signal is the lamp flashing in the room.
-        setTimeout(async () => {
-          try {
-            await fetch('/api/blog/mark-read', { method: 'POST' });
-          } catch (e) {}
-          // remove any ping badge that was on this button
-          const pings = btn.querySelectorAll('.animate-ping, span.relative.inline-flex');
-          pings.forEach(p => p.remove());
-        }, 180);
-
-        const toast = document.createElement('div');
-        toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 text-[11px] px-4 py-1.5 rounded-3xl bg-[#18181b] border border-zinc-700 text-zinc-300 shadow-xl z-[200]';
-        toast.textContent = 'Office lamp flashed';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 1650);
-
-        // === Temporary flash sequence (the actual "someone poked it" physical signal) ===
-        // Bright cool attention flash, quick off, bright again, quick off, final bright hold.
-        // Short enough to be a clear "flash" alert, then we restore exactly what the lamp was doing.
-        const flash = { brightness: 255, color_temp: 153, transition: 0.05 }; // cool bright white flash for visibility
-
-        // Flash cycle 1
-        await applyToDesk(flash);
-        await sleep(220);
-        await turnOffDesk();
-        await sleep(130);
-
-        // Flash cycle 2
-        await applyToDesk(flash);
-        await sleep(220);
-        await turnOffDesk();
-        await sleep(130);
-
-        // Final bright hold (lamp stays lit in the attention state for a moment)
-        await applyToDesk(flash);
-        await sleep(780);
-
-        // Graceful restore to the exact previous state (including off if it was off before)
-        await restoreDesk(prevState);
-
-        // settle the icon back to normal
-        btn.style.transform = 'scale(1)';
-        if (bulb) bulb.style.color = '#10b981';
-        setTimeout(() => {
-          if (bulb) bulb.style.color = '';
-          btn.style.transform = '';
-        }, 550);
-
-      } catch (e) {
-        // best effort revert UI + lamp state
-        btn.style.transform = '';
-        if (bulb) bulb.style.color = '';
-        if (prevState) {
-          restoreDesk(prevState).catch(() => {});
-        }
+      // immediate snappy UI feedback (no waiting for network/lamp)
+      btn.style.transition = 'transform 80ms ease';
+      btn.style.transform = 'scale(0.78)';
+      if (bulb) {
+        bulb.style.transition = 'color 100ms ease';
+        bulb.style.color = '#34d399';
       }
+
+      // fire to backend - instant, no await, sequence runs server-side in bg
+      fetch(`/api/ha/poke?token=${ADMIN_TOKEN}`, { method: 'POST' })
+        .catch(() => { /* best effort */ });
+
+      // keep the notification side-effects (mark read, clear badge, toast) for the "poked/notified" UX
+      setTimeout(async () => {
+        try {
+          await fetch('/api/blog/mark-read', { method: 'POST' });
+        } catch (e) {}
+        const pings = btn.querySelectorAll('.animate-ping, span.relative.inline-flex');
+        pings.forEach(p => p.remove());
+      }, 120);
+
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 text-[11px] px-4 py-1.5 rounded-3xl bg-[#18181b] border border-zinc-700 text-zinc-300 shadow-xl z-[200]';
+      toast.textContent = 'Office lamp blinked';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1400);
+
+      // settle icon fast
+      setTimeout(() => {
+        if (btn) btn.style.transform = '';
+        if (bulb) bulb.style.color = '';
+      }, 220);
+    }
+
+    // Notification behavior (blue temp signal). Can be called separately when a real notification occurs.
+    // Not wired to the poke button by default (poke button is for the blink poke).
+    // Kept here for completeness on home page.
+    async function triggerLampNotification() {
+      fetch(`/api/ha/notify?token=${ADMIN_TOKEN}`, { method: 'POST' }).catch(() => {});
+      // optional: could add icon tint etc, but keep minimal
     }
   </script>
 

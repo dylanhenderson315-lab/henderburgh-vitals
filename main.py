@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, Form, Request, HTTPException
+from fastapi import BackgroundTasks, Body, FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -120,6 +120,10 @@ if not PUBLIC_MODE and not HA_TOKEN:
 
 if PUBLIC_MODE and HA_TOKEN:
     print("ℹ️  HA integration loaded but disabled because PUBLIC_MODE=true (controls hidden).")
+
+OFFICE_LAMP = "light.office_lamp"
+_poke_last = 0.0
+_notify_last = 0.0
 
 # =============================================================================
 
@@ -1595,6 +1599,58 @@ async def api_ha_service(
     return {"status": "ok", "domain": domain, "service": service, "entity_id": entity_id, "result": result}
 
 
+@app.post("/api/ha/poke")
+async def api_ha_poke(
+    token: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
+):
+    """Poke action: instantaneous blink (off ~0.25s then back on). Backend handled.
+    Rate limited server-side + client. Returns instantly (bg task does the sequence).
+    """
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    if PUBLIC_MODE or not HA_ENABLED:
+        raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
+
+    global _poke_last
+    now = time.time()
+    if now - _poke_last < 3.0:
+        raise HTTPException(status_code=429, detail="Rate limited. Wait 3 seconds between pokes.")
+    _poke_last = now
+
+    if background_tasks is not None:
+        background_tasks.add_task(perform_poke_blink)
+    else:
+        asyncio.create_task(perform_poke_blink())
+    return {"status": "ok", "action": "poke"}
+
+
+@app.post("/api/ha/notify")
+async def api_ha_notify(
+    token: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
+):
+    """Notification action: temporarily blue for a few seconds, then restore.
+    Backend handled reliably. Returns instantly.
+    """
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    if PUBLIC_MODE or not HA_ENABLED:
+        raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
+
+    global _notify_last
+    now = time.time()
+    if now - _notify_last < 5.0:
+        raise HTTPException(status_code=429, detail="Rate limited.")
+    _notify_last = now
+
+    if background_tasks is not None:
+        background_tasks.add_task(perform_notify_blue)
+    else:
+        asyncio.create_task(perform_notify_blue())
+    return {"status": "ok", "action": "notify"}
+
+
 @app.post("/api/ha/access-request")
 async def post_access_request(request: Request, name: str = Form(""), message: str = Form("")):
     """Anyone can submit an access request when the lighting page is locked.
@@ -1862,6 +1918,91 @@ async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = 
     except Exception as e:
         print(f"HA service call failed: {domain}/{service} {entity_id} - {e}")
         raise HTTPException(status_code=502, detail=f"Failed to reach Home Assistant: {str(e)}")
+
+
+async def perform_poke_blink():
+    """Backend-handled snappy poke: instant off for 0.25s then back on to previous state.
+    Runs in background so endpoint returns immediately for instant feel.
+    """
+    global _poke_last
+    try:
+        states = await get_ha_states()
+        prev = None
+        for s in states:
+            if s.get("entity_id") == OFFICE_LAMP:
+                attrs = s.get("attributes", {}) or {}
+                prev = {
+                    "state": s.get("state"),
+                    "brightness": attrs.get("brightness"),
+                    "color_temp": attrs.get("color_temp"),
+                    "rgb_color": attrs.get("rgb_color"),
+                }
+                break
+
+        # instantaneous off
+        await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0})
+        await asyncio.sleep(0.25)
+
+        # back on to previous (or on if no prev)
+        if prev and prev.get("state") == "off":
+            await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0})
+        else:
+            extra = {"transition": 0}
+            if prev:
+                if prev.get("brightness") is not None:
+                    extra["brightness"] = prev["brightness"]
+                if prev.get("color_temp") is not None:
+                    extra["color_temp"] = prev["color_temp"]
+                if prev.get("rgb_color"):
+                    extra["rgb_color"] = prev["rgb_color"]
+            await call_ha_service("light", "turn_on", OFFICE_LAMP, extra)
+    except Exception as e:
+        print(f"perform_poke_blink error: {e}")
+
+
+async def perform_notify_blue():
+    """Backend-handled notification: temp set to blue for ~3.5s then restore previous.
+    Runs in background.
+    """
+    global _notify_last
+    try:
+        states = await get_ha_states()
+        prev = None
+        for s in states:
+            if s.get("entity_id") == OFFICE_LAMP:
+                attrs = s.get("attributes", {}) or {}
+                prev = {
+                    "state": s.get("state"),
+                    "brightness": attrs.get("brightness"),
+                    "color_temp": attrs.get("color_temp"),
+                    "rgb_color": attrs.get("rgb_color"),
+                }
+                break
+
+        # set blue instantly
+        blue = {
+            "brightness": 200,
+            "rgb_color": [0, 80, 255],
+            "transition": 0,
+        }
+        await call_ha_service("light", "turn_on", OFFICE_LAMP, blue)
+        await asyncio.sleep(3.5)
+
+        # restore
+        if prev:
+            if prev.get("state") == "off":
+                await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0.4})
+            else:
+                extra = {"transition": 0.4}
+                if prev.get("brightness") is not None:
+                    extra["brightness"] = prev["brightness"]
+                if prev.get("color_temp") is not None:
+                    extra["color_temp"] = prev["color_temp"]
+                if prev.get("rgb_color"):
+                    extra["rgb_color"] = prev["rgb_color"]
+                await call_ha_service("light", "turn_on", OFFICE_LAMP, extra)
+    except Exception as e:
+        print(f"perform_notify_blue error: {e}")
 
 
 async def get_ha_lights_data():
