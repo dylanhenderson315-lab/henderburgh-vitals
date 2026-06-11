@@ -7,6 +7,7 @@
   <meta name="description" content="Personal site of HENDERBURGH — daily vitals, golf, clips, and thoughts.">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
@@ -25,10 +26,23 @@
 
     .section-label {
       font-size: 10px;
-      letter-spacing: 2.5px;
+      letter-spacing: 2.8px;
       text-transform: uppercase;
-      color: #737373;
+      color: #525252;
       font-weight: 600;
+    }
+
+    /* Base premium card for consistency */
+    .card {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      border-color: #52525b;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
 
     .top-options {
@@ -97,7 +111,16 @@
     }
 
     .content-section {
-      margin-bottom: 72px;
+      margin-bottom: 80px;
+    }
+
+    /* Calmer breathing room and hierarchy */
+    .section-label {
+      margin-bottom: 0.85rem;
+    }
+
+    h1, .font-display {
+      letter-spacing: -0.025em;
     }
 
     /* Polished Game Clips horizontal scroller */
@@ -115,16 +138,15 @@
       scroll-snap-align: start;
       background: #18181b;
       border: 1px solid #3f3f46;
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .clip-card:hover {
       border-color: #52525b;
-      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
-      transform: translateY(-1px);
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
 
     .clip-card video {
@@ -135,19 +157,21 @@
     }
 
     .clip-meta {
-      padding: 14px 16px;
+      padding: 15px 18px;
       font-size: 0.95rem;
     }
 
     .clip-meta strong {
       display: block;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
       color: #f4f4f5;
+      font-weight: 600;
+      letter-spacing: -0.1px;
     }
 
     .clip-meta span {
       color: #a1a1aa;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
     }
 
     .nav-link {
@@ -191,52 +215,55 @@
 
     .live-card {
       border: 1px solid #3f3f46;
-      border-radius: 12px;
-      padding: 18px 18px;
+      border-radius: 14px;
+      padding: 20px 20px;
       background: #18181b;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
     .live-card:hover {
       border-color: #52525b;
-      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
-      transform: translateY(-1px);
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
     .live-card h3 {
-      font-size: 11px;
-      letter-spacing: 1.8px;
+      font-size: 10px;
+      letter-spacing: 2px;
       text-transform: uppercase;
       color: #525252;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       font-weight: 600;
     }
     .live-card p {
       font-size: 13.5px;
-      line-height: 1.4;
+      line-height: 1.45;
       color: #d4d4d8;
-      margin: 2px 0;
+      margin: 1px 0;
     }
 
     .top-option {
       background: #18181b;
       border-color: #3f3f46;
       color: #e4e4e7;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     }
     .top-option:hover {
       background: #27272a;
       border-color: #52525b;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15);
     }
 
     .live-card .big-number {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 700;
-      line-height: 1.1;
-      margin: 4px 0;
+      line-height: 1.05;
+      margin: 3px 0;
+      letter-spacing: -0.3px;
     }
 
     .live-card .comparison {
       font-size: 11px;
       color: #666;
-      margin-top: 6px;
+      margin-top: 5px;
     }
   </style>
 </head>
@@ -479,9 +506,104 @@
       }
     });
 
+    // Premium design system: Anime.js micro-interactions + smooth live updates (calm, professional)
+    function smoothUpdate(el, newHtml, slide = true) {
+      if (!el || typeof anime === 'undefined') {
+        if (el) el.innerHTML = newHtml;
+        return;
+      }
+      anime({
+        targets: el,
+        opacity: [1, 0],
+        translateY: slide ? [0, 6] : 0,
+        duration: 110,
+        easing: 'easeInQuad',
+        complete: function() {
+          el.innerHTML = newHtml;
+          anime({
+            targets: el,
+            opacity: [0, 1],
+            translateY: slide ? [6, 0] : 0,
+            duration: 260,
+            easing: 'easeOutCubic'
+          });
+        }
+      });
+    }
+
+    function initPremiumInteractions() {
+      if (typeof anime === 'undefined') return;
+
+      // Live cards + top-options + clip-cards: subtle lift + scale on tap, enhanced hover via anime
+      document.addEventListener('pointerdown', function(e) {
+        const card = e.target.closest('.live-card, .top-option, .clip-card, .card');
+        if (!card) return;
+        anime.remove(card);
+        anime({
+          targets: card,
+          scale: 0.985,
+          translateY: '1px',
+          duration: 70,
+          easing: 'easeOutQuad'
+        });
+      }, {passive: true});
+
+      const releaseCard = (card) => {
+        if (!card) return;
+        anime.remove(card);
+        anime({
+          targets: card,
+          scale: 1,
+          translateY: 0,
+          duration: 420,
+          easing: 'easeOutElastic(1, .65)'
+        });
+      };
+
+      document.addEventListener('pointerup', function(e) {
+        const card = e.target.closest('.live-card, .top-option, .clip-card, .card');
+        releaseCard(card);
+      }, {passive: true});
+
+      document.addEventListener('pointercancel', function(e) {
+        const card = e.target.closest('.live-card, .top-option, .clip-card, .card');
+        releaseCard(card);
+      }, {passive: true});
+
+      // Gentle hover lift/scale using Anime for premium easing (all cards)
+      document.addEventListener('mouseenter', function(e) {
+        const card = e.target.closest('.live-card, .top-option, .clip-card, .card');
+        if (card) {
+          anime.remove(card);
+          anime({
+            targets: card,
+            translateY: -2.5,
+            scale: 1.004,
+            duration: 180,
+            easing: 'easeOutQuad'
+          });
+        }
+      }, true);
+
+      document.addEventListener('mouseleave', function(e) {
+        const card = e.target.closest('.live-card, .top-option, .clip-card, .card');
+        if (card) {
+          anime.remove(card);
+          anime({
+            targets: card,
+            translateY: 0,
+            scale: 1,
+            duration: 220,
+            easing: 'easeOutQuad'
+          });
+        }
+      }, true);
+    }
+
     // Boot
     document.addEventListener('DOMContentLoaded', function() {
       initTailwind();
+      initPremiumInteractions();
       // Optional: console hint
       // console.log('%c[HENDERBURGH] Home ready — press / for Vitals', 'color:#a3a3a3');
     });
@@ -521,7 +643,7 @@
           updatedLine = `<div class="text-[9px] text-zinc-500 mt-1">Updated ${label}</div>`;
         }
 
-        el.innerHTML = `
+        smoothUpdate(el, `
           <div class="flex gap-3">
             ${pic ? `<img src="${pic}" class="w-9 h-9 rounded-full object-cover border border-zinc-700 flex-shrink-0" alt="${gt} gamerpic">` : ''}
             <div class="flex-1 min-w-0 overflow-hidden">
@@ -534,7 +656,7 @@
               ${updatedLine}
             </div>
           </div>
-        `;
+        `);
       } else if (data.status === "not_configured") {
         el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status not configured</p>`;
       } else {
@@ -580,7 +702,7 @@
           roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1">${(data.quick_status || []).slice(0,1).join('')}</div>`;
         }
 
-        el.innerHTML = `
+        smoothUpdate(el, `
           <div class="text-sm">
             <div class="flex items-baseline gap-x-1.5">
               <span class="font-semibold tabular-nums">${on}/${tot}</span>
@@ -589,7 +711,7 @@
             <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-zinc-500 italic' : 'text-emerald-300'} truncate">${scene}</div>
             ${roomsHtml}
           </div>
-        `;
+        `);
       } else if (data.status === "disabled") {
         el.innerHTML = `<p class="text-xs text-zinc-500">Home Assistant (local only)</p>`;
       } else {
@@ -617,7 +739,7 @@
     if (!el) return;
 
     if (!tracks || tracks.length === 0) {
-      el.innerHTML = `<p><em>No recent tracks</em></p>`;
+      smoothUpdate(el, `<p><em>No recent tracks</em></p>`, false);
       return;
     }
 
@@ -670,7 +792,7 @@
       </div>
     `;
 
-    el.innerHTML = html;
+    smoothUpdate(el, html, false);
   }
 
   async function fetchLastFmTracks() {
@@ -689,7 +811,7 @@
       renderLastFmTracks(tracks);
     } catch (err) {
       console.error('Last.fm fetch error:', err);
-      el.innerHTML = `<p><em>Unable to load Last.fm tracks</em></p>`;
+      smoothUpdate(el, `<p><em>Unable to load Last.fm tracks</em></p>`, false);
     }
   }
 

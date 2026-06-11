@@ -6,6 +6,7 @@
   <title>Xbox • HENDERBURGH</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
@@ -27,8 +28,13 @@
     .card {
       background: #18181b;
       border: 1px solid #3f3f46;
-      border-radius: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      border-color: #52525b;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
 
     .nav-link {
@@ -301,6 +307,17 @@
       }
     }
     setInterval(refreshXboxLive, 300000);
+  </script>
+
+  <!-- Anime premium interactions (added for design system) -->
+  <script>
+    if (typeof anime !== 'undefined') {
+      document.addEventListener('pointerdown', e=>{const c=e.target.closest('.card');if(c){anime.remove(c);anime({targets:c,scale:.985,translateY:'1px',duration:70,easing:'easeOutQuad'});}}, {passive:true});
+      const rel = c=>{if(c){anime.remove(c);anime({targets:c,scale:1,translateY:0,duration:380,easing:'easeOutElastic(1,.6)'});}};
+      document.addEventListener('pointerup', e=>rel(e.target.closest('.card')),{passive:true});
+      document.addEventListener('mouseenter', e=>{const c=e.target.closest('.card');if(c){anime.remove(c);anime({targets:c,translateY:-2,scale:1.003,duration:160,easing:'easeOutQuad'});}},true);
+      document.addEventListener('mouseleave', e=>{const c=e.target.closest('.card');if(c){anime.remove(c);anime({targets:c,translateY:0,scale:1,duration:200,easing:'easeOutQuad'});}},true);
+    }
   </script>
 </body>
 </html>
