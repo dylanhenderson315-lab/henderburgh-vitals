@@ -1670,8 +1670,20 @@
       if (filtered.length === 0) {
         html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No lights match the current filter.</div>`;
       } else {
+        // Collapse lights that belong to the same sync group into a single representative card.
+        // Only ungrouped lights (and Game Room if special) get individual cards. Group cards use a proxy light's eid
+        // (so all handlers + openLightDetail + optimistic fan out via getSyncGroupLights).
+        const seenGroupKeys = new Set();
         filtered.forEach(light => {
-          html += createLightCardHTML(light);
+          const g = (haData.groups || []).find(gg => (gg.light_ids || []).includes(light.entity_id));
+          if (g) {
+            const key = g.id || g.name;
+            if (seenGroupKeys.has(key)) return;
+            seenGroupKeys.add(key);
+            html += createLightCardHTML(light, null, g);
+          } else {
+            html += createLightCardHTML(light);
+          }
         });
       }
       html += `</div>`;
@@ -1741,8 +1753,23 @@
 
         if (roomLights.length === 0) {
           html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-zinc-700 rounded">No lights in this room (fixed in configuration).</div>`;
-        } else {
+        } else if (room.name === 'Game Room') {
+          // Leave Game Room unchanged (individual cards, no collapsing even if any groups were defined).
           roomLights.forEach(l => { html += createLightCardHTML(l); });
+        } else {
+          // For normal rooms: lights in sync groups are represented by a single group card (no individual cards for members).
+          const seenGroupKeys = new Set();
+          roomLights.forEach(l => {
+            const g = (haData.groups || []).find(gg => (gg.light_ids || []).includes(l.entity_id));
+            if (g) {
+              const key = g.id || g.name;
+              if (seenGroupKeys.has(key)) return;
+              seenGroupKeys.add(key);
+              html += createLightCardHTML(l, null, g);
+            } else {
+              html += createLightCardHTML(l);
+            }
+          });
         }
         html += `</div></div>`;
       });
@@ -1764,7 +1791,19 @@
         if (unLights.length === 0) {
           html += `<div class="col-span-full text-xs text-zinc-500">No unassigned lights.</div>`;
         } else {
-          unLights.forEach(l => { html += createLightCardHTML(l); });
+          // Collapse any grouped lights here too (defensive).
+          const seenGroupKeys = new Set();
+          unLights.forEach(l => {
+            const g = (haData.groups || []).find(gg => (gg.light_ids || []).includes(l.entity_id));
+            if (g) {
+              const key = g.id || g.name;
+              if (seenGroupKeys.has(key)) return;
+              seenGroupKeys.add(key);
+              html += createLightCardHTML(l, null, g);
+            } else {
+              html += createLightCardHTML(l);
+            }
+          });
         }
         html += `</div></div>`;
       }
@@ -1823,15 +1862,10 @@
               <div class="text-xs text-emerald-400/80">${tot} lights • synced</div>
             </div>
             ${master}
-            <div class="entity-grid">`;
-        gLights.forEach(l => {
-          // Force badge in this view
-          html += createLightCardHTML(l, /*forceSyncBadge*/ group.name);
-        });
-        if (gLights.length === 0) {
-          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-emerald-900/40 rounded">This group is empty (lights fixed in configuration).</div>`;
-        }
-        html += `</div></div>`;
+            ${gLights.length > 0 ? `
+            <div class="text-[10px] text-emerald-300/80 mt-1">Synced as one — tap the group card in other views or use masters above. Members: ${gLights.map(l => (l.friendly_name || l.entity_id.split('.').pop())).join(', ')}</div>` : `
+            <div class="text-xs text-zinc-500 p-2 border border-dashed border-emerald-900/40 rounded">This group is empty (lights fixed in configuration).</div>` }
+          </div>`;
       });
 
       container.innerHTML = html;
@@ -1839,7 +1873,9 @@
     }
 
     // Reusable premium light card (used by Rooms, Lights, Groups, etc.)
-    function createLightCardHTML(light, forceSyncBadgeName = null) {
+    // When asGroup is provided, renders a single representative card for the whole sync group
+    // (using proxy light's state/eid for actions+detail, but group name as title). Controls fan out via getSyncGroupLights.
+    function createLightCardHTML(light, forceSyncBadgeName = null, asGroup = null) {
       const eid = light.entity_id;
       const st = getLightState(eid) || {};
       const friendly = light.friendly_name || eid;
@@ -1853,17 +1889,31 @@
       const supportsCt = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => m === 'color_temp' || m === 'color_temp_kelvin');
       const supportsRgb = (light.supported_color_modes || (light.attributes && light.attributes.supported_color_modes) || []).some(m => ['rgb','rgbw','rgbww','hs','xy'].includes(m));
 
-      let syncNames = forceSyncBadgeName || (haData.groups || []).filter(g => (g.light_ids || []).includes(eid)).map(g => g.name).join(', ');
-
       const isSkeleton = state === 'unknown' && !isHydrated;
+
+      // Determine title and sub info. For group reps we show the group as the primary identity.
+      let displayName = friendly;
+      let subInfoHtml = '';
+      if (asGroup) {
+        displayName = asGroup.name || forceSyncBadgeName || friendly;
+        const n = (asGroup.light_ids || []).length;
+        subInfoHtml = `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> Sync group • ${n} lights</div>`;
+      } else if (forceSyncBadgeName) {
+        subInfoHtml = `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${forceSyncBadgeName}</div>`;
+      } else {
+        const syncNames = (haData.groups || []).filter(g => (g.light_ids || []).includes(eid)).map(g => g.name).join(', ');
+        if (syncNames) {
+          subInfoHtml = `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${syncNames}</div>`;
+        }
+      }
 
       return `
         <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}"
              onclick="if (!event.target.closest('button,input,select,.effect-btn')) openLightDetail('${eid}');">
           <div class="flex items-start justify-between mb-2">
             <div>
-              <div class="font-medium text-sm truncate">${friendly}</div>
-              ${syncNames ? `<div class="text-[9px] text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-link text-[8px]"></i> ${syncNames}</div>` : ''}
+              <div class="font-medium text-sm truncate">${displayName}</div>
+              ${subInfoHtml}
               ${light && light.is_sync ? `<div class="text-[9px] text-amber-400 inline px-1 rounded bg-amber-900/30 mr-1">SYNC BOX</div>` : ''}
               <div class="text-[10px] text-zinc-500">${isOn && state !== 'unknown' ? 'On' : (state === 'unknown' ? 'Syncing…' : 'Off')}${curEffect ? ' • ' + curEffect : ''}</div>
             </div>
@@ -2147,29 +2197,16 @@
 
       if (btn) btn.classList.add('applying');
 
-      // Always send a CLEAN light.turn_on payload for effects.
-      // - Never mix effect with rgb_color or color_temp in the same call.
-      // - When changing to a *different* effect, explicitly clear the previous one first
-      //   by using the effect parameter (effect: '') in a dedicated clean service call.
-      // - Target effect call uses only {effect, brightness?, transition:0}.
-      // - Uses callWithRetry + applyId race guard + optimistic + revert on final failure.
-      // - After completion (success or partial), force UI update for both compact cards and detail panel.
+      // Always send a CLEAN light.turn_on payload with the (new) effect parameter.
+      // Never mix with rgb_color / color_temp. This forces the effect switch even if another
+      // dynamic effect is currently running on the light/platform.
+      // Uses callWithRetry + applyId guard + optimistic update + revert on hard failure.
+      // UI (cards + open detail) is refreshed immediately after the calls complete.
       const firstWave = await Promise.all(groupLights.map(async (l) => {
         const prevSnap = prevSnapshots[l] || {};
-        const prevEffect = prevSnap.current_effect || '';
         const st = getLightState(l) || prevSnap || {};
         const brightness = (st.brightness != null) ? st.brightness : (prevSnap.brightness != null ? prevSnap.brightness : null);
 
-        if (prevEffect && prevEffect !== effect) {
-          // Explicit clear of previous effect using the effect parameter (empty clears prior dynamic mode on many platforms e.g. Wiz).
-          // Clean payload: effect:'' + brightness (to keep light on) + transition:0. No rgb/ct/speed.
-          const clearPayload = { effect: '', transition: 0 };
-          if (brightness != null) clearPayload.brightness = brightness;
-          await callWithRetry(() => callLightService(l, clearPayload), 2);
-          // Proceed to set the new effect regardless of clear result.
-        }
-
-        // Clean set for the desired effect. Only effect + optional brightness + transition. No conflicts.
         const setPayload = { effect, transition: 0 };
         if (brightness != null) setPayload.brightness = brightness;
         const setOk = await callWithRetry(() => callLightService(l, setPayload), 3);
@@ -2212,8 +2249,7 @@
         }
       }
 
-      // After a successful (or completed) effect change: immediately update the UI for both
-      // the detail panel and compact cards to reflect the new effect. This runs for non-stale applies.
+      // Immediately update the UI (both detail panel and compact cards) to reflect the new effect.
       renderCurrentView();
       const dp = document.getElementById('light-detail');
       if (dp && !dp.classList.contains('hidden')) {
