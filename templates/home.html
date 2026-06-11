@@ -131,12 +131,12 @@
       letter-spacing: -0.025em;
     }
 
-    /* Live Now specific balance */
+    /* Live Now specific balance - compact but intentional spacing */
     .live-now {
-      gap: 12px;
+      gap: 14px;
     }
     .live-now-secondary {
-      margin-top: 0.5rem;
+      margin-top: 0.75rem;
     }
 
     /* Polished Game Clips horizontal scroller */
@@ -232,7 +232,7 @@
 
     @media (min-width: 768px) {
       .live-now-main {
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr); /* adjusted to actual 4 items for better balance */
       }
     }
 
@@ -323,11 +323,12 @@
       40% { transform: scale(1.1); opacity: 1; }
     }
 
-    /* Hero green gradient is applied via body style for full viewport height top coverage, full width (no dark sides in hero area) */
-
     /* Clean Live Now balance */
     .live-now {
-      gap: 12px;
+      gap: 14px;
+    }
+    .live-now-secondary {
+      margin-top: 0.75rem;
     }
   </style>
 </head>
@@ -363,11 +364,11 @@
     </div>
   </header>
 
-  <!-- Hero section with full green gradient/background covering full viewport height (below header), full width to eliminate dark sides in hero -->
-  <div class="hero w-full bg-gradient-to-b from-emerald-950 via-[#0a0a0b] to-[#0a0a0b] min-h-[calc(100vh-4rem)] flex items-center">
+  <!-- Hero section (compact green gradient, balanced height, no excessive empty space) -->
+  <div class="hero w-full bg-gradient-to-b from-emerald-950 via-[#0a0a0b] to-[#0a0a0b] min-h-[280px] pt-10 pb-6">
     <div class="max-w-[1080px] mx-auto px-6 w-full">
       <!-- Personal Intro + OS Hub feel -->
-      <div class="mb-8 max-w-2xl">
+      <div class="mb-6 max-w-2xl">
         <p class="text-lg text-zinc-300">
           HENDERBURGH'S PERSONAL OS. Instant state at a glance.
         </p>
@@ -375,7 +376,7 @@
 
       <!-- Quirky little notification icon: click it and the office lamp temporarily flashes to physically signal you (or someone else) poked it -->
       {% if not public_mode %}
-      <div class="flex justify-center mb-7">
+      <div class="flex justify-center">
         <button onclick="triggerOfficeLampNotificationPoke()"
                 class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
                 title="Poke the office lamp — it will flash temporarily so you see the lamp react and know someone poked/notified you">
@@ -392,7 +393,7 @@
     </div>
   </div>
 
-  <main class="max-w-[1080px] mx-auto px-6 pt-8 pb-8">
+  <main class="max-w-[1080px] mx-auto px-6 pt-6 pb-8">
     <!-- Live Now -->
     <div class="content-section" id="live-now-section">
       <div class="section-label mb-3">Live Now</div>
@@ -431,7 +432,7 @@
       </div>
 
       <!-- Last.fm on its own row below for balance (clean spacing, premium contrast) -->
-      <div class="live-now live-now-secondary mt-4">
+      <div class="live-now live-now-secondary mt-3">
         <!-- Last.fm -->
         <div class="live-card">
           <h3>Last.fm</h3>

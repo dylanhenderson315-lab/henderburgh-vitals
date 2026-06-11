@@ -24,11 +24,19 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
     
     :root {
-      --accent: #10b981;
+      --bg: #0f1115;
+      --card: #161a20;
+      --accent-green: #4ade80;
+      --accent-blue: #60a5fa;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --status-relax: #22c55e;
     }
     
     body {
       font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1115;
+      color: #e2e8f0;
     }
     
     .font-display {
@@ -40,65 +48,54 @@
       background: rgba(255,255,255, 0.03);
       backdrop-filter: blur(20px);
     }
-    
-    .dark .glass {
-      background: rgba(255,255,255, 0.03);
-    }
-    
-    .light .glass {
-      background: rgba(255,255,255, 0.7);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(0,0,0,0.06);
-    }
 
-    /* Clean premium cards - match lighting page direction: subtle borders, soft shadows, good separation */
+    /* Premium dark theme cards matching lighting and home pages */
     .card-bg {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-      transition: border-color .15s ease, box-shadow .15s ease;
-    }
-    .light .card-bg {
-      background: #fff;
-      border-color: #e5e5e5;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
     .card-bg:hover {
-      border-color: #52525b;
-      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
-    }
-    .light .card-bg:hover {
-      border-color: #d1d5db;
+      border-color: rgba(74, 222, 128, 0.3);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
     }
 
     .metric-card {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-      transition: border-color .15s ease, box-shadow .15s ease;
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
     }
-    .light .metric-card {
-      background: #fff;
-      border-color: #e5e5e5;
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(74,222,128,0.06), transparent);
+      opacity: 0;
+      transition: opacity 500ms ease;
+      pointer-events: none;
     }
     .metric-card:hover {
-      border-color: #52525b;
-      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+      border-color: rgba(74, 222, 128, 0.3);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
+    }
+    .metric-card:hover::before {
+      opacity: 1;
     }
 
-    /* Prominent, highly readable big metric numbers */
+    /* Prominent big metric numbers - high contrast, production quality */
     .big-stat {
-      font-size: 42px;
-      line-height: 1;
+      font-size: 52px;
+      line-height: 0.95;
       font-weight: 700;
-      letter-spacing: -2px;
+      letter-spacing: -3px;
       font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
-      color: #f4f4f5; /* high contrast for dark bg */
-    }
-    .light .big-stat {
-      color: #111827;
+      color: #f4f4f5;
     }
 
     .score-number {
@@ -107,11 +104,11 @@
     }
 
     .section-title {
-      font-size: 13px;
-      letter-spacing: -.5px;
-      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 2.5px;
       text-transform: uppercase;
-      color: #10b981;
+      color: #737373;
+      font-weight: 600;
     }
 
     .chart-container {
@@ -124,10 +121,6 @@
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: -.3px;
-    }
-
-    .dark .data-table th {
-      color: #64748b;
     }
 
     .trend-pill {
@@ -157,16 +150,13 @@
       font-size: 12px;
       letter-spacing: -.2px;
       font-weight: 500;
-      color: #64748b;
-    }
-    .light .stat-label {
-      color: #4b5563;
+      color: #94a3b8;
     }
 
     .sub-stat {
       font-size: 15px;
       font-weight: 600;
-      color: #64748b;
+      color: #94a3b8;
     }
 
     .chart-grid {
@@ -174,12 +164,6 @@
         linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
       background-size: 24px 24px;
-    }
-    
-    .light .chart-grid {
-      background-image: 
-        linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
     }
 
     .value-good { color: #10b981; }
@@ -201,20 +185,20 @@
       border-radius: 999px;
     }
 
-    /* Ensure high contrast in live status metric cards */
-    .metric-card .text-4xl,
-    .metric-card .text-5xl,
-    .big-stat {
-      color: #f4f4f5;
+    /* High contrast for all text in cards */
+    .metric-card, .card-bg {
+      color: #e2e8f0;
     }
-    .light .metric-card .text-4xl,
-    .light .metric-card .text-5xl,
-    .light .big-stat {
-      color: #111827;
+    .metric-card .text-sm, .metric-card .text-xs,
+    .card-bg .text-sm, .card-bg .text-xs {
+      color: #94a3b8;
+    }
+    .metric-card .text-white, .big-stat {
+      color: #f4f4f5;
     }
   </style>
 </head>
-<body class="dashboard-bg text-zinc-200 dark:text-zinc-200 light:text-zinc-900 min-h-screen transition-colors duration-200">
+<body class="bg-[#0f1115] text-[#e2e8f0] min-h-screen">
   {% if setup_mode %}
   <!-- ==================== SETUP SCREEN (local dev only) ==================== -->
   <div class="max-w-xl mx-auto pt-20 px-6">
@@ -228,9 +212,9 @@
       </div>
     </div>
 
-    <div class="card-bg rounded-3xl p-8 shadow-2xl border border-zinc-800 light:border-zinc-200">
+    <div class="card-bg rounded-3xl p-8 shadow-2xl border border-zinc-800">
       <h1 class="text-3xl font-semibold tracking-tight mb-2">Connect your Oura Ring</h1>
-      <p class="text-zinc-400 light:text-zinc-600 mb-8">This dashboard pulls all available daily metrics directly from the Oura API v2.</p>
+      <p class="text-[#94a3b8] mb-8">This dashboard pulls all available daily metrics directly from the Oura API v2.</p>
 
       <div class="space-y-6">
         <div>
@@ -240,23 +224,23 @@
             <i class="fa-solid fa-external-link-alt"></i>
             <span>Open Oura Cloud → Personal Access Tokens</span>
           </a>
-          <div class="mt-3 text-xs text-zinc-500 light:text-zinc-500">
+          <div class="mt-3 text-xs text-[#94a3b8]">
             If the page says tokens are deprecated, create an OAuth application instead and use the access token.
           </div>
         </div>
 
         <div>
           <div class="stat-label mb-2 text-zinc-400">2. Set your token</div>
-          <div class="bg-black/40 light:bg-zinc-100 rounded-2xl p-4 font-mono text-sm">
-            <div class="text-emerald-400 light:text-emerald-600 mb-1"># .env file (recommended)</div>
+          <div class="bg-black/40 rounded-2xl p-4 font-mono text-sm">
+            <div class="text-emerald-400 mb-1"># .env file (recommended)</div>
             <div>OURA_TOKEN=your_token_here</div>
-            <div class="mt-2 text-emerald-400 light:text-emerald-600">OURA_DAYS=14</div>
+            <div class="mt-2 text-emerald-400">OURA_DAYS=14</div>
           </div>
         </div>
 
         <div class="pt-2">
           <button onclick="window.location.href = window.location.origin + window.location.pathname"
-                  class="w-full py-3.5 bg-white text-zinc-900 light:bg-zinc-900 light:text-white font-semibold rounded-2xl hover:bg-zinc-100 light:hover:bg-zinc-800 transition-all active:scale-[0.985]">
+                  class="w-full py-3.5 bg-white text-zinc-900 font-semibold rounded-2xl hover:bg-zinc-100 transition-all active:scale-[0.985]">
             I've added the token — Reload dashboard
           </button>
           <div class="text-center text-xs text-zinc-500 mt-4">Then restart uvicorn (it reads .env on startup)</div>
@@ -273,7 +257,7 @@
   
   {% if not fragment %}
   <!-- Top Navigation -->
-  <nav class="border-b border-zinc-800 light:border-zinc-200 sticky top-0 z-50 bg-[#0a0a0b]/90 light:bg-[#f8f7f4]/90 backdrop-blur-xl">
+  <nav class="border-b border-zinc-800 sticky top-0 z-50 bg-[#0f1115]/95 backdrop-blur-xl">
     <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-x-3">
         <div class="flex items-center gap-x-2.5">
@@ -299,19 +283,14 @@
         </nav>
 
         <!-- Status info (simple; detailed + countdown + refresh live inside content for HTMX partials) -->
-        <div class="text-xs text-zinc-500 font-medium px-3 py-1.5 rounded-2xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10 flex items-center gap-x-2">
+        <div class="text-xs text-[#94a3b8] font-medium px-3 py-1.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-x-2">
           <span>Updated {{ last_updated }}</span>
           {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}
           <span class="text-emerald-400 hidden sm:inline">• auto {{ (auto_refresh_seconds // 60) }}m</span>
           {% endif %}
         </div>
 
-        <!-- Theme toggle (always available) -->
-        <button onclick="toggleTheme()"
-                class="w-10 h-10 flex items-center justify-center rounded-2xl bg-zinc-900 hover:bg-zinc-800 light:bg-white light:hover:bg-zinc-100 border border-zinc-800 light:border-zinc-200 text-lg transition-all active:scale-95">
-          <i class="fa-solid fa-moon dark:hidden light:block"></i>
-          <i class="fa-solid fa-sun hidden dark:block light:hidden"></i>
-        </button>
+        <!-- Theme toggle removed for consistent dark theme (matches lighting/home) -->
       </div>
     </div>
   </nav>
@@ -357,7 +336,7 @@
       <!-- Hero Scores - Prioritized key metrics for scannability (Readiness, Sleep, HRV/RHR/Steps/Activity focus) -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <!-- Readiness -->
-        <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
+        <div class="card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-x-2">
               <i class="fa-solid fa-battery-full text-emerald-400 text-xl"></i>
@@ -379,7 +358,7 @@
         </div>
 
         <!-- Sleep -->
-        <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
+        <div class="card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-x-2">
               <i class="fa-solid fa-bed text-sky-400 text-xl"></i>
@@ -401,7 +380,7 @@
         </div>
 
         <!-- Activity / Steps (prominent) -->
-        <div class="card-bg rounded-3xl p-7 border border-zinc-800 light:border-zinc-200 flex flex-col">
+        <div class="card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-x-2">
               <i class="fa-solid fa-running text-orange-400 text-xl"></i>
@@ -421,7 +400,7 @@
       <!-- Additional prioritized: HRV / RHR quick row if data (clean, scannable) -->
       <div class="grid grid-cols-2 gap-4 mb-8">
         {% if hrv is not none %}
-        <div class="card-bg rounded-2xl p-4 border border-zinc-800 light:border-zinc-200 flex items-center justify-between">
+        <div class="card-bg rounded-2xl p-4 border border-zinc-800 flex items-center justify-between">
           <div>
             <div class="text-xs text-zinc-500">HRV</div>
             <div class="text-2xl font-semibold tabular-nums">{{ hrv }} <span class="text-xs">ms</span></div>
@@ -430,7 +409,7 @@
         </div>
         {% endif %}
         {% if rhr is not none %}
-        <div class="card-bg rounded-2xl p-4 border border-zinc-800 light:border-zinc-200 flex items-center justify-between">
+        <div class="card-bg rounded-2xl p-4 border border-zinc-800 flex items-center justify-between">
           <div>
             <div class="text-xs text-zinc-500">Resting HR</div>
             <div class="text-2xl font-semibold tabular-nums">{{ rhr }} <span class="text-xs">bpm</span></div>
@@ -445,7 +424,7 @@
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500 font-medium"
              data-last-iso="{{ last_updated_iso | default('') }}"
              data-auto-sec="{{ auto_refresh_seconds | default(0) }}">
-          <span class="inline-flex items-center gap-x-1.5 px-3 py-1 rounded-2xl bg-white/5 light:bg-black/5 border border-white/10 light:border-black/10">
+          <span class="inline-flex items-center gap-x-1.5 px-3 py-1 rounded-2xl bg-white/5 border border-white/10">
             Last updated <span id="last-updated">{{ last_updated }}</span>
           </span>
           {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}
@@ -468,7 +447,7 @@
         <div class="section-title text-emerald-400 mb-3">LIVE STATUS</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Weather -->
-          <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
             <div class="flex items-center gap-x-2 mb-2">
               <i class="fa-solid fa-cloud-sun text-emerald-400"></i>
               <span class="text-sm font-medium text-zinc-300">Myrtle Beach, SC</span>
@@ -485,7 +464,7 @@
           </div>
 
           <!-- Steps from Oura -->
-          <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+          <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
             <div class="flex items-center gap-x-2 mb-3">
               <i class="fa-solid fa-shoe-prints text-blue-400"></i>
               <span class="text-sm font-medium text-zinc-300">Steps Today</span>
@@ -535,7 +514,7 @@
         <div class="section-title text-emerald-400 mb-3">RECENT ACTIVITY</div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {% for act in recent_activities %}
-          <div class="metric-card card-bg rounded-3xl p-4 border border-zinc-800 light:border-zinc-200">
+          <div class="metric-card card-bg rounded-3xl p-4 border border-zinc-800">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-x-2">
                 {% set icon = 'fa-running' if act.type == 'Run' else ('fa-walking' if act.type == 'Walk' else ('fa-bicycle' if act.type == 'Cycle' else ('fa-water' if act.type == 'Swim' else 'fa-dumbbell'))) %}
@@ -569,7 +548,7 @@
         
         <!-- HRV (prominent) -->
         {% if hrv is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -593,7 +572,7 @@
 
         <!-- Resting HR (prominent) -->
         {% if rhr is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -617,7 +596,7 @@
 
         <!-- Live Heart Rate -->
         {% if latest_hr is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -646,7 +625,7 @@
 
         <!-- Respiratory Rate -->
         {% if respiratory_rate is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -665,7 +644,7 @@
 
         <!-- SpO2 -->
         {% if spo2 is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -684,7 +663,7 @@
 
         <!-- Temperature Deviation -->
         {% if temp_deviation is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -703,7 +682,7 @@
 
         <!-- Stress / Recovery -->
         {% if stress_summary is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800 light:border-zinc-200">
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -729,7 +708,7 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-10">
         <!-- HRV Chart -->
-        <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+        <div class="card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="flex items-center justify-between mb-5">
             <div>
               <div class="font-semibold flex items-center gap-x-2">
@@ -746,7 +725,7 @@
         </div>
 
         <!-- Sleep Chart -->
-        <div class="card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+        <div class="card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="flex items-center justify-between mb-5">
             <div>
               <div class="font-semibold flex items-center gap-x-2">
@@ -769,7 +748,7 @@
         
         <!-- Sleep Stages -->
         {% if total_sleep or deep_sleep or rem_sleep or light_sleep %}
-        <div class="lg:col-span-3 card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+        <div class="lg:col-span-3 card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="font-semibold mb-4 flex items-center gap-x-2">
             <i class="fa-solid fa-bed text-sky-400"></i>
             Last Night's Sleep Breakdown
@@ -799,7 +778,7 @@
 
         <!-- Quick Stats / Key Contributors (only if data) -->
         {% if readiness_score or rhr or hrv or temp_deviation %}
-        <div class="lg:col-span-2 card-bg rounded-3xl p-6 border border-zinc-800 light:border-zinc-200">
+        <div class="lg:col-span-2 card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="font-semibold mb-4">Key Contributors (yesterday)</div>
           
           <div class="space-y-3 text-sm">
@@ -840,12 +819,12 @@
 
       <!-- Intelligence / Insights (groundwork for leverage - calm, non-intrusive suggestions based on data) -->
       {% if hrv or rhr or readiness_score %}
-      <div class="mt-8 p-5 rounded-3xl border border-zinc-800 light:border-zinc-200 bg-white/5 light:bg-black/5">
+      <div class="mt-8 p-5 rounded-3xl border border-zinc-800 bg-white/5">
         <div class="flex items-center gap-x-2 text-emerald-400 text-sm font-medium mb-2">
           <i class="fa-solid fa-lightbulb"></i>
           <span>System Insight</span>
         </div>
-        <p class="text-sm text-zinc-300 light:text-zinc-700">
+        <p class="text-sm text-zinc-300">
           {% if hrv and hrv > 60 %}Strong HRV suggests excellent recovery.{% elif hrv %}HRV is moderate — prioritize rest tonight.{% else %}Track a few more nights for personalized recovery insights.{% endif %}
           {% if readiness_score and readiness_score > 80 %} Readiness is high — great window for focused work or training.{% endif %}
         </p>
@@ -854,7 +833,7 @@
 
 
 
-      <div class="mt-10 pt-6 border-t border-zinc-800 light:border-zinc-200 text-center">
+      <div class="mt-10 pt-6 border-t border-zinc-800 text-center">
         {% if public_mode %}
         <div class="text-xs text-zinc-500 tracking-widest">
           {{ site_name }} • PERSONAL HEALTH DATA FROM {{ display_name }}'S OURA RING<br>
@@ -903,32 +882,7 @@
       };
     }
 
-    function initPremiumInteractions() {
-      if (typeof anime === 'undefined') return;
-      // Premium calm interactions for metric cards and general .card
-      document.addEventListener('pointerdown', function(e) {
-        const card = e.target.closest('.metric-card, .card-bg, .card');
-        if (card) {
-          anime.remove(card);
-          anime({ targets: card, scale: 0.985, translateY: '1px', duration: 70, easing: 'easeOutQuad' });
-        }
-      }, {passive: true});
-
-      const release = (c) => { if(c){ anime.remove(c); anime({targets:c, scale:1, translateY:0, duration:380, easing:'easeOutElastic(1,.6)'}); } };
-      document.addEventListener('pointerup', e => release(e.target.closest('.metric-card,.card-bg,.card')), {passive:true});
-      document.addEventListener('pointercancel', e => release(e.target.closest('.metric-card,.card-bg,.card')), {passive:true});
-
-      document.addEventListener('mouseenter', function(e) {
-        const c = e.target.closest('.metric-card, .card-bg, .card');
-        if (c) { anime.remove(c); anime({targets:c, translateY:-2, scale:1.003, duration:160, easing:'easeOutQuad'}); }
-      }, true);
-      document.addEventListener('mouseleave', function(e) {
-        const c = e.target.closest('.metric-card, .card-bg, .card');
-        if (c) { anime.remove(c); anime({targets:c, translateY:0, scale:1, duration:200, easing:'easeOutQuad'}); }
-      }, true);
-    }
-
-    // Theme toggle with persistence
+    // Theme toggle with persistence (kept for compatibility but not used in UI for consistent dark)
     function toggleTheme() {
       const html = document.documentElement;
       const isDark = html.classList.contains('dark');
@@ -1290,43 +1244,6 @@
         // Start immediately
         startAutoRefresh();
 
-        // Premium Anime + Dotmatrix/NeonDrift + Aceternity glow on vitals (port of sample)
-        if (typeof anime !== 'undefined') {
-          // Add aurora to the main vitals hero if present
-          const hero = document.querySelector('.card-bg.rounded-3xl');
-          if (hero && !hero.querySelector('.aurora-bg')) {
-            const aur = document.createElement('div');
-            aur.className = 'aurora-bg rounded-3xl';
-            hero.style.position = 'relative';
-            hero.appendChild(aur);
-          }
-
-          // Enhance metric cards with tap + magnetic
-          document.querySelectorAll('.metric-card').forEach(card => {
-            card.addEventListener('pointerdown', () => {
-              anime.remove(card);
-              anime({ targets: card, scale: .985, translateY: '1px', duration: 70, easing: 'easeOutQuad' });
-            });
-            card.addEventListener('pointerup', () => {
-              anime({ targets: card, scale: 1, translateY: 0, duration: 380, easing: 'easeOutElastic(1,.6)' });
-            });
-          });
-
-          // Example: animate the main readiness number on load / refresh (like VitalsCard sample)
-          const readinessVal = document.getElementById('latest-readiness') || document.querySelector('[data-readiness]');
-          if (readinessVal) {
-            const target = parseInt(readinessVal.textContent) || 85;
-            readinessVal.textContent = '0';
-            anime({
-              targets: { val: 0 },
-              val: target,
-              duration: 850,
-              easing: 'easeOutExpo',
-              update: (anim) => { readinessVal.textContent = Math.floor(anim.animations[0].currentValue); }
-            });
-          }
-        }
-
         // === Background fast refresh for Heart Rate card only (more "live" feel) ===
         // This runs independently of the full dashboard refresh.
         // Uses the fast endpoint which can bypass cache.
@@ -1375,13 +1292,7 @@
       }
     }
 
-    // Ensure premium interactions (Anime) run
-    const origBoot = window.boot || boot;
-    window.boot = function() {
-      origBoot();
-      if (typeof initPremiumInteractions === 'function') initPremiumInteractions();
-    };
-    window.onload = window.boot;
+    window.onload = boot;
   </script>
   {% endif %}
 </body>
