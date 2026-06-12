@@ -72,7 +72,7 @@
     },
     {
       "id": "tv-lamps",
-      "name": "TV Lamps",
+      "name": "Portable Lights",
       "light_ids": [
         "light.tv_lamp_1",
         "light.tv_lamp_2"

@@ -134,6 +134,54 @@
       border: 1px solid #3f3f46;
     }
 
+    /* TV Sync premium visual interface (clean, purposeful, production quality; does not affect any existing cards or sync groups) */
+    .tv-screen-wrapper { max-width: 620px; margin: 0 auto; }
+    .tv-bezel {
+      background: #111113; border: 12px solid #1f2937; border-radius: 18px; padding: 14px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3), inset 0 0 0 1px #374151;
+      position: relative; transition: box-shadow .2s ease;
+    }
+    .tv-screen { background: #0a0a0b; border-radius: 8px; padding: 8px; border: 1px solid #27272a; }
+    .tv-screen-inner { min-height: 220px; background: linear-gradient(145deg, #111113 0%, #0a0a0b 100%); border-radius: 4px; position: relative; overflow: hidden; }
+    .tv-zones-grid { display: grid; grid-template-columns: 78px 1fr 78px; grid-template-rows: 42px 1fr 42px; gap: 4px; padding: 6px; height: 100%; }
+    .tv-zones-grid .zone-top { grid-column: 1 / -1; }
+    .tv-zones-grid .zone-bottom { grid-column: 1 / -1; }
+    .tv-zones-grid .zone-corners { grid-column: 1 / -1; font-size: 9px; }
+    .tv-zones-grid .zone-surround { grid-column: 1 / -1; background: rgba(16,185,129,0.06); border-style: solid; }
+    .tv-zone {
+      border: 1px dashed #3f3f46; border-radius: 6px; background: rgba(24,24,27,0.6); display: flex; flex-direction: column; font-size: 10px; padding: 4px; transition: all .1s ease; min-height: 38px; cursor: pointer;
+    }
+    .tv-zone:hover, .tv-zone.drag-over { border-color: #4ade80; background: rgba(16,185,129,0.08); }
+    .tv-zone .zone-header { font-size: 9px; color: #71717a; display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+    .tv-zone .zone-pills { display: flex; flex-wrap: wrap; gap: 3px; flex: 1; overflow: hidden; }
+    .tv-zone .zone-empty { font-size: 9px; color: #52525b; align-self: center; margin: auto; }
+    .tv-pill {
+      background: #27272a; color: #e4e4e7; font-size: 9px; padding: 1px 5px; border-radius: 999px; display: inline-flex; align-items: center; white-space: nowrap; border: 1px solid #3f3f46; cursor: grab;
+    }
+    .tv-pill.leader-pill { background: #052e16; border-color: #4ade80; }
+    .tv-pill:active { cursor: grabbing; }
+    .tv-center-label { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 10px; color: #3f3f46; letter-spacing: 1px; pointer-events: none; }
+    .tv-stand { height: 18px; width: 64px; background: #1f2937; margin: 4px auto 0; border-radius: 0 0 6px 6px; }
+    .tv-leader { font-size: 12px; background: #052e16; border: 1px solid #166534; padding: 6px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .tv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tv-chip {
+      font-size: 12px; background: #27272a; border: 1px solid #3f3f46; padding: 4px 10px; border-radius: 999px; cursor: grab; user-select: none; display: inline-flex; align-items: center;
+      transition: transform .1s ease, border-color .1s;
+    }
+    .tv-chip:hover { border-color: #52525b; transform: translateY(-1px); }
+    .tv-chip.dragging { opacity: 0.5; }
+    .tv-chip.group-chip { background: #1f2937; border-color: #4b5563; }
+    .tv-chip.portable-special { border-color: #854d0e; background: #451a03; }
+    .tv-chip.leader-chip { border-color: #166534; }
+    .tv-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+    .tv-mode-card { background: #18181b; border: 1px solid #3f3f46; border-radius: 12px; padding: 10px; cursor: pointer; transition: all .15s ease; }
+    .tv-mode-card.active { border-color: #4ade80; box-shadow: 0 0 0 1px rgba(74,222,128,0.3); background: #052e16; }
+    .tv-mode-card:hover:not(.active) { border-color: #52525b; }
+    .tv-settings { font-size: 10px; }
+    .tv-settings .setting-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+    .tv-settings .setting-row label { width: 78px; color: #71717a; }
+    .tv-settings .setting-row input { flex: 1; }
+    .tv-settings .setting-row .val { width: 28px; text-align: right; color: #a1a1aa; font-variant-numeric: tabular-nums; }
+
     /* Simple accessible modals */
     .modal {
       position: fixed;
@@ -673,6 +721,7 @@
         <button onclick="setPrimaryView('lights')" id="vs-lights">Lights</button>
         <button onclick="setPrimaryView('groups')" id="vs-groups">Groups</button>
         <button onclick="setPrimaryView('scenes')" id="vs-scenes">Scenes</button>
+        <button onclick="setPrimaryView('tv-sync')" id="vs-tv-sync">TV Sync</button>
       </div>
       <div class="flex-1"></div>
       <div class="text-[10px] text-emerald-400/70">Premium lighting • instant &amp; calm</div>
@@ -744,6 +793,10 @@
       <button class="bottom-nav-btn" onclick="setPrimaryView('scenes')" id="bn-scenes" aria-label="Scenes">
         <i class="fa-solid fa-magic"></i>
         <span>Scenes</span>
+      </button>
+      <button class="bottom-nav-btn" onclick="setPrimaryView('tv-sync')" id="bn-tv-sync" aria-label="TV Sync">
+        <i class="fa-solid fa-tv"></i>
+        <span>TV Sync</span>
       </button>
     </nav>
 
@@ -839,7 +892,15 @@
     let isUnlocked = false;
     let haData = null;           // {rooms, lights_by_room, groups, scenes, ...} from live or synthesized
     let lightsState = {};        // entity_id -> current optimistic attrs
-    let primaryView = 'rooms';   // 'rooms' (default), 'lights', 'groups', 'scenes', 'plan'
+    let primaryView = 'rooms';   // 'rooms' (default), 'lights', 'groups', 'scenes', 'plan', 'tv-sync'
+    // TV Sync feature state (persisted in localStorage for intuitive UX without touching other data files)
+    let tvAssignments = {}; // zone -> array of entity_ids (individuals; groups expanded on assign)
+    let tvMode = 'true-colors'; // 'true-colors' | 'video-game' | 'music-sync'
+    let tvModeSettings = {
+      'true-colors': { intensity: 70, speed: 40, brightnessLimit: 85 },
+      'video-game': { intensity: 90, speed: 80, brightnessLimit: 100 },
+      'music-sync': { intensity: 75, speed: 55, brightnessLimit: 80 }
+    };
     let lightsFilter = 'all';    // for the Lights view: 'all' | 'on' | 'off' | 'unassigned' | 'nogroup'
     let searchTerm = '';
     let isHydrated = false;      // true after first successful live data
@@ -915,6 +976,8 @@
         }
         // Show the full control indicator + lock button
         showControlIndicator();
+        // Show the clean admin section for access requests (only when unlocked)
+        renderAccessAdminSection();
       } else {
         if (err) {
           err.classList.remove('hidden');
@@ -1053,9 +1116,81 @@
       try {
         const res = await fetch(`/api/ha/access-requests/${id}?token=${encodeURIComponent(adminToken)}`, { method: 'DELETE' });
         if (res.ok) {
-          btnEl.closest('.border').remove();
+          if (btnEl && btnEl.closest) {
+            const item = btnEl.closest('.border');
+            if (item) item.remove();
+          }
+          // Refresh the persistent admin section list if it is present (so deletes from popup or section stay in sync)
+          const adminList = document.getElementById('access-admin-list');
+          if (adminList) {
+            loadAccessRequestsIntoSection();
+          }
         }
       } catch(e) {}
+    }
+
+    // --- Clean persistent admin section for access requests (only rendered + visible when unlocked) ---
+    function renderAccessAdminSection() {
+      if (!isUnlocked) return;
+      let section = document.getElementById('access-admin-section');
+      if (!section) {
+        section = document.createElement('div');
+        section.id = 'access-admin-section';
+        section.className = 'mt-8 border border-zinc-800 bg-[#18181b] rounded-2xl p-5';
+        const dash = document.getElementById('dashboard-content');
+        if (dash && dash.parentNode) {
+          if (dash.nextSibling) {
+            dash.parentNode.insertBefore(section, dash.nextSibling);
+          } else {
+            dash.parentNode.appendChild(section);
+          }
+        }
+      }
+      section.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-semibold text-sm">Access Requests <span class="text-zinc-500 text-xs">(admin)</span></div>
+          <button onclick="loadAccessRequestsIntoSection()" class="text-xs btn px-2 py-0.5">Refresh</button>
+        </div>
+        <div id="access-admin-list" class="text-sm space-y-2"></div>
+        <div class="mt-2 text-[10px] text-zinc-500">Submitted requests are shown here when controls are unlocked. Use the popup list or quick links for an alternative view.</div>
+      `;
+      loadAccessRequestsIntoSection();
+    }
+
+    async function loadAccessRequestsIntoSection() {
+      const listEl = document.getElementById('access-admin-list');
+      if (!listEl || !adminToken) return;
+      try {
+        const res = await fetch(`/api/ha/access-requests?token=${encodeURIComponent(adminToken)}`);
+        if (!res.ok) {
+          listEl.innerHTML = '<div class="text-xs text-rose-400">Failed to load requests.</div>';
+          return;
+        }
+        const reqs = await res.json();
+        if (!reqs || reqs.length === 0) {
+          listEl.innerHTML = '<div class="text-xs text-zinc-500">No access requests yet.</div>';
+          return;
+        }
+        listEl.innerHTML = reqs.map(r => {
+          const t = (r.timestamp || '').replace('T', ' ').slice(0, 16);
+          const ip = r.ip || 'unknown';
+          const name = r.name || 'Anonymous';
+          const msg = r.message || '';
+          return `
+            <div class="border border-zinc-800 rounded-xl p-3">
+              <div class="flex justify-between text-[10px] text-zinc-500">
+                <span>${t}</span>
+                <span>${ip}</span>
+              </div>
+              <div class="mt-0.5"><strong>${name}</strong></div>
+              <div class="mt-0.5 text-zinc-300 whitespace-pre-wrap text-sm">${msg}</div>
+              <button onclick="deleteAccessRequest('${r.id}', this)" class="mt-1.5 text-xs text-rose-400 hover:text-rose-300">Delete</button>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        listEl.innerHTML = '<div class="text-xs text-rose-400">Error loading access requests.</div>';
+      }
     }
 
     function renderLockedBannerIfNeeded(container) {
@@ -1074,10 +1209,10 @@
               <div class="text-xs text-zinc-400 mt-0.5">Live states update automatically. All controls are locked.</div>
             </div>
             <div class="flex gap-2">
-              <button onclick="showRequestModal()" class="btn px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 min-h-[44px]">
-                Request access
+              <button onclick="showRequestModal()" class="btn px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 min-h-[44px] unlock-btn">
+                Request temporary access
               </button>
-              <button onclick="showUnlockModal()" class="btn px-4 py-2 text-sm border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/10 min-h-[44px]">
+              <button onclick="showUnlockModal()" class="btn px-4 py-2 text-sm border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/10 min-h-[44px] unlock-btn">
                 Unlock with token
               </button>
             </div>
@@ -1234,12 +1369,12 @@
 
     function updateActiveViewButtons() {
       // Desktop switcher
-      ['rooms','lights','groups','scenes','plan'].forEach(v => {
+      ['rooms','lights','groups','scenes','plan','tv-sync'].forEach(v => {
         const el = document.getElementById('vs-' + v);
         if (el) el.classList.toggle('active', primaryView === v);
       });
       // Bottom nav
-      ['rooms','lights','groups','scenes','plan'].forEach(v => {
+      ['rooms','lights','groups','scenes','plan','tv-sync'].forEach(v => {
         const el = document.getElementById('bn-' + v);
         if (el) el.classList.toggle('active', primaryView === v);
       });
@@ -1480,7 +1615,7 @@
 
       let html = '';
       if (!isUnlocked) {
-        html += `<div class="mb-3 p-2 text-xs rounded bg-zinc-900 border border-zinc-700 text-amber-300">View only mode. <button onclick="showUnlockModal(); closeLightDetail(); return false;" class="underline">Unlock with token</button></div>`;
+        html += `<div class="mb-3 p-2 text-xs rounded bg-zinc-900 border border-zinc-700 text-amber-300">View only mode. <button onclick="showUnlockModal(); closeLightDetail(); return false;" class="underline unlock-btn">Unlock with token</button></div>`;
       }
       html += `
         <div class="flex items-center gap-3 mb-4">
@@ -1697,7 +1832,7 @@
       }
     });
 
-    // Room/group creation removed — structure is fixed and correct in lighting_config.json (TV lamps, kitchen, hallway etc. already properly grouped). Use rename/delete only if needed via other means or future.
+    // Room/group creation removed — structure is fixed and correct in lighting_config.json (Portable Lights (was tv lamps), kitchen, hallway etc. already properly grouped). Use rename/delete only if needed via other means or future.
 
     async function renameRoom(roomId, currentName) {
       const newName = prompt("Rename room:", currentName);
@@ -1781,6 +1916,11 @@
       }
       if (primaryView === 'groups') {
         renderGroupsView(container, searchLower);
+        updateActiveViewButtons();
+        return;
+      }
+      if (primaryView === 'tv-sync') {
+        renderTVSyncView(container, searchLower);
         updateActiveViewButtons();
         return;
       }
@@ -2063,6 +2203,484 @@
 
       container.innerHTML = html;
       initMobileTouchOnContainer(container);
+    }
+
+    // =========================================================================
+    // NEW: Premium TV Sync feature (visual zone assignment + 3 modes)
+    // Keeps ALL existing card design, sync group behavior, lights/groups/rooms
+    // functionality 100% unchanged. TV Sync is an additional dedicated view.
+    // Uses localStorage only (no data file changes beyond the requested group rename).
+    // "T.V Lights" (light.t_v_lights) is treated as the main leader for TV sync.
+    // =========================================================================
+    function renderTVSyncView(container, searchLower) {
+      // Ensure state loaded
+      if (!tvAssignments || typeof tvAssignments !== 'object') tvAssignments = {};
+      const zones = ['left', 'center', 'right', 'top', 'bottom', 'corners', 'surround'];
+      const zoneLabels = {
+        left: 'Left', center: 'Center', right: 'Right',
+        top: 'Top', bottom: 'Bottom', corners: 'Corners', surround: 'Full Surround'
+      };
+      const zoneIcons = {
+        left: 'fa-arrow-left', center: 'fa-tv', right: 'fa-arrow-right',
+        top: 'fa-arrow-up', bottom: 'fa-arrow-down', corners: 'fa-expand', surround: 'fa-circle'
+      };
+
+      // Build available lights / groups for one-tap + drag source
+      const allLightsFlat = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      // Portable Lights group (renamed from tv lamps) - special callout
+      const portableGroup = (haData.groups || []).find(g => g.id === 'tv-lamps' || (g.name || '').toLowerCase().includes('portable') || (g.name || '').toLowerCase() === 'tv lamps');
+      const portableLights = portableGroup ? portableGroup.light_ids || [] : [];
+      // Leader: T.V Lights
+      const leaderEid = 'light.t_v_lights';
+      const leaderLight = allLightsFlat.find(l => l.entity_id === leaderEid);
+
+      let availableHtml = '';
+      // One-tap room adders
+      (haData.rooms || []).forEach(room => {
+        if (searchLower && !(room.name || '').toLowerCase().includes(searchLower)) return;
+        const roomLights = (haData.lights_by_room && haData.lights_by_room[room.id]) || [];
+        availableHtml += `
+          <div class="tv-chip group-chip" draggable="true" data-room-id="${room.id}" onclick="assignRoomToTVSync('${room.id}', this)">
+            <i class="fa-solid fa-door-open mr-1"></i> ${room.name}
+            <span class="text-[9px] opacity-60">(${roomLights.length})</span>
+          </div>`;
+      });
+      // Portable Lights group (the renamed one) - prominent
+      if (portableGroup && (!searchLower || 'portable lights'.includes(searchLower))) {
+        availableHtml += `
+          <div class="tv-chip group-chip portable-special" draggable="true" data-group-id="${portableGroup.id}" onclick="assignGroupToTVSync('${portableGroup.id}', this)">
+            <i class="fa-solid fa-suitcase mr-1"></i> Portable Lights
+            <span class="text-[9px] opacity-60">(${portableLights.length})</span>
+            <span class="ml-1 text-[8px] px-1 bg-amber-900/60 rounded">TV</span>
+          </div>`;
+      }
+      // Individual lights (filterable), but encourage groups first
+      allLightsFlat.filter(l => !searchLower || (l.friendly_name || '').toLowerCase().includes(searchLower)).forEach(l => {
+        if (portableLights.includes(l.entity_id)) return; // already represented via group
+        const isLeader = l.entity_id === leaderEid;
+        availableHtml += `
+          <div class="tv-chip light-chip ${isLeader ? 'leader-chip' : ''}" draggable="true" data-eid="${l.entity_id}" onclick="assignLightToTVSync('${l.entity_id}', this)">
+            <i class="fa-solid fa-lightbulb mr-1"></i> ${l.friendly_name || l.entity_id}
+            ${isLeader ? '<span class="ml-1 text-[8px] px-1 bg-emerald-900/60 rounded">LEADER</span>' : ''}
+          </div>`;
+      });
+
+      // Current assignments summary + visual TV
+      let zonesHtml = '';
+      zones.forEach(zone => {
+        const assigned = (tvAssignments[zone] || []).filter(eid => allLightsFlat.some(l => l.entity_id === eid));
+        const pills = assigned.map(eid => {
+          const l = allLightsFlat.find(x => x.entity_id === eid) || {};
+          const isL = eid === leaderEid;
+          return `<span class="tv-pill ${isL ? 'leader-pill' : ''}" data-eid="${eid}" draggable="true" ondragstart="onTVPillDragStart(event, '${eid}', '${zone}')" onclick="removeFromZone('${zone}', '${eid}', this); event.stopImmediatePropagation();">
+            ${isL ? '<i class="fa-solid fa-star text-[9px]"></i> ' : ''}${l.friendly_name || eid}
+            <i class="fa-solid fa-times ml-1 opacity-60 hover:opacity-100"></i>
+          </span>`;
+        }).join('');
+        zonesHtml += `
+          <div class="tv-zone zone-${zone}" data-zone="${zone}"
+               ondrop="onTVZoneDrop(event, '${zone}')" ondragover="onTVZoneDragOver(event)" ondragleave="onTVZoneDragLeave(event)"
+               onclick="onTVZoneTap('${zone}', this)">
+            <div class="zone-header"><i class="fa-solid ${zoneIcons[zone]}"></i> ${zoneLabels[zone]}</div>
+            <div class="zone-pills">${pills || '<span class="zone-empty">Drop or tap lights here</span>'}</div>
+          </div>`;
+      });
+
+      // Modes UI - exactly 3
+      const modes = [
+        { id: 'true-colors', label: 'True Colors', desc: 'Accurately follows the real colors on the TV screen with natural transitions.', icon: 'fa-palette' },
+        { id: 'video-game', label: 'Video Game', desc: 'Faster refresh rate with more vivid and reactive colors, optimized for gaming.', icon: 'fa-gamepad' },
+        { id: 'music-sync', label: 'Music Sync', desc: 'Reacts to music/audio using the speaker on the sync box for sound-reactive lighting.', icon: 'fa-music' }
+      ];
+      let modesHtml = `<div class="tv-modes">`;
+      modes.forEach(m => {
+        const active = tvMode === m.id ? 'active' : '';
+        const s = tvModeSettings[m.id] || {intensity:70, speed:40, brightnessLimit:85};
+        modesHtml += `
+          <div class="tv-mode-card ${active}" onclick="selectTVMode('${m.id}', this)">
+            <div class="flex items-center gap-2 mb-1">
+              <i class="fa-solid ${m.icon} text-emerald-400"></i>
+              <div class="font-semibold">${m.label}</div>
+            </div>
+            <div class="text-[11px] text-zinc-400 mb-2">${m.desc}</div>
+            <div class="tv-settings" onclick="event.stopImmediatePropagation()">
+              <div class="setting-row">
+                <label>Intensity</label>
+                <input type="range" min="10" max="100" value="${s.intensity}" oninput="updateTVSetting('${m.id}', 'intensity', this.value, this)">
+                <span class="val">${s.intensity}</span>
+              </div>
+              <div class="setting-row">
+                <label>Speed</label>
+                <input type="range" min="10" max="100" value="${s.speed}" oninput="updateTVSetting('${m.id}', 'speed', this.value, this)">
+                <span class="val">${s.speed}</span>
+              </div>
+              <div class="setting-row">
+                <label>Brightness Limit</label>
+                <input type="range" min="20" max="100" value="${s.brightnessLimit}" oninput="updateTVSetting('${m.id}', 'brightnessLimit', this.value, this)">
+                <span class="val">${s.brightnessLimit}</span>
+              </div>
+            </div>
+          </div>`;
+      });
+      modesHtml += `</div>`;
+
+      // Leader callout + actions
+      const leaderHtml = leaderLight ? `
+        <div class="tv-leader">
+          <i class="fa-solid fa-star text-emerald-400"></i>
+          <strong>T.V Lights</strong> (main leader for TV sync)
+          <button onclick="ensureLeaderInCenter(); renderTVSyncView(document.getElementById('dashboard-content'))" class="ml-2 text-xs ha-btn px-2 py-0.5">Pin to Center</button>
+        </div>` : '';
+
+      const html = `
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <span class="section-label">TV Sync</span>
+            <span class="text-xs text-amber-400/80 ml-2">— zone-aware ambient for the big screen</span>
+          </div>
+          <div class="text-[10px] text-zinc-500">${Object.values(tvAssignments).flat().length} lights assigned</div>
+        </div>
+
+        ${leaderHtml}
+
+        <!-- Visual TV Screen Interface (premium, intuitive) -->
+        <div class="tv-screen-wrapper">
+          <div class="tv-bezel">
+            <div class="tv-screen">
+              <div class="tv-screen-inner">
+                <!-- Zones laid out around / on the "screen" -->
+                <div class="tv-zones-grid">
+                  ${zonesHtml}
+                </div>
+                <div class="tv-center-label">TV SCREEN</div>
+              </div>
+            </div>
+            <div class="tv-stand"></div>
+          </div>
+          <div class="tv-hint text-[10px] text-center text-zinc-500 mt-1">Drag chips or tap a chip then a zone • Leader "T.V Lights" anchors the experience</div>
+        </div>
+
+        <!-- One-tap adders + drag source -->
+        <div class="mt-4">
+          <div class="section-label mb-2">Quick Add (rooms &amp; groups) — tap or drag</div>
+          <div class="tv-chips">
+            ${availableHtml || '<div class="text-xs text-zinc-500">No lights match search.</div>'}
+          </div>
+          <div class="text-[10px] text-zinc-500 mt-1">Add whole room or Portable Lights, then fine-tune individuals by drag or tap ×</div>
+        </div>
+
+        <!-- Modes + per-mode settings -->
+        <div class="mt-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="section-label">Modes</div>
+            <button onclick="activateTVMode()" class="ha-btn bg-emerald-600 hover:bg-emerald-500 text-white px-4">Activate ${modes.find(m=>m.id===tvMode).label}</button>
+          </div>
+          ${modesHtml}
+          <div class="text-[10px] mt-1 text-zinc-500">Settings apply live to this mode. Activate pushes to lights + sync box (if present) using existing reliable controls.</div>
+        </div>
+
+        <div class="mt-4 flex gap-2">
+          <button onclick="clearTVAssignments()" class="ha-btn">Clear All Zones</button>
+          <button onclick="autoAssignDefaultZones()" class="ha-btn">Smart Default (incl. Portable + Leader)</button>
+          <button onclick="saveTVState(); showFeedback('TV Sync layout saved on this device.')" class="ha-btn">Save Layout</button>
+        </div>
+      `;
+      container.innerHTML = html;
+
+      // Wire drag for the source chips (after DOM insert)
+      setTimeout(() => {
+        container.querySelectorAll('.tv-chip[draggable="true"]').forEach(chip => {
+          chip.addEventListener('dragstart', (e) => {
+            if (chip.dataset.eid) {
+              e.dataTransfer.setData('text/eid', chip.dataset.eid);
+            } else if (chip.dataset.roomId) {
+              e.dataTransfer.setData('text/room', chip.dataset.roomId);
+            } else if (chip.dataset.groupId) {
+              e.dataTransfer.setData('text/group', chip.dataset.groupId);
+            }
+            chip.classList.add('dragging');
+          });
+          chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+        });
+        // Also make sure pills inside zones can be re-dragged (already have inline)
+      }, 10);
+
+      // Premium micro: subtle glow on TV etc (using existing anime if avail)
+      if (typeof anime !== 'undefined') {
+        const bezel = container.querySelector('.tv-bezel');
+        if (bezel) {
+          bezel.addEventListener('mouseenter', () => {
+            anime.remove(bezel);
+            anime({targets: bezel, boxShadow: '0 0 0 1px rgba(74,222,128,0.2), 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', duration: 200});
+          });
+          bezel.addEventListener('mouseleave', () => {
+            anime.remove(bezel);
+            anime({targets: bezel, boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2)', duration: 300});
+          });
+        }
+      }
+    }
+
+    // Helper: persist TV state
+    function saveTVState() {
+      try {
+        localStorage.setItem('tv_sync_assignments', JSON.stringify(tvAssignments || {}));
+        localStorage.setItem('tv_sync_mode', tvMode);
+        localStorage.setItem('tv_sync_mode_settings', JSON.stringify(tvModeSettings || {}));
+      } catch (e) {}
+    }
+
+    function selectTVMode(modeId, cardEl) {
+      tvMode = modeId;
+      // re-render to update active
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+      saveTVState();
+    }
+
+    function updateTVSetting(modeId, key, val, inputEl) {
+      if (!tvModeSettings[modeId]) tvModeSettings[modeId] = { intensity:70, speed:40, brightnessLimit:85 };
+      tvModeSettings[modeId][key] = parseInt(val, 10);
+      // live update sibling val span
+      const row = inputEl.parentElement;
+      if (row) {
+        const span = row.querySelector('.val');
+        if (span) span.textContent = val;
+      }
+      saveTVState();
+      // If this is current mode, could live-apply a brightness etc, but keep lightweight
+    }
+
+    // Assign helpers (one-tap + from drag)
+    function assignLightToTVSync(eid, chipEl) {
+      // default to center or surround if none
+      const targetZone = 'center';
+      if (!tvAssignments[targetZone]) tvAssignments[targetZone] = [];
+      if (!tvAssignments[targetZone].includes(eid)) {
+        tvAssignments[targetZone].push(eid);
+      }
+      saveTVState();
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+      showFeedback(`Added to ${targetZone} zone. Drag to fine-tune.`);
+    }
+
+    function assignRoomToTVSync(roomId, chipEl) {
+      const roomLights = (haData.lights_by_room && haData.lights_by_room[roomId]) || [];
+      const targetZone = 'surround'; // whole room -> full
+      if (!tvAssignments[targetZone]) tvAssignments[targetZone] = [];
+      roomLights.forEach(l => {
+        const eid = l.entity_id || l;
+        if (!tvAssignments[targetZone].includes(eid)) tvAssignments[targetZone].push(eid);
+      });
+      saveTVState();
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+      showFeedback(`Added ${roomId} room lights to full surround. Fine-tune as needed.`);
+    }
+
+    function assignGroupToTVSync(groupId, chipEl) {
+      const g = (haData.groups || []).find(x => x.id === groupId);
+      if (!g) return;
+      const targetZone = 'surround';
+      if (!tvAssignments[targetZone]) tvAssignments[targetZone] = [];
+      (g.light_ids || []).forEach(eid => {
+        if (!tvAssignments[targetZone].includes(eid)) tvAssignments[targetZone].push(eid);
+      });
+      saveTVState();
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+      showFeedback('Portable Lights added to surround. Drag individuals to perfect zones.');
+    }
+
+    function ensureLeaderInCenter() {
+      const leader = 'light.t_v_lights';
+      // remove from other zones
+      Object.keys(tvAssignments).forEach(z => {
+        tvAssignments[z] = (tvAssignments[z] || []).filter(e => e !== leader);
+      });
+      if (!tvAssignments.center) tvAssignments.center = [];
+      if (!tvAssignments.center.includes(leader)) tvAssignments.center.push(leader);
+      saveTVState();
+    }
+
+    function onTVZoneDrop(ev, zone) {
+      ev.preventDefault();
+      const zoneEl = ev.currentTarget || ev.target.closest('.tv-zone');
+      if (zoneEl) zoneEl.classList.remove('drag-over');
+      const eid = ev.dataTransfer.getData('text/eid');
+      const roomId = ev.dataTransfer.getData('text/room');
+      const groupId = ev.dataTransfer.getData('text/group');
+      if (eid) {
+        if (!tvAssignments[zone]) tvAssignments[zone] = [];
+        if (!tvAssignments[zone].includes(eid)) tvAssignments[zone].push(eid);
+      } else if (roomId) {
+        const roomLights = (haData.lights_by_room && haData.lights_by_room[roomId]) || [];
+        if (!tvAssignments[zone]) tvAssignments[zone] = [];
+        roomLights.forEach(l => {
+          const id = l.entity_id || l;
+          if (!tvAssignments[zone].includes(id)) tvAssignments[zone].push(id);
+        });
+      } else if (groupId) {
+        const g = (haData.groups || []).find(x => x.id === groupId);
+        if (g) {
+          if (!tvAssignments[zone]) tvAssignments[zone] = [];
+          (g.light_ids || []).forEach(id => {
+            if (!tvAssignments[zone].includes(id)) tvAssignments[zone].push(id);
+          });
+        }
+      }
+      // if coming from another zone (pill drag), remove from old
+      const fromZone = ev.dataTransfer.getData('text/fromZone');
+      if (fromZone && fromZone !== zone && tvAssignments[fromZone]) {
+        const eidData = ev.dataTransfer.getData('text/eid');
+        if (eidData) tvAssignments[fromZone] = tvAssignments[fromZone].filter(e => e !== eidData);
+      }
+      saveTVState();
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+    }
+
+    function onTVZoneDragOver(ev) {
+      ev.preventDefault();
+      const zoneEl = ev.currentTarget || ev.target.closest('.tv-zone');
+      if (zoneEl) zoneEl.classList.add('drag-over');
+    }
+    function onTVZoneDragLeave(ev) {
+      const zoneEl = ev.currentTarget || ev.target.closest('.tv-zone');
+      if (zoneEl) zoneEl.classList.remove('drag-over');
+    }
+
+    function onTVZoneTap(zone, zoneEl) {
+      // If a chip was recently "selected" via tap (simple state), assign it. For simplicity use a global lastTappedLight
+      if (window.__tvLastTapped) {
+        const eid = window.__tvLastTapped;
+        if (!tvAssignments[zone]) tvAssignments[zone] = [];
+        if (!tvAssignments[zone].includes(eid)) tvAssignments[zone].push(eid);
+        window.__tvLastTapped = null;
+        saveTVState();
+        const container = document.getElementById('dashboard-content');
+        if (container) renderTVSyncView(container);
+        return;
+      }
+      showFeedback('Tap a light chip first, then tap a zone (or use drag).');
+    }
+
+    function onTVPillDragStart(ev, eid, fromZone) {
+      ev.dataTransfer.setData('text/eid', eid);
+      ev.dataTransfer.setData('text/fromZone', fromZone);
+      // allow reparent
+      setTimeout(() => {
+        if (ev.target) ev.target.style.opacity = '0.4';
+      }, 0);
+    }
+
+    function removeFromZone(zone, eid, pillEl) {
+      if (tvAssignments[zone]) {
+        tvAssignments[zone] = tvAssignments[zone].filter(e => e !== eid);
+      }
+      saveTVState();
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+    }
+
+    function clearTVAssignments() {
+      tvAssignments = {};
+      saveTVState();
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+    }
+
+    function autoAssignDefaultZones() {
+      tvAssignments = {};
+      const leader = 'light.t_v_lights';
+      const portableGroup = (haData.groups || []).find(g => g.id === 'tv-lamps');
+      const portable = portableGroup ? (portableGroup.light_ids || []) : [];
+      // Leader to center
+      tvAssignments.center = [leader];
+      // Portable to left + right for "tv lamps" surround feel
+      tvAssignments.left = portable.slice(0,1);
+      tvAssignments.right = portable.slice(1);
+      // Add a few others from game room or living for demo if exist
+      const all = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      const game = (haData.lights_by_room && haData.lights_by_room['game-room']) || [];
+      const extras = game.map(l=>l.entity_id).filter(e => e !== leader && !portable.includes(e)).slice(0,2);
+      tvAssignments.top = extras.slice(0,1);
+      tvAssignments.bottom = extras.slice(1);
+      saveTVState();
+      const container = document.getElementById('dashboard-content');
+      if (container) renderTVSyncView(container);
+      showFeedback('Smart default applied around T.V Lights leader + Portable Lights.');
+    }
+
+    // Activate the current mode: use existing robust HA calls + sync box if present.
+    // This makes the feature "work" with current infrastructure without breaking anything.
+    async function activateTVMode() {
+      if (!isUnlocked) {
+        showFeedback('Unlock controls to activate TV Sync.', true);
+        return;
+      }
+      const allFlat = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      const assignedEids = new Set(Object.values(tvAssignments || {}).flat());
+      if (assignedEids.size === 0) {
+        showFeedback('Assign some lights/zones first.', true);
+        return;
+      }
+      const settings = tvModeSettings[tvMode] || {intensity:70, speed:50, brightnessLimit:80};
+      const brightness = Math.round((settings.brightnessLimit || 80) * 2.55 / 100);
+      const syncBox = (haData.sync_controls || allFlat).find(s => s.is_sync || (s.entity_id || '').toLowerCase().includes('sync') || (s.friendly_name || '').toLowerCase().includes('sync'));
+      const syncEid = syncBox ? syncBox.entity_id : null;
+
+      showFeedback(`Activating ${tvMode}…`, false);
+
+      // 1. Turn on + set brightness limit on all assigned (use group fanout where possible)
+      const toControl = Array.from(assignedEids);
+      for (const eid of toControl) {
+        const group = getSyncGroupLights(eid);
+        // optimistic
+        group.forEach(l => updateLightState(l, { state: 'on', brightness: brightness }));
+      }
+      renderCurrentView();
+
+      // Apply via existing reliable path (fanout + retry)
+      await Promise.all(toControl.map(async (eid) => {
+        const group = getSyncGroupLights(eid);
+        return Promise.all(group.map(l => callWithRetry(() => callLightService(l, { brightness }), 2)));
+      }));
+
+      // 2. For modes, try to drive the sync box using its discovered options (Vivid etc map sensibly)
+      if (syncEid) {
+        let option = 'Vivid'; // default
+        if (tvMode === 'true-colors') option = 'Theater'; // or 'True' if available, use what box has
+        else if (tvMode === 'video-game') option = 'Vivid';
+        else if (tvMode === 'music-sync') option = 'Vivid'; // sound reactive often under dynamic/vivid on these boxes
+        // Use the robust select applicator if present, else direct
+        try {
+          if (typeof applySelectOption === 'function') {
+            await applySelectOption(syncEid, option);
+          } else {
+            await callWithRetry(() => callHAService('select', 'select_option', syncEid, { option }), 2);
+          }
+          updateLightState(syncEid, { state: 'on', current_effect: option });
+        } catch (e) {}
+      }
+
+      // 3. For "color follow" simulation / extra: if lights support effects, give them a gentle dynamic based on mode
+      // (respects the existing applyEffect reliability, but only for non-syncbox lights)
+      const effectHint = tvMode === 'video-game' ? 'colorloop' : (tvMode === 'music-sync' ? 'pulse' : '');
+      if (effectHint) {
+        toControl.forEach(async (eid) => {
+          const l = allFlat.find(x => x.entity_id === eid);
+          if (l && l.effect_list && l.effect_list.length) {
+            const eff = l.effect_list.find(e => e.toLowerCase().includes(effectHint)) || l.effect_list[0];
+            try { await applyEffect(eid, eff); } catch(_) {}
+          }
+        });
+      }
+
+      renderCurrentView();
+      saveTVState();
+      showFeedback(`${tvMode} active on assigned zones (incl. leader + Portable Lights). Use sync box effects for real screen/audio reactivity.`);
     }
 
     // Reusable premium light card (used by Rooms, Lights, Groups, etc.)
@@ -2788,6 +3406,19 @@
       // Check persistent unlock first (localStorage)
       loadSavedToken();
 
+      // Load TV Sync assignments + per-mode settings (local only, premium feel, no server data change)
+      try {
+        const savedAssign = localStorage.getItem('tv_sync_assignments');
+        if (savedAssign) tvAssignments = JSON.parse(savedAssign) || {};
+        const savedMode = localStorage.getItem('tv_sync_mode');
+        if (savedMode && ['true-colors','video-game','music-sync'].includes(savedMode)) tvMode = savedMode;
+        const savedSettings = localStorage.getItem('tv_sync_mode_settings');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          tvModeSettings = { ...tvModeSettings, ...parsed };
+        }
+      } catch (e) {}
+
       if (isUnlocked) {
         removeViewOnlyState();
       } else {
@@ -2828,7 +3459,10 @@
 
       // If unlocked from storage, show the control indicator
       if (isUnlocked) {
-        setTimeout(showControlIndicator, 250);
+        setTimeout(() => {
+          showControlIndicator();
+          renderAccessAdminSection();
+        }, 250);
       }
 
       // Keyboard hint (desktop)

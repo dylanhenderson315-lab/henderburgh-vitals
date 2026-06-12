@@ -1630,8 +1630,9 @@ async def api_ha_notify(
     token: Optional[str] = None,
     background_tasks: BackgroundTasks = None,
 ):
-    """Notification action: temporarily blue for a few seconds, then restore.
-    Backend handled reliably. Returns instantly.
+    """Notification action: instantaneous blue flash (~0.25s) then restore to previous.
+    (Same light + quick flash behavior as used automatically for new blog posts.)
+    Backend handled reliably. Returns instantly. (Rate limited.)
     """
     if not ADMIN_TOKEN or token != ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid admin token")
@@ -1659,7 +1660,9 @@ async def post_access_request(request: Request, name: str = Form(""), message: s
     if not message or not message.strip():
         raise HTTPException(400, "Message is required")
 
-    ip = request.client.host if request.client else "unknown"
+    # Robust client IP (handles reverse proxies / Railway / nginx X-Forwarded-For)
+    xff = request.headers.get("x-forwarded-for", "") or ""
+    ip = xff.split(",")[0].strip() or (request.client.host if request.client else "unknown")
     ua = request.headers.get("user-agent", "unknown")
     ts = datetime.now(timezone.utc).isoformat()
 
@@ -1961,8 +1964,10 @@ async def perform_poke_blink():
 
 
 async def perform_notify_blue():
-    """Backend-handled notification: temp set to blue for ~3.5s then restore previous.
-    Runs in background.
+    """Backend-handled notification (used for new blog posts): instantaneous blue flash for ~0.25s
+    then immediately restore to previous state (exactly like perform_poke_blink but using blue
+    color instead of off). Uses transition=0 for snap on/off. Runs in background so caller
+    (e.g. /api/messages) returns instantly. Does not modify poke behavior.
     """
     global _notify_last
     try:
@@ -1979,28 +1984,28 @@ async def perform_notify_blue():
                 }
                 break
 
-        # set blue instantly
+        # instantaneous blue (same blue values as before)
         blue = {
             "brightness": 200,
             "rgb_color": [0, 80, 255],
             "transition": 0,
         }
         await call_ha_service("light", "turn_on", OFFICE_LAMP, blue)
-        await asyncio.sleep(3.5)
+        await asyncio.sleep(0.25)
 
-        # restore
-        if prev:
-            if prev.get("state") == "off":
-                await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0.4})
-            else:
-                extra = {"transition": 0.4}
+        # restore to previous (identical logic and trans=0 to poke_blink)
+        if prev and prev.get("state") == "off":
+            await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0})
+        else:
+            extra = {"transition": 0}
+            if prev:
                 if prev.get("brightness") is not None:
                     extra["brightness"] = prev["brightness"]
                 if prev.get("color_temp") is not None:
                     extra["color_temp"] = prev["color_temp"]
                 if prev.get("rgb_color"):
                     extra["rgb_color"] = prev["rgb_color"]
-                await call_ha_service("light", "turn_on", OFFICE_LAMP, extra)
+            await call_ha_service("light", "turn_on", OFFICE_LAMP, extra)
     except Exception as e:
         print(f"perform_notify_blue error: {e}")
 
@@ -2263,15 +2268,16 @@ async def post_message(message: dict, background_tasks: BackgroundTasks = None):
     }
     messages.append(new_message)
     save_messages(messages)
-    # Automatically trigger the same temporary blue light behavior (temp blue few secs then restore)
-    # that is used for notifications. Uses BackgroundTasks (same pattern as /api/ha/notify) so
-    # the POST returns instantly to the poster and the light sequence runs reliably/quickly in bg.
-    # Poke button (blink) is untouched and uses its own separate path + rate limit.
+    # Automatically trigger quick blue flash (0.25s instantaneous blue then instant restore to prev state)
+    # on new blog message (top-level or reply). Uses same OFFICE_LAMP as poke, but blue color.
+    # Behaves exactly like poke function (trans=0, 0.25s, restore logic) but with blue instead of off.
+    # Uses BackgroundTasks pattern so POST returns instantly; poke button behavior is completely unchanged.
     if background_tasks is not None:
         background_tasks.add_task(perform_notify_blue)
     else:
         asyncio.create_task(perform_notify_blue())
     return new_message
+
 
 
 @app.delete("/api/messages/{message_id}")
