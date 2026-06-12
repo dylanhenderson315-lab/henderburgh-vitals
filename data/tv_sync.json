@@ -1,0 +1,21 @@
+{
+  "assignments": {},
+  "mode": "true-colors",
+  "mode_settings": {
+    "true-colors": {
+      "intensity": 70,
+      "speed": 40,
+      "brightnessLimit": 85
+    },
+    "video-game": {
+      "intensity": 90,
+      "speed": 80,
+      "brightnessLimit": 100
+    },
+    "music-sync": {
+      "intensity": 75,
+      "speed": 55,
+      "brightnessLimit": 80
+    }
+  }
+}

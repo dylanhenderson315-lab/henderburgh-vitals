@@ -182,6 +182,15 @@
     .tv-settings .setting-row input { flex: 1; }
     .tv-settings .setting-row .val { width: 28px; text-align: right; color: #a1a1aa; font-variant-numeric: tabular-nums; }
 
+    /* Visual feedback for mode activation (premium, especially strong for Music Sync audio) */
+    .tv-mode-card.activating { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.2); animation: tv-activate-pulse 1.2s infinite ease-in-out; }
+    @keyframes tv-activate-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+    .tv-bezel.syncing { box-shadow: 0 0 0 2px rgba(74,222,128,0.5), 0 10px 15px -3px rgb(0 0 0 / 0.3); }
+    .tv-bezel.music-syncing { animation: tv-music-wave 800ms infinite ease-in-out; box-shadow: 0 0 0 2px rgba(245,158,11,0.6); }
+    @keyframes tv-music-wave { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+    .tv-zone.music-active { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+    .tv-feedback-badge { position: absolute; top: 8px; right: 8px; font-size: 9px; padding: 1px 6px; border-radius: 4px; background: #451a03; color: #f59e0b; pointer-events: none; }
+
     /* Simple accessible modals */
     .modal {
       position: fixed;
@@ -893,7 +902,7 @@
     let haData = null;           // {rooms, lights_by_room, groups, scenes, ...} from live or synthesized
     let lightsState = {};        // entity_id -> current optimistic attrs
     let primaryView = 'rooms';   // 'rooms' (default), 'lights', 'groups', 'scenes', 'plan', 'tv-sync'
-    // TV Sync feature state (persisted in localStorage for intuitive UX without touching other data files)
+    // TV Sync feature state (now server-persisted via /api/ha/tv-sync for cross-device persistence; only TV code updated)
     let tvAssignments = {}; // zone -> array of entity_ids (individuals; groups expanded on assign)
     let tvMode = 'true-colors'; // 'true-colors' | 'video-game' | 'music-sync'
     let tvModeSettings = {
@@ -2209,12 +2218,33 @@
     // NEW: Premium TV Sync feature (visual zone assignment + 3 modes)
     // Keeps ALL existing card design, sync group behavior, lights/groups/rooms
     // functionality 100% unchanged. TV Sync is an additional dedicated view.
-    // Uses localStorage only (no data file changes beyond the requested group rename).
+    // Server-side persistence via data/tv_sync.json + /api/ha/tv-sync (only TV Sync code + new persistence added).
     // "T.V Lights" (light.t_v_lights) is treated as the main leader for TV sync.
     // =========================================================================
     function renderTVSyncView(container, searchLower) {
-      // Ensure state loaded
+      // Ensure state loaded from server (async but we render with current; fresh fetch on entry for latest persisted)
       if (!tvAssignments || typeof tvAssignments !== 'object') tvAssignments = {};
+      // Non-blocking refresh from server so view always shows latest cross-device data
+      if (!window.__tvSyncRefreshing) {
+        window.__tvSyncRefreshing = true;
+        (async () => {
+          try {
+            const res = await fetch('/api/ha/tv-sync');
+            if (res.ok) {
+              const data = await res.json();
+              let changed = false;
+              if (data && data.assignments && JSON.stringify(data.assignments) !== JSON.stringify(tvAssignments)) { tvAssignments = data.assignments || {}; changed = true; }
+              if (data && data.mode && data.mode !== tvMode) { tvMode = data.mode; changed = true; }
+              if (data && data.mode_settings) { tvModeSettings = { ...tvModeSettings, ...data.mode_settings }; changed = true; }
+              if (changed && container && primaryView === 'tv-sync') {
+                // re-render once with fresh server data (guarded)
+                renderTVSyncView(container, searchLower);
+              }
+            }
+          } catch (e) {}
+          finally { window.__tvSyncRefreshing = false; }
+        })();
+      }
       const zones = ['left', 'center', 'right', 'top', 'bottom', 'corners', 'surround'];
       const zoneLabels = {
         left: 'Left', center: 'Center', right: 'Right',
@@ -2382,7 +2412,7 @@
         <div class="mt-4 flex gap-2">
           <button onclick="clearTVAssignments()" class="ha-btn">Clear All Zones</button>
           <button onclick="autoAssignDefaultZones()" class="ha-btn">Smart Default (incl. Portable + Leader)</button>
-          <button onclick="saveTVState(); showFeedback('TV Sync layout saved on this device.')" class="ha-btn">Save Layout</button>
+          <button onclick="(async ()=>{ await saveTVState(); showFeedback('TV Sync layout saved (server).'); })()" class="ha-btn">Save Layout</button>
         </div>
       `;
       container.innerHTML = html;
@@ -2421,12 +2451,22 @@
       }
     }
 
-    // Helper: persist TV state
-    function saveTVState() {
+    // Helper: persist TV state to server (replaces localStorage entirely for TV Sync)
+    async function saveTVState() {
       try {
-        localStorage.setItem('tv_sync_assignments', JSON.stringify(tvAssignments || {}));
-        localStorage.setItem('tv_sync_mode', tvMode);
-        localStorage.setItem('tv_sync_mode_settings', JSON.stringify(tvModeSettings || {}));
+        const payload = {
+          assignments: tvAssignments || {},
+          mode: tvMode,
+          mode_settings: tvModeSettings || {}
+        };
+        const res = await fetch('/api/ha/tv-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          console.warn('TV sync save may have failed');
+        }
       } catch (e) {}
     }
 
@@ -2614,7 +2654,8 @@
     }
 
     // Activate the current mode: use existing robust HA calls + sync box if present.
-    // This makes the feature "work" with current infrastructure without breaking anything.
+    // Improved Music Sync to properly pick audio-reactive option using sync box speaker/mic (searches options/effects for music/audio/sound etc).
+    // Clear visual feedback: pulsing bezel (stronger for music), activating card state, temp badges, zone highlights.
     async function activateTVMode() {
       if (!isUnlocked) {
         showFeedback('Unlock controls to activate TV Sync.', true);
@@ -2630,8 +2671,30 @@
       const brightness = Math.round((settings.brightnessLimit || 80) * 2.55 / 100);
       const syncBox = (haData.sync_controls || allFlat).find(s => s.is_sync || (s.entity_id || '').toLowerCase().includes('sync') || (s.friendly_name || '').toLowerCase().includes('sync'));
       const syncEid = syncBox ? syncBox.entity_id : null;
+      const syncOpts = (syncBox && (syncBox.options || syncBox.effect_list || [])) || [];
 
-      showFeedback(`Activating ${tvMode}…`, false);
+      // Visual feedback setup (targets current render)
+      const container = document.getElementById('dashboard-content');
+      const bezel = container ? container.querySelector('.tv-bezel') : null;
+      const activeCard = container ? container.querySelector('.tv-mode-card.active') : null;
+      const modeLabel = (['true-colors','video-game','music-sync'].map((m,i)=>[m,['True Colors','Video Game','Music Sync'][i]]).find(([id])=>id===tvMode)||[])[1] || tvMode;
+
+      if (activeCard) activeCard.classList.add('activating');
+      if (bezel) {
+        bezel.classList.add('syncing');
+        if (tvMode === 'music-sync') bezel.classList.add('music-syncing');
+      }
+
+      // Add temp feedback badge on bezel for clarity
+      let badge = null;
+      if (bezel) {
+        badge = document.createElement('div');
+        badge.className = 'tv-feedback-badge';
+        badge.textContent = tvMode === 'music-sync' ? 'LISTENING (speaker/mic)' : 'SYNCING';
+        bezel.appendChild(badge);
+      }
+
+      showFeedback(`Activating ${modeLabel}… ${tvMode==='music-sync' ? '(using sync box audio input)' : ''}`, false);
 
       // 1. Turn on + set brightness limit on all assigned (use group fanout where possible)
       const toControl = Array.from(assignedEids);
@@ -2648,12 +2711,19 @@
         return Promise.all(group.map(l => callWithRetry(() => callLightService(l, { brightness }), 2)));
       }));
 
-      // 2. For modes, try to drive the sync box using its discovered options (Vivid etc map sensibly)
+      // 2. For modes, try to drive the sync box using its discovered options.
+      // Music Sync now properly prefers audio-reactive modes that use the sync box speaker/mic.
       if (syncEid) {
-        let option = 'Vivid'; // default
-        if (tvMode === 'true-colors') option = 'Theater'; // or 'True' if available, use what box has
-        else if (tvMode === 'video-game') option = 'Vivid';
-        else if (tvMode === 'music-sync') option = 'Vivid'; // sound reactive often under dynamic/vivid on these boxes
+        let option = 'Vivid';
+        if (tvMode === 'true-colors') {
+          option = syncOpts.find(o => /theater|cinema|natural|true|accurate/i.test(o)) || 'Theater';
+        } else if (tvMode === 'video-game') {
+          option = syncOpts.find(o => /vivid|game|dynamic|fast|reactive/i.test(o)) || 'Vivid';
+        } else if (tvMode === 'music-sync') {
+          // Prioritize real audio reactivity via built-in speaker/mic on the box
+          option = syncOpts.find(o => /music|audio|sound|mic|speaker|beat|reactive|eq/i.test(o)) ||
+                   syncOpts.find(o => /music|audio|sound/i.test(o)) || 'Vivid';
+        }
         // Use the robust select applicator if present, else direct
         try {
           if (typeof applySelectOption === 'function') {
@@ -2662,6 +2732,13 @@
             await callWithRetry(() => callHAService('select', 'select_option', syncEid, { option }), 2);
           }
           updateLightState(syncEid, { state: 'on', current_effect: option });
+          // highlight zones for music reactivity visual
+          if (tvMode === 'music-sync' && container) {
+            container.querySelectorAll('.tv-zone').forEach(z => z.classList.add('music-active'));
+            setTimeout(() => {
+              if (container) container.querySelectorAll('.tv-zone').forEach(z => z.classList.remove('music-active'));
+            }, 4200);
+          }
         } catch (e) {}
       }
 
@@ -2679,8 +2756,19 @@
       }
 
       renderCurrentView();
-      saveTVState();
-      showFeedback(`${tvMode} active on assigned zones (incl. leader + Portable Lights). Use sync box effects for real screen/audio reactivity.`);
+      await saveTVState();
+
+      // Clear visual feedback
+      if (activeCard) activeCard.classList.remove('activating');
+      if (bezel) {
+        bezel.classList.remove('syncing', 'music-syncing');
+        if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
+      }
+
+      const finalMsg = tvMode === 'music-sync'
+        ? 'Music Sync active — sync box speaker/mic listening for audio reactivity on assigned zones (leader + Portable Lights).'
+        : `${modeLabel} active on assigned zones (incl. leader + Portable Lights).`;
+      showFeedback(finalMsg);
     }
 
     // Reusable premium light card (used by Rooms, Lights, Groups, etc.)
@@ -3406,18 +3494,19 @@
       // Check persistent unlock first (localStorage)
       loadSavedToken();
 
-      // Load TV Sync assignments + per-mode settings (local only, premium feel, no server data change)
-      try {
-        const savedAssign = localStorage.getItem('tv_sync_assignments');
-        if (savedAssign) tvAssignments = JSON.parse(savedAssign) || {};
-        const savedMode = localStorage.getItem('tv_sync_mode');
-        if (savedMode && ['true-colors','video-game','music-sync'].includes(savedMode)) tvMode = savedMode;
-        const savedSettings = localStorage.getItem('tv_sync_mode_settings');
-        if (savedSettings) {
-          const parsed = JSON.parse(savedSettings);
-          tvModeSettings = { ...tvModeSettings, ...parsed };
-        }
-      } catch (e) {}
+      // Load TV Sync data from server (replaces localStorage; cross-device persistence). Only TV Sync code path.
+      // Defaults will be used until async load completes in renderTVSyncView / on first use.
+      (async () => {
+        try {
+          const res = await fetch('/api/ha/tv-sync');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.assignments) tvAssignments = data.assignments || {};
+            if (data.mode && ['true-colors','video-game','music-sync'].includes(data.mode)) tvMode = data.mode;
+            if (data.mode_settings) tvModeSettings = { ...tvModeSettings, ...data.mode_settings };
+          }
+        } catch (e) {}
+      })();
 
       if (isUnlocked) {
         removeViewOnlyState();

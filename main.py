@@ -1701,6 +1701,68 @@ async def delete_access_request(req_id: str, token: Optional[str] = None):
 
 
 # =============================================================================
+# TV Sync (server-persisted zone assignments, mode, per-mode settings for the TV Sync feature)
+# Replaces previous localStorage; persists across devices/refreshes. Isolated to TV Sync only.
+# =============================================================================
+TV_SYNC_FILE = Path("data/tv_sync.json")
+TV_SYNC_FILE.parent.mkdir(exist_ok=True)
+
+DEFAULT_TV_SYNC = {
+    "assignments": {},
+    "mode": "true-colors",
+    "mode_settings": {
+        "true-colors": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+        "video-game": {"intensity": 90, "speed": 80, "brightnessLimit": 100},
+        "music-sync": {"intensity": 75, "speed": 55, "brightnessLimit": 80}
+    }
+}
+
+def load_tv_sync():
+    if TV_SYNC_FILE.exists():
+        try:
+            data = json.loads(TV_SYNC_FILE.read_text())
+            # merge defaults for safety
+            if "assignments" not in data:
+                data["assignments"] = {}
+            if "mode" not in data:
+                data["mode"] = DEFAULT_TV_SYNC["mode"]
+            if "mode_settings" not in data:
+                data["mode_settings"] = DEFAULT_TV_SYNC["mode_settings"]
+            else:
+                for k, v in DEFAULT_TV_SYNC["mode_settings"].items():
+                    if k not in data["mode_settings"]:
+                        data["mode_settings"][k] = v
+            return data
+        except Exception:
+            pass
+    return json.loads(json.dumps(DEFAULT_TV_SYNC))
+
+def save_tv_sync(data):
+    if not isinstance(data, dict):
+        data = {}
+    # ensure structure
+    clean = {
+        "assignments": data.get("assignments") or {},
+        "mode": data.get("mode") or DEFAULT_TV_SYNC["mode"],
+        "mode_settings": data.get("mode_settings") or DEFAULT_TV_SYNC["mode_settings"]
+    }
+    TV_SYNC_FILE.write_text(json.dumps(clean, indent=2))
+
+
+@app.get("/api/ha/tv-sync")
+async def get_tv_sync():
+    """Public read for TV Sync config (assignments/mode/settings). No token required for viewing the UI."""
+    return load_tv_sync()
+
+
+@app.post("/api/ha/tv-sync")
+async def post_tv_sync(data: dict, token: Optional[str] = None):
+    """Save TV Sync config (assignments/mode/settings). No token required (layout is non-destructive config; activation of modes still requires unlock for light control)."""
+    save_tv_sync(data)
+    return {"status": "saved"}
+
+
+# =============================================================================
 # Xbox Game Log (persistent recently played)
 # =============================================================================
 XBOX_LOG_FILE = Path("data/xbox_log.json")
