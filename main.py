@@ -2251,17 +2251,26 @@ async def get_messages():
     return messages
 
 @app.post("/api/messages")
-async def post_message(message: dict):
+async def post_message(message: dict, background_tasks: BackgroundTasks = None):
     messages = load_messages()
+    now = datetime.now(timezone.utc)
     new_message = {
-        "id": str(datetime.now().timestamp()),
+        "id": str(now.timestamp()),
         "name": message.get("name", "Anonymous"),
         "text": message.get("text", ""),
         "parent_id": message.get("parent_id"),  # None for top-level messages
-        "timestamp": datetime.now().isoformat()
+        "timestamp": now.isoformat()
     }
     messages.append(new_message)
     save_messages(messages)
+    # Automatically trigger the same temporary blue light behavior (temp blue few secs then restore)
+    # that is used for notifications. Uses BackgroundTasks (same pattern as /api/ha/notify) so
+    # the POST returns instantly to the poster and the light sequence runs reliably/quickly in bg.
+    # Poke button (blink) is untouched and uses its own separate path + rate limit.
+    if background_tasks is not None:
+        background_tasks.add_task(perform_notify_blue)
+    else:
+        asyncio.create_task(perform_notify_blue())
     return new_message
 
 
