@@ -363,19 +363,26 @@
       'kitchen': { name: 'Kitchen', width_ft: 12.4167, depth_ft: 10.0 }
     };
 
+    const WHOLE_HOUSE_ID = '__whole__';
     const HEIGHT_Y = { floor: 0.18, tv: 3.9, ceiling: 8.1 };
     const GRID_STEP = 0.05; // ~1 foot in most rooms
+
+    // Per-room world layout (in feet, relative to arbitrary house origin). Supports whole-house floor plan assembly.
+    // locked = true prevents accidental room moves; rooms maintain spatial relationships.
 
     const OBJECT_CATALOG = [
       // Lights
       { type: 'light', subtype: 'recessed', label: 'Recessed', color: 0xdddddd, category: 'light' },
       { type: 'light', subtype: 'lamp', label: 'Lamp', color: 0xf59e0b, category: 'light' },
       { type: 'light', subtype: 'tv-backlight', label: 'Backlight', color: 0x60a5fa, category: 'light' },
-      // Furniture
+      // Furniture (L-shapes are single unified objects with smart params)
       { type: 'furniture', subtype: 'couch', label: 'Couch', color: 0x475569, category: 'furniture' },
+      { type: 'furniture', subtype: 'l_couch', label: 'L-Couch', color: 0x475569, category: 'furniture' },
       { type: 'furniture', subtype: 'bed', label: 'Bed', color: 0x334155, category: 'furniture' },
       { type: 'furniture', subtype: 'desk', label: 'Desk', color: 0x78350f, category: 'furniture' },
+      { type: 'furniture', subtype: 'l_desk', label: 'L-Desk', color: 0x78350f, category: 'furniture' },
       { type: 'furniture', subtype: 'table', label: 'Table', color: 0x854d0e, category: 'furniture' },
+      { type: 'furniture', subtype: 'bookshelf', label: 'Bookshelf', color: 0x4b5563, category: 'furniture' },
       // TVs
       { type: 'tv', subtype: 'tv', label: 'TV', color: 0x1f2937, category: 'tv' }
     ];
@@ -389,6 +396,10 @@
     let pendingPlace = null;
     let isDraggingObject = false;
     let draggedObjectId = null;
+    let draggedObjectRoomId = null; // for whole-house: which room the dragged obj belongs to
+    let isDraggingRoom = false;
+    let draggedRoomId = null;
+    let roomDragGrabOffset = { x: 0, z: 0 };
     let isOrbiting = false;
     let previousMouseX = 0, previousMouseY = 0;
     // Spherical camera state for smooth, predictable orbiting (replaces old orbitTheta/Phi)
@@ -398,6 +409,62 @@
     let camTarget = { x: 0, y: 1.65, z: 0 };
     let floorHighlight = null;
     let saveTimeout = null;
+    let roomGroups = {}; // rid -> THREE.Group for whole house mode room dragging
+
+    // HA live light sync for model (entity_id -> latest state from /api/ha/lights-data)
+    let haLights = {};
+    let haPollTimer = null;
+
+    async function loadHALightsForModel() {
+      try {
+        const res = await fetch('/api/ha/lights-data');
+        const data = await res.json();
+        haLights = {};
+        const push = (l) => { if (l && l.entity_id) haLights[l.entity_id] = l; };
+        if (data && data.lights_by_room) Object.values(data.lights_by_room).forEach(arr => arr.forEach(push));
+        if (data && data.unassigned_lights) data.unassigned_lights.forEach(push);
+      } catch (e) {}
+      refreshLinkedLightsVisuals();
+    }
+
+    function refreshLinkedLightsVisuals() {
+      Object.keys(objectMeshes || {}).forEach(id => {
+        const entry = objectMeshes[id];
+        const d = entry && entry.data;
+        if (d && d.type === 'light' && d.entity_id && haLights[d.entity_id]) {
+          applyRealHAStateToLight(d, haLights[d.entity_id]);
+        }
+      });
+      if (currentView === '3d' && renderer) forceRender3D();
+    }
+
+    function applyRealHAStateToLight(obj, ha) {
+      const entry = objectMeshes[obj.id];
+      if (!entry || !entry.light) return;
+      const on = ha.state === 'on' || ha.state === 'On';
+      let br = (ha.brightness != null ? ha.brightness : (obj.brightness || 70));
+      let rgb = ha.rgb_color;
+      if (!rgb && ha.color_temp) {
+        const kc = kelvinToColor(ha.color_temp);
+        rgb = [kc.r*255|0, kc.g*255|0, kc.b*255|0];
+      }
+      if (!rgb) rgb = [255, 245, 230];
+      const col = new THREE.Color(rgb[0]/255, rgb[1]/255, rgb[2]/255);
+      const l = entry.light;
+      l.visible = !!on;
+      l.color.copy(col);
+      let intensity = on ? (br / 35) : 0;
+      if (obj.subtype === 'recessed') intensity *= 0.85;
+      if (obj.subtype === 'tv-backlight') intensity *= 0.55;
+      l.intensity = intensity;
+      // emissive sync on the visual meshes
+      const eFactor = on ? 0.38 : 0;
+      if (entry.mesh) entry.mesh.traverse(ch => {
+        if (ch.material && 'emissive' in ch.material) {
+          ch.material.emissive.setRGB( (rgb[0]/255)*eFactor, (rgb[1]/255)*eFactor, (rgb[2]/255)*eFactor );
+        }
+      });
+    }
 
     // View & Layers
     let currentView = '3d';
@@ -467,6 +534,18 @@
         }
       });
       currentRoom = modelData.selected_room || 'game-room';
+      // Normalize whole-house world layout + lock + object extensibility (scale/rot/params/entity for lights)
+      Object.keys(modelData.rooms || {}).forEach(rid => {
+        const r = modelData.rooms[rid];
+        if (!r.world || typeof r.world !== 'object') r.world = { x: 0, z: 0, rot: 0 };
+        if (typeof r.locked === 'undefined') r.locked = false;
+        (r.objects || []).forEach(o => {
+          if (typeof o.scale === 'undefined') o.scale = 1;
+          if (typeof o.rotation === 'undefined') o.rotation = 0;
+          if (o.type === 'light' && typeof o.entity_id === 'undefined') o.entity_id = null;
+          if (o.type === 'furniture' && ['l_couch','l_desk','bookshelf'].includes(o.subtype) && !o.params) o.params = {};
+        });
+      });
     }
 
     async function saveModel(showToast = false) {
@@ -492,7 +571,37 @@
       const el = document.getElementById('room-selector');
       if (!el || !modelData) return;
       el.innerHTML = '';
+
+      // Whole House pill (primary for layout assembly)
+      const wholeBtn = document.createElement('button');
+      const isWhole = currentRoom === WHOLE_HOUSE_ID;
+      wholeBtn.className = `room-pill ${isWhole ? 'active' : ''}`;
+      wholeBtn.innerHTML = `<i class="fa-solid fa-home mr-1"></i>Whole House`;
+      wholeBtn.onclick = async () => {
+        if (isWhole) return;
+        currentRoom = WHOLE_HOUSE_ID;
+        modelData.selected_room = WHOLE_HOUSE_ID;
+        await saveModel();
+        renderRoomSelector();
+        if (currentView === '3d') {
+          buildWholeHouseScene();
+          forceRender3D();
+        } else {
+          draw2DScene();
+        }
+        clearSelection();
+        clearPendingPlace();
+        if (floorHighlight) floorHighlight.visible = false;
+      };
+      el.appendChild(wholeBtn);
+
+      // Individual rooms + lock toggle (only meaningful in whole house context)
       Object.keys(ROOM_DIMS).forEach(rid => {
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'inline-flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.gap = '2px';
+
         const btn = document.createElement('button');
         btn.className = `room-pill ${rid === currentRoom ? 'active' : ''}`;
         btn.textContent = ROOM_DIMS[rid].name;
@@ -503,26 +612,53 @@
           await saveModel();
           renderRoomSelector();
           if (currentView === '3d') {
-            buildRoomScene();
+            buildRoomScene(); // focused single room (legacy local mode)
             forceRender3D();
           } else {
             draw2DScene();
           }
-          updateRoomHeader();
           clearSelection();
           clearPendingPlace();
           if (floorHighlight) floorHighlight.visible = false;
         };
-        el.appendChild(btn);
+
+        // Lock toggle (visible always, but only affects whole-house room dragging)
+        const lockBtn = document.createElement('button');
+        const r = modelData.rooms[rid] || {};
+        const locked = !!r.locked;
+        lockBtn.className = `room-pill ${locked ? 'active' : ''}`;
+        lockBtn.style.padding = '6px 8px';
+        lockBtn.style.fontSize = '10px';
+        lockBtn.innerHTML = locked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-lock-open"></i>';
+        lockBtn.title = locked ? 'Locked (fixed in house layout)' : 'Unlocked (can drag in Whole House)';
+        lockBtn.onclick = async (ev) => {
+          ev.stopImmediatePropagation();
+          r.locked = !locked;
+          await saveModel();
+          renderRoomSelector();
+          if (currentView === '3d' && currentRoom === WHOLE_HOUSE_ID) {
+            buildWholeHouseScene();
+            forceRender3D();
+          }
+        };
+
+        wrapper.appendChild(btn);
+        wrapper.appendChild(lockBtn);
+        el.appendChild(wrapper);
       });
     }
 
     function updateRoomHeader() {
-      const r = ROOM_DIMS[currentRoom];
       const titleEl = document.getElementById('room-title');
       const dimsEl = document.getElementById('room-dims');
-      if (titleEl) titleEl.textContent = r.name;
-      if (dimsEl) dimsEl.textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}'`;
+      if (currentRoom === WHOLE_HOUSE_ID) {
+        if (titleEl) titleEl.textContent = 'Whole House';
+        if (dimsEl) dimsEl.textContent = 'World Layout • Drag unlocked rooms • Lock to fix spatial relationships';
+        return;
+      }
+      const r = ROOM_DIMS[currentRoom];
+      if (titleEl) titleEl.textContent = r ? r.name : currentRoom;
+      if (dimsEl && r) dimsEl.textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}'`;
     }
 
     // Layer toggles
@@ -711,9 +847,13 @@
     function buildRoomScene() {
       Object.keys(objectMeshes).forEach(id => {
         const entry = objectMeshes[id];
-        if (entry.mesh) scene.remove(entry.mesh);
+        if (entry.mesh) {
+          if (entry.mesh.parent) entry.mesh.parent.remove(entry.mesh);
+          else scene.remove(entry.mesh);
+        }
       });
       objectMeshes = {};
+      roomGroups = {};
 
       const toRemove = [];
       scene.children.forEach(c => {
@@ -787,6 +927,200 @@
         renderer.render(scene, camera);
       }
       forceRender3D();
+    }
+
+    // Create the visual content (floor, walls, grid, objects) for ONE room as a Group (local coords).
+    // Used by both single-room focus mode and whole-house world layout.
+    function createRoomContentGroup(rid) {
+      const group = new THREE.Group();
+      group.userData = { isRoomGroup: true, roomId: rid };
+
+      const rinfo = ROOM_DIMS[rid];
+      if (!rinfo) return group;
+
+      const { w, d } = { w: rinfo.width_ft, d: rinfo.depth_ft };
+      const halfW = w / 2, halfD = d / 2;
+
+      // Floor (local)
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial({ color: 0x1f242b, flatShading: true }));
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = 0;
+      floor.userData = { isRoomFloor: true, room: rid };
+      group.add(floor);
+
+      // Local floor plane for this room (used for object drag within room)
+      // Note: for whole house we still use global floorPlane for simplicity, or per-room if needed.
+      const localFloorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+      // Grid
+      const grid = new THREE.GridHelper(Math.max(w, d), Math.ceil(Math.max(w, d)), 0x334155, 0x272e38);
+      grid.position.y = 0.02;
+      grid.userData = { isStatic: true, room: rid };
+      group.add(grid);
+
+      const wallH = 0.9;
+      const wallMat = new THREE.MeshLambertMaterial({ color: 0x2a313a });
+      const tvWallMat = new THREE.MeshLambertMaterial({ color: 0x374151 });
+
+      const wallS = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, 0.18), wallMat);
+      wallS.position.set(0, wallH / 2, halfD + 0.05);
+      wallS.userData = { isRoomWall: true, room: rid };
+      group.add(wallS);
+
+      const wallN = new THREE.Mesh(new THREE.BoxGeometry(w, wallH + 1.6, 0.22), tvWallMat);
+      wallN.position.set(0, (wallH + 1.6) / 2, -halfD - 0.05);
+      wallN.userData = { isRoomWall: true, isTVWall: true, room: rid };
+      group.add(wallN);
+
+      const wallE = new THREE.Mesh(new THREE.BoxGeometry(0.18, wallH, d), wallMat);
+      wallE.position.set(halfW + 0.05, wallH / 2, 0);
+      wallE.userData = { isRoomWall: true, room: rid };
+      group.add(wallE);
+
+      const wallW = new THREE.Mesh(new THREE.BoxGeometry(0.18, wallH, d), wallMat);
+      wallW.position.set(-halfW - 0.05, wallH / 2, 0);
+      wallW.userData = { isRoomWall: true, room: rid };
+      group.add(wallW);
+
+      const tvLabel = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(3.5, w * 0.28), 0.7), new THREE.MeshBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.7 }));
+      tvLabel.rotation.y = Math.PI;
+      tvLabel.position.set(0, 2.8, -halfD - 0.18);
+      tvLabel.userData = { isStatic: true, room: rid };
+      group.add(tvLabel);
+
+      if (rid === 'kitchen') {
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(w * 0.22, 1.6, 0.6), new THREE.MeshLambertMaterial({ color: 0x3f2a1f }));
+        cab.position.set(-halfW + 1.4, 0.8, -halfD * 0.6);
+        cab.userData = { isStatic: true, room: rid };
+        group.add(cab);
+      }
+
+      // Objects local to this room
+      const roomData = modelData.rooms[rid] || { objects: [] };
+      (roomData.objects || []).forEach(obj => {
+        // createOrUpdateMesh will add directly to scene for now; we will re-parent in whole house builder
+        // For simplicity in this upgrade we keep object creation adding to scene, then reparent groups.
+        // (Alternative: make create accept optional parent group.)
+        createOrUpdateMeshForRoom(obj, rid, group);  // extended helper below
+      });
+
+      return group;
+    }
+
+    // Helper that creates mesh for obj and parents to provided group (or scene if none) and registers.
+    // Re-uses most of the old create logic but allows room-group parenting for whole house.
+    function createOrUpdateMeshForRoom(obj, rid, parentGroup = null) {
+      const id = obj.id;
+      if (objectMeshes[id] && objectMeshes[id].mesh) {
+        // remove from previous parent
+        const old = objectMeshes[id].mesh;
+        if (old.parent) old.parent.remove(old);
+      }
+
+      const rinfo = ROOM_DIMS[rid];
+      if (!rinfo) return;
+
+      const { w, d } = { w: rinfo.width_ft, d: rinfo.depth_ft };
+      const halfW = w / 2, halfD = d / 2;
+      const wx = (obj.x - 0.5) * w;
+      const wz = (obj.z - 0.5) * d;
+      const wy = HEIGHT_Y[obj.height] || 0.18;
+
+      // ... (the entire original geometry creation for lights/furniture/tv is long; we will call a refactored core and then parent)
+      // To keep patch small and correct, we temporarily use a scene temp add then reparent.
+      // For production we would extract the mesh building.
+      // For this implementation we leverage existing createOrUpdateMesh but reparent after.
+
+      // Fallback: use the main create which adds to scene, then move the mesh into the room group.
+      const prevRoom = currentRoom;
+      currentRoom = rid; // ensure correct local dims for this room's objects
+      createOrUpdateMesh(obj); // existing (adds to scene, registers in objectMeshes)
+      currentRoom = prevRoom;
+      const entry = objectMeshes[id];
+      if (entry && entry.mesh && parentGroup) {
+        if (entry.mesh.parent) entry.mesh.parent.remove(entry.mesh);
+        parentGroup.add(entry.mesh);
+        // Tag for reliable room-aware raycast / drag in whole-house mode
+        if (!entry.mesh.userData) entry.mesh.userData = {};
+        entry.mesh.userData.roomId = rid;
+        // Position is already local; when we later position the parentGroup in world it will be correct.
+      }
+    }
+
+    // Whole House builder: assembles all rooms in world space using their .world transforms.
+    // Rooms act as rigid groups; locked rooms stay fixed relative to each other.
+    function buildWholeHouseScene() {
+      // Remove previous room groups + their objects
+      Object.keys(objectMeshes).forEach(id => {
+        const entry = objectMeshes[id];
+        if (entry.mesh && entry.mesh.parent) entry.mesh.parent.remove(entry.mesh);
+      });
+      objectMeshes = {};
+
+      const toRemove = [];
+      scene.children.forEach(c => {
+        if (c !== floorHighlight && c.userData && (c.userData.isRoomFloor || c.userData.isRoomWall || c.userData.isStatic || c.userData.isRoomGroup)) toRemove.push(c);
+      });
+      toRemove.forEach(c => scene.remove(c));
+
+      // Create a master floor plane for the whole world (large)
+      const worldSize = 120;
+      const worldFloor = new THREE.Mesh(new THREE.PlaneGeometry(worldSize, worldSize), new THREE.MeshLambertMaterial({ color: 0x0f1115, flatShading: true }));
+      worldFloor.rotation.x = -Math.PI / 2;
+      worldFloor.userData = { isStatic: true };
+      scene.add(worldFloor);
+
+      // Global floorPlane for object placement/drag (large ground)
+      floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+      // Big grid for house context
+      const bigGrid = new THREE.GridHelper(80, 40, 0x272e38, 0x1f242b);
+      bigGrid.position.y = 0.01;
+      bigGrid.userData = { isStatic: true };
+      scene.add(bigGrid);
+
+      // Build each room as positioned group
+      roomGroups = {};
+      const roomIds = Object.keys(ROOM_DIMS);
+      roomIds.forEach(rid => {
+        const r = modelData.rooms[rid] || {};
+        const content = createRoomContentGroup(rid);  // the local content group
+
+        const wld = r.world || { x: 0, z: 0, rot: 0 };
+        content.position.set(wld.x || 0, 0, wld.z || 0);
+        content.rotation.y = ((wld.rot || 0) * Math.PI / 180);
+
+        // Tag the group so we can find room floors for room-dragging
+        content.userData.isRoomGroup = true;
+        content.userData.roomId = rid;
+        content.userData.locked = !!r.locked;
+
+        scene.add(content);
+        roomGroups[rid] = content;
+
+        // The objects inside were parented in the helper; their local positions are correct relative to room group.
+      });
+
+      // Camera for whole house
+      resetCameraForWholeHouse();
+
+      refresh3DVisibility();
+
+      if (renderer && currentView === '3d') {
+        renderer.render(scene, camera);
+      }
+      forceRender3D();
+    }
+
+    function resetCameraForWholeHouse() {
+      // Fit camera to encompass typical house spread (example positions from defaults)
+      camera.position.set(35, 45, 40);
+      camera.lookAt(5, 2, -5);
+      camRadius = 55;
+      camTheta = 0.7;
+      camPhi = 0.85;
+      camTarget = { x: 5, y: 2, z: -3 };
+      updateCameraPosition();
     }
 
     function resetCameraForRoom() {
@@ -896,6 +1230,119 @@
           group.add(seat, back, armL, armR, c1, c2);
           mesh = group;
           mesh.position.set(wx, wy, wz);
+        } else if (sub === 'l_couch') {
+          // Single unified L-shaped couch (no need for multiple pieces)
+          const p = obj.params || {};
+          const mainL = p.main_len || p.length || 7.5;   // long arm
+          const retL  = p.return_len || 4.5;             // return arm
+          const depth = p.depth || 3.0;
+          const seatH = p.seat_h || 0.5;
+          const backH = p.back_h || 1.3;
+          const thick = p.thick || 0.9; // "width" of the L arms
+
+          const group = new THREE.Group();
+          const mat = new THREE.MeshLambertMaterial({ color: obj.color || 0x475569 });
+          const dark = new THREE.MeshLambertMaterial({ color: 0x334155 });
+
+          // Long arm (main)
+          const longSeat = new THREE.Mesh(new THREE.BoxGeometry(mainL, seatH, thick), mat);
+          longSeat.position.set( (mainL/2) - (thick/2), seatH/2 , 0);
+          const longBack = new THREE.Mesh(new THREE.BoxGeometry(mainL, backH, 0.35), dark);
+          longBack.position.set( (mainL/2) - (thick/2), seatH + backH/2 , -thick/2 + 0.1 );
+
+          // Return arm (perpendicular)
+          const retSeat = new THREE.Mesh(new THREE.BoxGeometry(thick, seatH, retL), mat);
+          retSeat.position.set( -thick/2 , seatH/2 , (retL/2) - (thick/2) + thick );
+          const retBack = new THREE.Mesh(new THREE.BoxGeometry(0.35, backH, retL), dark);
+          retBack.position.set( -thick/2 -0.1 , seatH + backH/2 , (retL/2) - (thick/2) + thick );
+
+          // Corner filler
+          const corner = new THREE.Mesh(new THREE.BoxGeometry(thick, seatH, thick), mat);
+          corner.position.set( -thick/2 , seatH/2 , thick/2 );
+
+          group.add(longSeat, longBack, retSeat, retBack, corner);
+
+          // Simple cushions / detail
+          const cMain = new THREE.Mesh(new THREE.BoxGeometry(mainL*0.45, 0.32, thick*0.8), dark);
+          cMain.position.set(mainL*0.25, seatH + 0.2, 0);
+          group.add(cMain);
+
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
+        } else if (sub === 'l_desk') {
+          // Single L-desk
+          const p = obj.params || {};
+          const mainL = p.main_len || 6.5;
+          const retL = p.return_len || 4.0;
+          const w = p.width || 2.2;
+          const thick = 0.18;
+
+          const group = new THREE.Group();
+          const topMat = new THREE.MeshLambertMaterial({ color: obj.color || 0x78350f });
+          const legMat = new THREE.MeshLambertMaterial({ color: 0x44403c });
+
+          const mainTop = new THREE.Mesh(new THREE.BoxGeometry(mainL, thick, w), topMat);
+          mainTop.position.set((mainL/2) - (w/2), 1.1, 0);
+
+          const retTop = new THREE.Mesh(new THREE.BoxGeometry(w, thick, retL), topMat);
+          retTop.position.set( -w/2 , 1.1 , (retL/2) - (w/2) + w*0.6 );
+
+          // Legs (simple)
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.0, 6), legMat);
+          leg.position.y = 0.5;
+          // place 4 legs
+          const legs = [
+            [ mainL*0.35 , 0 , -w*0.35 ],
+            [ mainL*0.35 , 0 ,  w*0.35 ],
+            [ -w*0.35 , 0 , retL*0.25 ],
+            [ -w*0.35 , 0 , -w*0.2 ]
+          ];
+          legs.forEach(([lx,ly,lz]) => {
+            const l = leg.clone();
+            l.position.x = lx; l.position.y=ly; l.position.z = lz;
+            group.add(l);
+          });
+
+          group.add(mainTop, retTop);
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
+        } else if (sub === 'bookshelf') {
+          const p = obj.params || {};
+          const ww = p.width || 3.5;
+          const hh = p.height || 6.5;
+          const dd = p.depth || 1.2;
+          const shelves = Math.max(2, Math.min(6, p.shelves || 4));
+
+          const group = new THREE.Group();
+          const wood = new THREE.MeshLambertMaterial({ color: obj.color || 0x4b5563 });
+          const backMat = new THREE.MeshLambertMaterial({ color: 0x374151 });
+
+          // Back panel
+          const back = new THREE.Mesh(new THREE.BoxGeometry(ww, hh, 0.12), backMat);
+          back.position.y = hh/2;
+          group.add(back);
+
+          // Sides + top/bottom
+          const side = new THREE.Mesh(new THREE.BoxGeometry(0.15, hh, dd), wood);
+          side.position.set(ww/2 - 0.075, hh/2, dd/2);
+          const side2 = side.clone(); side2.position.x = -ww/2 + 0.075;
+          const top = new THREE.Mesh(new THREE.BoxGeometry(ww, 0.15, dd), wood);
+          top.position.y = hh;
+          top.position.z = dd/2;
+          const bot = top.clone(); bot.position.y = 0.075;
+          group.add(side, side2, top, bot);
+
+          // Shelves
+          const shelfMat = new THREE.MeshLambertMaterial({ color: 0x5b6b7a });
+          for (let i = 1; i < shelves; i++) {
+            const sh = new THREE.Mesh(new THREE.BoxGeometry(ww - 0.3, 0.1, dd - 0.1), shelfMat);
+            sh.position.y = (hh / shelves) * i ;
+            sh.position.z = dd/2 ;
+            group.add(sh);
+          }
+
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
         } else if (sub === 'bed') {
           const group = new THREE.Group();
           const base = new THREE.Mesh(new THREE.BoxGeometry(3.15, 0.68, 5.15), new THREE.MeshLambertMaterial({ color: 0x1e2937 }));
@@ -952,7 +1399,7 @@
         mesh = root;
       }
 
-      root.userData = { id, isObject: true };
+      root.userData = { id, isObject: true, roomId: currentRoom === WHOLE_HOUSE_ID ? null : currentRoom };
       root.castShadow = true;
       root.receiveShadow = true;
       scene.add(root);
@@ -1122,6 +1569,37 @@
               `).join('')}
             </div>
           </div>
+
+          ${ (obj.type === 'furniture' && ['l_couch','l_desk','bookshelf'].includes(obj.subtype)) ? `
+          <div class="mt-2 pt-2 border-t border-zinc-700">
+            <div class="text-xs text-zinc-400 mb-1">Dimensions (ft)</div>
+            <div id="params-group" class="space-y-1 text-[11px]">
+              ${(() => {
+                const p = obj.params || {};
+                if (obj.subtype === 'l_couch') {
+                  return `
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Main</span><input type="range" data-p="main_len" min="3" max="14" step="0.1" value="${p.main_len||7.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.main_len||7.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Return</span><input type="range" data-p="return_len" min="2" max="10" step="0.1" value="${p.return_len||4.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.return_len||4.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Depth</span><input type="range" data-p="depth" min="2" max="4.5" step="0.05" value="${p.depth||3.0}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.depth||3.0).toFixed(1)}</span></div>
+                  `;
+                } else if (obj.subtype === 'l_desk') {
+                  return `
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Main</span><input type="range" data-p="main_len" min="4" max="12" step="0.1" value="${p.main_len||6.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.main_len||6.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Return</span><input type="range" data-p="return_len" min="2" max="8" step="0.1" value="${p.return_len||4}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.return_len||4).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Width</span><input type="range" data-p="width" min="1.5" max="3.5" step="0.1" value="${p.width||2.2}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.width||2.2).toFixed(1)}</span></div>
+                  `;
+                } else if (obj.subtype === 'bookshelf') {
+                  return `
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Width</span><input type="range" data-p="width" min="2" max="8" step="0.1" value="${p.width||3.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.width||3.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Height</span><input type="range" data-p="height" min="3" max="9" step="0.1" value="${p.height||6.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.height||6.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Depth</span><input type="range" data-p="depth" min="0.8" max="2" step="0.05" value="${p.depth||1.2}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.depth||1.2).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Shelves</span><input type="range" data-p="shelves" min="2" max="6" step="1" value="${p.shelves||4}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${p.shelves||4}</span></div>
+                  `;
+                }
+                return '';
+              })()}
+            </div>
+          </div>` : ''}
       `;
 
       if (obj.type === 'light') {
@@ -1144,6 +1622,13 @@
               <button data-temp="4000" class="temp-btn flex-1 ${ct === 4000 ? 'active' : ''}">Neutral</button>
               <button data-temp="6500" class="temp-btn flex-1 ${ct === 6500 ? 'active' : ''}">Cool</button>
             </div>
+          </div>
+          <div class="mt-2 pt-1 border-t border-zinc-700">
+            <div class="text-xs text-zinc-400 mb-0.5">Link to real light (live HA)</div>
+            <select id="light-link" class="w-full bg-[#111113] border border-zinc-700 rounded px-2 py-1 text-xs">
+              <option value="">-- Not linked --</option>
+            </select>
+            <div class="text-[10px] text-zinc-500 mt-0.5">When linked, model shows real-time color/brightness/on from HA.</div>
           </div>
         `;
       }
@@ -1194,6 +1679,30 @@
         };
       });
 
+      // Dynamic params for L-furniture / bookshelf (live preview + save)
+      const paramsContainer = container.querySelector('#params-group');
+      if (paramsContainer) {
+        paramsContainer.querySelectorAll('input[data-p]').forEach(inp => {
+          inp.oninput = () => {
+            if (!obj.params) obj.params = {};
+            const key = inp.dataset.p;
+            obj.params[key] = parseFloat(inp.value);
+            // live recreate mesh (supports world + single room)
+            const entry = objectMeshes[selectedId];
+            if (entry && entry.mesh && entry.mesh.parent) {
+              const parent = entry.mesh.parent;
+              parent.remove(entry.mesh);
+            }
+            createOrUpdateMesh(obj);
+            forceRender3D();
+            draw2DScene();
+            scheduleSave();
+            // re-render inspector to update the value labels next to sliders
+            renderInspector();
+          };
+        });
+      }
+
       const del = container.querySelector('#delete-btn');
       if (del) del.onclick = deleteSelected;
       const desel = container.querySelector('#deselect-btn');
@@ -1232,6 +1741,64 @@
             renderInspector();
           };
         });
+
+        // Link select (populated from /api/ha/lights-data)
+        const linkSel = container.querySelector('#light-link');
+        if (linkSel) {
+          // populate async (non blocking)
+          (async () => {
+            try {
+              const res = await fetch('/api/ha/lights-data');
+              const data = await res.json();
+              const opts = [];
+              const seen = new Set();
+              const pushL = (l) => {
+                if (!l || !l.entity_id || seen.has(l.entity_id)) return;
+                seen.add(l.entity_id);
+                const opt = document.createElement('option');
+                opt.value = l.entity_id;
+                opt.textContent = (l.friendly_name || l.entity_id) + (l.room_name ? ' ('+l.room_name+')' : '');
+                if (obj.entity_id === l.entity_id) opt.selected = true;
+                linkSel.appendChild(opt);
+              };
+              if (data.lights_by_room) Object.values(data.lights_by_room).forEach(arr => arr.forEach(pushL));
+              if (data.unassigned_lights) data.unassigned_lights.forEach(pushL);
+            } catch(e){}
+          })();
+
+          linkSel.onchange = async () => {
+            const val = linkSel.value || null;
+            obj.entity_id = val;
+            saveModel();
+            // immediately try to apply if we have state
+            if (val && haLights[val]) {
+              applyRealHAStateToLight(obj, haLights[val]);
+              forceRender3D();
+            }
+            renderInspector();
+          };
+
+          // Bonus: quick toggle of the real linked light (uses existing HA service API)
+          const tog = document.createElement('button');
+          tog.className = 'ha-btn text-[10px] px-2 py-px mt-1';
+          tog.textContent = 'Toggle real';
+          tog.onclick = async (ev) => {
+            ev.stopImmediatePropagation();
+            if (!obj.entity_id) return;
+            const st = haLights[obj.entity_id] || {};
+            const turningOn = st.state !== 'on';
+            const svc = turningOn ? 'turn_on' : 'turn_off';
+            try {
+              await fetch(`/api/ha/service/light/${svc}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entity_id: obj.entity_id })
+              });
+              setTimeout(loadHALightsForModel, 250);
+            } catch (e) {}
+          };
+          linkSel.parentNode.appendChild(tog);
+        }
       }
     }
 
@@ -1315,29 +1882,92 @@
       const hits = raycaster.intersectObjects(scene.children, true);
 
       let hitObject = null;
+      let hitObjectRoom = null;
       for (let h of hits) {
         const id = getObjectIdFromIntersect(h.object);
-        if (id) { hitObject = id; break; }
+        if (id) {
+          hitObject = id;
+          // Try to recover which room this object lives in (from mesh userData or data lookup)
+          const entry = objectMeshes[id];
+          if (entry && entry.mesh && entry.mesh.userData && entry.mesh.userData.roomId) {
+            hitObjectRoom = entry.mesh.userData.roomId;
+          } else {
+            // fallback scan
+            Object.keys(modelData.rooms || {}).some(rid => {
+              const has = (modelData.rooms[rid].objects || []).some(o => o.id === id);
+              if (has) { hitObjectRoom = rid; return true; }
+              return false;
+            });
+          }
+          break;
+        }
       }
 
       if (hitObject) {
-        // Raycast-first: object hit always starts drag (never orbit). 3D primary reliable interaction.
+        // Raycast-first: object hit always starts drag (never orbit or room drag). 3D primary reliable.
         isDraggingObject = true;
         draggedObjectId = hitObject;
+        draggedObjectRoomId = hitObjectRoom || (currentRoom === WHOLE_HOUSE_ID ? null : currentRoom);
         selectObject(hitObject);
         previousMouseX = e.clientX;
         previousMouseY = e.clientY;
 
         const entry = objectMeshes[hitObject];
         if (entry && entry.mesh && floorHighlight) {
-          floorHighlight.position.set(entry.mesh.position.x, 0.015, entry.mesh.position.z);
+          // visual lift + scale pop for feedback (respects user scale)
+          const p = entry.mesh.getWorldPosition(new THREE.Vector3());
+          floorHighlight.position.set(p.x, 0.015, p.z);
           floorHighlight.visible = true;
-          const wy = entry.mesh.position.y;
+          const wy = entry.mesh.position.y; // local to its room group
           entry.mesh.position.y = wy + 0.65;
           const bs = entry.data && entry.data.scale || 1;
           entry.mesh.scale.set(bs * 1.09, bs * 1.09, bs * 1.09);
         }
+        canvas.style.cursor = 'grabbing';
         return;
+      }
+
+      // No object: check for room floor (for whole-house room repositioning)
+      if (currentRoom === WHOLE_HOUSE_ID) {
+        let hitRoomId = null;
+        for (let h of hits) {
+          const ud = h.object && h.object.userData;
+          if (ud && ud.isRoomFloor && ud.room) {
+            const r = modelData.rooms[ud.room];
+            if (r && !r.locked) {
+              hitRoomId = ud.room;
+              break;
+            }
+          }
+          // also check if hit a room group floor indirectly
+          let cur = h.object;
+          while (cur) {
+            if (cur.userData && cur.userData.isRoomGroup && cur.userData.roomId) {
+              const rrid = cur.userData.roomId;
+              const rr = modelData.rooms[rrid];
+              if (rr && !rr.locked) { hitRoomId = rrid; break; }
+            }
+            cur = cur.parent;
+          }
+          if (hitRoomId) break;
+        }
+        if (hitRoomId) {
+          isDraggingRoom = true;
+          draggedRoomId = hitRoomId;
+          const r = modelData.rooms[hitRoomId];
+          const wld = r.world || {x:0, z:0};
+          // record grab offset so drag feels natural (center follows pointer relative to grab point)
+          roomDragGrabOffset = { x: 0, z: 0 }; // simplified: we will use intersect directly for center-ish
+          // lift the whole room group for feedback
+          const g = roomGroups[hitRoomId];
+          if (g) {
+            g.position.y = 0.4;
+            // optional: scale all children or just the group slightly
+            g.scale.set(1.01, 1.01, 1.01);
+          }
+          canvas.style.cursor = 'grabbing';
+          return;
+        }
       }
 
       if (pendingPlace) {
@@ -1348,6 +1978,7 @@
       isOrbiting = true;
       previousMouseX = e.clientX;
       previousMouseY = e.clientY;
+      canvas.style.cursor = 'move';
     }
 
     function onPointerMove(e) {
@@ -1361,32 +1992,89 @@
         raycaster.setFromCamera(mouse, camera);
         const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
         if (intersect) {
-          const { w, d } = getRoomSize();
-          let nx = (intersect.x + w/2) / w;
-          let nz = (intersect.z + d/2) / d;
+          const roomIdForDrag = draggedObjectRoomId || (currentRoom === WHOLE_HOUSE_ID ? null : currentRoom);
+          if (!roomIdForDrag) return;
+
+          const rinfo = ROOM_DIMS[roomIdForDrag];
+          const rdata = modelData.rooms[roomIdForDrag];
+          if (!rinfo || !rdata) return;
+
+          const w = rinfo.width_ft;
+          const d = rinfo.depth_ft;
+
+          let worldHitX = intersect.x;
+          let worldHitZ = intersect.z;
+
+          // In whole house, convert world hit back to the room's LOCAL coordinate system
+          let localWx = worldHitX;
+          let localWz = worldHitZ;
+          if (currentRoom === WHOLE_HOUSE_ID && rdata.world) {
+            localWx = worldHitX - (rdata.world.x || 0);
+            localWz = worldHitZ - (rdata.world.z || 0);
+          }
+
+          let nx = (localWx / w) + 0.5;
+          let nz = (localWz / d) + 0.5;
 
           nx = snapValue(nx);
           nz = snapValue(nz);
 
-          const room = modelData.rooms[currentRoom];
-          const obj = room.objects.find(o => o.id === draggedObjectId);
+          const room = rdata;
+          const obj = (room.objects || []).find(o => o.id === draggedObjectId);
           if (obj) {
             obj.x = nx;
             obj.z = nz;
+
             const entry = objectMeshes[draggedObjectId];
             if (entry && entry.mesh) {
-              const wx = (nx - 0.5) * w;
-              const wz = (nz - 0.5) * d;
-              entry.mesh.position.x = wx;
-              entry.mesh.position.z = wz;
+              // Mesh lives in room-local space (child of room group which carries world transform)
+              const localPosX = (nx - 0.5) * w;
+              const localPosZ = (nz - 0.5) * d;
+              entry.mesh.position.x = localPosX;
+              entry.mesh.position.z = localPosZ;
             }
+
             if (floorHighlight) {
-              floorHighlight.position.set((nx-0.5)*w, 0.015, (nz-0.5)*d);
+              // Show highlight at world position
+              let hlX = (nx - 0.5) * w;
+              let hlZ = (nz - 0.5) * d;
+              if (currentRoom === WHOLE_HOUSE_ID && rdata.world) {
+                hlX += (rdata.world.x || 0);
+                hlZ += (rdata.world.z || 0);
+              }
+              floorHighlight.position.set(hlX, 0.015, hlZ);
               floorHighlight.visible = true;
             }
+
             scheduleSave();
-            if (currentView === '2d') draw2DScene();
-            else draw2DScene(); // keep 2D secondary in sync even when 3D primary
+            draw2DScene();
+          }
+        }
+        return;
+      }
+
+      if (isDraggingRoom && draggedRoomId && currentRoom === WHOLE_HOUSE_ID) {
+        raycaster.setFromCamera(mouse, camera);
+        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+        if (intersect) {
+          const r = modelData.rooms[draggedRoomId];
+          if (r && !r.locked) {
+            const g = roomGroups[draggedRoomId];
+            if (g) {
+              // Direct center follow (simple & reliable). For more precision we could store initial grab offset.
+              const desiredX = intersect.x;
+              const desiredZ = intersect.z;
+
+              r.world = r.world || { x: 0, z: 0, rot: 0 };
+              r.world.x = desiredX;
+              r.world.z = desiredZ;
+
+              g.position.x = desiredX;
+              g.position.z = desiredZ;
+
+              scheduleSave();
+              // No full rebuild needed; live move of the group is smooth.
+            }
           }
         }
         return;
@@ -1396,7 +2084,11 @@
         raycaster.setFromCamera(mouse, camera);
         const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
         if (intersect) {
-          const { w, d } = getRoomSize();
+          let w = 20, d = 20;
+          if (currentRoom !== WHOLE_HOUSE_ID) {
+            const rs = getRoomSize();
+            w = rs.w; d = rs.d;
+          }
           let nx = (intersect.x + w/2) / w;
           let nz = (intersect.z + d/2) / d;
           nx = snapValue(nx);
@@ -1428,13 +2120,16 @@
         raycaster.setFromCamera(mouse, camera);
         const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
         if (intersect && pendingPlace) {
-          const { w, d } = getRoomSize();
+          let w = 20, d = 20;
+          if (currentRoom !== WHOLE_HOUSE_ID) { const rs = getRoomSize(); w=rs.w; d=rs.d; }
           let nx = (intersect.x + w/2) / w;
           let nz = (intersect.z + d/2) / d;
           nx = snapValue(nx);
           nz = snapValue(nz);
 
-          const room = modelData.rooms[currentRoom];
+          let targetRoomId = currentRoom;
+          if (targetRoomId === WHOLE_HOUSE_ID) targetRoomId = Object.keys(ROOM_DIMS)[0] || 'game-room'; // place into first room when in whole-house overview (focus a room for precise multi-room placement)
+          const room = modelData.rooms[targetRoomId];
           if (!room.objects) room.objects = [];
 
           const newObj = {
@@ -1480,7 +2175,8 @@
 
       if (isDraggingObject && draggedObjectId) {
         const entry = objectMeshes[draggedObjectId];
-        const room = modelData.rooms[currentRoom];
+        const roomId = draggedObjectRoomId || currentRoom;
+        const room = modelData.rooms[roomId];
         const obj = room && room.objects && room.objects.find(o => o.id === draggedObjectId);
         if (entry && entry.mesh && obj) {
           const wy = HEIGHT_Y[obj.height] || 0.18;
@@ -1493,9 +2189,26 @@
         forceRender3D();
         draw2DScene();
       }
+
+      if (isDraggingRoom && draggedRoomId) {
+        const g = roomGroups[draggedRoomId];
+        if (g) {
+          g.position.y = 0;
+          g.scale.set(1, 1, 1);
+        }
+        saveModel();
+        forceRender3D();
+        if (floorHighlight) floorHighlight.visible = false;
+      }
+
       isDraggingObject = false;
       draggedObjectId = null;
+      draggedObjectRoomId = null;
+      isDraggingRoom = false;
+      draggedRoomId = null;
+      roomDragGrabOffset = { x: 0, z: 0 };
       isOrbiting = false;
+      canvas.style.cursor = '';
     }
 
     function onWheel(e) {
@@ -1535,13 +2248,16 @@
       if (pendingPlace) {
         const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
         if (intersect && pendingPlace) {
-          const { w, d } = getRoomSize();
+          let w = 20, d = 20;
+          if (currentRoom !== WHOLE_HOUSE_ID) { const rs = getRoomSize(); w=rs.w; d=rs.d; }
           let nx = (intersect.x + w/2) / w;
           let nz = (intersect.z + d/2) / d;
           nx = snapValue(nx);
           nz = snapValue(nz);
 
-          const room = modelData.rooms[currentRoom];
+          let targetRoomId = currentRoom;
+          if (targetRoomId === WHOLE_HOUSE_ID) targetRoomId = Object.keys(ROOM_DIMS)[0] || 'game-room'; // place into first room when in whole-house overview (focus a room for precise multi-room placement)
+          const room = modelData.rooms[targetRoomId];
           if (!room.objects) room.objects = [];
 
           const newObj = {
@@ -1844,7 +2560,9 @@
 
     function placeObjectAt(nx, nz) {
       if (!pendingPlace) return;
-      const room = modelData.rooms[currentRoom];
+      let targetRoomId = currentRoom;
+      if (targetRoomId === WHOLE_HOUSE_ID) targetRoomId = Object.keys(ROOM_DIMS)[0] || 'game-room';
+      const room = modelData.rooms[targetRoomId];
       if (!room.objects) room.objects = [];
 
       const newObj = {
@@ -1926,7 +2644,7 @@
       if (!room) return;
       room.objects = [];
       if (currentView === '3d') {
-        buildRoomScene();
+        if (currentRoom === WHOLE_HOUSE_ID) buildWholeHouseScene(); else buildRoomScene();
         forceRender3D();
       } else {
         draw2DScene();
@@ -1960,7 +2678,7 @@
       }
 
       if (currentView === '3d') {
-        buildRoomScene();
+        if (currentRoom === WHOLE_HOUSE_ID) buildWholeHouseScene(); else buildRoomScene();
         forceRender3D();
       } else {
         draw2DScene();
@@ -1990,7 +2708,11 @@
       }
 
       // Build the scene immediately (with default size) so content appears right away
-      buildRoomScene();
+      if (currentRoom === WHOLE_HOUSE_ID) {
+        buildWholeHouseScene();
+      } else {
+        buildRoomScene();
+      }
 
       // Force size with safe default and render immediately (prevents initial black 3D)
       resize3D();
@@ -2026,6 +2748,11 @@
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') saveModel();
       });
+
+      // Live HA light sync for linked model lights (real-time color/brightness/on)
+      loadHALightsForModel();
+      if (haPollTimer) clearInterval(haPollTimer);
+      haPollTimer = setInterval(loadHALightsForModel, 1400);
     }
 
     document.addEventListener('DOMContentLoaded', async () => {

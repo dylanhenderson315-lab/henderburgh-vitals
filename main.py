@@ -1795,47 +1795,57 @@ DEFAULT_MODEL = {
             "name": "Game Room",
             "dims": {"width_ft": 16.1667, "depth_ft": 27.6667},
             "objects": [
-                {"id": "seed_tv", "type": "light", "subtype": "tv-backlight", "name": "T.V Lights", "x": 0.50, "z": 0.08, "height": "tv"},
-                {"id": "seed_couch_gr", "type": "furniture", "subtype": "couch", "name": "Sectional", "x": 0.32, "z": 0.58, "height": "floor"}
+                {"id": "seed_tv", "type": "light", "subtype": "tv-backlight", "name": "T.V Lights", "x": 0.50, "z": 0.08, "height": "tv", "scale": 1, "rotation": 0, "entity_id": null},
+                {"id": "seed_couch_gr", "type": "furniture", "subtype": "couch", "name": "Sectional", "x": 0.32, "z": 0.58, "height": "floor", "scale": 1, "rotation": 0}
             ],
             "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": 0, "z": 0, "rot": 0},
+            "locked": false
         },
         "living-room": {
             "name": "Living Room",
             "dims": {"width_ft": 13.0833, "depth_ft": 23.4167},
             "objects": [
-                {"id": "seed_lamp_lr", "type": "light", "subtype": "lamp", "name": "Floor Lamp", "x": 0.22, "z": 0.35, "height": "floor"},
-                {"id": "seed_tv_lr", "type": "tv", "subtype": "tv", "name": "TV", "x": 0.50, "z": 0.06, "height": "tv"}
+                {"id": "seed_lamp_lr", "type": "light", "subtype": "lamp", "name": "Floor Lamp", "x": 0.22, "z": 0.35, "height": "floor", "scale": 1, "rotation": 0, "entity_id": null},
+                {"id": "seed_tv_lr", "type": "tv", "subtype": "tv", "name": "TV", "x": 0.50, "z": 0.06, "height": "tv", "scale": 1, "rotation": 0}
             ],
             "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": -20, "z": 0, "rot": 0},
+            "locked": false
         },
         "master-bedroom": {
             "name": "Master Bedroom",
             "dims": {"width_ft": 14.9167, "depth_ft": 12.5},
             "objects": [
-                {"id": "seed_bed", "type": "furniture", "subtype": "bed", "name": "Bed", "x": 0.5, "z": 0.65, "height": "floor"}
+                {"id": "seed_bed", "type": "furniture", "subtype": "bed", "name": "Bed", "x": 0.5, "z": 0.65, "height": "floor", "scale": 1, "rotation": 0}
             ],
             "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": 0, "z": -18, "rot": 0},
+            "locked": false
         },
         "hallway": {
             "name": "Hallway",
             "dims": {"width_ft": 3.1667, "depth_ft": 18.0},
             "objects": [],
             "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": 17, "z": 5, "rot": 90},
+            "locked": false
         },
         "kitchen": {
             "name": "Kitchen",
             "dims": {"width_ft": 12.4167, "depth_ft": 10.0},
             "objects": [
-                {"id": "seed_cab1", "type": "furniture", "subtype": "table", "name": "Counter", "x": 0.15, "z": 0.2, "height": "floor"},
-                {"id": "seed_light_k", "type": "light", "subtype": "recessed", "name": "Recessed 1", "x": 0.5, "z": 0.3, "height": "ceiling"}
+                {"id": "seed_cab1", "type": "furniture", "subtype": "table", "name": "Counter", "x": 0.15, "z": 0.2, "height": "floor", "scale": 1, "rotation": 0},
+                {"id": "seed_light_k", "type": "light", "subtype": "recessed", "name": "Recessed 1", "x": 0.5, "z": 0.3, "height": "ceiling", "scale": 1, "rotation": 0, "entity_id": null}
             ],
             "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": -18, "z": -12, "rot": 0},
+            "locked": false
         }
     },
     "selected_room": "game-room"
@@ -1862,6 +1872,9 @@ def load_model():
                     if "furniture" not in r: r["furniture"] = []
                     if "dims" not in r: r["dims"] = rdef["dims"]
                     if "name" not in r: r["name"] = rdef["name"]
+                    # Whole house support: preserve room world layout + lock
+                    if "world" not in r: r["world"] = {"x": 0, "z": 0, "rot": 0}
+                    if "locked" not in r: r["locked"] = False
             return data
         except Exception:
             pass
@@ -1886,6 +1899,19 @@ def save_model(data):
             if "furniture" not in r: r["furniture"] = []
             if "dims" not in r: r["dims"] = rdef.get("dims", {})
             if "name" not in r: r["name"] = rdef.get("name", rid)
+            # Preserve whole-house layout (world pos + lock) and future object fields (params for L-furniture, entity_id for HA link, scale/rot)
+            if "world" not in r or not isinstance(r.get("world"), dict):
+                r["world"] = {"x": 0, "z": 0, "rot": 0}
+            if "locked" not in r:
+                r["locked"] = False
+            # Ensure objects carry extensible fields
+            for o in r.get("objects", []):
+                if "scale" not in o: o["scale"] = 1
+                if "rotation" not in o: o["rotation"] = 0
+                if "params" not in o and o.get("type") == "furniture" and o.get("subtype") in ("l_couch", "l_desk", "bookshelf"):
+                    o["params"] = {}
+                if "entity_id" not in o and o.get("type") == "light":
+                    o["entity_id"] = None
     MODEL_FILE.write_text(json.dumps(clean, indent=2))
 
 
