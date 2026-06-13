@@ -496,8 +496,7 @@
           renderRoomSelector();
           if (currentView === '3d') {
             buildRoomScene();
-            resize3D();
-            renderer.render(scene, camera);
+            forceRender3D();
           } else {
             draw2DScene();
           }
@@ -512,8 +511,10 @@
 
     function updateRoomHeader() {
       const r = ROOM_DIMS[currentRoom];
-      document.getElementById('room-title').textContent = r.name;
-      document.getElementById('room-dims').textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}'`;
+      const titleEl = document.getElementById('room-title');
+      const dimsEl = document.getElementById('room-dims');
+      if (titleEl) titleEl.textContent = r.name;
+      if (dimsEl) dimsEl.textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}'`;
     }
 
     // Layer toggles
@@ -527,7 +528,7 @@
           btn.classList.toggle('active', showLayers[type]);
           if (currentView === '3d') {
             refresh3DVisibility();
-            renderer.render(scene, camera);
+            forceRender3D();
           } else {
             draw2DScene();
           }
@@ -602,24 +603,32 @@
       dir.position.set(20, 35, 10);
       scene.add(dir);
 
-      // Floor highlight
-      const highlightGeo = new THREE.CircleGeometry(1.15, 32);
-      const highlightMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide });
+      // Floor highlight (clear live preview for placement + drag)
+      const highlightGeo = new THREE.CircleGeometry(1.45, 32);
+      const highlightMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide });
       floorHighlight = new THREE.Mesh(highlightGeo, highlightMat);
       floorHighlight.rotation.x = -Math.PI / 2;
-      floorHighlight.position.y = 0.025;
+      floorHighlight.position.y = 0.02;
       floorHighlight.visible = false;
       floorHighlight.userData = { isFloorHighlight: true };
       scene.add(floorHighlight);
 
+      // Subtle ring for extra visibility during preview/drag
+      const ringGeo = new THREE.RingGeometry(1.55, 1.68, 32);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
+      const floorRing = new THREE.Mesh(ringGeo, ringMat);
+      floorRing.rotation.x = -Math.PI / 2;
+      floorRing.position.y = 0.021;
+      floorRing.userData = { isFloorHighlight: true };
+      floorHighlight.add(floorRing);
+
       function onResize() {
-        resize3D();
-        renderer.render(scene, camera);  // force a render after resize
+        forceRender3D();
       }
       window.addEventListener('resize', onResize);
       setTimeout(onResize, 50);
 
-      // Also observe for layout changes
+      // Also observe for layout changes (critical for Tailwind responsive + tab switches)
       if (typeof ResizeObserver !== 'undefined') {
         const ro = new ResizeObserver(onResize);
         ro.observe(wrap);
@@ -658,6 +667,15 @@
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      if (currentView === '3d' && scene) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function forceRender3D() {
+      if (!renderer || !scene || !camera || currentView !== '3d') return;
+      resize3D();
+      renderer.render(scene, camera);
     }
 
     function getRoomSize() {
@@ -739,10 +757,11 @@
       resetCameraForRoom();
       refresh3DVisibility();
 
-      // Force an immediate render after populating the scene
+      // Force an immediate render after populating the scene (prevents black on room switch / load)
       if (renderer && currentView === '3d') {
         renderer.render(scene, camera);
       }
+      forceRender3D();
     }
 
     function resetCameraForRoom() {
@@ -916,6 +935,9 @@
       const wz = (obj.z - 0.5) * d;
       const wy = HEIGHT_Y[obj.height] || 0.18;
       entry.mesh.position.set(wx, wy, wz);
+      if (currentView === '3d' && renderer) {
+        renderer.render(scene, camera);
+      }
     }
 
     function selectObject(id) {
@@ -977,7 +999,8 @@
       }
       saveModel();
       renderInspector();
-      if (currentView === '2d') draw2DScene();
+      forceRender3D();
+      draw2DScene();
     }
 
     function renderInspector() {
@@ -1192,6 +1215,7 @@
       }
 
       if (hitObject) {
+        // Raycast-first: object hit always starts drag (never orbit). 3D primary reliable interaction.
         isDraggingObject = true;
         draggedObjectId = hitObject;
         selectObject(hitObject);
@@ -1200,7 +1224,7 @@
 
         const entry = objectMeshes[hitObject];
         if (entry && entry.mesh && floorHighlight) {
-          floorHighlight.position.set(entry.mesh.position.x, 0.025, entry.mesh.position.z);
+          floorHighlight.position.set(entry.mesh.position.x, 0.02, entry.mesh.position.z);
           floorHighlight.visible = true;
           const wy = entry.mesh.position.y;
           entry.mesh.position.y = wy + 0.65;
@@ -1210,6 +1234,7 @@
       }
 
       if (pendingPlace) {
+        // Pending placement intent: suppress orbit. Placement happens on pointerup.
         return;
       }
 
@@ -1252,8 +1277,9 @@
               floorHighlight.position.set((nx-0.5)*w, 0.025, (nz-0.5)*d);
               floorHighlight.visible = true;
             }
-            saveModel();
-            if (currentView === '2d') draw2DScene(); // keep in sync
+            scheduleSave();
+            if (currentView === '2d') draw2DScene();
+            else draw2DScene(); // keep 2D secondary in sync even when 3D primary
           }
         }
         return;
@@ -1333,6 +1359,8 @@
           createOrUpdateMesh(newObj);
           selectObject(newObj.id);
           saveModel();
+          forceRender3D();
+          draw2DScene();
 
           if (floorHighlight) {
             floorHighlight.scale.set(1.8, 1.8, 1.8);
@@ -1360,7 +1388,8 @@
         }
         if (floorHighlight) floorHighlight.visible = false;
         saveModel();
-        if (currentView === '2d') draw2DScene();
+        forceRender3D();
+        draw2DScene();
       }
       isDraggingObject = false;
       draggedObjectId = null;
@@ -1435,6 +1464,8 @@
           createOrUpdateMesh(newObj);
           selectObject(newObj.id);
           saveModel();
+          forceRender3D();
+          draw2DScene();
           clearPendingPlace();
         }
       }
@@ -1729,8 +1760,7 @@
       room.objects.push(newObj);
       if (currentView === '3d') {
         createOrUpdateMesh(newObj);
-        resize3D();
-        renderer.render(scene, camera);
+        forceRender3D();
       }
       selectObject(newObj.id);
       saveModel();
@@ -1755,15 +1785,10 @@
         if (help) help.textContent = '3D primary: Select object to drag, palette for place (pointerup).';
         if (floorHighlight) floorHighlight.visible = false;
 
-        // Immediate force (in case layout already good)
-        resize3D();
-        if (renderer) renderer.render(scene, camera);
-
-        // Force after possible layout update
-        setTimeout(() => {
-          resize3D();
-          if (renderer) renderer.render(scene, camera);
-        }, 20);
+        // Strong forces for 3D canvas sizing after display toggle (fixes black viewport)
+        forceRender3D();
+        setTimeout(() => { forceRender3D(); }, 16);
+        setTimeout(() => { forceRender3D(); }, 80);
       } else {
         wrap3d.style.display = 'none';
         wrap2d.style.display = 'block';
@@ -1792,8 +1817,7 @@
       room.objects = [];
       if (currentView === '3d') {
         buildRoomScene();
-        resize3D();
-        renderer.render(scene, camera);
+        forceRender3D();
       } else {
         draw2DScene();
       }
@@ -1827,8 +1851,7 @@
 
       if (currentView === '3d') {
         buildRoomScene();
-        resize3D();
-        renderer.render(scene, camera);
+        forceRender3D();
       } else {
         draw2DScene();
       }
@@ -1859,22 +1882,22 @@
       // Build the scene immediately (with default size) so content appears right away
       buildRoomScene();
 
-      // Force size with safe default and render immediately
+      // Force size with safe default and render immediately (prevents initial black 3D)
       resize3D();
       if (renderer) {
         renderer.render(scene, camera);
       }
 
-      // Force initial 3D size with safe defaults after layout, re-render, then switch
+      // Strong multi-phase force for 3D primary viewport after full layout + switch
       setTimeout(() => {
-        resize3D();
-
-        if (renderer) {
-          renderer.render(scene, camera);
-        }
-
+        forceRender3D();
         switchView('3d');
-      }, 80);
+        forceRender3D();
+      }, 70);
+
+      setTimeout(() => {
+        forceRender3D();
+      }, 160);
 
       // Gentle camera hint (after 3D is up)
       setTimeout(() => {
