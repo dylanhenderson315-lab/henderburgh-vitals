@@ -584,6 +584,8 @@
       canvas.style.width = '100%';
       canvas.style.height = '100%';
 
+      renderer.setClearColor(0x0a0a0b, 1);
+
       scene = new THREE.Scene();
       scene.fog = new THREE.Fog(0x0a0a0b, 40, 120);
 
@@ -1463,6 +1465,7 @@
           if (currentView === '2d') draw2DScene();
         }
         window.addEventListener('resize', resize2d);
+        resize2d(); // immediate default size
         setTimeout(resize2d, 50);
 
         // Observe for layout changes
@@ -1849,12 +1852,13 @@
         };
       }
 
+      // Build the scene immediately (with default size) so content appears right away
+      buildRoomScene();
+
       // Force initial 3D size with safe defaults (avoids 0-size black render)
-      // Build scene and render after layout is likely ready
+      // Render after layout is likely ready, then switch (which will force again)
       setTimeout(() => {
         resize3D();
-
-        buildRoomScene();
 
         // Explicit render after objects are in scene
         if (renderer) {
@@ -1863,7 +1867,7 @@
 
         // Default to 3D (will force size/render again inside switchView)
         switchView('3d');
-      }, 100);
+      }, 80);
 
       // Gentle camera hint (after 3D is up)
       setTimeout(() => {
