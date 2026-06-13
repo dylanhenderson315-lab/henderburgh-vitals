@@ -1879,6 +1879,7 @@ def save_model(data):
             clean["rooms"][rid] = rdef
         else:
             r = clean["rooms"][rid]
+            if "objects" not in r: r["objects"] = []
             if "lights" not in r: r["lights"] = {}
             if "mode" not in r: r["mode"] = rdef.get("mode", "true-colors")
             if "settings" not in r: r["settings"] = rdef.get("settings", {})

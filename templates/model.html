@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Model • HENDERBURGH</title>
-  <meta name="description" content="Spatial home replica and TV Sync foundation for HENDERBURGH.">
+  <meta name="description" content="3D spatial home replica foundation — place lights, furniture and TVs with real dimensions.">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
@@ -18,7 +19,6 @@
       --accent-blue: #60a5fa;
       --text-primary: #e2e8f0;
       --text-secondary: #94a3b8;
-      --status-relax: #22c55e;
     }
 
     body {
@@ -45,169 +45,95 @@
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 1.5rem;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
-    .card:hover {
-      border-color: rgba(74, 222, 128, 0.3);
-      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
-    }
-
-    .tv-map {
-      background: #0f1115;
-      border: 2px solid #3f3f46;
-      border-radius: 0.75rem;
-      position: relative;
-      overflow: hidden;
-      box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
-      margin: 0 auto;
+    .model-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 1rem;
+      background: #0a0a0b;
       touch-action: none;
     }
 
-    .tv-map::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image: 
-        linear-gradient(rgba(74,222,128,0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(74,222,128,0.08) 1px, transparent 1px);
-      background-size: 15px 15px;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .tv-wall {
-      position: absolute;
-      background: linear-gradient(to bottom, #374151, #1f2937);
-      border: 1px solid #6b7280;
-      font-size: 10px;
-      color: #9ca3af;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-
-    .tv-light-marker {
-      position: absolute;
-      background: #27272a;
-      border: 1px solid #4b5563;
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 11px;
-      font-weight: 500;
-      color: #e4e4e7;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-      cursor: grab;
-      user-select: none;
-      z-index: 10;
-      min-width: 70px;
-      text-align: center;
-      white-space: nowrap;
-      transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s;
-      transform: translate(-50%, -50%);
-    }
-
-    .tv-light-marker:hover {
-      box-shadow: 0 0 0 2px #4ade80;
-      z-index: 20;
-    }
-
-    .tv-light-marker.dragging {
-      opacity: 0.75;
-      cursor: grabbing;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-    }
-
-    .tv-light-marker.leader {
-      border-color: #4ade80;
-      background: #052e16;
-      box-shadow: 0 0 0 1px rgba(74,222,128,0.5);
-    }
-
-    .tv-light-marker .height {
-      font-size: 8px;
-      padding: 1px 4px;
-      border-radius: 3px;
-      background: #1f2937;
-      margin-left: 4px;
-      vertical-align: middle;
-    }
-
-    .tv-light-marker.h-floor .height { color: #60a5fa; border: 1px solid #60a5fa; }
-    .tv-light-marker.h-tv .height { color: #4ade80; border: 1px solid #4ade80; }
-    .tv-light-marker.h-above .height { color: #f59e0b; border: 1px solid #f59e0b; }
-
-    .tv-room-btn {
+    .room-pill {
       background: #27272a;
       border: 1px solid #3f3f46;
       color: #e4e4e7;
-      padding: 6px 14px;
+      padding: 6px 16px;
       border-radius: 9999px;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.15s ease;
+      white-space: nowrap;
     }
-    .tv-room-btn:hover { border-color: #52525b; }
-    .tv-room-btn.active {
+    .room-pill:hover { border-color: #52525b; }
+    .room-pill.active {
       background: #052e16;
       border-color: #4ade80;
       color: #4ade80;
     }
 
-    .tv-chip {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      padding: 5px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-      cursor: grab;
-      transition: all 0.1s;
-      user-select: none;
-    }
-    .tv-chip:hover { border-color: #4ade80; transform: translateY(-1px); }
-    .tv-chip.group { border-color: #854d0e; background: #451a03; }
-
-    .tv-mode {
+    .obj-chip {
       background: #18181b;
       border: 1px solid #3f3f46;
+      padding: 8px 12px;
       border-radius: 10px;
-      padding: 8px;
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.1s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
     }
-    .tv-mode.active {
-      border-color: #4ade80;
-      box-shadow: 0 0 0 1px rgba(74,222,128,0.3);
+    .obj-chip:hover { border-color: #4ade80; transform: translateY(-1px); }
+    .obj-chip.active { border-color: #4ade80; background: #052e16; color: #4ade80; }
+
+    .obj-chip .swatch {
+      width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .inspector {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .height-btn {
+      padding: 4px 10px;
+      font-size: 11px;
+      border-radius: 6px;
+      border: 1px solid #3f3f46;
+      background: #27272a;
+      color: #e4e4e7;
+      transition: all 0.1s;
+      cursor: pointer;
+    }
+    .height-btn.active {
       background: #052e16;
-    }
-    .tv-mode .slider-label { font-size: 10px; color: #94a3b8; margin-bottom: 2px; }
-    .tv-mode input[type=range] { width: 100%; accent-color: #4ade80; }
-
-    .map-dim {
-      font-size: 9px;
-      color: #71717a;
-      position: absolute;
-      pointer-events: none;
+      border-color: #4ade80;
+      color: #4ade80;
     }
 
-    .premium-shadow {
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
-    }
-
-    .spatial-hint {
+    .three-legend {
       font-size: 10px;
       color: #52525b;
-      text-align: center;
+    }
+
+    .spatial-card {
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
   </style>
 </head>
 <body class="bg-[#0f1115] text-zinc-200 antialiased">
-  <!-- Header (minimal, links back to main site) -->
+  <!-- Header -->
   <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-[1080px] mx-auto px-6">
+    <div class="max-w-[1120px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
         <a href="/" class="flex items-center gap-x-2.5 group">
           <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
@@ -215,84 +141,135 @@
           </div>
           <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
         </a>
+
         <nav class="hidden md:flex items-center gap-x-8 text-sm">
           <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
           <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
           <a href="/model" class="text-white font-medium">Model</a>
           <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
+          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
+
         <div class="md:hidden">
-          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800">← Home</a>
+          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">← Home</a>
         </div>
       </div>
     </div>
   </header>
 
-  <main class="max-w-[1080px] mx-auto px-6 pt-8 pb-12">
-    <div class="mb-6">
-      <div class="flex items-end justify-between">
-        <div>
+  <main class="max-w-[1120px] mx-auto px-6 pt-8 pb-16">
+    <!-- Header -->
+    <div class="flex items-end justify-between mb-6">
+      <div>
+        <div class="flex items-center gap-x-3">
           <h1 class="text-3xl font-semibold tracking-tighter">Home Model</h1>
-          <p class="text-zinc-400 mt-1">Spatial replica foundation • TV Sync + extensible objects</p>
+          <div class="px-2.5 py-0.5 text-[10px] rounded-full border border-emerald-900 bg-emerald-950 text-emerald-400 font-mono">3D • SPATIAL</div>
         </div>
-        <div class="text-xs text-emerald-400/70 font-mono">/model • server-persisted</div>
+        <p class="text-zinc-400 mt-1">Accurate 3D replica of the house. Place lights, furniture &amp; TVs using real floor-plan dimensions.</p>
       </div>
-      <div class="mt-2 text-[10px] text-zinc-500">Leader: T.V Lights • Group: Portable Lights (tv-lamps) • Heights: Floor (lower screen) / TV Level (middle) / Above TV (top)</div>
+      <div class="hidden md:block text-right">
+        <div class="text-[10px] text-emerald-400/70 font-mono">/model • server persisted</div>
+        <div class="text-[10px] text-zinc-500">All changes save automatically</div>
+      </div>
     </div>
 
     <!-- Room Selector -->
-    <div class="mb-3">
-      <div class="section-label mb-2">Room / TV</div>
+    <div class="mb-4">
+      <div class="section-label mb-2">Room</div>
       <div id="room-selector" class="flex flex-wrap gap-2"></div>
     </div>
 
-    <!-- Map -->
-    <div class="card p-4 mb-4">
-      <div id="map-label" class="text-sm font-medium mb-2 text-emerald-400/80"></div>
-      <div id="tv-map" class="tv-map premium-shadow mx-auto" style="max-width: 520px; max-height: 520px;"></div>
-      <div class="spatial-hint mt-2">Drag chips from below onto the map • Drag placed lights to reposition • Click a placed light's height badge to change (Floor / TV / Above)</div>
-    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- 3D Viewport -->
+      <div class="lg:col-span-8">
+        <div class="card p-4 spatial-card">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <div id="room-title" class="font-semibold text-lg"></div>
+              <div id="room-dims" class="text-xs text-zinc-400 font-mono"></div>
+            </div>
+            <div class="flex items-center gap-x-2">
+              <button onclick="setCameraView('top')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 active:bg-zinc-900">Top</button>
+              <button onclick="setCameraView('iso')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 active:bg-zinc-900">Isometric</button>
+              <button onclick="setCameraView('reset')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 active:bg-zinc-900">Reset</button>
+            </div>
+          </div>
 
-    <!-- Available -->
-    <div class="card p-4 mb-4">
-      <div class="section-label mb-2">Available Lights &amp; Groups</div>
-      <div id="available-lights" class="flex flex-wrap gap-2"></div>
-      <div class="mt-3 text-[10px] text-zinc-500">Portable Lights group can be assigned as a unit (expands to individuals for fine positioning).</div>
-    </div>
+          <div id="canvas-wrap" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 560px; background:#0a0a0b;">
+            <canvas id="model-canvas" class="model-canvas"></canvas>
+            <!-- Overlay hints -->
+            <div id="place-hint" class="hidden absolute inset-0 bg-black/40 items-center justify-center pointer-events-none">
+              <div class="px-4 py-1.5 bg-[#161a20] border border-emerald-800 rounded-full text-emerald-300 text-sm flex items-center gap-x-2">
+                <i class="fa-solid fa-crosshairs"></i>
+                <span id="place-hint-text">Click floor to place</span>
+              </div>
+            </div>
+          </div>
 
-    <!-- Modes -->
-    <div class="card p-4 mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <div class="section-label">Modes &amp; Settings (per room)</div>
-        <button onclick="activateMode()" class="px-4 py-1.5 text-sm rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition">Activate Current Mode</button>
-      </div>
-      <div id="modes" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
-    </div>
-
-    <!-- Furniture placeholder for extensibility -->
-    <div class="card p-4">
-      <div class="flex items-center justify-between mb-2">
-        <div>
-          <div class="section-label">Furniture &amp; Objects (extensible foundation)</div>
-          <div class="text-[10px] text-zinc-500">Ready for future: add types, drag/resize. Current data has empty array per room.</div>
+          <div class="mt-3 flex items-center justify-between text-[10px] three-legend">
+            <div>Drag objects to move • Click empty floor while a type is selected to place • Drag empty space to orbit view</div>
+            <div class="hidden md:block">Wheel = zoom • Click object = select</div>
+          </div>
         </div>
-        <button onclick="addMockFurniture()" class="text-xs px-3 py-1 rounded-lg border border-zinc-700 hover:bg-zinc-800">Add mock furniture</button>
       </div>
-      <div id="furniture-list" class="text-xs text-zinc-400"></div>
+
+      <!-- Palette + Inspector -->
+      <div class="lg:col-span-4 space-y-4">
+        <!-- Palette -->
+        <div class="card p-4">
+          <div class="section-label mb-2">Add Object</div>
+          <div id="palette" class="grid grid-cols-2 gap-2"></div>
+          <div class="mt-2 text-[10px] text-zinc-500">Choose a type, then click the floor in the 3D view to place it. Drag any object to reposition.</div>
+        </div>
+
+        <!-- Inspector -->
+        <div class="card p-4">
+          <div class="section-label mb-2">Inspector</div>
+          <div id="inspector" class="inspector min-h-[138px]">
+            <div class="text-sm text-zinc-400">Select an object in the 3D view or add a new one.</div>
+          </div>
+        </div>
+
+        <!-- Room actions -->
+        <div class="card p-4">
+          <div class="section-label mb-2">Room Actions</div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="clearCurrentRoom()" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Clear Room</button>
+            <button onclick="seedCurrentRoom()" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Seed Defaults</button>
+            <button onclick="saveModel(true)" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Force Save</button>
+          </div>
+          <div class="mt-3 text-[10px] text-zinc-500">Data lives in <span class="font-mono">data/model.json</span>. Easy to edit by hand or extend with new rooms/objects.</div>
+        </div>
+      </div>
     </div>
 
-    <div class="mt-6 text-[10px] text-zinc-500 text-center">
-      All data saved server-side in data/model.json (clean rooms + lights[pos+height] + furniture + modes/settings).<br>
-      Add new rooms by extending ROOM_DIMS in JS + initial data. Leader auto-placed. Fully separate from lighting controls.
+    <!-- Legend + Notes -->
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+      <div class="card p-4">
+        <div class="font-medium mb-1 text-emerald-400/90">Height Levels</div>
+        <div class="flex gap-x-4 text-zinc-400">
+          <div><span class="inline-block w-2 h-2 rounded-full bg-sky-400 align-middle mr-1"></span> Floor — low / base</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 align-middle mr-1"></span> TV Level — screen mid</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle mr-1"></span> Ceiling — above / recessed</div>
+        </div>
+      </div>
+      <div class="card p-4">
+        <div class="font-medium mb-1 text-emerald-400/90">Object Types</div>
+        <div class="text-zinc-400">Lights (recessed / lamp / TV backlight) • TVs • Furniture (couch, bed, desk, table). All fully positioned in real feet. Add more subtypes in code — data is just JSON.</div>
+      </div>
+    </div>
+
+    <div class="mt-4 text-center text-[10px] text-zinc-500">
+      This page is the long-term foundation for the full home replica. Future: direct light control from 3D objects, realistic materials, full-house composite view, and furniture libraries.
     </div>
   </main>
 
-  <footer class="max-w-[1080px] mx-auto px-6 pb-8 text-xs text-zinc-500 text-center border-t border-zinc-800 pt-4 mt-8">
-    HENDERBURGH Model • Spatial foundation for home replica
+  <footer class="max-w-[1120px] mx-auto px-6 pb-8 text-xs text-zinc-500 text-center border-t border-zinc-800 pt-4 mt-2">
+    HENDERBURGH • 3D Spatial Model • Real dimensions • Calm &amp; precise
   </footer>
 
   <script>
-    // Tailwind + theme
+    // Tailwind
     function initTailwind() {
       if (typeof tailwind !== 'undefined') {
         tailwind.config = {
@@ -305,48 +282,42 @@
       }
     }
 
+    // === Data & Config ===
     const ROOM_DIMS = {
-      'game-room': { name: 'Game Room', w: 16 + 2/12, d: 27 + 8/12 },
-      'living-room': { name: 'Living Room', w: 13 + 1/12, d: 23 + 5/12 },
-      'bedroom': { name: 'Master Bedroom', w: 14 + 11/12, d: 12 + 6/12 },
-      'hallway': { name: 'Hallway', w: 3 + 2/12, d: 12 }
+      'game-room': { name: 'Game Room', width_ft: 16.1667, depth_ft: 27.6667 },
+      'living-room': { name: 'Living Room', width_ft: 13.0833, depth_ft: 23.4167 },
+      'master-bedroom': { name: 'Master Bedroom', width_ft: 14.9167, depth_ft: 12.5 },
+      'hallway': { name: 'Hallway', width_ft: 3.1667, depth_ft: 18.0 },
+      'kitchen': { name: 'Kitchen', width_ft: 12.4167, depth_ft: 10.0 }
     };
 
-    const LEADER = 'light.t_v_lights';
-    const PORTABLE_GROUP_ID = 'tv-lamps';
-    const PORTABLE_LIGHTS = ['light.tv_lamp_1', 'light.tv_lamp_2'];
+    const HEIGHT_Y = { floor: 0.18, tv: 3.9, ceiling: 8.1 };
+
+    const OBJECT_CATALOG = [
+      { type: 'light', subtype: 'recessed', label: 'Recessed Light', color: 0xdddddd, shape: 'recessed' },
+      { type: 'light', subtype: 'lamp', label: 'Table / Floor Lamp', color: 0xf59e0b, shape: 'lamp' },
+      { type: 'light', subtype: 'tv-backlight', label: 'TV Backlight', color: 0x60a5fa, shape: 'bar' },
+      { type: 'tv', subtype: 'tv', label: 'Television', color: 0x1f2937, shape: 'tv' },
+      { type: 'furniture', subtype: 'couch', label: 'Couch / Sectional', color: 0x475569, shape: 'couch' },
+      { type: 'furniture', subtype: 'bed', label: 'Bed', color: 0x334155, shape: 'bed' },
+      { type: 'furniture', subtype: 'desk', label: 'Desk', color: 0x78350f, shape: 'table' },
+      { type: 'furniture', subtype: 'table', label: 'Coffee / Side Table', color: 0x854d0e, shape: 'table' }
+    ];
 
     let modelData = null;
     let currentRoom = 'game-room';
-    let lightsData = null; // from bootstrap
-    let selectedLightForHeight = null;
+    let scene, camera, renderer, canvas;
+    let raycaster, mouse, floorPlane;
+    let objectMeshes = {}; // id -> { mesh, data }
+    let selectedId = null;
+    let pendingPlace = null;
+    let isDraggingObject = false;
+    let draggedObjectId = null;
+    let isOrbiting = false;
+    let previousMouseX = 0, previousMouseY = 0;
+    let orbitTheta = 0.8, orbitPhi = 1.05; // starting angles for perspective
 
-    function getLightName(eid) {
-      const map = {
-        'light.t_v_lights': 'T.V Lights ★',
-        'light.office_lamp': 'Office Lamp',
-        'light.wiz_rgbw_tunable_ef497e': 'Wiz RGB',
-        'light.bookshelf_lamp': 'Bookshelf',
-        'light.living_room_lamp': 'Living Room Lamp',
-        'light.tv_lamp_1': 'Portable 1',
-        'light.tv_lamp_2': 'Portable 2',
-        'light.hallway_light_1': 'Hallway 1',
-        'light.hallway_light_2': 'Hallway 2',
-        'light.hallway_light_3': 'Hallway 3',
-        'light.hallway_light_4': 'Hallway 4'
-      };
-      return map[eid] || eid.split('.').pop().replace(/_/g, ' ');
-    }
-
-    async function fetchLights() {
-      try {
-        const res = await fetch('/api/ha/bootstrap');
-        const data = await res.json();
-        lightsData = data;
-      } catch (e) {
-        lightsData = { rooms: [], groups: [] };
-      }
-    }
+    const ROOM_CENTER = { x: 0, z: 0 };
 
     async function loadModel() {
       try {
@@ -356,25 +327,40 @@
         modelData = null;
       }
       if (!modelData || !modelData.rooms) {
-        // fallback to defaults
         modelData = {
-          rooms: {
-            'game-room': { name: 'Game Room', dims: ROOM_DIMS['game-room'], lights: { [LEADER]: {x:0.5, y:0.1, height:'tv'} }, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}, furniture: [] },
-            'living-room': { name: 'Living Room', dims: ROOM_DIMS['living-room'], lights: {}, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}, furniture: [] }
-          },
+          rooms: {},
           selected_room: 'game-room'
         };
       }
+      // Ensure all rooms exist with objects array
+      Object.keys(ROOM_DIMS).forEach(rid => {
+        if (!modelData.rooms[rid]) {
+          modelData.rooms[rid] = { name: ROOM_DIMS[rid].name, dims: { width_ft: ROOM_DIMS[rid].width_ft, depth_ft: ROOM_DIMS[rid].depth_ft }, objects: [] };
+        } else {
+          const r = modelData.rooms[rid];
+          if (!r.objects) r.objects = [];
+          if (!r.dims) r.dims = { width_ft: ROOM_DIMS[rid].width_ft, depth_ft: ROOM_DIMS[rid].depth_ft };
+        }
+      });
       currentRoom = modelData.selected_room || 'game-room';
     }
 
-    async function saveModel() {
+    async function saveModel(showToast = false) {
+      if (!modelData) return;
+      modelData.selected_room = currentRoom;
       try {
         await fetch('/api/model', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(modelData)
         });
+        if (showToast) {
+          const t = document.createElement('div');
+          t.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-200 text-xs px-4 py-1 rounded-2xl border border-emerald-800 z-[300]';
+          t.textContent = 'Saved to server';
+          document.body.appendChild(t);
+          setTimeout(() => t.remove(), 1200);
+        }
       } catch (e) {}
     }
 
@@ -382,466 +368,760 @@
       const el = document.getElementById('room-selector');
       if (!el || !modelData) return;
       el.innerHTML = '';
-      Object.keys(modelData.rooms).forEach(rid => {
-        const r = modelData.rooms[rid];
+      Object.keys(ROOM_DIMS).forEach(rid => {
         const btn = document.createElement('button');
-        btn.className = `tv-room-btn ${rid === currentRoom ? 'active' : ''}`;
-        btn.textContent = r.name || rid;
-        btn.onclick = () => {
+        btn.className = `room-pill ${rid === currentRoom ? 'active' : ''}`;
+        btn.textContent = ROOM_DIMS[rid].name;
+        btn.onclick = async () => {
+          if (currentRoom === rid) return;
           currentRoom = rid;
           modelData.selected_room = rid;
+          await saveModel();
           renderRoomSelector();
-          renderMap();
-          renderAvailable();
-          renderModes();
-          saveModel();
+          buildRoomScene();
+          updateRoomHeader();
+          clearSelection();
         };
         el.appendChild(btn);
       });
-      // add note for scalability
-      const note = document.createElement('span');
-      note.className = 'text-[10px] text-zinc-500 ml-2 self-center';
-      note.textContent = '(add rooms in data + JS ROOM_DIMS)';
-      el.appendChild(note);
     }
 
-    function renderMap() {
-      const container = document.getElementById('map-container');
-      const mapEl = document.getElementById('tv-map');
-      const labelEl = document.getElementById('map-label');
-      if (!mapEl || !modelData) return;
+    function updateRoomHeader() {
+      const r = ROOM_DIMS[currentRoom];
+      document.getElementById('room-title').textContent = r.name;
+      document.getElementById('room-dims').textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}' (real floor plan)`;
+    }
 
-      const rid = currentRoom;
-      const r = modelData.rooms[rid] || {};
-      const dims = r.dims || ROOM_DIMS[rid] || {w: 10, d: 10};
-      const name = r.name || rid;
+    // === Three.js Setup ===
+    function initThree() {
+      canvas = document.getElementById('model-canvas');
+      const wrap = document.getElementById('canvas-wrap');
 
-      // scale to fit nicely (max ~480px)
-      const maxPx = 480;
-      const scale = Math.min(maxPx / Math.max(dims.w, dims.d), 18);
-      const wpx = Math.round(dims.w * scale);
-      const hpx = Math.round(dims.d * scale);
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(wrap.clientWidth, wrap.clientHeight);
 
-      mapEl.style.width = wpx + 'px';
-      mapEl.style.height = hpx + 'px';
-      mapEl.style.margin = '0 auto';
-      labelEl.textContent = `${name} — ${dims.w.toFixed(1)}' × ${dims.d.toFixed(1)}' (scale ${scale.toFixed(0)}px/ft)`;
+      scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x0a0a0b, 40, 120);
 
-      mapEl.innerHTML = '';
+      // Camera (perspective for nice 3D feel; we control top/iso via position)
+      camera = new THREE.PerspectiveCamera(48, wrap.clientWidth / wrap.clientHeight, 0.1, 200);
+      camera.position.set(12, 22, 18);
+      camera.lookAt(0, 0, 0);
 
-      // TV wall (top)
-      const tvWall = document.createElement('div');
-      tvWall.className = 'tv-wall';
-      tvWall.style.width = Math.round(wpx * 0.35) + 'px';
-      tvWall.style.height = '12px';
-      tvWall.style.left = Math.round(wpx * 0.325) + 'px';
-      tvWall.style.top = '0px';
-      tvWall.textContent = 'TV';
-      mapEl.appendChild(tvWall);
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
 
-      // dim labels
-      const wLabel = document.createElement('div');
-      wLabel.className = 'map-dim';
-      wLabel.style.bottom = '-14px';
-      wLabel.style.left = '50%';
-      wLabel.style.transform = 'translateX(-50%)';
-      wLabel.textContent = `${dims.w.toFixed(1)}' wide`;
-      mapEl.appendChild(wLabel);
+      // Lights
+      const hemi = new THREE.HemisphereLight(0xaaaaaa, 0x222222, 0.6);
+      scene.add(hemi);
+      const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+      dir.position.set(20, 35, 10);
+      scene.add(dir);
 
-      const dLabel = document.createElement('div');
-      dLabel.className = 'map-dim';
-      dLabel.style.left = '-28px';
-      dLabel.style.top = '50%';
-      dLabel.style.transform = 'translateY(-50%) rotate(-90deg)';
-      dLabel.textContent = `${dims.d.toFixed(1)}' deep`;
-      mapEl.appendChild(dLabel);
+      // Resize handler
+      function onResize() {
+        const w = wrap.clientWidth;
+        const h = wrap.clientHeight;
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+      window.addEventListener('resize', onResize);
+      // initial size
+      setTimeout(onResize, 30);
 
-      // placed lights
-      const lights = r.lights || {};
-      Object.keys(lights).forEach(eid => {
-        const p = lights[eid];
-        const marker = document.createElement('div');
-        marker.className = `tv-light-marker ${eid === LEADER ? 'leader' : ''} h-${p.height || 'tv'}`;
-        marker.style.left = `${(p.x || 0.5) * 100}%`;
-        marker.style.top = `${(p.y || 0.5) * 100}%`;
-        marker.dataset.eid = eid;
+      // Interaction
+      canvas.addEventListener('pointerdown', onPointerDown);
+      canvas.addEventListener('pointermove', onPointerMove);
+      canvas.addEventListener('pointerup', onPointerUp);
+      canvas.addEventListener('pointerleave', onPointerUp);
+      canvas.addEventListener('wheel', onWheel, { passive: false });
+      canvas.addEventListener('click', onCanvasClick);
 
-        const hShort = (p.height || 'tv') === 'floor' ? 'F' : (p.height || 'tv') === 'tv' ? 'T' : 'A';
-        marker.innerHTML = `
-          <span>${getLightName(eid)}</span>
-          <span class="height">${hShort}</span>
-        `;
-
-        // drag
-        marker.onmousedown = (ev) => startDragMarker(ev, marker, rid, eid, mapEl, scale);
-
-        // height click
-        const hEl = marker.querySelector('.height');
-        if (hEl) {
-          hEl.onclick = (ev) => {
-            ev.stopImmediatePropagation();
-            showHeightSelector(rid, eid, marker);
-          };
+      // Keyboard delete
+      document.addEventListener('keydown', (e) => {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+          e.preventDefault();
+          deleteSelected();
         }
-
-        // tap info
-        marker.onclick = (ev) => {
-          if (ev.target.classList.contains('height')) return;
-          showHeightSelector(rid, eid, marker);
-        };
-
-        mapEl.appendChild(marker);
-
-        // smooth entrance
-        if (typeof anime !== 'undefined') {
-          anime({ targets: marker, scale: [0.6, 1], opacity: [0,1], duration: 220, easing: 'easeOutQuad' });
+        if (e.key.toLowerCase() === 'escape' && pendingPlace) {
+          clearPendingPlace();
         }
       });
 
-      // drop zone
-      mapEl.ondragover = (e) => { e.preventDefault(); mapEl.style.borderColor = '#4ade80'; };
-      mapEl.ondragleave = () => { mapEl.style.borderColor = '#3f3f46'; };
-      mapEl.ondrop = (e) => {
-        e.preventDefault();
-        mapEl.style.borderColor = '#3f3f46';
-        const rect = mapEl.getBoundingClientRect();
-        const nx = (e.clientX - rect.left) / rect.width;
-        const ny = (e.clientY - rect.top) / rect.height;
-        const eid = e.dataTransfer.getData('text/eid');
-        const isGroup = e.dataTransfer.getData('text/group');
-        if (eid) {
-          assignLightToPos(rid, eid, nx, ny);
-        } else if (isGroup === 'portable') {
-          assignPortableGroup(rid, nx, ny);
-        }
-        renderMap();
-        renderAvailable();
-      };
-
-      // tap to place pending
-      mapEl.onclick = (e) => {
-        if (window.__pendingEid || window.__pendingGroup) {
-          const rect = mapEl.getBoundingClientRect();
-          const nx = (e.clientX - rect.left) / rect.width;
-          const ny = (e.clientY - rect.top) / rect.height;
-          if (window.__pendingEid) {
-            assignLightToPos(currentRoom, window.__pendingEid, nx, ny);
-            window.__pendingEid = null;
-          } else if (window.__pendingGroup) {
-            assignPortableGroup(currentRoom, nx, ny);
-            window.__pendingGroup = null;
-          }
-          renderMap();
-          renderAvailable();
-        }
-      };
+      // Start render loop
+      animate();
     }
 
-    function startDragMarker(ev, marker, rid, eid, mapEl, scale) {
-      ev.preventDefault();
-      marker.classList.add('dragging');
-      const rect = mapEl.getBoundingClientRect();
-      const startX = ev.clientX;
-      const startY = ev.clientY;
-      const startLeft = marker.offsetLeft;
-      const startTop = marker.offsetTop;
-
-      const onMove = (me) => {
-        const dx = me.clientX - startX;
-        const dy = me.clientY - startY;
-        let nl = Math.max(0, Math.min(rect.width - marker.offsetWidth, startLeft + dx));
-        let nt = Math.max(0, Math.min(rect.height - marker.offsetHeight, startTop + dy));
-        marker.style.left = nl + 'px';
-        marker.style.top = nt + 'px';
-      };
-
-      const onUp = (ue) => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        marker.classList.remove('dragging');
-        const nl = marker.offsetLeft / rect.width;
-        const nt = marker.offsetTop / rect.height;
-        if (!modelData.rooms[rid].lights) modelData.rooms[rid].lights = {};
-        const cur = modelData.rooms[rid].lights[eid] || {height: 'tv'};
-        modelData.rooms[rid].lights[eid] = { x: Math.max(0, Math.min(1, nl)), y: Math.max(0, Math.min(1, nt)), height: cur.height };
-        saveModel();
-        // update data but keep visual until re-render for smoothness
-        renderMap(); // refresh for precision
-      };
-
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
     }
 
-    function showHeightSelector(rid, eid, marker) {
-      const cur = (modelData.rooms[rid].lights[eid] && modelData.rooms[rid].lights[eid].height) || 'tv';
-      const heights = ['floor', 'tv', 'above'];
-      const labels = {floor: 'Floor (lower)', tv: 'TV Level (middle)', above: 'Above TV (top)'};
+    function getRoomSize() {
+      const d = ROOM_DIMS[currentRoom] || { width_ft: 12, depth_ft: 12 };
+      return { w: d.width_ft, d: d.depth_ft };
+    }
 
-      const menu = document.createElement('div');
-      menu.style.position = 'absolute';
-      menu.style.background = '#161a20';
-      menu.style.border = '1px solid #3f3f46';
-      menu.style.borderRadius = '8px';
-      menu.style.padding = '4px';
-      menu.style.zIndex = '50';
-      menu.style.fontSize = '11px';
-      menu.style.boxShadow = '0 4px 6px -1px rgb(0 0 0 / 0.3)';
-
-      heights.forEach(h => {
-        const b = document.createElement('button');
-        b.textContent = labels[h];
-        b.style.display = 'block';
-        b.style.width = '100%';
-        b.style.textAlign = 'left';
-        b.style.padding = '4px 8px';
-        b.style.borderRadius = '4px';
-        if (h === cur) b.style.background = '#052e16';
-        b.onmousedown = (ev) => {
-          ev.stopImmediatePropagation();
-          modelData.rooms[rid].lights[eid].height = h;
-          saveModel();
-          menu.remove();
-          renderMap();
-        };
-        menu.appendChild(b);
+    function buildRoomScene() {
+      // Clear previous
+      Object.keys(objectMeshes).forEach(id => {
+        const entry = objectMeshes[id];
+        if (entry.mesh) scene.remove(entry.mesh);
       });
-
-      document.body.appendChild(menu);
-      const r = marker.getBoundingClientRect();
-      menu.style.left = (r.left + window.scrollX) + 'px';
-      menu.style.top = (r.bottom + window.scrollY + 4) + 'px';
-
-      const close = (ev) => {
-        if (!menu.contains(ev.target)) {
-          menu.remove();
-          document.removeEventListener('mousedown', close);
-        }
-      };
-      setTimeout(() => document.addEventListener('mousedown', close), 10);
-    }
-
-    function assignLightToPos(rid, eid, x, y, h = 'tv') {
-      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70,speed:40,brightnessLimit:85}, furniture: []};
-      if (!modelData.rooms[rid].lights) modelData.rooms[rid].lights = {};
-      modelData.rooms[rid].lights[eid] = {x: Math.max(0,Math.min(1,x)), y: Math.max(0,Math.min(1,y)), height: h};
-      saveModel();
-    }
-
-    function assignPortableGroup(rid, x, y) {
-      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70,speed:40,brightnessLimit:85}, furniture: []};
-      if (!modelData.rooms[rid].lights) modelData.rooms[rid].lights = {};
-      PORTABLE_LIGHTS.forEach((eid, i) => {
-        const ox = (i - 0.5) * 0.06;
-        modelData.rooms[rid].lights[eid] = {x: Math.max(0,Math.min(1,x+ox)), y: Math.max(0,Math.min(1,y)), height: 'tv'};
+      objectMeshes = {};
+      // Remove old floor/walls/groups (by name tags)
+      const toRemove = [];
+      scene.children.forEach(c => {
+        if (c.userData && (c.userData.isRoomFloor || c.userData.isRoomWall || c.userData.isStatic)) toRemove.push(c);
       });
-      saveModel();
-    }
+      toRemove.forEach(c => scene.remove(c));
 
-    async function renderAvailable() {
-      const el = document.getElementById('available-lights');
-      if (!el || !modelData || !lightsData) return;
-      el.innerHTML = '';
+      const { w, d } = getRoomSize();
+      ROOM_CENTER.x = 0;
+      ROOM_CENTER.z = 0;
 
-      const rid = currentRoom;
-      const rdata = modelData.rooms[rid] || {lights: {}};
-      const assigned = Object.keys(rdata.lights || {});
+      // Floor (accurate size)
+      const floorGeo = new THREE.PlaneGeometry(w, d);
+      const floorMat = new THREE.MeshLambertMaterial({ color: 0x1f242b, flatShading: true });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = 0;
+      floor.userData = { isRoomFloor: true, room: currentRoom };
+      scene.add(floor);
 
-      // Portable group
-      const g = document.createElement('div');
-      g.className = 'tv-chip group';
-      g.textContent = 'Portable Lights (group)';
-      g.draggable = true;
-      g.ondragstart = (e) => e.dataTransfer.setData('text/group', 'portable');
-      g.onclick = () => {
-        window.__pendingGroup = 'portable';
-        const map = document.getElementById('tv-map');
-        if (map) map.style.borderColor = '#854d0e';
-        setTimeout(() => { if (map) map.style.borderColor = '#3f3f46'; }, 1200);
-      };
-      el.appendChild(g);
+      // Invisible floor plane for raycasting (same size)
+      floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-      // Room lights from bootstrap data
-      let roomLights = [];
-      if (lightsData && lightsData.rooms) {
-        const r = lightsData.rooms.find(rr => rr.id === rid);
-        if (r && r.light_ids) roomLights = r.light_ids;
+      // Subtle grid (feet)
+      const grid = new THREE.GridHelper(Math.max(w, d), Math.ceil(Math.max(w, d)), 0x334155, 0x272e38);
+      grid.position.y = 0.02;
+      grid.userData = { isStatic: true };
+      scene.add(grid);
+
+      // Walls (low border + TV/feature wall emphasis)
+      const wallH = 0.9;
+      const wallMat = new THREE.MeshLambertMaterial({ color: 0x2a313a });
+      const tvWallMat = new THREE.MeshLambertMaterial({ color: 0x374151 });
+
+      // Four walls
+      const halfW = w / 2, halfD = d / 2;
+
+      // South (positive Z) - viewer side
+      const wallS = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, 0.18), wallMat);
+      wallS.position.set(0, wallH / 2, halfD + 0.05);
+      wallS.userData = { isRoomWall: true };
+      scene.add(wallS);
+
+      // North (negative Z) — TV / feature wall (taller & different tone)
+      const wallN = new THREE.Mesh(new THREE.BoxGeometry(w, wallH + 1.6, 0.22), tvWallMat);
+      wallN.position.set(0, (wallH + 1.6) / 2, -halfD - 0.05);
+      wallN.userData = { isRoomWall: true, isTVWall: true };
+      scene.add(wallN);
+
+      // East + West
+      const wallE = new THREE.Mesh(new THREE.BoxGeometry(0.18, wallH, d), wallMat);
+      wallE.position.set(halfW + 0.05, wallH / 2, 0);
+      wallE.userData = { isRoomWall: true };
+      scene.add(wallE);
+
+      const wallW = new THREE.Mesh(new THREE.BoxGeometry(0.18, wallH, d), wallMat);
+      wallW.position.set(-halfW - 0.05, wallH / 2, 0);
+      wallW.userData = { isRoomWall: true };
+      scene.add(wallW);
+
+      // Tiny TV label on feature wall
+      const tvLabel = new THREE.Mesh(
+        new THREE.PlaneGeometry(Math.min(3.5, w * 0.28), 0.7),
+        new THREE.MeshBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.7 })
+      );
+      tvLabel.rotation.y = Math.PI;
+      tvLabel.position.set(0, 2.8, -halfD - 0.18);
+      tvLabel.userData = { isStatic: true };
+      scene.add(tvLabel);
+
+      // Kitchen cabinet hint (static)
+      if (currentRoom === 'kitchen') {
+        const cabMat = new THREE.MeshLambertMaterial({ color: 0x3f2a1f });
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(w * 0.22, 1.6, 0.6), cabMat);
+        cab.position.set(-halfW + 1.4, 0.8, -halfD * 0.6);
+        cab.userData = { isStatic: true };
+        scene.add(cab);
       }
-      // fallback hardcode
-      if (roomLights.length === 0) {
-        if (rid === 'game-room') roomLights = ['light.t_v_lights', 'light.office_lamp', 'light.wiz_rgbw_tunable_ef497e', 'light.bookshelf_lamp'];
-        else if (rid === 'living-room') roomLights = ['light.living_room_lamp'];
-        else if (rid === 'bedroom') roomLights = PORTABLE_LIGHTS;
-        else if (rid === 'hallway') roomLights = ['light.hallway_light_1','light.hallway_light_2','light.hallway_light_3','light.hallway_light_4'];
+
+      // Load objects for this room
+      const room = modelData.rooms[currentRoom] || { objects: [] };
+      (room.objects || []).forEach(obj => createOrUpdateMesh(obj));
+
+      // Position camera nicely for current room size
+      resetCameraForRoom();
+    }
+
+    function resetCameraForRoom() {
+      const { w, d } = getRoomSize();
+      const maxDim = Math.max(w, d);
+      // Nice default isometric-ish
+      camera.position.set(maxDim * 0.65, maxDim * 0.85, maxDim * 0.75);
+      camera.lookAt(0, 1.8, 0);
+      orbitTheta = 0.9;
+      orbitPhi = 1.1;
+    }
+
+    function setCameraView(mode) {
+      const { w, d } = getRoomSize();
+      const maxDim = Math.max(w, d);
+      if (mode === 'top') {
+        camera.position.set(0, maxDim * 1.15, 0.6);
+        camera.lookAt(0, 0, 0);
+      } else if (mode === 'iso') {
+        camera.position.set(maxDim * 0.72, maxDim * 0.78, maxDim * 0.82);
+        camera.lookAt(0, 1.6, 0);
+      } else {
+        resetCameraForRoom();
+      }
+    }
+
+    function createOrUpdateMesh(obj) {
+      const id = obj.id;
+      // Remove old if exists
+      if (objectMeshes[id] && objectMeshes[id].mesh) {
+        scene.remove(objectMeshes[id].mesh);
       }
 
-      roomLights.forEach(eid => {
-        if (assigned.includes(eid)) return;
-        const c = document.createElement('div');
-        c.className = 'tv-chip' + (eid === LEADER ? ' leader' : '');
-        c.textContent = getLightName(eid);
-        c.draggable = true;
-        c.ondragstart = (e) => e.dataTransfer.setData('text/eid', eid);
-        c.onclick = () => {
-          window.__pendingEid = eid;
-          const map = document.getElementById('tv-map');
-          if (map) map.style.borderColor = '#4ade80';
-          setTimeout(() => { if (map) map.style.borderColor = '#3f3f46'; }, 1200);
-        };
-        el.appendChild(c);
-      });
-    }
+      const { w, d } = getRoomSize();
+      const halfW = w / 2, halfD = d / 2;
 
-    function renderModes() {
-      const el = document.getElementById('modes');
-      if (!el || !modelData) return;
-      const rid = currentRoom;
-      const r = modelData.rooms[rid] || {mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}};
-      const modes = [
-        {id:'true-colors', label:'True Colors', desc:'Accurate natural follow'},
-        {id:'video-game', label:'Video Game', desc:'Fast vivid reactive'},
-        {id:'music-sync', label:'Music Sync', desc:'Audio via sync box speaker'}
-      ];
-      el.innerHTML = modes.map(m => {
-        const active = r.mode === m.id ? 'active' : '';
-        const s = r.settings || {};
-        return `
-          <div class="tv-mode ${active}" onclick="setRoomMode('${rid}', '${m.id}')">
-            <div class="font-medium">${m.label}</div>
-            <div class="text-[10px] text-zinc-400">${m.desc}</div>
-            <div class="sliders mt-1">
-              <div class="slider-label">Intensity <span id="int-val-${m.id}">${s.intensity||70}</span></div>
-              <input type="range" min="10" max="100" value="${s.intensity||70}" oninput="updateRoomSetting('${rid}', 'intensity', this.value, '${m.id}')">
-              <div class="slider-label">Speed <span id="spd-val-${m.id}">${s.speed||40}</span></div>
-              <input type="range" min="10" max="100" value="${s.speed||40}" oninput="updateRoomSetting('${rid}', 'speed', this.value, '${m.id}')">
-              <div class="slider-label">Brightness Limit <span id="brt-val-${m.id}">${s.brightnessLimit||85}</span></div>
-              <input type="range" min="20" max="100" value="${s.brightnessLimit||85}" oninput="updateRoomSetting('${rid}', 'brightnessLimit', this.value, '${m.id}')">
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
+      // Convert normalized (0-1) to world feet
+      const wx = (obj.x - 0.5) * w;
+      const wz = (obj.z - 0.5) * d;
+      const wy = HEIGHT_Y[obj.height] || 0.18;
 
-    function setRoomMode(rid, mid) {
-      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights:{}, mode:mid, settings:{intensity:70,speed:40,brightnessLimit:85}, furniture:[]};
-      modelData.rooms[rid].mode = mid;
-      saveModel();
-      renderModes();
-    }
+      let mesh;
+      const cat = obj.type;
+      const sub = obj.subtype;
 
-    function updateRoomSetting(rid, key, val, mid) {
-      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights:{}, mode:'true-colors', settings:{intensity:70,speed:40,brightnessLimit:85}, furniture:[]};
-      if (!modelData.rooms[rid].settings) modelData.rooms[rid].settings = {};
-      modelData.rooms[rid].settings[key] = parseInt(val, 10);
-      // live label
-      const span = document.getElementById(key.slice(0,3) + '-val-' + mid);
-      if (span) span.textContent = val;
-      saveModel();
-    }
-
-    function activateMode() {
-      const rid = currentRoom;
-      const r = modelData.rooms[rid];
-      if (!r) return;
-      const map = document.getElementById('tv-map');
-      if (map) {
-        map.style.transition = 'box-shadow 200ms';
-        map.style.boxShadow = '0 0 0 4px rgba(74,222,128,0.4)';
-        if (r.mode === 'music-sync') {
-          map.style.animation = 'tv-music-wave 700ms infinite';
+      if (cat === 'light') {
+        if (sub === 'recessed') {
+          const g = new THREE.CylinderGeometry(0.55, 0.55, 0.18, 24);
+          const m = new THREE.MeshLambertMaterial({ color: 0xcccccc, emissive: 0x222222 });
+          mesh = new THREE.Mesh(g, m);
+          mesh.position.set(wx, wy - 0.05, wz);
+        } else if (sub === 'lamp') {
+          // Base + stem + shade
+          const group = new THREE.Group();
+          const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 0.22, 16), new THREE.MeshLambertMaterial({ color: 0x44403c }));
+          base.position.y = 0.11;
+          const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.2, 8), new THREE.MeshLambertMaterial({ color: 0x57534e }));
+          stem.position.y = 1.2;
+          const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.55, 0.9, 16), new THREE.MeshLambertMaterial({ color: 0xf59e0b, emissive: 0x3f2a1f }));
+          shade.position.y = 2.35;
+          group.add(base, stem, shade);
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
+        } else if (sub === 'tv-backlight') {
+          const g = new THREE.BoxGeometry(2.8, 0.22, 0.35);
+          const m = new THREE.MeshLambertMaterial({ color: 0x60a5fa, emissive: 0x1e3a8a });
+          mesh = new THREE.Mesh(g, m);
+          mesh.position.set(wx, wy + 0.1, wz);
         }
-        setTimeout(() => {
-          if (map) {
-            map.style.boxShadow = 'inset 0 0 40px rgba(0,0,0,0.6), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)';
-            map.style.animation = '';
-          }
-        }, 2200);
+      } else if (cat === 'tv') {
+        const group = new THREE.Group();
+        // Body
+        const body = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2.2, 0.28), new THREE.MeshLambertMaterial({ color: 0x111827 }));
+        body.position.y = 1.1;
+        // Screen
+        const screen = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.9, 0.08), new THREE.MeshLambertMaterial({ color: 0x0f172a, emissive: 0x1e3a8a }));
+        screen.position.y = 1.1;
+        screen.position.z = -0.2;
+        group.add(body, screen);
+        mesh = group;
+        mesh.position.set(wx, wy, wz);
+      } else if (cat === 'furniture') {
+        if (sub === 'couch') {
+          const group = new THREE.Group();
+          const seat = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.55, 1.6), new THREE.MeshLambertMaterial({ color: obj.color || 0x475569 }));
+          seat.position.y = 0.28;
+          const back = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.35, 0.38), new THREE.MeshLambertMaterial({ color: 0x334155 }));
+          back.position.set(0, 0.95, -0.65);
+          const armL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.9, 1.7), new THREE.MeshLambertMaterial({ color: 0x3f4855 }));
+          armL.position.set(-1.95, 0.55, 0);
+          const armR = armL.clone();
+          armR.position.x = 1.95;
+          group.add(seat, back, armL, armR);
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
+        } else if (sub === 'bed') {
+          const group = new THREE.Group();
+          const base = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.7, 5.2), new THREE.MeshLambertMaterial({ color: 0x1e2937 }));
+          base.position.y = 0.35;
+          const mattress = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.35, 4.9), new THREE.MeshLambertMaterial({ color: 0x64748b }));
+          mattress.position.y = 0.85;
+          group.add(base, mattress);
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
+        } else {
+          // table / desk / counter
+          const group = new THREE.Group();
+          const top = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.22, 1.5), new THREE.MeshLambertMaterial({ color: obj.color || 0x78350f }));
+          top.position.y = 1.35;
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.3, 6), new THREE.MeshLambertMaterial({ color: 0x44403c }));
+          leg.position.y = 0.65;
+          const leg2 = leg.clone(); leg2.position.x = 2.0;
+          const leg3 = leg.clone(); leg3.position.x = -2.0;
+          const leg4 = leg.clone(); leg4.position.x = 2.0; leg4.position.z = 1.0; // rough
+          group.add(top, leg, leg2, leg3);
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
+        }
       }
-      // animate markers
-      if (map) {
-        map.querySelectorAll('.tv-light-marker').forEach((m, i) => {
-          setTimeout(() => {
-            if (m) {
-              m.style.transition = 'transform 180ms';
-              m.style.transform = 'translate(-50%, -50%) scale(1.15)';
-              setTimeout(() => { if (m) m.style.transform = 'translate(-50%, -50%)'; }, 280);
-            }
-          }, i * 60);
-        });
+
+      if (!mesh) {
+        // Fallback simple box
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 1.4), new THREE.MeshLambertMaterial({ color: 0x64748b }));
+        mesh.position.set(wx, wy, wz);
       }
-      const toast = document.createElement('div');
-      toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-300 text-xs px-4 py-1.5 rounded-2xl border border-emerald-800 z-[300]';
-      toast.textContent = `${r.mode.replace('-',' ')} activated for ${r.name || rid} (leader T.V Lights)`;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 1800);
-      saveModel();
+
+      mesh.userData = { id, isObject: true };
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      objectMeshes[id] = { mesh, data: obj };
+
+      // Subtle entrance animation using scale
+      mesh.scale.set(0.4, 0.4, 0.4);
+      setTimeout(() => {
+        if (mesh && mesh.scale) {
+          mesh.scale.set(1, 1, 1);
+        }
+      }, 60);
     }
 
-    function addMockFurniture() {
-      const rid = currentRoom;
-      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights:{}, mode:'true-colors', settings:{}, furniture:[]};
-      if (!modelData.rooms[rid].furniture) modelData.rooms[rid].furniture = [];
-      const id = 'f' + Date.now();
-      modelData.rooms[rid].furniture.push({id, type: 'couch', x:0.4, y:0.6, w:0.2, h:0.15});
-      saveModel();
-      renderFurniture();
-      // visual hint
-      const map = document.getElementById('tv-map');
-      if (map) {
-        if (typeof anime !== 'undefined') anime({targets: map, scale: [1, 1.01, 1], duration: 260});
-      }
+    function updateMeshPosition(obj) {
+      const entry = objectMeshes[obj.id];
+      if (!entry || !entry.mesh) return;
+      const { w, d } = getRoomSize();
+      const wx = (obj.x - 0.5) * w;
+      const wz = (obj.z - 0.5) * d;
+      const wy = HEIGHT_Y[obj.height] || 0.18;
+      entry.mesh.position.set(wx, wy, wz);
     }
 
-    function renderFurniture() {
-      const el = document.getElementById('furniture-list');
-      if (!el || !modelData) return;
-      const rid = currentRoom;
-      const f = (modelData.rooms[rid] && modelData.rooms[rid].furniture) || [];
-      if (f.length === 0) {
-        el.innerHTML = '<span class="italic">No furniture yet — use "Add mock" to test extensibility. Data ready.</span>';
+    function selectObject(id) {
+      if (selectedId && objectMeshes[selectedId]) {
+        // reset previous highlight
+        const prev = objectMeshes[selectedId].mesh;
+        if (prev) prev.scale.set(1, 1, 1);
+      }
+      selectedId = id;
+      const entry = objectMeshes[id];
+      if (!entry) {
+        renderInspector();
         return;
       }
-      el.innerHTML = f.map(item => `<span class="inline-block mr-2 bg-zinc-800 px-1 rounded">${item.type} @${(item.x*100).toFixed(0)}%,${(item.y*100).toFixed(0)}%</span>`).join('');
+      const mesh = entry.mesh;
+      if (mesh) {
+        // quick pop highlight
+        mesh.scale.set(1.06, 1.06, 1.06);
+        setTimeout(() => { if (mesh && mesh.scale) mesh.scale.set(1, 1, 1); }, 280);
+      }
+      renderInspector();
     }
 
-    function renderAll() {
-      renderRoomSelector();
-      renderMap();
-      renderAvailable();
-      renderModes();
-      renderFurniture();
+    function clearSelection() {
+      if (selectedId && objectMeshes[selectedId]) {
+        const m = objectMeshes[selectedId].mesh;
+        if (m) m.scale.set(1, 1, 1);
+      }
+      selectedId = null;
+      renderInspector();
     }
 
-    // Drag for available chips
-    function setupGlobalDrag() {
-      document.addEventListener('dragstart', (e) => {
-        if (e.target.classList.contains('tv-chip')) {
-          // already set in render
-        }
+    function deleteSelected() {
+      if (!selectedId) return;
+      const room = modelData.rooms[currentRoom];
+      if (!room || !room.objects) return;
+      room.objects = room.objects.filter(o => o.id !== selectedId);
+      if (objectMeshes[selectedId]) {
+        scene.remove(objectMeshes[selectedId].mesh);
+        delete objectMeshes[selectedId];
+      }
+      selectedId = null;
+      renderInspector();
+      saveModel();
+    }
+
+    function setObjectHeight(id, newHeight) {
+      const room = modelData.rooms[currentRoom];
+      const obj = room && room.objects && room.objects.find(o => o.id === id);
+      if (!obj) return;
+      obj.height = newHeight;
+      updateMeshPosition(obj);
+      // visual feedback
+      const entry = objectMeshes[id];
+      if (entry && entry.mesh) {
+        const m = entry.mesh;
+        m.scale.set(1.03, 0.92, 1.03);
+        setTimeout(() => { if (m && m.scale) m.scale.set(1, 1, 1); }, 160);
+      }
+      saveModel();
+      renderInspector();
+    }
+
+    function renderInspector() {
+      const container = document.getElementById('inspector');
+      if (!container) return;
+
+      if (!selectedId) {
+        container.innerHTML = `<div class="text-sm text-zinc-400">Select an object in the 3D view or add a new one from the palette.</div>`;
+        return;
+      }
+      const room = modelData.rooms[currentRoom] || { objects: [] };
+      const obj = (room.objects || []).find(o => o.id === selectedId);
+      if (!obj) {
+        container.innerHTML = `<div class="text-sm text-zinc-400">Object not found.</div>`;
+        return;
+      }
+
+      const heights = [
+        { v: 'floor', label: 'Floor' },
+        { v: 'tv', label: 'TV Level' },
+        { v: 'ceiling', label: 'Ceiling' }
+      ];
+
+      container.innerHTML = `
+        <div class="space-y-3">
+          <div>
+            <div class="text-xs text-zinc-400 mb-0.5">Name</div>
+            <input id="obj-name" value="${obj.name || ''}" class="w-full bg-[#111113] border border-zinc-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-700" />
+          </div>
+          <div class="flex items-center gap-x-2">
+            <div class="text-xs text-zinc-400">Type</div>
+            <div class="text-xs px-2 py-px rounded bg-zinc-800 border border-zinc-700">${obj.type} / ${obj.subtype}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-400 mb-1">Height</div>
+            <div class="flex gap-x-1" id="height-group">
+              ${heights.map(h => `
+                <button data-h="${h.v}" class="height-btn flex-1 ${obj.height === h.v ? 'active' : ''}">${h.label}</button>
+              `).join('')}
+            </div>
+          </div>
+          <div class="flex gap-x-2 pt-1">
+            <button id="delete-btn" class="flex-1 text-xs px-3 py-1.5 rounded-lg border border-red-900/60 text-red-400 hover:bg-red-950/40">Delete</button>
+            <button id="deselect-btn" class="flex-1 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Deselect</button>
+          </div>
+        </div>
+      `;
+
+      // Bind
+      const nameInput = container.querySelector('#obj-name');
+      if (nameInput) {
+        nameInput.onchange = () => {
+          obj.name = nameInput.value.trim() || obj.subtype;
+          saveModel();
+        };
+        nameInput.onblur = () => saveModel();
+      }
+
+      container.querySelectorAll('#height-group button').forEach(btn => {
+        btn.onclick = () => setObjectHeight(selectedId, btn.dataset.h);
+      });
+
+      const del = container.querySelector('#delete-btn');
+      if (del) del.onclick = deleteSelected;
+
+      const desel = container.querySelector('#deselect-btn');
+      if (desel) desel.onclick = clearSelection;
+    }
+
+    // === Palette ===
+    function renderPalette() {
+      const el = document.getElementById('palette');
+      if (!el) return;
+      el.innerHTML = '';
+      OBJECT_CATALOG.forEach(def => {
+        const chip = document.createElement('div');
+        chip.className = `obj-chip ${pendingPlace && pendingPlace.subtype === def.subtype ? 'active' : ''}`;
+        chip.innerHTML = `
+          <span class="swatch" style="background:#${def.color.toString(16).padStart(6,'0')}"></span>
+          <span>${def.label}</span>
+        `;
+        chip.onclick = () => {
+          setPendingPlace(def, chip);
+        };
+        el.appendChild(chip);
       });
     }
 
-    async function initModel() {
-      initTailwind();
-      await fetchLights();
-      await loadModel();
-      renderAll();
-      setupGlobalDrag();
-
-      // initial leader highlight note
-      setTimeout(() => {
-        const map = document.getElementById('tv-map');
-        if (map && currentRoom === 'game-room') {
-          const leaderM = map.querySelector('.tv-light-marker.leader');
-          if (leaderM && typeof anime !== 'undefined') {
-            anime({targets: leaderM, scale: [1, 1.08, 1], duration: 600, easing: 'easeInOutSine'});
-          }
-        }
-      }, 400);
+    function setPendingPlace(def, chipEl) {
+      // clear previous active
+      document.querySelectorAll('#palette .obj-chip').forEach(c => c.classList.remove('active'));
+      if (pendingPlace && pendingPlace.subtype === def.subtype) {
+        // toggle off
+        clearPendingPlace();
+        return;
+      }
+      pendingPlace = { ...def };
+      if (chipEl) chipEl.classList.add('active');
+      const hint = document.getElementById('place-hint');
+      const txt = document.getElementById('place-hint-text');
+      if (hint) {
+        hint.classList.remove('hidden');
+        hint.style.display = 'flex';
+      }
+      if (txt) txt.textContent = `Click floor to place ${def.label}`;
+      canvas.style.cursor = 'crosshair';
     }
 
-    // bootstrap
-    document.addEventListener('DOMContentLoaded', initModel);
+    function clearPendingPlace() {
+      pendingPlace = null;
+      document.querySelectorAll('#palette .obj-chip').forEach(c => c.classList.remove('active'));
+      const hint = document.getElementById('place-hint');
+      if (hint) {
+        hint.style.display = 'none';
+        hint.classList.add('hidden');
+      }
+      canvas.style.cursor = '';
+    }
+
+    // === Interactions ===
+    function getNormalizedFromWorld(wx, wz) {
+      const { w, d } = getRoomSize();
+      const nx = (wx / w) + 0.5;
+      const nz = (wz / d) + 0.5;
+      return { x: Math.max(0, Math.min(1, nx)), z: Math.max(0, Math.min(1, nz)) };
+    }
+
+    function onPointerDown(e) {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(scene.children, true);
+
+      let hitObject = null;
+      for (let h of hits) {
+        const ud = h.object.userData || {};
+        if (ud.isObject && ud.id && objectMeshes[ud.id]) {
+          hitObject = ud.id;
+          break;
+        }
+      }
+
+      if (hitObject) {
+        // start dragging this object
+        isDraggingObject = true;
+        draggedObjectId = hitObject;
+        selectObject(hitObject);
+        previousMouseX = e.clientX;
+        previousMouseY = e.clientY;
+        return;
+      }
+
+      // No object hit — check if we should orbit or place
+      isOrbiting = true;
+      previousMouseX = e.clientX;
+      previousMouseY = e.clientY;
+    }
+
+    function onPointerMove(e) {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      if (isDraggingObject && draggedObjectId) {
+        raycaster.setFromCamera(mouse, camera);
+        const intersect = raycaster.ray.intersectPlane(floorPlane);
+        if (intersect) {
+          const { w, d } = getRoomSize();
+          let nx = Math.max(-w/2 + 0.4, Math.min(w/2 - 0.4, intersect.x));
+          let nz = Math.max(-d/2 + 0.4, Math.min(d/2 - 0.4, intersect.z));
+
+          const room = modelData.rooms[currentRoom];
+          const obj = room.objects.find(o => o.id === draggedObjectId);
+          if (obj) {
+            const norm = getNormalizedFromWorld(nx, nz);
+            obj.x = norm.x;
+            obj.z = norm.z;
+            const entry = objectMeshes[draggedObjectId];
+            if (entry && entry.mesh) {
+              entry.mesh.position.x = nx;
+              entry.mesh.position.z = nz;
+            }
+          }
+        }
+        return;
+      }
+
+      if (isOrbiting) {
+        const dx = e.clientX - previousMouseX;
+        const dy = e.clientY - previousMouseY;
+        orbitTheta -= dx * 0.0045;
+        orbitPhi = Math.max(0.25, Math.min(1.65, orbitPhi - dy * 0.0038));
+
+        const { w, d } = getRoomSize();
+        const radius = Math.max(w, d) * 0.95;
+        const cx = 0, cy = 2.2, cz = 0;
+
+        camera.position.x = cx + Math.cos(orbitTheta) * radius * Math.cos(orbitPhi * 0.6);
+        camera.position.z = cz + Math.sin(orbitTheta) * radius * Math.cos(orbitPhi * 0.6);
+        camera.position.y = cy + Math.sin(orbitPhi) * (radius * 0.6);
+        camera.lookAt(cx, 1.8, cz);
+
+        previousMouseX = e.clientX;
+        previousMouseY = e.clientY;
+      }
+    }
+
+    function onPointerUp(e) {
+      if (isDraggingObject && draggedObjectId) {
+        // finished drag — persist
+        saveModel();
+      }
+      isDraggingObject = false;
+      draggedObjectId = null;
+      isOrbiting = false;
+    }
+
+    function onWheel(e) {
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const factor = 1 + dir * 0.08;
+      camera.position.multiplyScalar(factor);
+      // keep a reasonable min distance
+      const len = camera.position.length();
+      if (len < 6) camera.position.setLength(6);
+      if (len > 95) camera.position.setLength(95);
+    }
+
+    function onCanvasClick(e) {
+      if (isDraggingObject) return;
+
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      // Try object selection first (if no pending)
+      if (!pendingPlace) {
+        const hits = raycaster.intersectObjects(scene.children, true);
+        for (let h of hits) {
+          const ud = h.object.userData || {};
+          if (ud.isObject && ud.id) {
+            selectObject(ud.id);
+            return;
+          }
+        }
+        // clicked empty — clear selection
+        clearSelection();
+        return;
+      }
+
+      // Place mode
+      const intersect = raycaster.ray.intersectPlane(floorPlane);
+      if (!intersect || !pendingPlace) return;
+
+      const { w, d } = getRoomSize();
+      const wx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
+      const wz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
+      const norm = getNormalizedFromWorld(wx, wz);
+
+      const room = modelData.rooms[currentRoom];
+      if (!room.objects) room.objects = [];
+
+      const newObj = {
+        id: 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+        type: pendingPlace.type,
+        subtype: pendingPlace.subtype,
+        name: pendingPlace.label,
+        x: norm.x,
+        z: norm.z,
+        height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
+                (pendingPlace.type === 'tv') ? 'tv' : 'floor'
+      };
+
+      room.objects.push(newObj);
+      createOrUpdateMesh(newObj);
+      selectObject(newObj.id);
+      saveModel();
+
+      // clear pending state
+      clearPendingPlace();
+    }
+
+    // === Room management ===
+    function clearCurrentRoom() {
+      const room = modelData.rooms[currentRoom];
+      if (!room) return;
+      room.objects = [];
+      buildRoomScene();
+      clearSelection();
+      saveModel();
+    }
+
+    function seedCurrentRoom() {
+      const room = modelData.rooms[currentRoom];
+      if (!room) return;
+      const defs = ROOM_DIMS[currentRoom];
+      room.objects = [];
+
+      // sensible seeds per room
+      if (currentRoom === 'game-room') {
+        room.objects.push({ id: 's1', type: 'light', subtype: 'tv-backlight', name: 'T.V Lights', x: 0.5, z: 0.08, height: 'tv' });
+        room.objects.push({ id: 's2', type: 'furniture', subtype: 'couch', name: 'Sectional', x: 0.33, z: 0.55, height: 'floor' });
+        room.objects.push({ id: 's3', type: 'light', subtype: 'lamp', name: 'Desk Lamp', x: 0.72, z: 0.28, height: 'floor' });
+      } else if (currentRoom === 'living-room') {
+        room.objects.push({ id: 's1', type: 'light', subtype: 'lamp', name: 'Floor Lamp', x: 0.2, z: 0.38, height: 'floor' });
+        room.objects.push({ id: 's2', type: 'tv', subtype: 'tv', name: 'TV', x: 0.5, z: 0.07, height: 'tv' });
+        room.objects.push({ id: 's3', type: 'furniture', subtype: 'couch', name: 'Sofa', x: 0.48, z: 0.42, height: 'floor' });
+      } else if (currentRoom === 'master-bedroom') {
+        room.objects.push({ id: 's1', type: 'furniture', subtype: 'bed', name: 'Bed', x: 0.5, z: 0.62, height: 'floor' });
+        room.objects.push({ id: 's2', type: 'light', subtype: 'lamp', name: 'Bedside', x: 0.22, z: 0.78, height: 'floor' });
+      } else if (currentRoom === 'kitchen') {
+        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Recessed', x: 0.5, z: 0.28, height: 'ceiling' });
+        room.objects.push({ id: 's2', type: 'furniture', subtype: 'table', name: 'Island', x: 0.5, z: 0.55, height: 'floor' });
+      } else {
+        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling' });
+      }
+      buildRoomScene();
+      saveModel();
+    }
+
+    async function buildUI() {
+      await loadModel();
+      renderRoomSelector();
+      updateRoomHeader();
+
+      initThree();
+      buildRoomScene();
+      renderPalette();
+      renderInspector();
+
+      // Gentle initial camera animation hint
+      setTimeout(() => {
+        if (camera) {
+          const startY = camera.position.y;
+          camera.position.y = startY + 4;
+          setTimeout(() => {
+            if (camera) camera.position.y = startY;
+          }, 420);
+        }
+      }, 650);
+
+      // Auto-save on visibility change (good practice)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveModel();
+      });
+    }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', async () => {
+      initTailwind();
+      await buildUI();
+    });
   </script>
 </body>
 </html>
