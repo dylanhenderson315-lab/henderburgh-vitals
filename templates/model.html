@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Model • HENDERBURGH</title>
-  <meta name="description" content="3D spatial home replica foundation — place lights, furniture and TVs with real dimensions.">
+  <meta name="description" content="3D spatial home replica foundation — precise placement of lights, furniture and TVs using real dimensions.">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
@@ -47,7 +47,7 @@
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
 
-    .model-canvas {
+    .model-canvas, .editor-2d {
       display: block;
       width: 100%;
       height: 100%;
@@ -78,22 +78,22 @@
     .obj-chip {
       background: #18181b;
       border: 1px solid #3f3f46;
-      padding: 8px 12px;
-      border-radius: 10px;
-      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 11px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.1s ease;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       user-select: none;
     }
     .obj-chip:hover { border-color: #4ade80; transform: translateY(-1px); }
     .obj-chip.active { border-color: #4ade80; background: #052e16; color: #4ade80; }
 
     .obj-chip .swatch {
-      width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+      width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
       border: 1px solid rgba(255,255,255,0.15);
     }
 
@@ -128,10 +128,39 @@
     .spatial-card {
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
+
+    .layer-toggle {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      border: 1px solid #3f3f46;
+      background: #27272a;
+      cursor: pointer;
+      transition: all .1s;
+    }
+    .layer-toggle.active {
+      background: #052e16;
+      border-color: #4ade80;
+      color: #4ade80;
+    }
+
+    .view-tab {
+      padding: 4px 12px;
+      font-size: 12px;
+      border-radius: 9999px;
+      border: 1px solid #3f3f46;
+      background: #27272a;
+      cursor: pointer;
+      transition: all .1s;
+    }
+    .view-tab.active {
+      background: #052e16;
+      border-color: #4ade80;
+      color: #4ade80;
+    }
   </style>
 </head>
 <body class="bg-[#0f1115] text-zinc-200 antialiased">
-  <!-- Header -->
   <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
     <div class="max-w-[1120px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
@@ -158,14 +187,13 @@
   </header>
 
   <main class="max-w-[1120px] mx-auto px-6 pt-8 pb-16">
-    <!-- Header -->
     <div class="flex items-end justify-between mb-6">
       <div>
         <div class="flex items-center gap-x-3">
           <h1 class="text-3xl font-semibold tracking-tighter">Home Model</h1>
-          <div class="px-2.5 py-0.5 text-[10px] rounded-full border border-emerald-900 bg-emerald-950 text-emerald-400 font-mono">3D • SPATIAL</div>
+          <div class="px-2.5 py-0.5 text-[10px] rounded-full border border-emerald-900 bg-emerald-950 text-emerald-400 font-mono">3D + 2D • PRECISE</div>
         </div>
-        <p class="text-zinc-400 mt-1">Accurate 3D replica of the house. Place lights, furniture &amp; TVs using real floor-plan dimensions. Lights cast real illumination.</p>
+        <p class="text-zinc-400 mt-1">Accurate digital twin. Easy placement inspired by professional planners like Roomstyler.</p>
       </div>
       <div class="hidden md:block text-right">
         <div class="text-[10px] text-emerald-400/70 font-mono">/model • server persisted</div>
@@ -173,31 +201,52 @@
       </div>
     </div>
 
-    <!-- Room Selector -->
-    <div class="mb-4">
-      <div class="section-label mb-2">Room</div>
-      <div id="room-selector" class="flex flex-wrap gap-2"></div>
+    <!-- Room Selector + Layers -->
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div class="section-label mb-2">Room</div>
+        <div id="room-selector" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- Layers -->
+      <div>
+        <div class="section-label mb-2">Layers</div>
+        <div class="flex gap-1">
+          <button id="layer-lights" class="layer-toggle active" data-layer="light"><i class="fa-solid fa-lightbulb mr-1"></i>Lights</button>
+          <button id="layer-furniture" class="layer-toggle active" data-layer="furniture"><i class="fa-solid fa-couch mr-1"></i>Furniture</button>
+          <button id="layer-tvs" class="layer-toggle active" data-layer="tv"><i class="fa-solid fa-tv mr-1"></i>TVs</button>
+        </div>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- 3D Viewport -->
+      <!-- Viewport -->
       <div class="lg:col-span-8">
         <div class="card p-4 spatial-card">
+          <!-- View Switcher -->
           <div class="flex items-center justify-between mb-3">
-            <div>
-              <div id="room-title" class="font-semibold text-lg"></div>
-              <div id="room-dims" class="text-xs text-zinc-400 font-mono"></div>
-            </div>
             <div class="flex items-center gap-x-2">
-              <button onclick="setCameraView('top')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 active:bg-zinc-900">Top</button>
-              <button onclick="setCameraView('iso')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 active:bg-zinc-900">Isometric</button>
-              <button onclick="setCameraView('reset')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 active:bg-zinc-900">Reset</button>
+              <button id="view-3d-btn" class="view-tab active" onclick="switchView('3d')">3D View</button>
+              <button id="view-2d-btn" class="view-tab" onclick="switchView('2d')">2D Top-Down</button>
+              <div class="ml-3 flex items-center gap-x-1 text-xs">
+                <label class="flex items-center gap-x-1 cursor-pointer">
+                  <input type="checkbox" id="snap-toggle" checked class="accent-emerald-500">
+                  <span>Snap to grid</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 3D only controls -->
+            <div id="3d-controls" class="flex items-center gap-x-2">
+              <button onclick="setCameraView('top')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Top</button>
+              <button onclick="setCameraView('iso')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Isometric</button>
+              <button onclick="setCameraView('reset')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Reset</button>
             </div>
           </div>
 
-          <div id="canvas-wrap" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 560px; background:#0a0a0b;">
+          <!-- 3D Canvas -->
+          <div id="canvas-wrap" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b;">
             <canvas id="model-canvas" class="model-canvas"></canvas>
-            <!-- Overlay hints -->
             <div id="place-hint" class="hidden absolute inset-0 bg-black/40 items-center justify-center pointer-events-none">
               <div class="px-4 py-1.5 bg-[#161a20] border border-emerald-800 rounded-full text-emerald-300 text-sm flex items-center gap-x-2">
                 <i class="fa-solid fa-crosshairs"></i>
@@ -206,27 +255,50 @@
             </div>
           </div>
 
+          <!-- 2D Canvas -->
+          <div id="2d-wrap" class="hidden relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b;">
+            <canvas id="2d-canvas" class="editor-2d"></canvas>
+          </div>
+
           <div class="mt-3 flex items-center justify-between text-[10px] three-legend">
-            <div>Drag objects to move • Click empty floor while a type is selected to place • Lights cast real illumination • Drag empty space to orbit view</div>
-            <div class="hidden md:block">Wheel = zoom • Click object = select</div>
+            <div id="view-help">Drag objects • Click palette item then floor to place • Use 2D view for precision</div>
+            <div class="hidden md:block">Wheel = zoom (3D) • Click = select</div>
           </div>
         </div>
       </div>
 
       <!-- Palette + Inspector -->
       <div class="lg:col-span-4 space-y-4">
-        <!-- Palette -->
+        <!-- Improved Categorized Palette -->
         <div class="card p-4">
           <div class="section-label mb-2">Add Object</div>
-          <div id="palette" class="grid grid-cols-2 gap-2"></div>
-          <div class="mt-2 text-[10px] text-zinc-500">Choose a type, then click the floor in the 3D view to place it. Drag any object to reposition. Lights affect the scene.</div>
+
+          <!-- Lights -->
+          <div class="mb-2">
+            <div class="text-[10px] text-emerald-400/80 font-medium mb-1">Lights</div>
+            <div id="palette-lights" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <!-- Furniture -->
+          <div class="mb-2">
+            <div class="text-[10px] text-emerald-400/80 font-medium mb-1">Furniture</div>
+            <div id="palette-furniture" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <!-- TVs -->
+          <div>
+            <div class="text-[10px] text-emerald-400/80 font-medium mb-1">TVs &amp; Media</div>
+            <div id="palette-tvs" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <div class="mt-2 text-[10px] text-zinc-500">Select a type, then click the floor (3D or 2D) to place. Green preview shows snapped position.</div>
         </div>
 
         <!-- Inspector -->
         <div class="card p-4">
           <div class="section-label mb-2">Inspector</div>
-          <div id="inspector" class="inspector min-h-[138px]">
-            <div class="text-sm text-zinc-400">Select an object in the 3D view or add a new one.</div>
+          <div id="inspector" class="inspector min-h-[148px]">
+            <div class="text-sm text-zinc-400">Select an object in the 3D or 2D view or add a new one.</div>
           </div>
         </div>
 
@@ -238,34 +310,34 @@
             <button onclick="seedCurrentRoom()" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Seed Defaults</button>
             <button onclick="saveModel(true)" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Force Save</button>
           </div>
-          <div class="mt-3 text-[10px] text-zinc-500">Data lives in <span class="font-mono">data/model.json</span>. Easy to edit by hand or extend with new rooms/objects.</div>
+          <div class="mt-3 text-[10px] text-zinc-500">Data lives in <span class="font-mono">data/model.json</span>. Fully extensible.</div>
         </div>
       </div>
     </div>
 
-    <!-- Legend + Notes -->
+    <!-- Legend -->
     <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
       <div class="card p-4">
         <div class="font-medium mb-1 text-emerald-400/90">Height Levels</div>
         <div class="flex gap-x-4 text-zinc-400">
-          <div><span class="inline-block w-2 h-2 rounded-full bg-sky-400 align-middle mr-1"></span> Floor — low / base</div>
-          <div><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 align-middle mr-1"></span> TV Level — screen mid</div>
-          <div><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle mr-1"></span> Ceiling — above / recessed</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-sky-400 align-middle mr-1"></span> Floor</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 align-middle mr-1"></span> TV Level</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle mr-1"></span> Ceiling</div>
         </div>
       </div>
       <div class="card p-4">
-        <div class="font-medium mb-1 text-emerald-400/90">Object Types</div>
-        <div class="text-zinc-400">Lights (recessed / lamp / TV backlight) now cast real-time illumination • TVs • Furniture (couch, bed, desk, table). All fully positioned in real feet.</div>
+        <div class="font-medium mb-1 text-emerald-400/90">Tips</div>
+        <div class="text-zinc-400">Use 2D view for fast precise layout. Enable snapping for perfect alignment. Lights cast real illumination in 3D.</div>
       </div>
     </div>
 
     <div class="mt-4 text-center text-[10px] text-zinc-500">
-      This page is the long-term foundation for the full home replica. Future: direct light control from 3D objects, realistic materials, full-house composite view, and furniture libraries.
+      Professional room-planner usability in a calm, spatial 3D twin. Future: Ruuvi sensors, full-house view, direct HA control.
     </div>
   </main>
 
   <footer class="max-w-[1120px] mx-auto px-6 pb-8 text-xs text-zinc-500 text-center border-t border-zinc-800 pt-4 mt-2">
-    HENDERBURGH • 3D Spatial Model • Real dimensions • Calm &amp; precise
+    HENDERBURGH • Precise 3D + 2D Model • Real dimensions
   </footer>
 
   <script>
@@ -292,23 +364,27 @@
     };
 
     const HEIGHT_Y = { floor: 0.18, tv: 3.9, ceiling: 8.1 };
+    const GRID_STEP = 0.05; // ~1 foot in most rooms
 
     const OBJECT_CATALOG = [
-      { type: 'light', subtype: 'recessed', label: 'Recessed Light', color: 0xdddddd, shape: 'recessed' },
-      { type: 'light', subtype: 'lamp', label: 'Table / Floor Lamp', color: 0xf59e0b, shape: 'lamp' },
-      { type: 'light', subtype: 'tv-backlight', label: 'TV Backlight', color: 0x60a5fa, shape: 'bar' },
-      { type: 'tv', subtype: 'tv', label: 'Television', color: 0x1f2937, shape: 'tv' },
-      { type: 'furniture', subtype: 'couch', label: 'Couch / Sectional', color: 0x475569, shape: 'couch' },
-      { type: 'furniture', subtype: 'bed', label: 'Bed', color: 0x334155, shape: 'bed' },
-      { type: 'furniture', subtype: 'desk', label: 'Desk', color: 0x78350f, shape: 'table' },
-      { type: 'furniture', subtype: 'table', label: 'Coffee / Side Table', color: 0x854d0e, shape: 'table' }
+      // Lights
+      { type: 'light', subtype: 'recessed', label: 'Recessed', color: 0xdddddd, category: 'light' },
+      { type: 'light', subtype: 'lamp', label: 'Lamp', color: 0xf59e0b, category: 'light' },
+      { type: 'light', subtype: 'tv-backlight', label: 'Backlight', color: 0x60a5fa, category: 'light' },
+      // Furniture
+      { type: 'furniture', subtype: 'couch', label: 'Couch', color: 0x475569, category: 'furniture' },
+      { type: 'furniture', subtype: 'bed', label: 'Bed', color: 0x334155, category: 'furniture' },
+      { type: 'furniture', subtype: 'desk', label: 'Desk', color: 0x78350f, category: 'furniture' },
+      { type: 'furniture', subtype: 'table', label: 'Table', color: 0x854d0e, category: 'furniture' },
+      // TVs
+      { type: 'tv', subtype: 'tv', label: 'TV', color: 0x1f2937, category: 'tv' }
     ];
 
     let modelData = null;
     let currentRoom = 'game-room';
     let scene, camera, renderer, canvas;
     let raycaster, mouse, floorPlane;
-    let objectMeshes = {}; // id -> { mesh, light?, data, visual? }
+    let objectMeshes = {};
     let selectedId = null;
     let pendingPlace = null;
     let isDraggingObject = false;
@@ -318,6 +394,14 @@
     let orbitTheta = 0.8, orbitPhi = 1.05;
     let floorHighlight = null;
     let saveTimeout = null;
+
+    // View & Layers
+    let currentView = '3d';
+    let showLayers = { light: true, furniture: true, tv: true };
+    let snapEnabled = true;
+
+    // 2D canvas
+    let canvas2d, ctx2d;
 
     const ROOM_CENTER = { x: 0, z: 0 };
 
@@ -352,13 +436,16 @@
       saveTimeout = setTimeout(() => saveModel(), 180);
     }
 
+    function snapValue(v) {
+      if (!snapEnabled) return Math.max(0, Math.min(1, v));
+      return Math.max(0, Math.min(1, Math.round(v / GRID_STEP) * GRID_STEP));
+    }
+
     async function loadModel() {
       try {
         const res = await fetch('/api/model');
         modelData = await res.json();
-      } catch (e) {
-        modelData = null;
-      }
+      } catch (e) { modelData = null; }
       if (!modelData || !modelData.rooms) {
         modelData = { rooms: {}, selected_room: 'game-room' };
       }
@@ -386,9 +473,9 @@
         if (showToast) {
           const t = document.createElement('div');
           t.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-200 text-xs px-4 py-1 rounded-2xl border border-emerald-800 z-[300]';
-          t.textContent = 'Saved to server';
+          t.textContent = 'Saved';
           document.body.appendChild(t);
-          setTimeout(() => t.remove(), 1200);
+          setTimeout(() => t.remove(), 1100);
         }
       } catch (e) {}
     }
@@ -407,7 +494,11 @@
           modelData.selected_room = rid;
           await saveModel();
           renderRoomSelector();
-          buildRoomScene();
+          if (currentView === '3d') {
+            buildRoomScene();
+          } else {
+            draw2DScene();
+          }
           updateRoomHeader();
           clearSelection();
           clearPendingPlace();
@@ -420,7 +511,34 @@
     function updateRoomHeader() {
       const r = ROOM_DIMS[currentRoom];
       document.getElementById('room-title').textContent = r.name;
-      document.getElementById('room-dims').textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}' (real floor plan)`;
+      document.getElementById('room-dims').textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}'`;
+    }
+
+    // Layer toggles
+    function initLayerToggles() {
+      ['lights', 'furniture', 'tvs'].forEach(layer => {
+        const btn = document.getElementById('layer-' + layer);
+        if (!btn) return;
+        const type = layer === 'lights' ? 'light' : layer === 'furniture' ? 'furniture' : 'tv';
+        btn.onclick = () => {
+          showLayers[type] = !showLayers[type];
+          btn.classList.toggle('active', showLayers[type]);
+          if (currentView === '3d') {
+            refresh3DVisibility();
+          } else {
+            draw2DScene();
+          }
+        };
+      });
+    }
+
+    function refresh3DVisibility() {
+      Object.keys(objectMeshes).forEach(id => {
+        const entry = objectMeshes[id];
+        if (!entry || !entry.mesh) return;
+        const type = entry.data.type;
+        entry.mesh.visible = showLayers[type] !== false;
+      });
     }
 
     function applyLightVisual(root, obj) {
@@ -448,6 +566,7 @@
       applyLightVisual(entry.mesh, obj);
     }
 
+    // === 3D Scene (largely unchanged from previous solid version) ===
     function initThree() {
       canvas = document.getElementById('model-canvas');
       const wrap = document.getElementById('canvas-wrap');
@@ -472,7 +591,7 @@
       dir.position.set(20, 35, 10);
       scene.add(dir);
 
-      // Floor highlight marker
+      // Floor highlight
       const highlightGeo = new THREE.CircleGeometry(1.15, 32);
       const highlightMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide });
       floorHighlight = new THREE.Mesh(highlightGeo, highlightMat);
@@ -495,7 +614,6 @@
       canvas.addEventListener('pointerdown', onPointerDown);
       canvas.addEventListener('pointermove', onPointerMove);
       canvas.addEventListener('pointerup', onPointerUp);
-      canvas.addEventListener('pointerleave', onPointerUp);
       canvas.addEventListener('pointerleave', onPointerUp);
       canvas.addEventListener('wheel', onWheel, { passive: false });
       canvas.addEventListener('click', onCanvasClick);
@@ -595,6 +713,7 @@
       (room.objects || []).forEach(obj => createOrUpdateMesh(obj));
 
       resetCameraForRoom();
+      refresh3DVisibility();
     }
 
     function resetCameraForRoom() {
@@ -607,6 +726,7 @@
     }
 
     function setCameraView(mode) {
+      if (currentView !== '3d') switchView('3d');
       const { w, d } = getRoomSize();
       const maxDim = Math.max(w, d);
       if (mode === 'top') {
@@ -754,6 +874,9 @@
           setTimeout(() => { if (root && root.scale) root.scale.set(1, 1, 1); }, 180);
         }
       }, 40);
+
+      // Apply layer visibility immediately
+      root.visible = showLayers[obj.type] !== false;
     }
 
     function updateMeshPosition(obj) {
@@ -808,6 +931,7 @@
       if (floorHighlight) floorHighlight.visible = false;
       renderInspector();
       saveModel();
+      if (currentView === '2d') draw2DScene();
     }
 
     function setObjectHeight(id, newHeight) {
@@ -824,6 +948,7 @@
       }
       saveModel();
       renderInspector();
+      if (currentView === '2d') draw2DScene();
     }
 
     function renderInspector() {
@@ -831,7 +956,7 @@
       if (!container) return;
 
       if (!selectedId) {
-        container.innerHTML = `<div class="text-sm text-zinc-400">Select an object in the 3D view or add a new one from the palette.</div>`;
+        container.innerHTML = `<div class="text-sm text-zinc-400">Select an object (in 3D or 2D) or add a new one from the palette.</div>`;
         return;
       }
       const room = modelData.rooms[currentRoom] || { objects: [] };
@@ -903,7 +1028,7 @@
 
       const nameInput = container.querySelector('#obj-name');
       if (nameInput) {
-        nameInput.onchange = () => { obj.name = nameInput.value.trim() || obj.subtype; saveModel(); };
+        nameInput.onchange = () => { obj.name = nameInput.value.trim() || obj.subtype; saveModel(); if (currentView==='2d') draw2DScene(); };
         nameInput.onblur = () => saveModel();
       }
 
@@ -952,10 +1077,16 @@
       }
     }
 
+    // === Improved Categorized Palette ===
     function renderPalette() {
-      const el = document.getElementById('palette');
-      if (!el) return;
-      el.innerHTML = '';
+      const lightsEl = document.getElementById('palette-lights');
+      const furnitureEl = document.getElementById('palette-furniture');
+      const tvsEl = document.getElementById('palette-tvs');
+
+      lightsEl.innerHTML = '';
+      furnitureEl.innerHTML = '';
+      tvsEl.innerHTML = '';
+
       OBJECT_CATALOG.forEach(def => {
         const chip = document.createElement('div');
         chip.className = `obj-chip ${pendingPlace && pendingPlace.subtype === def.subtype ? 'active' : ''}`;
@@ -964,34 +1095,39 @@
           <span>${def.label}</span>
         `;
         chip.onclick = () => setPendingPlace(def, chip);
-        el.appendChild(chip);
+
+        if (def.category === 'light') lightsEl.appendChild(chip);
+        else if (def.category === 'furniture') furnitureEl.appendChild(chip);
+        else tvsEl.appendChild(chip);
       });
     }
 
     function setPendingPlace(def, chipEl) {
-      document.querySelectorAll('#palette .obj-chip').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.obj-chip').forEach(c => c.classList.remove('active'));
       if (pendingPlace && pendingPlace.subtype === def.subtype) {
         clearPendingPlace();
         return;
       }
       pendingPlace = { ...def };
       if (chipEl) chipEl.classList.add('active');
+
       const hint = document.getElementById('place-hint');
       const txt = document.getElementById('place-hint-text');
       if (hint) { hint.classList.remove('hidden'); hint.style.display = 'flex'; }
-      if (txt) txt.textContent = `Click floor to place ${def.label}`;
+      if (txt) txt.textContent = `Click on floor to place ${def.label}`;
       canvas.style.cursor = 'crosshair';
     }
 
     function clearPendingPlace() {
       pendingPlace = null;
-      document.querySelectorAll('#palette .obj-chip').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.obj-chip').forEach(c => c.classList.remove('active'));
       const hint = document.getElementById('place-hint');
       if (hint) { hint.style.display = 'none'; hint.classList.add('hidden'); }
-      canvas.style.cursor = '';
+      if (canvas) canvas.style.cursor = '';
       if (floorHighlight) floorHighlight.visible = false;
     }
 
+    // === Interaction (3D + 2D unified where possible) ===
     function getNormalizedFromWorld(wx, wz) {
       const { w, d } = getRoomSize();
       const nx = (wx / w) + 0.5;
@@ -1011,6 +1147,8 @@
     }
 
     function onPointerDown(e) {
+      if (currentView !== '3d') return;
+
       const rect = canvas.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1043,8 +1181,6 @@
       }
 
       if (pendingPlace) {
-        // In placement mode: mousedown on the floor should lead to placement on release.
-        // Do not start camera orbiting.
         return;
       }
 
@@ -1054,6 +1190,8 @@
     }
 
     function onPointerMove(e) {
+      if (currentView !== '3d') return;
+
       const rect = canvas.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1063,25 +1201,30 @@
         const intersect = raycaster.ray.intersectPlane(floorPlane);
         if (intersect) {
           const { w, d } = getRoomSize();
-          let nx = Math.max(-w/2 + 0.4, Math.min(w/2 - 0.4, intersect.x));
-          let nz = Math.max(-d/2 + 0.4, Math.min(d/2 - 0.4, intersect.z));
+          let nx = (intersect.x + w/2) / w;
+          let nz = (intersect.z + d/2) / d;
+
+          nx = snapValue(nx);
+          nz = snapValue(nz);
 
           const room = modelData.rooms[currentRoom];
           const obj = room.objects.find(o => o.id === draggedObjectId);
           if (obj) {
-            const norm = getNormalizedFromWorld(nx, nz);
-            obj.x = norm.x;
-            obj.z = norm.z;
+            obj.x = nx;
+            obj.z = nz;
             const entry = objectMeshes[draggedObjectId];
             if (entry && entry.mesh) {
-              entry.mesh.position.x = nx;
-              entry.mesh.position.z = nz;
+              const wx = (nx - 0.5) * w;
+              const wz = (nz - 0.5) * d;
+              entry.mesh.position.x = wx;
+              entry.mesh.position.z = wz;
             }
             if (floorHighlight) {
-              floorHighlight.position.set(nx, 0.025, nz);
+              floorHighlight.position.set((nx-0.5)*w, 0.025, (nz-0.5)*d);
               floorHighlight.visible = true;
             }
             saveModel();
+            if (currentView === '2d') draw2DScene(); // keep in sync
           }
         }
         return;
@@ -1092,9 +1235,11 @@
         const intersect = raycaster.ray.intersectPlane(floorPlane);
         if (intersect) {
           const { w, d } = getRoomSize();
-          let nx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
-          let nz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
-          floorHighlight.position.set(nx, 0.025, nz);
+          let nx = (intersect.x + w/2) / w;
+          let nz = (intersect.z + d/2) / d;
+          nx = snapValue(nx);
+          nz = snapValue(nz);
+          floorHighlight.position.set((nx-0.5)*w, 0.025, (nz-0.5)*d);
           floorHighlight.visible = true;
         }
         return;
@@ -1121,8 +1266,7 @@
     }
 
     function onPointerUp(e) {
-      if (pendingPlace) {
-        // Reliable placement trigger on release while in place mode (after preventing orbit on down)
+      if (pendingPlace && currentView === '3d') {
         const rect = canvas.getBoundingClientRect();
         mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1131,9 +1275,10 @@
         const intersect = raycaster.ray.intersectPlane(floorPlane);
         if (intersect && pendingPlace) {
           const { w, d } = getRoomSize();
-          const wx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
-          const wz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
-          const norm = getNormalizedFromWorld(wx, wz);
+          let nx = (intersect.x + w/2) / w;
+          let nz = (intersect.z + d/2) / d;
+          nx = snapValue(nx);
+          nz = snapValue(nz);
 
           const room = modelData.rooms[currentRoom];
           if (!room.objects) room.objects = [];
@@ -1143,8 +1288,8 @@
             type: pendingPlace.type,
             subtype: pendingPlace.subtype,
             name: pendingPlace.label,
-            x: norm.x,
-            z: norm.z,
+            x: nx,
+            z: nz,
             height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
                     (pendingPlace.type === 'tv') ? 'tv' : 'floor'
           };
@@ -1173,7 +1318,6 @@
 
           clearPendingPlace();
         }
-        // fall through to clear flags
       }
 
       if (isDraggingObject && draggedObjectId) {
@@ -1187,6 +1331,7 @@
         }
         if (floorHighlight) floorHighlight.visible = false;
         saveModel();
+        if (currentView === '2d') draw2DScene();
       }
       isDraggingObject = false;
       draggedObjectId = null;
@@ -1194,6 +1339,7 @@
     }
 
     function onWheel(e) {
+      if (currentView !== '3d') return;
       e.preventDefault();
       const dir = e.deltaY > 0 ? 1 : -1;
       const factor = 1 + dir * 0.08;
@@ -1204,6 +1350,7 @@
     }
 
     function onCanvasClick(e) {
+      if (currentView !== '3d') return;
       if (isDraggingObject) return;
 
       const rect = canvas.getBoundingClientRect();
@@ -1225,17 +1372,15 @@
         return;
       }
 
-      // Primary placement now happens on pointerup (more reliable with pointer events + orbit prevention).
-      // This click path is a fallback / for completeness. It will usually be a no-op because
-      // we clear pendingPlace on the up handler.
+      // Fallback placement
       if (pendingPlace) {
-        // Re-use the same logic as the up handler for safety
         const intersect = raycaster.ray.intersectPlane(floorPlane);
         if (intersect && pendingPlace) {
           const { w, d } = getRoomSize();
-          const wx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
-          const wz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
-          const norm = getNormalizedFromWorld(wx, wz);
+          let nx = (intersect.x + w/2) / w;
+          let nz = (intersect.z + d/2) / d;
+          nx = snapValue(nx);
+          nz = snapValue(nz);
 
           const room = modelData.rooms[currentRoom];
           if (!room.objects) room.objects = [];
@@ -1245,8 +1390,8 @@
             type: pendingPlace.type,
             subtype: pendingPlace.subtype,
             name: pendingPlace.label,
-            x: norm.x,
-            z: norm.z,
+            x: nx,
+            z: nz,
             height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
                     (pendingPlace.type === 'tv') ? 'tv' : 'floor'
           };
@@ -1261,31 +1406,333 @@
           createOrUpdateMesh(newObj);
           selectObject(newObj.id);
           saveModel();
-
-          if (floorHighlight) {
-            floorHighlight.scale.set(1.8, 1.8, 1.8);
-            floorHighlight.visible = true;
-            setTimeout(() => {
-              if (floorHighlight) {
-                floorHighlight.scale.set(1, 1, 1);
-                floorHighlight.visible = false;
-              }
-            }, 220);
-          }
-
           clearPendingPlace();
         }
       }
     }
 
+    // === 2D Top-Down Editor ===
+    function init2DCanvas() {
+      canvas2d = document.getElementById('2d-canvas');
+      if (!canvas2d) return;
+      ctx2d = canvas2d.getContext('2d');
+
+      canvas2d.addEventListener('mousedown', on2DMouseDown);
+      canvas2d.addEventListener('mousemove', on2DMouseMove);
+      canvas2d.addEventListener('mouseup', on2DMouseUp);
+      canvas2d.addEventListener('mouseleave', on2DMouseUp);
+      canvas2d.addEventListener('click', on2DClick);
+
+      // Initial size
+      const wrap = document.getElementById('2d-wrap');
+      if (wrap) {
+        function resize2d() {
+          canvas2d.width = wrap.clientWidth;
+          canvas2d.height = wrap.clientHeight;
+          if (currentView === '2d') draw2DScene();
+        }
+        window.addEventListener('resize', resize2d);
+        setTimeout(resize2d, 50);
+      }
+    }
+
+    let _2dScale = 1;
+    let _2dOffsetX = 0;
+    let _2dOffsetY = 0;
+
+    function get2DTransform() {
+      const room = ROOM_DIMS[currentRoom];
+      const cw = canvas2d.width;
+      const ch = canvas2d.height;
+      const padding = 30;
+      const scaleX = (cw - padding * 2) / room.width_ft;
+      const scaleY = (ch - padding * 2) / room.depth_ft;
+      _2dScale = Math.min(scaleX, scaleY);
+      _2dOffsetX = padding + (cw - padding*2 - room.width_ft * _2dScale) / 2;
+      _2dOffsetY = padding + (ch - padding*2 - room.depth_ft * _2dScale) / 2;
+      return { scale: _2dScale, offX: _2dOffsetX, offY: _2dOffsetY };
+    }
+
+    function worldTo2D(wx, wz) {
+      const { scale, offX, offY } = get2DTransform();
+      const room = ROOM_DIMS[currentRoom];
+      const halfW = room.width_ft / 2;
+      const halfD = room.depth_ft / 2;
+      const x = offX + (wx + halfW) * scale;
+      const y = offY + (wz + halfD) * scale;
+      return { x, y };
+    }
+
+    function screenToNorm(sx, sy) {
+      const { scale, offX, offY } = get2DTransform();
+      const room = ROOM_DIMS[currentRoom];
+      const halfW = room.width_ft / 2;
+      const halfD = room.depth_ft / 2;
+      let nx = ((sx - offX) / scale - halfW) / room.width_ft + 0.5;
+      let nz = ((sy - offY) / scale - halfD) / room.depth_ft + 0.5;
+      nx = Math.max(0, Math.min(1, nx));
+      nz = Math.max(0, Math.min(1, nz));
+      return { x: snapValue(nx), z: snapValue(nz) };
+    }
+
+    function draw2DScene() {
+      if (!ctx2d || !canvas2d) return;
+      ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+
+      const room = ROOM_DIMS[currentRoom];
+      const { scale, offX, offY } = get2DTransform();
+      const halfW = room.width_ft / 2;
+      const halfD = room.depth_ft / 2;
+
+      // Room floor
+      ctx2d.fillStyle = '#1f242b';
+      ctx2d.fillRect(offX, offY, room.width_ft * scale, room.depth_ft * scale);
+
+      // Grid
+      if (snapEnabled) {
+        ctx2d.strokeStyle = '#334155';
+        ctx2d.lineWidth = 1;
+        const step = GRID_STEP * room.width_ft * scale;
+        for (let x = offX; x <= offX + room.width_ft * scale; x += step) {
+          ctx2d.beginPath();
+          ctx2d.moveTo(x, offY);
+          ctx2d.lineTo(x, offY + room.depth_ft * scale);
+          ctx2d.stroke();
+        }
+        const stepZ = GRID_STEP * room.depth_ft * scale;
+        for (let y = offY; y <= offY + room.depth_ft * scale; y += stepZ) {
+          ctx2d.beginPath();
+          ctx2d.moveTo(offX, y);
+          ctx2d.lineTo(offX + room.width_ft * scale, y);
+          ctx2d.stroke();
+        }
+      }
+
+      // TV wall indicator (top in 2D = negative z)
+      ctx2d.strokeStyle = '#6b7280';
+      ctx2d.lineWidth = 4;
+      ctx2d.strokeRect(offX + room.width_ft * scale * 0.3, offY, room.width_ft * scale * 0.4, 6);
+
+      ctx2d.fillStyle = '#9ca3af';
+      ctx2d.font = '11px Inter';
+      ctx2d.fillText('TV Wall', offX + room.width_ft * scale * 0.35, offY + 18);
+
+      // Objects
+      const roomData = modelData.rooms[currentRoom] || { objects: [] };
+      (roomData.objects || []).forEach(obj => {
+        if (!showLayers[obj.type]) return;
+
+        const { x, y } = worldTo2D((obj.x - 0.5) * room.width_ft, (obj.z - 0.5) * room.depth_ft);
+
+        ctx2d.save();
+        ctx2d.translate(x, y);
+
+        let w = 28, h = 18;
+        let color = '#64748b';
+
+        if (obj.type === 'light') {
+          ctx2d.fillStyle = obj.subtype === 'tv-backlight' ? '#60a5fa' : (obj.subtype === 'lamp' ? '#f59e0b' : '#e2e8f0');
+          ctx2d.beginPath();
+          ctx2d.arc(0, 0, 9, 0, Math.PI * 2);
+          ctx2d.fill();
+          if (obj.on !== false) {
+            ctx2d.fillStyle = 'rgba(74,222,128,0.6)';
+            ctx2d.beginPath();
+            ctx2d.arc(0, 0, 14, 0, Math.PI * 2);
+            ctx2d.fill();
+          }
+        } else if (obj.type === 'furniture') {
+          if (obj.subtype === 'couch') { w = 52; h = 26; color = '#475569'; }
+          else if (obj.subtype === 'bed') { w = 36; h = 62; color = '#334155'; }
+          else { w = 38; h = 24; color = '#78350f'; }
+          ctx2d.fillStyle = color;
+          ctx2d.fillRect(-w/2, -h/2, w, h);
+          ctx2d.strokeStyle = '#1e2937';
+          ctx2d.strokeRect(-w/2, -h/2, w, h);
+        } else if (obj.type === 'tv') {
+          w = 42; h = 12; color = '#1f2937';
+          ctx2d.fillStyle = color;
+          ctx2d.fillRect(-w/2, -h/2, w, h);
+          ctx2d.fillStyle = '#0f172a';
+          ctx2d.fillRect(-w/2 + 3, -h/2 + 2, w-6, h-4);
+        }
+
+        ctx2d.fillStyle = '#e2e8f0';
+        ctx2d.font = '10px Inter';
+        const short = (obj.name || obj.subtype).slice(0, 8);
+        ctx2d.fillText(short, -w/2, h/2 + 12);
+
+        if (selectedId === obj.id) {
+          ctx2d.strokeStyle = '#4ade80';
+          ctx2d.lineWidth = 2;
+          ctx2d.strokeRect(-w/2 - 3, -h/2 - 3, w + 6, h + 6);
+        }
+
+        // Height indicator
+        const hLabel = obj.height === 'floor' ? 'F' : obj.height === 'tv' ? 'T' : 'C';
+        ctx2d.fillStyle = '#94a3b8';
+        ctx2d.fillText(hLabel, w/2 + 4, -h/2 + 4);
+
+        ctx2d.restore();
+      });
+    }
+
+    let _2dDraggingId = null;
+
+    function on2DMouseDown(e) {
+      if (currentView !== '2d') return;
+      const rect = canvas2d.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      if (pendingPlace) {
+        const norm = screenToNorm(sx, sy);
+        placeObjectAt(norm.x, norm.z);
+        return;
+      }
+
+      const roomData = modelData.rooms[currentRoom] || { objects: [] };
+      let hitId = null;
+      for (let obj of roomData.objects || []) {
+        const pos = worldTo2D((obj.x-0.5)*ROOM_DIMS[currentRoom].width_ft, (obj.z-0.5)*ROOM_DIMS[currentRoom].depth_ft);
+        const dist = Math.hypot(sx - pos.x, sy - pos.y);
+        if (dist < 22) {
+          hitId = obj.id;
+          break;
+        }
+      }
+
+      if (hitId) {
+        _2dDraggingId = hitId;
+        selectObject(hitId);
+      }
+    }
+
+    function on2DMouseMove(e) {
+      if (currentView !== '2d') return;
+      const rect = canvas2d.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      if (pendingPlace) {
+        // live preview could be drawn here if desired
+        return;
+      }
+
+      if (_2dDraggingId) {
+        const norm = screenToNorm(sx, sy);
+        const room = modelData.rooms[currentRoom];
+        const obj = room.objects.find(o => o.id === _2dDraggingId);
+        if (obj) {
+          obj.x = snapValue(norm.x);
+          obj.z = snapValue(norm.z);
+          draw2DScene();
+          // live sync to 3D if possible
+          const entry = objectMeshes[_2dDraggingId];
+          if (entry && entry.mesh) {
+            const { w, d } = getRoomSize();
+            entry.mesh.position.x = (obj.x - 0.5) * w;
+            entry.mesh.position.z = (obj.z - 0.5) * d;
+          }
+        }
+      }
+    }
+
+    function on2DMouseUp(e) {
+      if (_2dDraggingId) {
+        saveModel();
+      }
+      _2dDraggingId = null;
+    }
+
+    function on2DClick(e) {
+      if (currentView !== '2d') return;
+      if (pendingPlace) return; // handled in mousedown
+
+      const rect = canvas2d.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      const roomData = modelData.rooms[currentRoom] || { objects: [] };
+      for (let obj of roomData.objects || []) {
+        const pos = worldTo2D((obj.x-0.5)*ROOM_DIMS[currentRoom].width_ft, (obj.z-0.5)*ROOM_DIMS[currentRoom].depth_ft);
+        const dist = Math.hypot(sx - pos.x, sy - pos.y);
+        if (dist < 22) {
+          selectObject(obj.id);
+          return;
+        }
+      }
+      clearSelection();
+    }
+
+    function placeObjectAt(nx, nz) {
+      if (!pendingPlace) return;
+      const room = modelData.rooms[currentRoom];
+      if (!room.objects) room.objects = [];
+
+      const newObj = {
+        id: 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+        type: pendingPlace.type,
+        subtype: pendingPlace.subtype,
+        name: pendingPlace.label,
+        x: nx,
+        z: nz,
+        height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' : (pendingPlace.type === 'tv') ? 'tv' : 'floor'
+      };
+
+      if (pendingPlace.type === 'light') {
+        newObj.on = true;
+        newObj.brightness = 70;
+        newObj.color_temp = 4000;
+      }
+
+      room.objects.push(newObj);
+      if (currentView === '3d') {
+        createOrUpdateMesh(newObj);
+      }
+      selectObject(newObj.id);
+      saveModel();
+      draw2DScene();
+      clearPendingPlace();
+    }
+
+    function switchView(view) {
+      currentView = view;
+      const wrap3d = document.getElementById('canvas-wrap');
+      const wrap2d = document.getElementById('2d-wrap');
+      const controls3d = document.getElementById('3d-controls');
+      const help = document.getElementById('view-help');
+
+      document.getElementById('view-3d-btn').classList.toggle('active', view === '3d');
+      document.getElementById('view-2d-btn').classList.toggle('active', view === '2d');
+
+      if (view === '3d') {
+        wrap3d.style.display = 'block';
+        wrap2d.style.display = 'none';
+        if (controls3d) controls3d.style.display = 'flex';
+        if (help) help.textContent = 'Drag objects • Click palette item then floor to place • Wheel to zoom';
+        if (floorHighlight) floorHighlight.visible = false;
+      } else {
+        wrap3d.style.display = 'none';
+        wrap2d.style.display = 'block';
+        if (controls3d) controls3d.style.display = 'none';
+        if (help) help.textContent = 'Click type then click to place • Drag objects • Grid snapping enabled';
+        draw2DScene();
+      }
+    }
+
+    // === Room management ===
     function clearCurrentRoom() {
       const room = modelData.rooms[currentRoom];
       if (!room) return;
       room.objects = [];
-      buildRoomScene();
+      if (currentView === '3d') {
+        buildRoomScene();
+      } else {
+        draw2DScene();
+      }
       clearSelection();
       clearPendingPlace();
-      if (floorHighlight) floorHighlight.visible = false;
       saveModel();
     }
 
@@ -1311,9 +1758,13 @@
       } else {
         room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling', on: true, brightness: 70, color_temp: 4000 });
       }
-      buildRoomScene();
+
+      if (currentView === '3d') {
+        buildRoomScene();
+      } else {
+        draw2DScene();
+      }
       clearPendingPlace();
-      if (floorHighlight) floorHighlight.visible = false;
       saveModel();
     }
 
@@ -1323,12 +1774,24 @@
       updateRoomHeader();
 
       initThree();
+      init2DCanvas();
       buildRoomScene();
       renderPalette();
       renderInspector();
+      initLayerToggles();
 
+      // Snap toggle
+      const snapCb = document.getElementById('snap-toggle');
+      if (snapCb) {
+        snapCb.onchange = () => {
+          snapEnabled = snapCb.checked;
+          if (currentView === '2d') draw2DScene();
+        };
+      }
+
+      // Gentle camera hint
       setTimeout(() => {
-        if (camera) {
+        if (camera && currentView === '3d') {
           const startY = camera.position.y;
           camera.position.y = startY + 4;
           setTimeout(() => { if (camera) camera.position.y = startY; }, 420);
@@ -1338,6 +1801,9 @@
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') saveModel();
       });
+
+      // Default to 3D
+      switchView('3d');
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
