@@ -460,6 +460,10 @@
           const r = modelData.rooms[rid];
           if (!r.objects) r.objects = [];
           if (!r.dims) r.dims = { width_ft: ROOM_DIMS[rid].width_ft, depth_ft: ROOM_DIMS[rid].depth_ft };
+          (r.objects || []).forEach(o => {
+            if (typeof o.scale === 'undefined') o.scale = 1;
+            if (typeof o.rotation === 'undefined') o.rotation = 0;
+          });
         }
       });
       currentRoom = modelData.selected_room || 'game-room';
@@ -960,11 +964,15 @@
         applyLightProperties(entry, obj);
       }
 
-      root.scale.set(0.35, 0.35, 0.35);
+      // Apply user-controlled scale (uniform) and rotation (for L-shapes etc). Pop animation respects base scale.
+      const baseS = obj.scale || 1;
+      root.scale.set(baseS * 0.3, baseS * 0.3, baseS * 0.3);
+      root.rotation.y = ((obj.rotation || 0) * Math.PI / 180);
+
       setTimeout(() => {
         if (root && root.scale) {
-          root.scale.set(1.12, 1.12, 1.12);
-          setTimeout(() => { if (root && root.scale) root.scale.set(1, 1, 1); }, 180);
+          root.scale.set(baseS * 1.12, baseS * 1.12, baseS * 1.12);
+          setTimeout(() => { if (root && root.scale) root.scale.set(baseS, baseS, baseS); }, 180);
         }
       }, 40);
 
@@ -980,9 +988,19 @@
       const wz = (obj.z - 0.5) * d;
       const wy = HEIGHT_Y[obj.height] || 0.18;
       entry.mesh.position.set(wx, wy, wz);
+      applyObjectTransform(obj);
       if (currentView === '3d' && renderer) {
         renderer.render(scene, camera);
       }
+    }
+
+    function applyObjectTransform(obj) {
+      const entry = objectMeshes[obj && obj.id];
+      if (!entry || !entry.mesh) return;
+      const root = entry.mesh;
+      const s = obj.scale || 1;
+      root.scale.set(s, s, s);
+      root.rotation.y = ((obj.rotation || 0) * Math.PI / 180);
     }
 
     function selectObject(id) {
@@ -998,8 +1016,9 @@
       }
       const m = entry.mesh;
       if (m) {
-        m.scale.set(1.06, 1.06, 1.06);
-        setTimeout(() => { if (m && m.scale) m.scale.set(1, 1, 1); }, 280);
+        const bs = entry.data.scale || 1;
+        m.scale.set(bs * 1.06, bs * 1.06, bs * 1.06);
+        setTimeout(() => { if (m && m.scale) m.scale.set(bs, bs, bs); }, 280);
       }
       renderInspector();
       forceRender3D();
@@ -1008,7 +1027,8 @@
     function clearSelection() {
       if (selectedId && objectMeshes[selectedId]) {
         const m = objectMeshes[selectedId].mesh;
-        if (m) m.scale.set(1, 1, 1);
+        const bs = objectMeshes[selectedId].data && objectMeshes[selectedId].data.scale || 1;
+        if (m) m.scale.set(bs, bs, bs);
       }
       selectedId = null;
       renderInspector();
@@ -1041,8 +1061,9 @@
       const entry = objectMeshes[id];
       if (entry && entry.mesh) {
         const m = entry.mesh;
-        m.scale.set(1.03, 0.92, 1.03);
-        setTimeout(() => { if (m && m.scale) m.scale.set(1, 1, 1); }, 160);
+        const bs = obj.scale || 1;
+        m.scale.set(bs * 1.03, bs * 0.92, bs * 1.03);
+        setTimeout(() => { if (m && m.scale) m.scale.set(bs, bs, bs); }, 160);
       }
       saveModel();
       renderInspector();
@@ -1086,6 +1107,18 @@
             <div class="flex gap-x-1" id="height-group">
               ${heights.map(h => `
                 <button data-h="${h.v}" class="height-btn flex-1 ${obj.height === h.v ? 'active' : ''}">${h.label}</button>
+              `).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-400 mb-1">Scale <span id="scale-val">${(obj.scale || 1).toFixed(2)}</span></div>
+            <input type="range" id="obj-scale" min="0.3" max="3.5" step="0.05" value="${obj.scale || 1}" class="w-full accent-emerald-500">
+          </div>
+          <div class="mt-1">
+            <div class="text-xs text-zinc-400 mb-1">Rotation</div>
+            <div class="flex gap-1" id="rot-group">
+              ${[0,90,180,270].map(r => `
+                <button data-rot="${r}" class="height-btn flex-1 ${(obj.rotation || 0) === r ? 'active' : ''}">${r}°</button>
               `).join('')}
             </div>
           </div>
@@ -1133,6 +1166,32 @@
 
       container.querySelectorAll('#height-group button').forEach(btn => {
         btn.onclick = () => setObjectHeight(selectedId, btn.dataset.h);
+      });
+
+      // Scale slider (live preview + auto save)
+      const scaleSlider = container.querySelector('#obj-scale');
+      const scaleVal = container.querySelector('#scale-val');
+      if (scaleSlider) {
+        scaleSlider.oninput = () => {
+          obj.scale = parseFloat(scaleSlider.value);
+          if (scaleVal) scaleVal.textContent = obj.scale.toFixed(2);
+          applyObjectTransform(obj);
+          forceRender3D();
+          scheduleSave();
+          // keep 2D in sync visually
+          draw2DScene();
+        };
+      }
+
+      // Rotation buttons (90° snaps for L-shaped couches/desks)
+      container.querySelectorAll('#rot-group button').forEach(btn => {
+        btn.onclick = () => {
+          obj.rotation = parseInt(btn.dataset.rot, 10);
+          applyObjectTransform(obj);
+          saveModel();
+          renderInspector(); // refresh active state
+          draw2DScene();
+        };
       });
 
       const del = container.querySelector('#delete-btn');
@@ -1271,11 +1330,12 @@
 
         const entry = objectMeshes[hitObject];
         if (entry && entry.mesh && floorHighlight) {
-          floorHighlight.position.set(entry.mesh.position.x, 0.02, entry.mesh.position.z);
+          floorHighlight.position.set(entry.mesh.position.x, 0.015, entry.mesh.position.z);
           floorHighlight.visible = true;
           const wy = entry.mesh.position.y;
           entry.mesh.position.y = wy + 0.65;
-          entry.mesh.scale.set(1.09, 1.09, 1.09);
+          const bs = entry.data && entry.data.scale || 1;
+          entry.mesh.scale.set(bs * 1.09, bs * 1.09, bs * 1.09);
         }
         return;
       }
@@ -1385,7 +1445,9 @@
             x: nx,
             z: nz,
             height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
-                    (pendingPlace.type === 'tv') ? 'tv' : 'floor'
+                    (pendingPlace.type === 'tv') ? 'tv' : 'floor',
+            scale: 1,
+            rotation: 0
           };
 
           if (pendingPlace.type === 'light') {
@@ -1423,7 +1485,8 @@
         if (entry && entry.mesh && obj) {
           const wy = HEIGHT_Y[obj.height] || 0.18;
           entry.mesh.position.y = wy;
-          entry.mesh.scale.set(1, 1, 1);
+          const bs = obj.scale || 1;
+          entry.mesh.scale.set(bs, bs, bs);
         }
         if (floorHighlight) floorHighlight.visible = false;
         saveModel();
@@ -1489,7 +1552,9 @@
             x: nx,
             z: nz,
             height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
-                    (pendingPlace.type === 'tv') ? 'tv' : 'floor'
+                    (pendingPlace.type === 'tv') ? 'tv' : 'floor',
+            scale: 1,
+            rotation: 0
           };
 
           if (pendingPlace.type === 'light') {
@@ -1636,30 +1701,31 @@
         ctx2d.save();
         ctx2d.translate(x, y);
 
+        const s = obj.scale || 1;
         let w = 28, h = 18;
         let color = '#64748b';
 
         if (obj.type === 'light') {
           ctx2d.fillStyle = obj.subtype === 'tv-backlight' ? '#60a5fa' : (obj.subtype === 'lamp' ? '#f59e0b' : '#e2e8f0');
           ctx2d.beginPath();
-          ctx2d.arc(0, 0, 9, 0, Math.PI * 2);
+          ctx2d.arc(0, 0, 9 * s, 0, Math.PI * 2);
           ctx2d.fill();
           if (obj.on !== false) {
             ctx2d.fillStyle = 'rgba(74,222,128,0.6)';
             ctx2d.beginPath();
-            ctx2d.arc(0, 0, 14, 0, Math.PI * 2);
+            ctx2d.arc(0, 0, 14 * s, 0, Math.PI * 2);
             ctx2d.fill();
           }
         } else if (obj.type === 'furniture') {
-          if (obj.subtype === 'couch') { w = 52; h = 26; color = '#475569'; }
-          else if (obj.subtype === 'bed') { w = 36; h = 62; color = '#334155'; }
-          else { w = 38; h = 24; color = '#78350f'; }
+          if (obj.subtype === 'couch') { w = 52 * s; h = 26 * s; color = '#475569'; }
+          else if (obj.subtype === 'bed') { w = 36 * s; h = 62 * s; color = '#334155'; }
+          else { w = 38 * s; h = 24 * s; color = '#78350f'; }
           ctx2d.fillStyle = color;
           ctx2d.fillRect(-w/2, -h/2, w, h);
           ctx2d.strokeStyle = '#1e2937';
           ctx2d.strokeRect(-w/2, -h/2, w, h);
         } else if (obj.type === 'tv') {
-          w = 42; h = 12; color = '#1f2937';
+          w = 42 * s; h = 12 * s; color = '#1f2937';
           ctx2d.fillStyle = color;
           ctx2d.fillRect(-w/2, -h/2, w, h);
           ctx2d.fillStyle = '#0f172a';
@@ -1705,7 +1771,8 @@
       for (let obj of roomData.objects || []) {
         const pos = worldTo2D((obj.x-0.5)*ROOM_DIMS[currentRoom].width_ft, (obj.z-0.5)*ROOM_DIMS[currentRoom].depth_ft);
         const dist = Math.hypot(sx - pos.x, sy - pos.y);
-        if (dist < 22) {
+        const hitR = 22 * (obj.scale || 1);
+        if (dist < hitR) {
           hitId = obj.id;
           break;
         }
@@ -1742,6 +1809,7 @@
             const { w, d } = getRoomSize();
             entry.mesh.position.x = (obj.x - 0.5) * w;
             entry.mesh.position.z = (obj.z - 0.5) * d;
+            applyObjectTransform(obj);
           }
         }
       }
@@ -1786,7 +1854,9 @@
         name: pendingPlace.label,
         x: nx,
         z: nz,
-        height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' : (pendingPlace.type === 'tv') ? 'tv' : 'floor'
+        height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' : (pendingPlace.type === 'tv') ? 'tv' : 'floor',
+        scale: 1,
+        rotation: 0
       };
 
       if (pendingPlace.type === 'light') {
@@ -1872,21 +1942,21 @@
       room.objects = [];
 
       if (currentRoom === 'game-room') {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'tv-backlight', name: 'T.V Lights', x: 0.5, z: 0.08, height: 'tv', on: true, brightness: 85, color_temp: 6500 });
-        room.objects.push({ id: 's2', type: 'furniture', subtype: 'couch', name: 'Sectional', x: 0.33, z: 0.55, height: 'floor' });
-        room.objects.push({ id: 's3', type: 'light', subtype: 'lamp', name: 'Desk Lamp', x: 0.72, z: 0.28, height: 'floor', on: true, brightness: 65, color_temp: 2700 });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'tv-backlight', name: 'T.V Lights', x: 0.5, z: 0.08, height: 'tv', on: true, brightness: 85, color_temp: 6500, scale: 1, rotation: 0 });
+        room.objects.push({ id: 's2', type: 'furniture', subtype: 'couch', name: 'Sectional', x: 0.33, z: 0.55, height: 'floor', scale: 1, rotation: 0 });
+        room.objects.push({ id: 's3', type: 'light', subtype: 'lamp', name: 'Desk Lamp', x: 0.72, z: 0.28, height: 'floor', on: true, brightness: 65, color_temp: 2700, scale: 1, rotation: 0 });
       } else if (currentRoom === 'living-room') {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'lamp', name: 'Floor Lamp', x: 0.2, z: 0.38, height: 'floor', on: true, brightness: 70, color_temp: 2700 });
-        room.objects.push({ id: 's2', type: 'tv', subtype: 'tv', name: 'TV', x: 0.5, z: 0.07, height: 'tv' });
-        room.objects.push({ id: 's3', type: 'furniture', subtype: 'couch', name: 'Sofa', x: 0.48, z: 0.42, height: 'floor' });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'lamp', name: 'Floor Lamp', x: 0.2, z: 0.38, height: 'floor', on: true, brightness: 70, color_temp: 2700, scale: 1, rotation: 0 });
+        room.objects.push({ id: 's2', type: 'tv', subtype: 'tv', name: 'TV', x: 0.5, z: 0.07, height: 'tv', scale: 1, rotation: 0 });
+        room.objects.push({ id: 's3', type: 'furniture', subtype: 'couch', name: 'Sofa', x: 0.48, z: 0.42, height: 'floor', scale: 1, rotation: 90 });
       } else if (currentRoom === 'master-bedroom') {
-        room.objects.push({ id: 's1', type: 'furniture', subtype: 'bed', name: 'Bed', x: 0.5, z: 0.62, height: 'floor' });
-        room.objects.push({ id: 's2', type: 'light', subtype: 'lamp', name: 'Bedside', x: 0.22, z: 0.78, height: 'floor', on: true, brightness: 50, color_temp: 2700 });
+        room.objects.push({ id: 's1', type: 'furniture', subtype: 'bed', name: 'Bed', x: 0.5, z: 0.62, height: 'floor', scale: 1, rotation: 0 });
+        room.objects.push({ id: 's2', type: 'light', subtype: 'lamp', name: 'Bedside', x: 0.22, z: 0.78, height: 'floor', on: true, brightness: 50, color_temp: 2700, scale: 1, rotation: 0 });
       } else if (currentRoom === 'kitchen') {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Recessed', x: 0.5, z: 0.28, height: 'ceiling', on: true, brightness: 90, color_temp: 4000 });
-        room.objects.push({ id: 's2', type: 'furniture', subtype: 'table', name: 'Island', x: 0.5, z: 0.55, height: 'floor' });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Recessed', x: 0.5, z: 0.28, height: 'ceiling', on: true, brightness: 90, color_temp: 4000, scale: 1, rotation: 0 });
+        room.objects.push({ id: 's2', type: 'furniture', subtype: 'table', name: 'Island', x: 0.5, z: 0.55, height: 'floor', scale: 1, rotation: 0 });
       } else {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling', on: true, brightness: 70, color_temp: 4000 });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling', on: true, brightness: 70, color_temp: 4000, scale: 1, rotation: 0 });
       }
 
       if (currentView === '3d') {
