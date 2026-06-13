@@ -193,7 +193,7 @@
           <h1 class="text-3xl font-semibold tracking-tighter">Home Model</h1>
           <div class="px-2.5 py-0.5 text-[10px] rounded-full border border-emerald-900 bg-emerald-950 text-emerald-400 font-mono">3D + 2D • PRECISE</div>
         </div>
-        <p class="text-zinc-400 mt-1">Accurate digital twin. Easy placement inspired by professional planners like Roomstyler.</p>
+        <p class="text-zinc-400 mt-1">Accurate digital twin. Easy placement inspired by professional planners like Roomstyler. 3D is primary.</p>
       </div>
       <div class="hidden md:block text-right">
         <div class="text-[10px] text-emerald-400/70 font-mono">/model • server persisted</div>
@@ -226,8 +226,8 @@
           <!-- View Switcher -->
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-x-2">
-              <button id="view-3d-btn" class="view-tab active" onclick="switchView('3d')">3D View</button>
-              <button id="view-2d-btn" class="view-tab" onclick="switchView('2d')">2D Top-Down</button>
+              <button id="view-3d-btn" class="view-tab active" onclick="switchView('3d')">3D View (Primary)</button>
+              <button id="view-2d-btn" class="view-tab" onclick="switchView('2d')">2D Top-Down (Alternative)</button>
               <div class="ml-3 flex items-center gap-x-1 text-xs">
                 <label class="flex items-center gap-x-1 cursor-pointer">
                   <input type="checkbox" id="snap-toggle" checked class="accent-emerald-500">
@@ -261,7 +261,7 @@
           </div>
 
           <div class="mt-3 flex items-center justify-between text-[10px] three-legend">
-            <div id="view-help">Drag objects • Click palette item then floor to place • Use 2D view for precision</div>
+            <div id="view-help">3D primary: Drag objects (select first), place via palette. 2D for precision.</div>
             <div class="hidden md:block">Wheel = zoom (3D) • Click = select</div>
           </div>
         </div>
@@ -291,7 +291,7 @@
             <div id="palette-tvs" class="grid grid-cols-2 gap-1.5"></div>
           </div>
 
-          <div class="mt-2 text-[10px] text-zinc-500">Select a type, then click the floor (3D or 2D) to place. Green preview shows snapped position.</div>
+          <div class="mt-2 text-[10px] text-zinc-500">Select type → move mouse for live preview (green dot) → release to place in 3D or 2D. Snaps if enabled.</div>
         </div>
 
         <!-- Inspector -->
@@ -320,24 +320,24 @@
       <div class="card p-4">
         <div class="font-medium mb-1 text-emerald-400/90">Height Levels</div>
         <div class="flex gap-x-4 text-zinc-400">
-          <div><span class="inline-block w-2 h-2 rounded-full bg-sky-400 align-middle mr-1"></span> Floor</div>
-          <div><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 align-middle mr-1"></span> TV Level</div>
-          <div><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle mr-1"></span> Ceiling</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-sky-400 align-middle mr-1"></span> Floor — low / base</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 align-middle mr-1"></span> TV Level — screen mid</div>
+          <div><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle mr-1"></span> Ceiling — above / recessed</div>
         </div>
       </div>
       <div class="card p-4">
-        <div class="font-medium mb-1 text-emerald-400/90">Tips</div>
-        <div class="text-zinc-400">Use 2D view for fast precise layout. Enable snapping for perfect alignment. Lights cast real illumination in 3D.</div>
+        <div class="font-medium mb-1 text-emerald-400/90">Tips (3D Primary)</div>
+        <div class="text-zinc-400">In 3D: Select object to drag (camera orbit on empty). Palette → live green preview → place on release. 2D for precise top-down work. Syncs both ways.</div>
       </div>
     </div>
 
     <div class="mt-4 text-center text-[10px] text-zinc-500">
-      Professional room-planner usability in a calm, spatial 3D twin. Future: Ruuvi sensors, full-house view, direct HA control.
+      3D view is the stable primary experience. 2D is secondary for precision. All changes save to server. Real dimensions + height levels + real lighting.
     </div>
   </main>
 
   <footer class="max-w-[1120px] mx-auto px-6 pb-8 text-xs text-zinc-500 text-center border-t border-zinc-800 pt-4 mt-2">
-    HENDERBURGH • Precise 3D + 2D Model • Real dimensions
+    HENDERBURGH • 3D Spatial Model (Primary) • Real dimensions • Calm &amp; precise
   </footer>
 
   <script>
@@ -496,6 +496,8 @@
           renderRoomSelector();
           if (currentView === '3d') {
             buildRoomScene();
+            resize3D();
+            renderer.render(scene, camera);
           } else {
             draw2DScene();
           }
@@ -525,6 +527,7 @@
           btn.classList.toggle('active', showLayers[type]);
           if (currentView === '3d') {
             refresh3DVisibility();
+            renderer.render(scene, camera);
           } else {
             draw2DScene();
           }
@@ -566,7 +569,7 @@
       applyLightVisual(entry.mesh, obj);
     }
 
-    // === 3D Scene (largely unchanged from previous solid version) ===
+    // === 3D Scene ===
     function initThree() {
       canvas = document.getElementById('model-canvas');
       const wrap = document.getElementById('canvas-wrap');
@@ -608,11 +611,7 @@
       scene.add(floorHighlight);
 
       function onResize() {
-        const w = Math.max(100, wrap.clientWidth || 800);
-        const h = Math.max(100, wrap.clientHeight || 500);
-        renderer.setSize(w, h);
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
+        resize3D();
         renderer.render(scene, camera);  // force a render after resize
       }
       window.addEventListener('resize', onResize);
@@ -647,6 +646,16 @@
     function animate() {
       requestAnimationFrame(animate);
       renderer.render(scene, camera);
+    }
+
+    function resize3D() {
+      const wrap = document.getElementById('canvas-wrap');
+      if (!wrap || !renderer || !camera) return;
+      const w = Math.max(100, wrap.clientWidth || 800);
+      const h = Math.max(100, wrap.clientHeight || 500);
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
     }
 
     function getRoomSize() {
@@ -1717,6 +1726,8 @@
       room.objects.push(newObj);
       if (currentView === '3d') {
         createOrUpdateMesh(newObj);
+        resize3D();
+        renderer.render(scene, camera);
       }
       selectObject(newObj.id);
       saveModel();
@@ -1738,25 +1749,19 @@
         wrap3d.style.display = 'block';
         wrap2d.style.display = 'none';
         if (controls3d) controls3d.style.display = 'flex';
-        if (help) help.textContent = 'Drag objects • Click palette item then floor to place • Wheel to zoom';
+        if (help) help.textContent = '3D primary: Select object to drag, palette for place (pointerup).';
         if (floorHighlight) floorHighlight.visible = false;
 
         // Force size and render when showing 3D (handles cases where client size was 0 when hidden)
         setTimeout(() => {
-          if (renderer && wrap3d) {
-            const w = Math.max(100, wrap3d.clientWidth || 800);
-            const h = Math.max(100, wrap3d.clientHeight || 500);
-            renderer.setSize(w, h);
-            camera.aspect = w / h;
-            camera.updateProjectionMatrix();
-            renderer.render(scene, camera);
-          }
+          resize3D();
+          renderer.render(scene, camera);
         }, 20);
       } else {
         wrap3d.style.display = 'none';
         wrap2d.style.display = 'block';
         if (controls3d) controls3d.style.display = 'none';
-        if (help) help.textContent = 'Click type then click to place • Drag objects • Grid snapping enabled';
+        if (help) help.textContent = '2D alternative: Click type then floor (or drag) for precise placement.';
 
         // Force 2D canvas size and draw when switching
         setTimeout(() => {
@@ -1780,6 +1785,8 @@
       room.objects = [];
       if (currentView === '3d') {
         buildRoomScene();
+        resize3D();
+        renderer.render(scene, camera);
       } else {
         draw2DScene();
       }
@@ -1813,6 +1820,8 @@
 
       if (currentView === '3d') {
         buildRoomScene();
+        resize3D();
+        renderer.render(scene, camera);
       } else {
         draw2DScene();
       }
@@ -1843,14 +1852,7 @@
       // Force initial 3D size with safe defaults (avoids 0-size black render)
       // Build scene and render after layout is likely ready
       setTimeout(() => {
-        const wrap3d = document.getElementById('canvas-wrap');
-        if (wrap3d && renderer) {
-          const w = Math.max(100, wrap3d.clientWidth || 800);
-          const h = Math.max(100, wrap3d.clientHeight || 500);
-          renderer.setSize(w, h);
-          camera.aspect = w / h;
-          camera.updateProjectionMatrix();
-        }
+        resize3D();
 
         buildRoomScene();
 
