@@ -134,62 +134,55 @@
       border: 1px solid #3f3f46;
     }
 
-    /* TV Sync premium visual interface (clean, purposeful, production quality; does not affect any existing cards or sync groups) */
-    .tv-screen-wrapper { max-width: 620px; margin: 0 auto; }
-    .tv-bezel {
-      background: #111113; border: 12px solid #1f2937; border-radius: 18px; padding: 14px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3), inset 0 0 0 1px #374151;
-      position: relative; transition: box-shadow .2s ease;
+    /* TV Sync premium spatial whole-house maps (scaled real dims, position+height, does not affect cards/sync groups) */
+    .tv-wholehouse { max-width: 720px; margin: 0 auto; }
+    .tv-room-selector { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tv-room-btn { background: #27272a; border: 1px solid #3f3f46; padding: 4px 10px; border-radius: 999px; font-size: 12px; cursor: pointer; }
+    .tv-room-btn.active { background: #052e16; border-color: #4ade80; color: #4ade80; }
+    .tv-map-wrap { margin: 8px auto; }
+    .tv-map-label { font-size: 11px; color: #71717a; margin-bottom: 4px; text-align: center; }
+    .tv-map {
+      background: #0a0a0b; border: 2px solid #3f3f46; border-radius: 4px; position: relative; box-shadow: inset 0 0 30px rgba(0,0,0,0.6), 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      overflow: hidden; margin: 0 auto;
     }
-    .tv-screen { background: #0a0a0b; border-radius: 8px; padding: 8px; border: 1px solid #27272a; }
-    .tv-screen-inner { min-height: 220px; background: linear-gradient(145deg, #111113 0%, #0a0a0b 100%); border-radius: 4px; position: relative; overflow: hidden; }
-    .tv-zones-grid { display: grid; grid-template-columns: 78px 1fr 78px; grid-template-rows: 42px 1fr 42px; gap: 4px; padding: 6px; height: 100%; }
-    .tv-zones-grid .zone-top { grid-column: 1 / -1; }
-    .tv-zones-grid .zone-bottom { grid-column: 1 / -1; }
-    .tv-zones-grid .zone-corners { grid-column: 1 / -1; font-size: 9px; }
-    .tv-zones-grid .zone-surround { grid-column: 1 / -1; background: rgba(16,185,129,0.06); border-style: solid; }
-    .tv-zone {
-      border: 1px dashed #3f3f46; border-radius: 6px; background: rgba(24,24,27,0.6); display: flex; flex-direction: column; font-size: 10px; padding: 4px; transition: all .1s ease; min-height: 38px; cursor: pointer;
+    .tv-map.drop-over { border-color: #4ade80; box-shadow: 0 0 0 2px rgba(74,222,128,0.3); }
+    .tv-map::after {
+      content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(63,63,70,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(63,63,70,0.12) 1px, transparent 1px);
+      background-size: 18px 18px; pointer-events: none;
     }
-    .tv-zone:hover, .tv-zone.drag-over { border-color: #4ade80; background: rgba(16,185,129,0.08); }
-    .tv-zone .zone-header { font-size: 9px; color: #71717a; display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
-    .tv-zone .zone-pills { display: flex; flex-wrap: wrap; gap: 3px; flex: 1; overflow: hidden; }
-    .tv-zone .zone-empty { font-size: 9px; color: #52525b; align-self: center; margin: auto; }
-    .tv-pill {
-      background: #27272a; color: #e4e4e7; font-size: 9px; padding: 1px 5px; border-radius: 999px; display: inline-flex; align-items: center; white-space: nowrap; border: 1px solid #3f3f46; cursor: grab;
+    .tv-tv-symbol {
+      position: absolute; height: 16px; background: #1f2937; border: 1px solid #4b5563; border-radius: 2px; font-size: 8px; display: flex; align-items: center; justify-content: center; color: #9ca3af; z-index: 1; letter-spacing: 0.5px;
     }
-    .tv-pill.leader-pill { background: #052e16; border-color: #4ade80; }
-    .tv-pill:active { cursor: grabbing; }
-    .tv-center-label { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 10px; color: #3f3f46; letter-spacing: 1px; pointer-events: none; }
-    .tv-stand { height: 18px; width: 64px; background: #1f2937; margin: 4px auto 0; border-radius: 0 0 6px 6px; }
-    .tv-leader { font-size: 12px; background: #052e16; border: 1px solid #166534; padding: 6px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-    .tv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .tv-chip {
-      font-size: 12px; background: #27272a; border: 1px solid #3f3f46; padding: 4px 10px; border-radius: 999px; cursor: grab; user-select: none; display: inline-flex; align-items: center;
-      transition: transform .1s ease, border-color .1s;
+    .tv-light-marker {
+      position: absolute; transform: translate(-50%, -50%); background: #27272a; border: 1px solid #4b5563; border-radius: 5px; padding: 1px 4px; font-size: 9px; min-width: 38px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.3); cursor: grab; user-select: none; z-index: 2;
+      transition: box-shadow .1s, transform .1s;
     }
-    .tv-chip:hover { border-color: #52525b; transform: translateY(-1px); }
-    .tv-chip.dragging { opacity: 0.5; }
-    .tv-chip.group-chip { background: #1f2937; border-color: #4b5563; }
-    .tv-chip.portable-special { border-color: #854d0e; background: #451a03; }
-    .tv-chip.leader-chip { border-color: #166534; }
-    .tv-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
-    .tv-mode-card { background: #18181b; border: 1px solid #3f3f46; border-radius: 12px; padding: 10px; cursor: pointer; transition: all .15s ease; }
-    .tv-mode-card.active { border-color: #4ade80; box-shadow: 0 0 0 1px rgba(74,222,128,0.3); background: #052e16; }
-    .tv-mode-card:hover:not(.active) { border-color: #52525b; }
-    .tv-settings { font-size: 10px; }
-    .tv-settings .setting-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
-    .tv-settings .setting-row label { width: 78px; color: #71717a; }
-    .tv-settings .setting-row input { flex: 1; }
-    .tv-settings .setting-row .val { width: 28px; text-align: right; color: #a1a1aa; font-variant-numeric: tabular-nums; }
+    .tv-light-marker:hover { box-shadow: 0 0 0 2px rgba(74,222,128,0.4); }
+    .tv-light-marker.leader { border-color: #4ade80; background: #052e16; }
+    .tv-light-marker.h-floor { border-left: 3px solid #60a5fa; }
+    .tv-light-marker.h-tv { border-left: 3px solid #4ade80; }
+    .tv-light-marker.h-above { border-left: 3px solid #f59e0b; }
+    .tv-light-marker .m-name { font-weight: 500; line-height: 1; }
+    .tv-light-marker .m-height { font-size: 7px; background: #1f2937; display: inline-block; padding: 0 2px; border-radius: 2px; margin-top: 1px; cursor: pointer; }
+    .tv-map-hint { font-size: 9px; color: #52525b; text-align: center; margin-top: 3px; }
+    .tv-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tv-chip { font-size: 11px; background: #27272a; border: 1px solid #3f3f46; padding: 3px 8px; border-radius: 999px; cursor: grab; display: inline-flex; align-items: center; }
+    .tv-chip.portable-special { border-color: #854d0e; }
+    .tv-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px; }
+    .tv-mode-card { background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; padding: 5px 6px; font-size: 10px; cursor: pointer; }
+    .tv-mode-card.active { border-color: #4ade80; background: #052e16; }
+    .tv-mode-card .setting-row { display: flex; align-items: center; gap: 3px; font-size: 9px; margin: 1px 0; }
+    .tv-mode-card .setting-row label { width: 52px; color: #71717a; }
+    .tv-mode-card .setting-row input { flex: 1; }
+    .tv-mode-card .setting-row .val { width: 20px; text-align: right; }
 
-    /* Visual feedback for mode activation (premium, especially strong for Music Sync audio) */
-    .tv-mode-card.activating { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.2); animation: tv-activate-pulse 1.2s infinite ease-in-out; }
-    @keyframes tv-activate-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
-    .tv-bezel.syncing { box-shadow: 0 0 0 2px rgba(74,222,128,0.5), 0 10px 15px -3px rgb(0 0 0 / 0.3); }
-    .tv-bezel.music-syncing { animation: tv-music-wave 800ms infinite ease-in-out; box-shadow: 0 0 0 2px rgba(245,158,11,0.6); }
-    @keyframes tv-music-wave { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-    .tv-zone.music-active { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
-    .tv-feedback-badge { position: absolute; top: 8px; right: 8px; font-size: 9px; padding: 1px 6px; border-radius: 4px; background: #451a03; color: #f59e0b; pointer-events: none; }
+    /* feedback */
+    .tv-mode-card.activating { border-color: #f59e0b; animation: tv-activate-pulse 900ms infinite; }
+    @keyframes tv-activate-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.015)} }
+    .tv-map.syncing { box-shadow: 0 0 0 3px rgba(74,222,128,0.4); }
+    .tv-map.music-syncing { animation: tv-music-wave 700ms infinite; }
+    @keyframes tv-music-wave { 0%,100%{box-shadow:0 0 0 3px rgba(245,158,11,0.5)} 50%{box-shadow:0 0 0 6px rgba(245,158,11,0.2)} }
+    .tv-feedback-badge { position:absolute; top:4px; right:4px; font-size:8px; padding:0 4px; border-radius:3px; background:#451a03; color:#f59e0b; }
 
     /* Simple accessible modals */
     .modal {
@@ -902,14 +895,12 @@
     let haData = null;           // {rooms, lights_by_room, groups, scenes, ...} from live or synthesized
     let lightsState = {};        // entity_id -> current optimistic attrs
     let primaryView = 'rooms';   // 'rooms' (default), 'lights', 'groups', 'scenes', 'plan', 'tv-sync'
-    // TV Sync feature state (now server-persisted via /api/ha/tv-sync for cross-device persistence; only TV code updated)
-    let tvAssignments = {}; // zone -> array of entity_ids (individuals; groups expanded on assign)
-    let tvMode = 'true-colors'; // 'true-colors' | 'video-game' | 'music-sync'
-    let tvModeSettings = {
-      'true-colors': { intensity: 70, speed: 40, brightnessLimit: 85 },
-      'video-game': { intensity: 90, speed: 80, brightnessLimit: 100 },
-      'music-sync': { intensity: 75, speed: 55, brightnessLimit: 80 }
-    };
+    // TV Sync feature state (server-persisted via /api/ha/tv-sync; spatial whole-house with positions + heights)
+    let tvSyncData = null; // { rooms: { [roomId]: { lights: { [eid]: {x:0-1, y:0-1, height:'floor'|'tv'|'above'} }, mode, settings } }, selected_room }
+    // legacy vars for compat during transition (will be derived)
+    let tvAssignments = {};
+    let tvMode = 'true-colors';
+    let tvModeSettings = { 'true-colors': { intensity: 70, speed: 40, brightnessLimit: 85 }, 'video-game': { intensity: 90, speed: 80, brightnessLimit: 100 }, 'music-sync': { intensity: 75, speed: 55, brightnessLimit: 80 } };
     let lightsFilter = 'all';    // for the Lights view: 'all' | 'on' | 'off' | 'unassigned' | 'nogroup'
     let searchTerm = '';
     let isHydrated = false;      // true after first successful live data
@@ -3494,16 +3485,21 @@
       // Check persistent unlock first (localStorage)
       loadSavedToken();
 
-      // Load TV Sync data from server (replaces localStorage; cross-device persistence). Only TV Sync code path.
-      // Defaults will be used until async load completes in renderTVSyncView / on first use.
+      // Load TV Sync data from server (spatial whole-house). Only TV Sync code path.
       (async () => {
         try {
           const res = await fetch('/api/ha/tv-sync');
           if (res.ok) {
-            const data = await res.json();
-            if (data.assignments) tvAssignments = data.assignments || {};
-            if (data.mode && ['true-colors','video-game','music-sync'].includes(data.mode)) tvMode = data.mode;
-            if (data.mode_settings) tvModeSettings = { ...tvModeSettings, ...data.mode_settings };
+            const data = await res.json() || {};
+            tvSyncData = data;
+            // seed legacy for any transitional code
+            if (data.rooms) {
+              const sr = data.selected_room || 'game-room';
+              const rdata = data.rooms[sr] || {};
+              tvMode = rdata.mode || 'true-colors';
+              tvModeSettings = { ...tvModeSettings, ...(rdata.settings || {}) };
+              tvAssignments = rdata.lights || {}; // flat for legacy compat in this view
+            }
           }
         } catch (e) {}
       })();

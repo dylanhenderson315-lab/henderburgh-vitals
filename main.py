@@ -1708,30 +1708,40 @@ TV_SYNC_FILE = Path("data/tv_sync.json")
 TV_SYNC_FILE.parent.mkdir(exist_ok=True)
 
 DEFAULT_TV_SYNC = {
-    "assignments": {},
-    "mode": "true-colors",
-    "mode_settings": {
-        "true-colors": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-        "video-game": {"intensity": 90, "speed": 80, "brightnessLimit": 100},
-        "music-sync": {"intensity": 75, "speed": 55, "brightnessLimit": 80}
-    }
+    "rooms": {
+        "game-room": {
+            "lights": {},
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+        },
+        "living-room": {
+            "lights": {},
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+        }
+    },
+    "selected_room": "game-room"
 }
 
 def load_tv_sync():
     if TV_SYNC_FILE.exists():
         try:
             data = json.loads(TV_SYNC_FILE.read_text())
-            # merge defaults for safety
-            if "assignments" not in data:
-                data["assignments"] = {}
-            if "mode" not in data:
-                data["mode"] = DEFAULT_TV_SYNC["mode"]
-            if "mode_settings" not in data:
-                data["mode_settings"] = DEFAULT_TV_SYNC["mode_settings"]
-            else:
-                for k, v in DEFAULT_TV_SYNC["mode_settings"].items():
-                    if k not in data["mode_settings"]:
-                        data["mode_settings"][k] = v
+            # merge defaults for safety (new room-based structure)
+            if "rooms" not in data:
+                data["rooms"] = DEFAULT_TV_SYNC["rooms"]
+            if "selected_room" not in data:
+                data["selected_room"] = DEFAULT_TV_SYNC["selected_room"]
+            for rid, rdef in DEFAULT_TV_SYNC["rooms"].items():
+                if rid not in data["rooms"]:
+                    data["rooms"][rid] = rdef
+                else:
+                    if "lights" not in data["rooms"][rid]:
+                        data["rooms"][rid]["lights"] = {}
+                    if "mode" not in data["rooms"][rid]:
+                        data["rooms"][rid]["mode"] = rdef["mode"]
+                    if "settings" not in data["rooms"][rid]:
+                        data["rooms"][rid]["settings"] = rdef["settings"]
             return data
         except Exception:
             pass
@@ -1740,12 +1750,21 @@ def load_tv_sync():
 def save_tv_sync(data):
     if not isinstance(data, dict):
         data = {}
-    # ensure structure
+    # ensure new room-based structure
     clean = {
-        "assignments": data.get("assignments") or {},
-        "mode": data.get("mode") or DEFAULT_TV_SYNC["mode"],
-        "mode_settings": data.get("mode_settings") or DEFAULT_TV_SYNC["mode_settings"]
+        "rooms": data.get("rooms") or DEFAULT_TV_SYNC["rooms"],
+        "selected_room": data.get("selected_room") or DEFAULT_TV_SYNC["selected_room"]
     }
+    for rid, rdef in DEFAULT_TV_SYNC["rooms"].items():
+        if rid not in clean["rooms"]:
+            clean["rooms"][rid] = rdef
+        else:
+            if "lights" not in clean["rooms"][rid]:
+                clean["rooms"][rid]["lights"] = {}
+            if "mode" not in clean["rooms"][rid]:
+                clean["rooms"][rid]["mode"] = rdef.get("mode", "true-colors")
+            if "settings" not in clean["rooms"][rid]:
+                clean["rooms"][rid]["settings"] = rdef.get("settings", {})
     TV_SYNC_FILE.write_text(json.dumps(clean, indent=2))
 
 
