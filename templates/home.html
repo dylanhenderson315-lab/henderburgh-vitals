@@ -331,179 +331,12 @@
       margin-top: 0.75rem;
     }
 
-    /* Whole-house TV Sync spatial maps - premium, calm, scaled to real dimensions */
-    .tv-room-selector {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
+    /* Clean Live Now balance */
+    .live-now {
+      gap: 14px;
     }
-    .tv-room-btn {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      color: #e4e4e7;
-      padding: 6px 14px;
-      border-radius: 9999px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .tv-room-btn:hover {
-      border-color: #52525b;
-    }
-    .tv-room-btn.active {
-      background: #052e16;
-      border-color: #4ade80;
-      color: #4ade80;
-    }
-    .tv-map-container {
-      background: #161a20;
-      border: 1px solid #3f3f46;
-      border-radius: 1rem;
-      padding: 12px;
-      position: relative;
-      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    }
-    .tv-map {
-      background: #0f1115;
-      border: 2px solid #4b5563;
-      border-radius: 4px;
-      position: relative;
-      overflow: hidden;
-      box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
-      margin: 0 auto;
-    }
-    .tv-map::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image: 
-        linear-gradient(rgba(74,222,128,0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(74,222,128,0.06) 1px, transparent 1px);
-      background-size: 20px 20px;
-      pointer-events: none;
-    }
-    .tv-wall {
-      position: absolute;
-      background: #374151;
-      border: 1px solid #6b7280;
-      font-size: 9px;
-      color: #9ca3af;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1;
-    }
-    .tv-light-marker {
-      position: absolute;
-      background: #27272a;
-      border: 1px solid #4b5563;
-      border-radius: 6px;
-      padding: 3px 6px;
-      font-size: 10px;
-      font-weight: 500;
-      color: #e4e4e7;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      cursor: grab;
-      user-select: none;
-      z-index: 10;
-      min-width: 60px;
-      text-align: center;
-      transition: transform 0.1s ease, box-shadow 0.1s ease;
-      transform: translate(-50%, -50%);
-    }
-    .tv-light-marker:hover {
-      box-shadow: 0 0 0 2px #4ade80;
-      z-index: 20;
-    }
-    .tv-light-marker.dragging {
-      opacity: 0.7;
-      cursor: grabbing;
-    }
-    .tv-light-marker.leader {
-      border-color: #4ade80;
-      background: #052e16;
-    }
-    .tv-light-marker .height-badge {
-      font-size: 8px;
-      padding: 0 3px;
-      border-radius: 3px;
-      margin-left: 3px;
-      background: #1f2937;
-    }
-    .tv-light-marker.h-floor .height-badge { color: #60a5fa; }
-    .tv-light-marker.h-tv .height-badge { color: #4ade80; }
-    .tv-light-marker.h-above .height-badge { color: #f59e0b; }
-    .tv-dim-label {
-      font-size: 9px;
-      color: #71717a;
-      position: absolute;
-      white-space: nowrap;
-    }
-    .tv-available {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .tv-light-chip {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      cursor: grab;
-      transition: all 0.1s;
-    }
-    .tv-light-chip:hover {
-      border-color: #4ade80;
-    }
-    .tv-light-chip.group {
-      border-color: #854d0e;
-      background: #451a03;
-    }
-    .tv-modes {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .tv-mode {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 10px;
-      padding: 8px;
-      cursor: pointer;
-    }
-    .tv-mode.active {
-      border-color: #4ade80;
-      box-shadow: 0 0 0 1px rgba(74,222,128,0.3);
-    }
-    .tv-mode .sliders {
-      font-size: 10px;
-      margin-top: 4px;
-    }
-    .tv-mode .sliders label {
-      display: block;
-      color: #94a3b8;
-      margin: 2px 0;
-    }
-    .tv-mode .sliders input {
-      width: 100%;
-    }
-    .tv-activate {
-      background: #4ade80;
-      color: #0a0a0b;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 8px;
-    }
-    .tv-activate:hover {
-      background: #22c55e;
+    .live-now-secondary {
+      margin-top: 0.75rem;
     }
   </style>
 </head>
@@ -569,55 +402,140 @@
   </div>
 
   <main class="max-w-[1080px] mx-auto px-6 pt-6 pb-8">
-    <!-- Whole-House Spatial TV Sync Hub (the main spatial hub for the home) -->
-    <div class="mb-4">
-      <div class="section-label">Whole-House Spatial TV Sync</div>
-      <p class="text-sm text-zinc-400 mt-1">Premium, position + height aware ambient lighting system. Scaled to your actual floor plans. T.V Lights is the leader. Data persists server-side.</p>
-    </div>
+    <!-- Live Now -->
+    <div class="content-section" id="live-now-section">
+      <div class="section-label mb-3">Live Now</div>
 
-    <!-- Room/TV Selector -->
-    <div class="tv-room-selector" id="room-selector">
-      <!-- Populated by JS -->
-    </div>
+      <!-- First row: 4 balanced cards (bento-inspired) -->
+      <div class="live-now live-now-main relative z-10">
+        <!-- Xbox -->
+        <a href="/xbox" class="live-card block cursor-pointer" title="View full Xbox profile &amp; game log">
+          <h3>Xbox</h3>
+          <div id="xbox-status">Checking status...</div>
+        </a>
 
-    <!-- Spatial Map for selected room -->
-    <div class="tv-map-container mb-4" id="map-container">
-      <div id="map-label" class="tv-map-label"></div>
-      <div id="tv-map" class="tv-map" style="width: 400px; height: 300px;">
-        <!-- Markers added by JS -->
+        <!-- Home Assistant (only in private/local deploys) -->
+        {% if not public_mode %}
+        <a href="/home-assistant" class="live-card block cursor-pointer" title="Open Home Assistant control panel">
+          <h3>Home Assistant</h3>
+          <div id="ha-status">Loading...</div>
+        </a>
+        {% endif %}
+
+        <!-- Heart Rate -->
+        <div class="live-card">
+          <h3>Heart Rate</h3>
+          <p class="big-number">{{ heart_rate.bpm or '--' }} bpm</p>
+          <p>Updated {{ heart_rate.updated_ago or 'recently' }}</p>
+        </div>
+
+        <!-- Steps (from Oura) -->
+        <div class="live-card">
+          <h3>Steps</h3>
+          <p class="big-number">{{ steps.count or '--' }} steps</p>
+          <p>{{ '%.1f' % (steps.miles or 0) if steps.miles is not none else '--' }} miles</p>
+          <p><a href="/vitals">Full details on Vitals page →</a></p>
+        </div>
+
       </div>
-      <div class="text-[9px] text-center text-zinc-500 mt-1">Drag lights onto the map or tap a light then tap the map. Drag markers to reposition. Click height badge to cycle Floor / TV Level / Above TV. Dimensions are real ft/in.</div>
-    </div>
 
-    <!-- Available Lights & Portable Group -->
-    <div class="mb-4">
-      <div class="section-label mb-2">Available Lights &amp; Groups (drag or tap to assign)</div>
-      <div id="available-lights" class="tv-available">
-        <!-- Populated by JS -->
+      <!-- Last.fm on its own row below for balance (clean spacing, premium contrast) -->
+      <div class="live-now live-now-secondary mt-3">
+        <!-- Last.fm -->
+        <div class="live-card">
+          <h3>Last.fm</h3>
+          <div id="lastfm-status"><p class="text-sm text-zinc-400"><em>Loading recent tracks...</em></p></div>
+          <p class="text-xs text-zinc-400 mt-2">
+            <a href="https://www.last.fm/user/henderburgh" target="_blank" class="hover:text-white transition">Last.fm • Recent</a>
+          </p>
+        </div>
       </div>
     </div>
 
-    <!-- Modes -->
-    <div class="mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <div class="section-label">Modes for Current Room</div>
-        <button id="activate-btn" onclick="activateCurrentMode()" class="tv-activate">Activate Mode</button>
+    <!-- Blog posts directly on the main screen — last 3 top-level messages, neat & scannable like the rest of the OS -->
+    <div class="content-section">
+      <div class="flex items-baseline justify-between mb-3">
+        <div>
+          <div class="section-label">Blog</div>
+          <p style="margin-top: 4px; color: #525252; font-size: 0.95rem;">Latest messages &amp; thoughts from the board.</p>
+        </div>
+        <a href="/blog" class="text-sm text-zinc-400 hover:text-white transition flex items-center gap-x-1 mt-1">
+          All messages <span class="text-xs">→</span>
+        </a>
       </div>
-      <div class="tv-modes" id="modes-container">
-        <!-- Populated by JS for current room -->
+
+      {% if recent_messages %}
+      <div class="space-y-3">
+        {% for msg in recent_messages %}
+        <div class="live-card !p-4 cursor-pointer" onclick="window.location.href='/blog'">
+          <div class="flex items-baseline justify-between gap-x-2">
+            <span class="font-medium text-sm">{{ msg.name or 'Anonymous' }}</span>
+            <span class="text-[10px] text-zinc-500 tabular-nums">{{ msg.display_date }}</span>
+          </div>
+          <p class="mt-1.5 text-[13px] text-zinc-300 leading-snug line-clamp-3">{{ msg.text }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="live-card p-4 text-sm text-zinc-500">
+        No messages yet. Be the first to say something on the <a href="/blog" class="underline hover:text-white">blog</a>.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- OS Intelligence / Insights (calm groundwork - first principles leverage over time) -->
+    <div class="content-section">
+      <div class="section-label mb-3">System Insights</div>
+      <div class="live-card p-4 text-sm">
+        <p class="text-zinc-300">Recent trends show strong recovery windows in the morning. Consider scheduling focused sessions then. Data compounds — more nights logged = smarter suggestions ahead.</p>
+        <div class="text-[10px] text-zinc-500 mt-2">Powered by your vitals • evolves with use</div>
       </div>
     </div>
 
-    <div class="flex gap-2 mb-4">
-      <button onclick="clearCurrentMap()" class="ha-btn text-xs">Clear Map</button>
-      <button onclick="autoAssignLeaderAndPortable()" class="ha-btn text-xs">Auto Place Leader + Portable</button>
-      <button onclick="saveTVData()" class="ha-btn text-xs">Save to Server</button>
-    </div>
+    <!-- Game Clips -->
+    <div class="content-section">
+      <div class="flex items-baseline justify-between mb-3">
+        <div>
+          <div class="section-label">Game Clips</div>
+          <p style="margin-top: 4px; color: #525252; font-size: 0.95rem;">Recent highlights from my sessions.</p>
+        </div>
+        <a href="/clips" class="text-sm text-zinc-400 hover:text-white transition flex items-center gap-x-1 mt-1">
+          View all <span class="text-xs">→</span>
+        </a>
+      </div>
 
-    <div class="text-[10px] text-zinc-500">
-      Leader: T.V Lights (light.t_v_lights) • Portable Lights group (tv-lamps) • Heights affect screen color sampling (Floor=lower, TV Level=middle, Above TV=top). Easy to add rooms later by extending the ROOM_DIMS in JS.
+      <div class="clips-scroll">
+        <div class="clip-card">
+          <video controls preload="metadata">
+            <source src="clips/clutch-moment.mp4" type="video/mp4">
+          </video>
+          <div class="clip-meta">
+            <strong>Clutch 1v3</strong>
+            <span>2 days ago</span>
+          </div>
+        </div>
+
+        <div class="clip-card">
+          <video controls preload="metadata">
+            <source src="clips/team-win.mp4" type="video/mp4">
+          </video>
+          <div class="clip-meta">
+            <strong>Insane team play</strong>
+            <span>Last week</span>
+          </div>
+        </div>
+
+        <div class="clip-card">
+          <video controls preload="metadata">
+            <source src="clips/ace.mp4" type="video/mp4">
+          </video>
+          <div class="clip-meta">
+            <strong>Ace on Haven</strong>
+            <span>3 weeks ago</span>
+          </div>
+        </div>
+      </div>
     </div>
-  </main>
 
   </main>
 
@@ -1127,444 +1045,6 @@
       // optional: could add icon tint etc, but keep minimal
     }
   </script>
-
-<script>
-// Whole-House TV Sync System - spatial maps, height, server persistence
-// Only TV Sync code; does not touch lighting cards, groups, or other views.
-// Uses existing /api/ha/tv-sync for persistence (data/tv_sync.json)
-
-const ROOM_DIMS = {
-  'game-room': { name: 'Game Room', w: 16 + 2/12, d: 27 + 8/12 },
-  'living-room': { name: 'Living Room', w: 13 + 1/12, d: 23 + 5/12 },
-  'bedroom': { name: 'Master Bedroom', w: 14 + 11/12, d: 12 + 6/12 },
-  'hallway': { name: 'Hallway', w: 3 + 2/12, d: 10 }
-};
-
-const ROOM_LIGHTS = {
-  'game-room': ['light.t_v_lights', 'light.office_lamp', 'light.wiz_rgbw_tunable_ef497e', 'light.bookshelf_lamp'],
-  'living-room': ['light.living_room_lamp'],
-  'bedroom': ['light.tv_lamp_1', 'light.tv_lamp_2'],
-  'hallway': ['light.hallway_light_1', 'light.hallway_light_2', 'light.hallway_light_3', 'light.hallway_light_4']
-};
-
-const PORTABLE_GROUP = ['light.tv_lamp_1', 'light.tv_lamp_2'];
-const LEADER_EID = 'light.t_v_lights';
-
-let tvSyncData = { rooms: {}, selected_room: 'game-room' };
-let pendingAssignEid = null;
-let pendingAssignGroup = null;
-
-function loadTVData() {
-  fetch('/api/ha/tv-sync')
-    .then(r => r.json())
-    .then(data => {
-      if (data && data.rooms) {
-        tvSyncData = data;
-      } else {
-        // init default structure
-        initDefaultTVData();
-      }
-      if (!tvSyncData.selected_room) tvSyncData.selected_room = 'game-room';
-      renderRoomSelector();
-      renderCurrentMap();
-      renderAvailable();
-      renderModes();
-    })
-    .catch(() => {
-      initDefaultTVData();
-      renderRoomSelector();
-      renderCurrentMap();
-      renderAvailable();
-      renderModes();
-    });
-}
-
-function initDefaultTVData() {
-  tvSyncData = {
-    rooms: {},
-    selected_room: 'game-room'
-  };
-  Object.keys(ROOM_DIMS).forEach(rid => {
-    tvSyncData.rooms[rid] = {
-      lights: {},
-      mode: 'true-colors',
-      settings: { intensity: 70, speed: 40, brightnessLimit: 85 }
-    };
-  });
-  // place leader in game room at TV wall center, height tv
-  tvSyncData.rooms['game-room'].lights[LEADER_EID] = { x: 0.5, y: 0.08, height: 'tv' };
-  // place portable in bedroom as example
-  tvSyncData.rooms['bedroom'].lights['light.tv_lamp_1'] = { x: 0.3, y: 0.5, height: 'floor' };
-  tvSyncData.rooms['bedroom'].lights['light.tv_lamp_2'] = { x: 0.7, y: 0.5, height: 'tv' };
-}
-
-function saveTVData() {
-  fetch('/api/ha/tv-sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(tvSyncData)
-  }).then(() => {
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-200 px-4 py-1 rounded text-xs z-[300]';
-    toast.textContent = 'TV Sync data saved server-side';
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 1500);
-  }).catch(() => {});
-}
-
-function selectTVRoom(rid) {
-  tvSyncData.selected_room = rid;
-  renderRoomSelector();
-  renderCurrentMap();
-  renderAvailable();
-  renderModes();
-  saveTVData();
-}
-
-function renderRoomSelector() {
-  const container = document.getElementById('room-selector');
-  if (!container) return;
-  container.innerHTML = '';
-  Object.keys(ROOM_DIMS).forEach(rid => {
-    const btn = document.createElement('button');
-    btn.className = 'tv-room-btn ' + (rid === tvSyncData.selected_room ? 'active' : '');
-    btn.textContent = ROOM_DIMS[rid].name;
-    btn.onclick = () => selectTVRoom(rid);
-    container.appendChild(btn);
-  });
-}
-
-function renderCurrentMap() {
-  const container = document.getElementById('map-container');
-  const map = document.getElementById('tv-map');
-  const label = document.getElementById('map-label');
-  if (!map || !container || !label) return;
-
-  const rid = tvSyncData.selected_room;
-  const info = ROOM_DIMS[rid] || {name: rid, w: 10, d: 10};
-  const scale = 15;
-  const wpx = Math.round(info.w * scale);
-  const hpx = Math.round(info.d * scale);
-
-  map.style.width = wpx + 'px';
-  map.style.height = hpx + 'px';
-  label.textContent = `${info.name} — ${info.w.toFixed(1)}' wide × ${info.d.toFixed(1)}' deep (1' = ${scale}px)`;
-
-  map.innerHTML = '';
-
-  // TV wall symbol (assume top wall y=0)
-  const tv = document.createElement('div');
-  tv.className = 'tv-wall';
-  tv.style.left = (wpx * 0.3) + 'px';
-  tv.style.top = '0px';
-  tv.style.width = (wpx * 0.4) + 'px';
-  tv.style.height = '10px';
-  tv.textContent = 'TV';
-  map.appendChild(tv);
-
-  // place lights
-  const roomData = tvSyncData.rooms[rid] || {lights: {}};
-  Object.keys(roomData.lights || {}).forEach(eid => {
-    const pos = roomData.lights[eid];
-    const marker = document.createElement('div');
-    marker.className = 'tv-light-marker' + (eid === LEADER_EID ? ' leader' : '');
-    marker.style.left = (pos.x * 100) + '%';
-    marker.style.top = (pos.y * 100) + '%';
-    marker.dataset.eid = eid;
-    marker.innerHTML = `
-      <span>${getLightName(eid)}</span>
-      <span class="height-badge h-${pos.height || 'tv'}">${(pos.height || 'tv')[0].toUpperCase()}</span>
-    `;
-    marker.onclick = (e) => {
-      e.stopImmediatePropagation();
-      cycleHeight(rid, eid, marker);
-    };
-
-    // make draggable
-    makeDraggable(marker, rid, eid, map, wpx, hpx);
-
-    map.appendChild(marker);
-  });
-
-  // click on map for tap assign
-  map.onclick = (e) => {
-    if (pendingAssignEid || pendingAssignGroup) {
-      const rect = map.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      if (pendingAssignEid) {
-        assignLight(rid, pendingAssignEid, x, y);
-        pendingAssignEid = null;
-      } else if (pendingAssignGroup) {
-        assignPortableGroup(rid, x, y);
-        pendingAssignGroup = null;
-      }
-      renderCurrentMap();
-      renderAvailable();
-    }
-  };
-
-  // drop for drag
-  map.ondrop = (e) => {
-    e.preventDefault();
-    map.classList.remove('drop-over');
-    const eid = e.dataTransfer.getData('text/eid');
-    const group = e.dataTransfer.getData('text/group');
-    const rect = map.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    if (eid) {
-      assignLight(rid, eid, x, y);
-    } else if (group) {
-      assignPortableGroup(rid, x, y);
-    }
-    renderCurrentMap();
-    renderAvailable();
-  };
-  map.ondragover = (e) => { e.preventDefault(); map.classList.add('drop-over'); };
-  map.ondragleave = (e) => { map.classList.remove('drop-over'); };
-}
-
-function makeDraggable(marker, rid, eid, map, wpx, hpx) {
-  let isDragging = false;
-  marker.onmousedown = (e) => {
-    isDragging = true;
-    marker.classList.add('dragging');
-    const rect = map.getBoundingClientRect();
-    const onMove = (me) => {
-      if (!isDragging) return;
-      let nx = (me.clientX - rect.left) / rect.width;
-      let ny = (me.clientY - rect.top) / rect.height;
-      nx = Math.max(0, Math.min(1, nx));
-      ny = Math.max(0, Math.min(1, ny));
-      marker.style.left = (nx * 100) + '%';
-      marker.style.top = (ny * 100) + '%';
-    };
-    const onUp = (ue) => {
-      isDragging = false;
-      marker.classList.remove('dragging');
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      let nx = (ue.clientX - rect.left) / rect.width;
-      let ny = (ue.clientY - rect.top) / rect.height;
-      nx = Math.max(0, Math.min(1, nx));
-      ny = Math.max(0, Math.min(1, ny));
-      if (!tvSyncData.rooms[rid].lights) tvSyncData.rooms[rid].lights = {};
-      const cur = tvSyncData.rooms[rid].lights[eid] || {height: 'tv'};
-      tvSyncData.rooms[rid].lights[eid] = { x: nx, y: ny, height: cur.height };
-      saveTVData();
-      renderCurrentMap();
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-}
-
-function getLightName(eid) {
-  const names = {
-    'light.t_v_lights': 'T.V Lights ★',
-    'light.office_lamp': 'Office Lamp',
-    'light.wiz_rgbw_tunable_ef497e': 'Wiz RGB',
-    'light.bookshelf_lamp': 'Bookshelf',
-    'light.living_room_lamp': 'Living Lamp',
-    'light.tv_lamp_1': 'TV Lamp 1',
-    'light.tv_lamp_2': 'TV Lamp 2',
-    'light.hallway_light_1': 'Hall 1',
-    'light.hallway_light_2': 'Hall 2',
-    'light.hallway_light_3': 'Hall 3',
-    'light.hallway_light_4': 'Hall 4'
-  };
-  return names[eid] || eid.split('.').pop();
-}
-
-function cycleHeight(rid, eid, marker) {
-  const order = ['floor', 'tv', 'above'];
-  let cur = tvSyncData.rooms[rid].lights[eid].height || 'tv';
-  let idx = order.indexOf(cur);
-  const next = order[(idx + 1) % 3];
-  tvSyncData.rooms[rid].lights[eid].height = next;
-  marker.querySelector('.height-badge').textContent = next[0].toUpperCase();
-  marker.className = 'tv-light-marker' + (eid === LEADER_EID ? ' leader' : '') + ' h-' + next;
-  saveTVData();
-}
-
-function assignLight(rid, eid, x, y, height = 'tv') {
-  if (!tvSyncData.rooms[rid]) tvSyncData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}};
-  if (!tvSyncData.rooms[rid].lights) tvSyncData.rooms[rid].lights = {};
-  tvSyncData.rooms[rid].lights[eid] = {x, y, height};
-  saveTVData();
-  renderCurrentMap();
-  renderAvailable();
-}
-
-function assignPortableGroup(rid, x, y) {
-  if (!tvSyncData.rooms[rid]) tvSyncData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}};
-  if (!tvSyncData.rooms[rid].lights) tvSyncData.rooms[rid].lights = {};
-  PORTABLE_GROUP.forEach((eid, i) => {
-    const ox = (i - 0.5) * 0.08;
-    tvSyncData.rooms[rid].lights[eid] = {x: Math.max(0, Math.min(1, x + ox)), y: Math.max(0, Math.min(1, y)), height: 'tv'};
-  });
-  saveTVData();
-  renderCurrentMap();
-  renderAvailable();
-}
-
-function renderAvailable() {
-  const container = document.getElementById('available-lights');
-  if (!container) return;
-  container.innerHTML = '';
-  const rid = tvSyncData.selected_room;
-  const roomData = tvSyncData.rooms[rid] || {lights: {}};
-  const assigned = Object.keys(roomData.lights || {});
-
-  // Portable group
-  const portChip = document.createElement('div');
-  portChip.className = 'tv-light-chip group';
-  portChip.textContent = 'Portable Lights (group)';
-  portChip.draggable = true;
-  portChip.ondragstart = (e) => e.dataTransfer.setData('text/group', 'portable');
-  portChip.onclick = () => {
-    pendingAssignGroup = 'portable';
-    showFeedback('Tap map to place Portable Lights group');
-  };
-  container.appendChild(portChip);
-
-  // Room lights
-  const lights = ROOM_LIGHTS[rid] || [];
-  lights.forEach(eid => {
-    if (assigned.includes(eid)) return;
-    const chip = document.createElement('div');
-    chip.className = 'tv-light-chip' + (eid === LEADER_EID ? ' leader' : '');
-    chip.textContent = getLightName(eid);
-    chip.draggable = true;
-    chip.ondragstart = (e) => e.dataTransfer.setData('text/eid', eid);
-    chip.onclick = () => {
-      pendingAssignEid = eid;
-      showFeedback('Tap map to place ' + getLightName(eid));
-    };
-    container.appendChild(chip);
-  });
-}
-
-function renderModes() {
-  const container = document.getElementById('modes-container');
-  if (!container) return;
-  const rid = tvSyncData.selected_room;
-  const rdata = tvSyncData.rooms[rid] || {mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}};
-  const modes = [
-    {id: 'true-colors', label: 'True Colors', desc: 'Natural screen follow'},
-    {id: 'video-game', label: 'Video Game', desc: 'Fast vivid reactive'},
-    {id: 'music-sync', label: 'Music Sync', desc: 'Audio reactive via sync box speaker'}
-  ];
-  container.innerHTML = modes.map(m => {
-    const active = rdata.mode === m.id ? 'active' : '';
-    const s = rdata.settings;
-    return `
-      <div class="tv-mode ${active}" onclick="selectMode('${rid}', '${m.id}')">
-        <div><strong>${m.label}</strong> <span class="text-[9px] text-zinc-400">${m.desc}</span></div>
-        <div class="sliders">
-          <label>Int ${s.intensity}</label><input type="range" min="10" max="100" value="${s.intensity}" oninput="updateSetting('${rid}', 'intensity', this.value, this)">
-          <label>Spd ${s.speed}</label><input type="range" min="10" max="100" value="${s.speed}" oninput="updateSetting('${rid}', 'speed', this.value, this)">
-          <label>Brt ${s.brightnessLimit}</label><input type="range" min="20" max="100" value="${s.brightnessLimit}" oninput="updateSetting('${rid}', 'brightnessLimit', this.value, this)">
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function selectMode(rid, mid) {
-  if (!tvSyncData.rooms[rid]) tvSyncData.rooms[rid] = {lights: {}, mode: mid, settings: {intensity:70, speed:40, brightnessLimit:85}};
-  tvSyncData.rooms[rid].mode = mid;
-  saveTVData();
-  renderModes();
-}
-
-function updateSetting(rid, key, val, input) {
-  if (!tvSyncData.rooms[rid]) tvSyncData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}};
-  if (!tvSyncData.rooms[rid].settings) tvSyncData.rooms[rid].settings = {};
-  tvSyncData.rooms[rid].settings[key] = parseInt(val, 10);
-  // update label
-  const label = input.previousElementSibling;
-  if (label) label.textContent = label.textContent.split(' ')[0] + ' ' + val;
-  saveTVData();
-}
-
-function activateCurrentMode() {
-  const rid = tvSyncData.selected_room;
-  const rdata = tvSyncData.rooms[rid];
-  if (!rdata) return;
-  const mode = rdata.mode;
-  const settings = rdata.settings || {};
-  const lights = Object.keys(rdata.lights || {});
-  const map = document.getElementById('tv-map');
-  if (map) {
-    map.classList.add('syncing');
-    if (mode === 'music-sync') map.classList.add('music-syncing');
-    setTimeout(() => {
-      if (map) {
-        map.classList.remove('syncing', 'music-syncing');
-      }
-    }, 3000);
-  }
-  // visual on markers
-  if (map) {
-    map.querySelectorAll('.tv-light-marker').forEach(m => {
-      m.style.transition = 'transform 200ms';
-      m.style.transform = 'scale(1.1)';
-      setTimeout(() => { if (m) m.style.transform = 'translate(-50%, -50%)'; }, 400);
-    });
-  }
-  const msg = mode === 'music-sync' ? 'Music Sync activated — using sync box speaker for audio reactivity' : mode + ' activated for ' + ROOM_DIMS[rid].name;
-  const toast = document.createElement('div');
-  toast.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-200 px-4 py-1 rounded text-xs z-[300]';
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 2200);
-  // In real, would call HA services for the lights and sync box here, using positions/heights for color sampling logic.
-}
-
-function clearCurrentMap() {
-  const rid = tvSyncData.selected_room;
-  if (tvSyncData.rooms[rid]) tvSyncData.rooms[rid].lights = {};
-  saveTVData();
-  renderCurrentMap();
-  renderAvailable();
-}
-
-function autoAssignLeaderAndPortable() {
-  const rid = tvSyncData.selected_room;
-  if (!tvSyncData.rooms[rid]) tvSyncData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}};
-  tvSyncData.rooms[rid].lights[LEADER_EID] = {x: 0.5, y: 0.08, height: 'tv'};
-  if (rid === 'game-room' || rid === 'bedroom') {
-    PORTABLE_GROUP.forEach((eid, i) => {
-      tvSyncData.rooms[rid].lights[eid] = {x: 0.3 + i*0.4, y: 0.6, height: i===0 ? 'floor' : 'tv'};
-    });
-  }
-  saveTVData();
-  renderCurrentMap();
-  renderAvailable();
-}
-
-function assignLightFromPending(rid, x, y) {
-  // used by tap
-  if (pendingAssignEid) {
-    assignLight(rid, pendingAssignEid, x, y);
-    pendingAssignEid = null;
-  }
-  if (pendingAssignGroup) {
-    assignPortableGroup(rid, x, y);
-    pendingAssignGroup = null;
-  }
-  renderCurrentMap();
-  renderAvailable();
-}
-
-// init
-document.addEventListener('DOMContentLoaded', () => {
-  loadTVData();
-  // make map drop work even if
-});
-</script>
 
 </body>
 </html>
