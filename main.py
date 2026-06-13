@@ -1795,7 +1795,7 @@ DEFAULT_MODEL = {
             "name": "Game Room",
             "dims": {"width_ft": 16.1667, "depth_ft": 27.6667},
             "objects": [
-                {"id": "seed_tv", "type": "light", "subtype": "tv-backlight", "name": "T.V Lights", "x": 0.50, "z": 0.08, "height": "tv", "scale": 1, "rotation": 0, "entity_id": null},
+                {"id": "seed_tv", "type": "light", "subtype": "tv-backlight", "name": "T.V Lights", "x": 0.50, "z": 0.08, "height": "tv", "scale": 1, "rotation": 0, "entity_id": None},
                 {"id": "seed_couch_gr", "type": "furniture", "subtype": "couch", "name": "Sectional", "x": 0.32, "z": 0.58, "height": "floor", "scale": 1, "rotation": 0}
             ],
             "mode": "true-colors",
@@ -1807,7 +1807,7 @@ DEFAULT_MODEL = {
             "name": "Living Room",
             "dims": {"width_ft": 13.0833, "depth_ft": 23.4167},
             "objects": [
-                {"id": "seed_lamp_lr", "type": "light", "subtype": "lamp", "name": "Floor Lamp", "x": 0.22, "z": 0.35, "height": "floor", "scale": 1, "rotation": 0, "entity_id": null},
+                {"id": "seed_lamp_lr", "type": "light", "subtype": "lamp", "name": "Floor Lamp", "x": 0.22, "z": 0.35, "height": "floor", "scale": 1, "rotation": 0, "entity_id": None},
                 {"id": "seed_tv_lr", "type": "tv", "subtype": "tv", "name": "TV", "x": 0.50, "z": 0.06, "height": "tv", "scale": 1, "rotation": 0}
             ],
             "mode": "true-colors",
@@ -1840,7 +1840,7 @@ DEFAULT_MODEL = {
             "dims": {"width_ft": 12.4167, "depth_ft": 10.0},
             "objects": [
                 {"id": "seed_cab1", "type": "furniture", "subtype": "table", "name": "Counter", "x": 0.15, "z": 0.2, "height": "floor", "scale": 1, "rotation": 0},
-                {"id": "seed_light_k", "type": "light", "subtype": "recessed", "name": "Recessed 1", "x": 0.5, "z": 0.3, "height": "ceiling", "scale": 1, "rotation": 0, "entity_id": null}
+                {"id": "seed_light_k", "type": "light", "subtype": "recessed", "name": "Recessed 1", "x": 0.5, "z": 0.3, "height": "ceiling", "scale": 1, "rotation": 0, "entity_id": None}
             ],
             "mode": "true-colors",
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
