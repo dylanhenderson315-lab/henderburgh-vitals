@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Model • HENDERBURGH</title>
+  <meta name="description" content="Spatial home replica and TV Sync foundation for HENDERBURGH.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+
+    :root {
+      --bg: #0f1115;
+      --card: #161a20;
+      --accent-green: #4ade80;
+      --accent-blue: #60a5fa;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --status-relax: #22c55e;
+    }
+
+    body {
+      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1115;
+      color: #e2e8f0;
+    }
+
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-feature-settings: "ss02";
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2.8px;
+      text-transform: uppercase;
+      color: #525252;
+      font-weight: 600;
+    }
+
+    .card {
+      background: #161a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(74, 222, 128, 0.3);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
+    }
+
+    .tv-map {
+      background: #0f1115;
+      border: 2px solid #3f3f46;
+      border-radius: 0.75rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+      margin: 0 auto;
+      touch-action: none;
+    }
+
+    .tv-map::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(74,222,128,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(74,222,128,0.08) 1px, transparent 1px);
+      background-size: 15px 15px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .tv-wall {
+      position: absolute;
+      background: linear-gradient(to bottom, #374151, #1f2937);
+      border: 1px solid #6b7280;
+      font-size: 10px;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .tv-light-marker {
+      position: absolute;
+      background: #27272a;
+      border: 1px solid #4b5563;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #e4e4e7;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+      cursor: grab;
+      user-select: none;
+      z-index: 10;
+      min-width: 70px;
+      text-align: center;
+      white-space: nowrap;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s;
+      transform: translate(-50%, -50%);
+    }
+
+    .tv-light-marker:hover {
+      box-shadow: 0 0 0 2px #4ade80;
+      z-index: 20;
+    }
+
+    .tv-light-marker.dragging {
+      opacity: 0.75;
+      cursor: grabbing;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    }
+
+    .tv-light-marker.leader {
+      border-color: #4ade80;
+      background: #052e16;
+      box-shadow: 0 0 0 1px rgba(74,222,128,0.5);
+    }
+
+    .tv-light-marker .height {
+      font-size: 8px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: #1f2937;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    .tv-light-marker.h-floor .height { color: #60a5fa; border: 1px solid #60a5fa; }
+    .tv-light-marker.h-tv .height { color: #4ade80; border: 1px solid #4ade80; }
+    .tv-light-marker.h-above .height { color: #f59e0b; border: 1px solid #f59e0b; }
+
+    .tv-room-btn {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: #e4e4e7;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .tv-room-btn:hover { border-color: #52525b; }
+    .tv-room-btn.active {
+      background: #052e16;
+      border-color: #4ade80;
+      color: #4ade80;
+    }
+
+    .tv-chip {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: grab;
+      transition: all 0.1s;
+      user-select: none;
+    }
+    .tv-chip:hover { border-color: #4ade80; transform: translateY(-1px); }
+    .tv-chip.group { border-color: #854d0e; background: #451a03; }
+
+    .tv-mode {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 10px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tv-mode.active {
+      border-color: #4ade80;
+      box-shadow: 0 0 0 1px rgba(74,222,128,0.3);
+      background: #052e16;
+    }
+    .tv-mode .slider-label { font-size: 10px; color: #94a3b8; margin-bottom: 2px; }
+    .tv-mode input[type=range] { width: 100%; accent-color: #4ade80; }
+
+    .map-dim {
+      font-size: 9px;
+      color: #71717a;
+      position: absolute;
+      pointer-events: none;
+    }
+
+    .premium-shadow {
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+    }
+
+    .spatial-hint {
+      font-size: 10px;
+      color: #52525b;
+      text-align: center;
+    }
+  </style>
+</head>
+<body class="bg-[#0f1115] text-zinc-200 antialiased">
+  <!-- Header (minimal, links back to main site) -->
+  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-[1080px] mx-auto px-6">
+      <div class="h-16 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-x-2.5 group">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
+            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
+          </div>
+          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
+        </a>
+        <nav class="hidden md:flex items-center gap-x-8 text-sm">
+          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
+          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
+          <a href="/model" class="text-white font-medium">Model</a>
+          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
+        </nav>
+        <div class="md:hidden">
+          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800">← Home</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1080px] mx-auto px-6 pt-8 pb-12">
+    <div class="mb-6">
+      <div class="flex items-end justify-between">
+        <div>
+          <h1 class="text-3xl font-semibold tracking-tighter">Home Model</h1>
+          <p class="text-zinc-400 mt-1">Spatial replica foundation • TV Sync + extensible objects</p>
+        </div>
+        <div class="text-xs text-emerald-400/70 font-mono">/model • server-persisted</div>
+      </div>
+      <div class="mt-2 text-[10px] text-zinc-500">Leader: T.V Lights • Group: Portable Lights (tv-lamps) • Heights: Floor (lower screen) / TV Level (middle) / Above TV (top)</div>
+    </div>
+
+    <!-- Room Selector -->
+    <div class="mb-3">
+      <div class="section-label mb-2">Room / TV</div>
+      <div id="room-selector" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Map -->
+    <div class="card p-4 mb-4">
+      <div id="map-label" class="text-sm font-medium mb-2 text-emerald-400/80"></div>
+      <div id="tv-map" class="tv-map premium-shadow mx-auto" style="max-width: 520px; max-height: 520px;"></div>
+      <div class="spatial-hint mt-2">Drag chips from below onto the map • Drag placed lights to reposition • Click a placed light's height badge to change (Floor / TV / Above)</div>
+    </div>
+
+    <!-- Available -->
+    <div class="card p-4 mb-4">
+      <div class="section-label mb-2">Available Lights &amp; Groups</div>
+      <div id="available-lights" class="flex flex-wrap gap-2"></div>
+      <div class="mt-3 text-[10px] text-zinc-500">Portable Lights group can be assigned as a unit (expands to individuals for fine positioning).</div>
+    </div>
+
+    <!-- Modes -->
+    <div class="card p-4 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="section-label">Modes &amp; Settings (per room)</div>
+        <button onclick="activateMode()" class="px-4 py-1.5 text-sm rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition">Activate Current Mode</button>
+      </div>
+      <div id="modes" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
+    </div>
+
+    <!-- Furniture placeholder for extensibility -->
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <div class="section-label">Furniture &amp; Objects (extensible foundation)</div>
+          <div class="text-[10px] text-zinc-500">Ready for future: add types, drag/resize. Current data has empty array per room.</div>
+        </div>
+        <button onclick="addMockFurniture()" class="text-xs px-3 py-1 rounded-lg border border-zinc-700 hover:bg-zinc-800">Add mock furniture</button>
+      </div>
+      <div id="furniture-list" class="text-xs text-zinc-400"></div>
+    </div>
+
+    <div class="mt-6 text-[10px] text-zinc-500 text-center">
+      All data saved server-side in data/model.json (clean rooms + lights[pos+height] + furniture + modes/settings).<br>
+      Add new rooms by extending ROOM_DIMS in JS + initial data. Leader auto-placed. Fully separate from lighting controls.
+    </div>
+  </main>
+
+  <footer class="max-w-[1080px] mx-auto px-6 pb-8 text-xs text-zinc-500 text-center border-t border-zinc-800 pt-4 mt-8">
+    HENDERBURGH Model • Spatial foundation for home replica
+  </footer>
+
+  <script>
+    // Tailwind + theme
+    function initTailwind() {
+      if (typeof tailwind !== 'undefined') {
+        tailwind.config = {
+          theme: {
+            extend: {
+              fontFamily: { 'display': ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'] }
+            }
+          }
+        };
+      }
+    }
+
+    const ROOM_DIMS = {
+      'game-room': { name: 'Game Room', w: 16 + 2/12, d: 27 + 8/12 },
+      'living-room': { name: 'Living Room', w: 13 + 1/12, d: 23 + 5/12 },
+      'bedroom': { name: 'Master Bedroom', w: 14 + 11/12, d: 12 + 6/12 },
+      'hallway': { name: 'Hallway', w: 3 + 2/12, d: 12 }
+    };
+
+    const LEADER = 'light.t_v_lights';
+    const PORTABLE_GROUP_ID = 'tv-lamps';
+    const PORTABLE_LIGHTS = ['light.tv_lamp_1', 'light.tv_lamp_2'];
+
+    let modelData = null;
+    let currentRoom = 'game-room';
+    let lightsData = null; // from bootstrap
+    let selectedLightForHeight = null;
+
+    function getLightName(eid) {
+      const map = {
+        'light.t_v_lights': 'T.V Lights ★',
+        'light.office_lamp': 'Office Lamp',
+        'light.wiz_rgbw_tunable_ef497e': 'Wiz RGB',
+        'light.bookshelf_lamp': 'Bookshelf',
+        'light.living_room_lamp': 'Living Room Lamp',
+        'light.tv_lamp_1': 'Portable 1',
+        'light.tv_lamp_2': 'Portable 2',
+        'light.hallway_light_1': 'Hallway 1',
+        'light.hallway_light_2': 'Hallway 2',
+        'light.hallway_light_3': 'Hallway 3',
+        'light.hallway_light_4': 'Hallway 4'
+      };
+      return map[eid] || eid.split('.').pop().replace(/_/g, ' ');
+    }
+
+    async function fetchLights() {
+      try {
+        const res = await fetch('/api/ha/bootstrap');
+        const data = await res.json();
+        lightsData = data;
+      } catch (e) {
+        lightsData = { rooms: [], groups: [] };
+      }
+    }
+
+    async function loadModel() {
+      try {
+        const res = await fetch('/api/model');
+        modelData = await res.json();
+      } catch (e) {
+        modelData = null;
+      }
+      if (!modelData || !modelData.rooms) {
+        // fallback to defaults
+        modelData = {
+          rooms: {
+            'game-room': { name: 'Game Room', dims: ROOM_DIMS['game-room'], lights: { [LEADER]: {x:0.5, y:0.1, height:'tv'} }, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}, furniture: [] },
+            'living-room': { name: 'Living Room', dims: ROOM_DIMS['living-room'], lights: {}, mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}, furniture: [] }
+          },
+          selected_room: 'game-room'
+        };
+      }
+      currentRoom = modelData.selected_room || 'game-room';
+    }
+
+    async function saveModel() {
+      try {
+        await fetch('/api/model', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(modelData)
+        });
+      } catch (e) {}
+    }
+
+    function renderRoomSelector() {
+      const el = document.getElementById('room-selector');
+      if (!el || !modelData) return;
+      el.innerHTML = '';
+      Object.keys(modelData.rooms).forEach(rid => {
+        const r = modelData.rooms[rid];
+        const btn = document.createElement('button');
+        btn.className = `tv-room-btn ${rid === currentRoom ? 'active' : ''}`;
+        btn.textContent = r.name || rid;
+        btn.onclick = () => {
+          currentRoom = rid;
+          modelData.selected_room = rid;
+          renderRoomSelector();
+          renderMap();
+          renderAvailable();
+          renderModes();
+          saveModel();
+        };
+        el.appendChild(btn);
+      });
+      // add note for scalability
+      const note = document.createElement('span');
+      note.className = 'text-[10px] text-zinc-500 ml-2 self-center';
+      note.textContent = '(add rooms in data + JS ROOM_DIMS)';
+      el.appendChild(note);
+    }
+
+    function renderMap() {
+      const container = document.getElementById('map-container');
+      const mapEl = document.getElementById('tv-map');
+      const labelEl = document.getElementById('map-label');
+      if (!mapEl || !modelData) return;
+
+      const rid = currentRoom;
+      const r = modelData.rooms[rid] || {};
+      const dims = r.dims || ROOM_DIMS[rid] || {w: 10, d: 10};
+      const name = r.name || rid;
+
+      // scale to fit nicely (max ~480px)
+      const maxPx = 480;
+      const scale = Math.min(maxPx / Math.max(dims.w, dims.d), 18);
+      const wpx = Math.round(dims.w * scale);
+      const hpx = Math.round(dims.d * scale);
+
+      mapEl.style.width = wpx + 'px';
+      mapEl.style.height = hpx + 'px';
+      mapEl.style.margin = '0 auto';
+      labelEl.textContent = `${name} — ${dims.w.toFixed(1)}' × ${dims.d.toFixed(1)}' (scale ${scale.toFixed(0)}px/ft)`;
+
+      mapEl.innerHTML = '';
+
+      // TV wall (top)
+      const tvWall = document.createElement('div');
+      tvWall.className = 'tv-wall';
+      tvWall.style.width = Math.round(wpx * 0.35) + 'px';
+      tvWall.style.height = '12px';
+      tvWall.style.left = Math.round(wpx * 0.325) + 'px';
+      tvWall.style.top = '0px';
+      tvWall.textContent = 'TV';
+      mapEl.appendChild(tvWall);
+
+      // dim labels
+      const wLabel = document.createElement('div');
+      wLabel.className = 'map-dim';
+      wLabel.style.bottom = '-14px';
+      wLabel.style.left = '50%';
+      wLabel.style.transform = 'translateX(-50%)';
+      wLabel.textContent = `${dims.w.toFixed(1)}' wide`;
+      mapEl.appendChild(wLabel);
+
+      const dLabel = document.createElement('div');
+      dLabel.className = 'map-dim';
+      dLabel.style.left = '-28px';
+      dLabel.style.top = '50%';
+      dLabel.style.transform = 'translateY(-50%) rotate(-90deg)';
+      dLabel.textContent = `${dims.d.toFixed(1)}' deep`;
+      mapEl.appendChild(dLabel);
+
+      // placed lights
+      const lights = r.lights || {};
+      Object.keys(lights).forEach(eid => {
+        const p = lights[eid];
+        const marker = document.createElement('div');
+        marker.className = `tv-light-marker ${eid === LEADER ? 'leader' : ''} h-${p.height || 'tv'}`;
+        marker.style.left = `${(p.x || 0.5) * 100}%`;
+        marker.style.top = `${(p.y || 0.5) * 100}%`;
+        marker.dataset.eid = eid;
+
+        const hShort = (p.height || 'tv') === 'floor' ? 'F' : (p.height || 'tv') === 'tv' ? 'T' : 'A';
+        marker.innerHTML = `
+          <span>${getLightName(eid)}</span>
+          <span class="height">${hShort}</span>
+        `;
+
+        // drag
+        marker.onmousedown = (ev) => startDragMarker(ev, marker, rid, eid, mapEl, scale);
+
+        // height click
+        const hEl = marker.querySelector('.height');
+        if (hEl) {
+          hEl.onclick = (ev) => {
+            ev.stopImmediatePropagation();
+            showHeightSelector(rid, eid, marker);
+          };
+        }
+
+        // tap info
+        marker.onclick = (ev) => {
+          if (ev.target.classList.contains('height')) return;
+          showHeightSelector(rid, eid, marker);
+        };
+
+        mapEl.appendChild(marker);
+
+        // smooth entrance
+        if (typeof anime !== 'undefined') {
+          anime({ targets: marker, scale: [0.6, 1], opacity: [0,1], duration: 220, easing: 'easeOutQuad' });
+        }
+      });
+
+      // drop zone
+      mapEl.ondragover = (e) => { e.preventDefault(); mapEl.style.borderColor = '#4ade80'; };
+      mapEl.ondragleave = () => { mapEl.style.borderColor = '#3f3f46'; };
+      mapEl.ondrop = (e) => {
+        e.preventDefault();
+        mapEl.style.borderColor = '#3f3f46';
+        const rect = mapEl.getBoundingClientRect();
+        const nx = (e.clientX - rect.left) / rect.width;
+        const ny = (e.clientY - rect.top) / rect.height;
+        const eid = e.dataTransfer.getData('text/eid');
+        const isGroup = e.dataTransfer.getData('text/group');
+        if (eid) {
+          assignLightToPos(rid, eid, nx, ny);
+        } else if (isGroup === 'portable') {
+          assignPortableGroup(rid, nx, ny);
+        }
+        renderMap();
+        renderAvailable();
+      };
+
+      // tap to place pending
+      mapEl.onclick = (e) => {
+        if (window.__pendingEid || window.__pendingGroup) {
+          const rect = mapEl.getBoundingClientRect();
+          const nx = (e.clientX - rect.left) / rect.width;
+          const ny = (e.clientY - rect.top) / rect.height;
+          if (window.__pendingEid) {
+            assignLightToPos(currentRoom, window.__pendingEid, nx, ny);
+            window.__pendingEid = null;
+          } else if (window.__pendingGroup) {
+            assignPortableGroup(currentRoom, nx, ny);
+            window.__pendingGroup = null;
+          }
+          renderMap();
+          renderAvailable();
+        }
+      };
+    }
+
+    function startDragMarker(ev, marker, rid, eid, mapEl, scale) {
+      ev.preventDefault();
+      marker.classList.add('dragging');
+      const rect = mapEl.getBoundingClientRect();
+      const startX = ev.clientX;
+      const startY = ev.clientY;
+      const startLeft = marker.offsetLeft;
+      const startTop = marker.offsetTop;
+
+      const onMove = (me) => {
+        const dx = me.clientX - startX;
+        const dy = me.clientY - startY;
+        let nl = Math.max(0, Math.min(rect.width - marker.offsetWidth, startLeft + dx));
+        let nt = Math.max(0, Math.min(rect.height - marker.offsetHeight, startTop + dy));
+        marker.style.left = nl + 'px';
+        marker.style.top = nt + 'px';
+      };
+
+      const onUp = (ue) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        marker.classList.remove('dragging');
+        const nl = marker.offsetLeft / rect.width;
+        const nt = marker.offsetTop / rect.height;
+        if (!modelData.rooms[rid].lights) modelData.rooms[rid].lights = {};
+        const cur = modelData.rooms[rid].lights[eid] || {height: 'tv'};
+        modelData.rooms[rid].lights[eid] = { x: Math.max(0, Math.min(1, nl)), y: Math.max(0, Math.min(1, nt)), height: cur.height };
+        saveModel();
+        // update data but keep visual until re-render for smoothness
+        renderMap(); // refresh for precision
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }
+
+    function showHeightSelector(rid, eid, marker) {
+      const cur = (modelData.rooms[rid].lights[eid] && modelData.rooms[rid].lights[eid].height) || 'tv';
+      const heights = ['floor', 'tv', 'above'];
+      const labels = {floor: 'Floor (lower)', tv: 'TV Level (middle)', above: 'Above TV (top)'};
+
+      const menu = document.createElement('div');
+      menu.style.position = 'absolute';
+      menu.style.background = '#161a20';
+      menu.style.border = '1px solid #3f3f46';
+      menu.style.borderRadius = '8px';
+      menu.style.padding = '4px';
+      menu.style.zIndex = '50';
+      menu.style.fontSize = '11px';
+      menu.style.boxShadow = '0 4px 6px -1px rgb(0 0 0 / 0.3)';
+
+      heights.forEach(h => {
+        const b = document.createElement('button');
+        b.textContent = labels[h];
+        b.style.display = 'block';
+        b.style.width = '100%';
+        b.style.textAlign = 'left';
+        b.style.padding = '4px 8px';
+        b.style.borderRadius = '4px';
+        if (h === cur) b.style.background = '#052e16';
+        b.onmousedown = (ev) => {
+          ev.stopImmediatePropagation();
+          modelData.rooms[rid].lights[eid].height = h;
+          saveModel();
+          menu.remove();
+          renderMap();
+        };
+        menu.appendChild(b);
+      });
+
+      document.body.appendChild(menu);
+      const r = marker.getBoundingClientRect();
+      menu.style.left = (r.left + window.scrollX) + 'px';
+      menu.style.top = (r.bottom + window.scrollY + 4) + 'px';
+
+      const close = (ev) => {
+        if (!menu.contains(ev.target)) {
+          menu.remove();
+          document.removeEventListener('mousedown', close);
+        }
+      };
+      setTimeout(() => document.addEventListener('mousedown', close), 10);
+    }
+
+    function assignLightToPos(rid, eid, x, y, h = 'tv') {
+      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70,speed:40,brightnessLimit:85}, furniture: []};
+      if (!modelData.rooms[rid].lights) modelData.rooms[rid].lights = {};
+      modelData.rooms[rid].lights[eid] = {x: Math.max(0,Math.min(1,x)), y: Math.max(0,Math.min(1,y)), height: h};
+      saveModel();
+    }
+
+    function assignPortableGroup(rid, x, y) {
+      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights: {}, mode: 'true-colors', settings: {intensity:70,speed:40,brightnessLimit:85}, furniture: []};
+      if (!modelData.rooms[rid].lights) modelData.rooms[rid].lights = {};
+      PORTABLE_LIGHTS.forEach((eid, i) => {
+        const ox = (i - 0.5) * 0.06;
+        modelData.rooms[rid].lights[eid] = {x: Math.max(0,Math.min(1,x+ox)), y: Math.max(0,Math.min(1,y)), height: 'tv'};
+      });
+      saveModel();
+    }
+
+    async function renderAvailable() {
+      const el = document.getElementById('available-lights');
+      if (!el || !modelData || !lightsData) return;
+      el.innerHTML = '';
+
+      const rid = currentRoom;
+      const rdata = modelData.rooms[rid] || {lights: {}};
+      const assigned = Object.keys(rdata.lights || {});
+
+      // Portable group
+      const g = document.createElement('div');
+      g.className = 'tv-chip group';
+      g.textContent = 'Portable Lights (group)';
+      g.draggable = true;
+      g.ondragstart = (e) => e.dataTransfer.setData('text/group', 'portable');
+      g.onclick = () => {
+        window.__pendingGroup = 'portable';
+        const map = document.getElementById('tv-map');
+        if (map) map.style.borderColor = '#854d0e';
+        setTimeout(() => { if (map) map.style.borderColor = '#3f3f46'; }, 1200);
+      };
+      el.appendChild(g);
+
+      // Room lights from bootstrap data
+      let roomLights = [];
+      if (lightsData && lightsData.rooms) {
+        const r = lightsData.rooms.find(rr => rr.id === rid);
+        if (r && r.light_ids) roomLights = r.light_ids;
+      }
+      // fallback hardcode
+      if (roomLights.length === 0) {
+        if (rid === 'game-room') roomLights = ['light.t_v_lights', 'light.office_lamp', 'light.wiz_rgbw_tunable_ef497e', 'light.bookshelf_lamp'];
+        else if (rid === 'living-room') roomLights = ['light.living_room_lamp'];
+        else if (rid === 'bedroom') roomLights = PORTABLE_LIGHTS;
+        else if (rid === 'hallway') roomLights = ['light.hallway_light_1','light.hallway_light_2','light.hallway_light_3','light.hallway_light_4'];
+      }
+
+      roomLights.forEach(eid => {
+        if (assigned.includes(eid)) return;
+        const c = document.createElement('div');
+        c.className = 'tv-chip' + (eid === LEADER ? ' leader' : '');
+        c.textContent = getLightName(eid);
+        c.draggable = true;
+        c.ondragstart = (e) => e.dataTransfer.setData('text/eid', eid);
+        c.onclick = () => {
+          window.__pendingEid = eid;
+          const map = document.getElementById('tv-map');
+          if (map) map.style.borderColor = '#4ade80';
+          setTimeout(() => { if (map) map.style.borderColor = '#3f3f46'; }, 1200);
+        };
+        el.appendChild(c);
+      });
+    }
+
+    function renderModes() {
+      const el = document.getElementById('modes');
+      if (!el || !modelData) return;
+      const rid = currentRoom;
+      const r = modelData.rooms[rid] || {mode: 'true-colors', settings: {intensity:70, speed:40, brightnessLimit:85}};
+      const modes = [
+        {id:'true-colors', label:'True Colors', desc:'Accurate natural follow'},
+        {id:'video-game', label:'Video Game', desc:'Fast vivid reactive'},
+        {id:'music-sync', label:'Music Sync', desc:'Audio via sync box speaker'}
+      ];
+      el.innerHTML = modes.map(m => {
+        const active = r.mode === m.id ? 'active' : '';
+        const s = r.settings || {};
+        return `
+          <div class="tv-mode ${active}" onclick="setRoomMode('${rid}', '${m.id}')">
+            <div class="font-medium">${m.label}</div>
+            <div class="text-[10px] text-zinc-400">${m.desc}</div>
+            <div class="sliders mt-1">
+              <div class="slider-label">Intensity <span id="int-val-${m.id}">${s.intensity||70}</span></div>
+              <input type="range" min="10" max="100" value="${s.intensity||70}" oninput="updateRoomSetting('${rid}', 'intensity', this.value, '${m.id}')">
+              <div class="slider-label">Speed <span id="spd-val-${m.id}">${s.speed||40}</span></div>
+              <input type="range" min="10" max="100" value="${s.speed||40}" oninput="updateRoomSetting('${rid}', 'speed', this.value, '${m.id}')">
+              <div class="slider-label">Brightness Limit <span id="brt-val-${m.id}">${s.brightnessLimit||85}</span></div>
+              <input type="range" min="20" max="100" value="${s.brightnessLimit||85}" oninput="updateRoomSetting('${rid}', 'brightnessLimit', this.value, '${m.id}')">
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setRoomMode(rid, mid) {
+      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights:{}, mode:mid, settings:{intensity:70,speed:40,brightnessLimit:85}, furniture:[]};
+      modelData.rooms[rid].mode = mid;
+      saveModel();
+      renderModes();
+    }
+
+    function updateRoomSetting(rid, key, val, mid) {
+      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights:{}, mode:'true-colors', settings:{intensity:70,speed:40,brightnessLimit:85}, furniture:[]};
+      if (!modelData.rooms[rid].settings) modelData.rooms[rid].settings = {};
+      modelData.rooms[rid].settings[key] = parseInt(val, 10);
+      // live label
+      const span = document.getElementById(key.slice(0,3) + '-val-' + mid);
+      if (span) span.textContent = val;
+      saveModel();
+    }
+
+    function activateMode() {
+      const rid = currentRoom;
+      const r = modelData.rooms[rid];
+      if (!r) return;
+      const map = document.getElementById('tv-map');
+      if (map) {
+        map.style.transition = 'box-shadow 200ms';
+        map.style.boxShadow = '0 0 0 4px rgba(74,222,128,0.4)';
+        if (r.mode === 'music-sync') {
+          map.style.animation = 'tv-music-wave 700ms infinite';
+        }
+        setTimeout(() => {
+          if (map) {
+            map.style.boxShadow = 'inset 0 0 40px rgba(0,0,0,0.6), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)';
+            map.style.animation = '';
+          }
+        }, 2200);
+      }
+      // animate markers
+      if (map) {
+        map.querySelectorAll('.tv-light-marker').forEach((m, i) => {
+          setTimeout(() => {
+            if (m) {
+              m.style.transition = 'transform 180ms';
+              m.style.transform = 'translate(-50%, -50%) scale(1.15)';
+              setTimeout(() => { if (m) m.style.transform = 'translate(-50%, -50%)'; }, 280);
+            }
+          }, i * 60);
+        });
+      }
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-300 text-xs px-4 py-1.5 rounded-2xl border border-emerald-800 z-[300]';
+      toast.textContent = `${r.mode.replace('-',' ')} activated for ${r.name || rid} (leader T.V Lights)`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1800);
+      saveModel();
+    }
+
+    function addMockFurniture() {
+      const rid = currentRoom;
+      if (!modelData.rooms[rid]) modelData.rooms[rid] = {lights:{}, mode:'true-colors', settings:{}, furniture:[]};
+      if (!modelData.rooms[rid].furniture) modelData.rooms[rid].furniture = [];
+      const id = 'f' + Date.now();
+      modelData.rooms[rid].furniture.push({id, type: 'couch', x:0.4, y:0.6, w:0.2, h:0.15});
+      saveModel();
+      renderFurniture();
+      // visual hint
+      const map = document.getElementById('tv-map');
+      if (map) {
+        if (typeof anime !== 'undefined') anime({targets: map, scale: [1, 1.01, 1], duration: 260});
+      }
+    }
+
+    function renderFurniture() {
+      const el = document.getElementById('furniture-list');
+      if (!el || !modelData) return;
+      const rid = currentRoom;
+      const f = (modelData.rooms[rid] && modelData.rooms[rid].furniture) || [];
+      if (f.length === 0) {
+        el.innerHTML = '<span class="italic">No furniture yet — use "Add mock" to test extensibility. Data ready.</span>';
+        return;
+      }
+      el.innerHTML = f.map(item => `<span class="inline-block mr-2 bg-zinc-800 px-1 rounded">${item.type} @${(item.x*100).toFixed(0)}%,${(item.y*100).toFixed(0)}%</span>`).join('');
+    }
+
+    function renderAll() {
+      renderRoomSelector();
+      renderMap();
+      renderAvailable();
+      renderModes();
+      renderFurniture();
+    }
+
+    // Drag for available chips
+    function setupGlobalDrag() {
+      document.addEventListener('dragstart', (e) => {
+        if (e.target.classList.contains('tv-chip')) {
+          // already set in render
+        }
+      });
+    }
+
+    async function initModel() {
+      initTailwind();
+      await fetchLights();
+      await loadModel();
+      renderAll();
+      setupGlobalDrag();
+
+      // initial leader highlight note
+      setTimeout(() => {
+        const map = document.getElementById('tv-map');
+        if (map && currentRoom === 'game-room') {
+          const leaderM = map.querySelector('.tv-light-marker.leader');
+          if (leaderM && typeof anime !== 'undefined') {
+            anime({targets: leaderM, scale: [1, 1.08, 1], duration: 600, easing: 'easeInOutSine'});
+          }
+        }
+      }, 400);
+    }
+
+    // bootstrap
+    document.addEventListener('DOMContentLoaded', initModel);
+  </script>
+</body>
+</html>

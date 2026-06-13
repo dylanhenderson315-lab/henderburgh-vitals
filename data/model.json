@@ -1,0 +1,41 @@
+{
+  "rooms": {
+    "game-room": {
+      "name": "Game Room",
+      "dims": {
+        "width_ft": 16.1667,
+        "depth_ft": 27.6667
+      },
+      "lights": {
+        "light.t_v_lights": {
+          "x": 0.5,
+          "y": 0.1,
+          "height": "tv"
+        }
+      },
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "furniture": []
+    },
+    "living-room": {
+      "name": "Living Room",
+      "dims": {
+        "width_ft": 13.0833,
+        "depth_ft": 23.4167
+      },
+      "lights": {},
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "furniture": []
+    }
+  },
+  "selected_room": "game-room"
+}

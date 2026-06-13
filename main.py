@@ -1782,6 +1782,108 @@ async def post_tv_sync(data: dict, token: Optional[str] = None):
 
 
 # =============================================================================
+# Model (dedicated /model page - full spatial home replica foundation)
+# Separate data file and APIs from existing TV sync / lighting to keep pages isolated.
+# Clean extensible structure for rooms, lights (pos x/y 0-1 + height), furniture, modes/settings.
+# =============================================================================
+MODEL_FILE = Path("data/model.json")
+MODEL_FILE.parent.mkdir(exist_ok=True)
+
+DEFAULT_MODEL = {
+    "rooms": {
+        "game-room": {
+            "name": "Game Room",
+            "dims": {"width_ft": 16.1667, "depth_ft": 27.6667},
+            "lights": {
+                "light.t_v_lights": {"x": 0.5, "y": 0.1, "height": "tv"}
+            },
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "furniture": []
+        },
+        "living-room": {
+            "name": "Living Room",
+            "dims": {"width_ft": 13.0833, "depth_ft": 23.4167},
+            "lights": {},
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "furniture": []
+        }
+    },
+    "selected_room": "game-room"
+}
+
+def load_model():
+    if MODEL_FILE.exists():
+        try:
+            data = json.loads(MODEL_FILE.read_text())
+            # ensure structure and defaults for scalability
+            if "rooms" not in data:
+                data["rooms"] = DEFAULT_MODEL["rooms"]
+            if "selected_room" not in data:
+                data["selected_room"] = DEFAULT_MODEL["selected_room"]
+            for rid, rdef in DEFAULT_MODEL["rooms"].items():
+                if rid not in data.get("rooms", {}):
+                    data.setdefault("rooms", {})[rid] = rdef
+                else:
+                    r = data["rooms"][rid]
+                    if "lights" not in r: r["lights"] = {}
+                    if "mode" not in r: r["mode"] = rdef["mode"]
+                    if "settings" not in r: r["settings"] = rdef["settings"]
+                    if "furniture" not in r: r["furniture"] = []
+                    if "dims" not in r: r["dims"] = rdef["dims"]
+                    if "name" not in r: r["name"] = rdef["name"]
+            return data
+        except Exception:
+            pass
+    return json.loads(json.dumps(DEFAULT_MODEL))
+
+def save_model(data):
+    if not isinstance(data, dict):
+        data = {}
+    clean = {
+        "rooms": data.get("rooms") or DEFAULT_MODEL["rooms"],
+        "selected_room": data.get("selected_room") or DEFAULT_MODEL["selected_room"]
+    }
+    for rid, rdef in DEFAULT_MODEL["rooms"].items():
+        if rid not in clean["rooms"]:
+            clean["rooms"][rid] = rdef
+        else:
+            r = clean["rooms"][rid]
+            if "lights" not in r: r["lights"] = {}
+            if "mode" not in r: r["mode"] = rdef.get("mode", "true-colors")
+            if "settings" not in r: r["settings"] = rdef.get("settings", {})
+            if "furniture" not in r: r["furniture"] = []
+            if "dims" not in r: r["dims"] = rdef.get("dims", {})
+            if "name" not in r: r["name"] = rdef.get("name", rid)
+    MODEL_FILE.write_text(json.dumps(clean, indent=2))
+
+
+@app.get("/api/model")
+async def get_model():
+    """Public read for model data (rooms, positions, heights, modes, furniture)."""
+    return load_model()
+
+
+@app.post("/api/model")
+async def post_model(data: dict, token: Optional[str] = None):
+    """Save model data. No token required (non-destructive spatial config)."""
+    save_model(data)
+    return {"status": "saved"}
+
+
+@app.get("/model", response_class=HTMLResponse)
+async def model_page(request: Request):
+    """Dedicated /model page - brand new spatial home replica foundation. Completely separate from homepage and lighting controls."""
+    return _render("model.html", {
+        "request": request,
+        "public_mode": PUBLIC_MODE,
+        "site_name": SITE_NAME,
+        "display_name": DISPLAY_NAME,
+    })
+
+
+# =============================================================================
 # Xbox Game Log (persistent recently played)
 # =============================================================================
 XBOX_LOG_FILE = Path("data/xbox_log.json")
