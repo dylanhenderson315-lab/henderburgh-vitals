@@ -245,7 +245,7 @@
           </div>
 
           <!-- 3D Canvas -->
-          <div id="canvas-wrap" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b;">
+          <div id="canvas-wrap" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b; width:100%; min-height:300px;">
             <canvas id="model-canvas" class="model-canvas"></canvas>
             <div id="place-hint" class="hidden absolute inset-0 bg-black/40 items-center justify-center pointer-events-none">
               <div class="px-4 py-1.5 bg-[#161a20] border border-emerald-800 rounded-full text-emerald-300 text-sm flex items-center gap-x-2">
@@ -256,7 +256,7 @@
           </div>
 
           <!-- 2D Canvas -->
-          <div id="2d-wrap" class="hidden relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b;">
+          <div id="2d-wrap" class="hidden relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b; width:100%; min-height:300px;">
             <canvas id="2d-canvas" class="editor-2d"></canvas>
           </div>
 
@@ -574,10 +574,12 @@
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-      // Set a safe default size immediately to avoid 0-size black render
-      let initialW = wrap.clientWidth || 800;
-      let initialH = wrap.clientHeight || 500;
+      // Always use positive default sizes to prevent black/empty render
+      let initialW = Math.max(100, wrap.clientWidth || 800);
+      let initialH = Math.max(100, wrap.clientHeight || 500);
       renderer.setSize(initialW, initialH);
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
 
       scene = new THREE.Scene();
       scene.fog = new THREE.Fog(0x0a0a0b, 40, 120);
@@ -606,8 +608,8 @@
       scene.add(floorHighlight);
 
       function onResize() {
-        const w = wrap.clientWidth || 800;
-        const h = wrap.clientHeight || 500;
+        const w = Math.max(100, wrap.clientWidth || 800);
+        const h = Math.max(100, wrap.clientHeight || 500);
         renderer.setSize(w, h);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
@@ -615,6 +617,12 @@
       }
       window.addEventListener('resize', onResize);
       setTimeout(onResize, 50);
+
+      // Also observe for layout changes
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(onResize);
+        ro.observe(wrap);
+      }
 
       canvas.addEventListener('pointerdown', onPointerDown);
       canvas.addEventListener('pointermove', onPointerMove);
@@ -719,6 +727,11 @@
 
       resetCameraForRoom();
       refresh3DVisibility();
+
+      // Force an immediate render after populating the scene
+      if (renderer && currentView === '3d') {
+        renderer.render(scene, camera);
+      }
     }
 
     function resetCameraForRoom() {
@@ -1432,12 +1445,22 @@
       const wrap = document.getElementById('2d-wrap');
       if (wrap) {
         function resize2d() {
-          canvas2d.width = wrap.clientWidth;
-          canvas2d.height = wrap.clientHeight;
+          const w = Math.max(100, wrap.clientWidth || 800);
+          const h = Math.max(100, wrap.clientHeight || 500);
+          canvas2d.width = w;
+          canvas2d.height = h;
+          canvas2d.style.width = '100%';
+          canvas2d.style.height = '100%';
           if (currentView === '2d') draw2DScene();
         }
         window.addEventListener('resize', resize2d);
         setTimeout(resize2d, 50);
+
+        // Observe for layout changes
+        if (typeof ResizeObserver !== 'undefined') {
+          const ro = new ResizeObserver(resize2d);
+          ro.observe(wrap);
+        }
       }
     }
 
@@ -1481,7 +1504,7 @@
     }
 
     function draw2DScene() {
-      if (!ctx2d || !canvas2d) return;
+      if (!ctx2d || !canvas2d || canvas2d.width < 10 || canvas2d.height < 10) return;
       ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
 
       const room = ROOM_DIMS[currentRoom];
@@ -1721,14 +1744,14 @@
         // Force size and render when showing 3D (handles cases where client size was 0 when hidden)
         setTimeout(() => {
           if (renderer && wrap3d) {
-            const w = wrap3d.clientWidth || 800;
-            const h = wrap3d.clientHeight || 500;
+            const w = Math.max(100, wrap3d.clientWidth || 800);
+            const h = Math.max(100, wrap3d.clientHeight || 500);
             renderer.setSize(w, h);
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
             renderer.render(scene, camera);
           }
-        }, 10);
+        }, 20);
       } else {
         wrap3d.style.display = 'none';
         wrap2d.style.display = 'block';
@@ -1738,11 +1761,15 @@
         // Force 2D canvas size and draw when switching
         setTimeout(() => {
           if (canvas2d && wrap2d) {
-            canvas2d.width = wrap2d.clientWidth || 800;
-            canvas2d.height = wrap2d.clientHeight || 500;
+            const w = Math.max(100, wrap2d.clientWidth || 800);
+            const h = Math.max(100, wrap2d.clientHeight || 500);
+            canvas2d.width = w;
+            canvas2d.height = h;
+            canvas2d.style.width = '100%';
+            canvas2d.style.height = '100%';
             draw2DScene();
           }
-        }, 10);
+        }, 20);
       }
     }
 
@@ -1814,6 +1841,7 @@
       }
 
       // Force initial 3D size with safe defaults (avoids 0-size black render)
+      // Build scene and render after layout is likely ready
       setTimeout(() => {
         const wrap3d = document.getElementById('canvas-wrap');
         if (wrap3d && renderer) {
@@ -1833,7 +1861,7 @@
 
         // Default to 3D (will force size/render again inside switchView)
         switchView('3d');
-      }, 80);
+      }, 100);
 
       // Gentle camera hint (after 3D is up)
       setTimeout(() => {
