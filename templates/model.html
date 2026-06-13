@@ -316,6 +316,7 @@
     let isOrbiting = false;
     let previousMouseX = 0, previousMouseY = 0;
     let orbitTheta = 0.8, orbitPhi = 1.05; // starting angles for perspective
+    let floorHighlight = null; // 3D floor intersection marker for visual feedback
 
     const ROOM_CENTER = { x: 0, z: 0 };
 
@@ -381,6 +382,8 @@
           buildRoomScene();
           updateRoomHeader();
           clearSelection();
+          clearPendingPlace();
+          if (floorHighlight) floorHighlight.visible = false;
         };
         el.appendChild(btn);
       });
@@ -418,6 +421,22 @@
       const dir = new THREE.DirectionalLight(0xffffff, 0.7);
       dir.position.set(20, 35, 10);
       scene.add(dir);
+
+      // Floor intersection highlight marker (for place + drag visual feedback)
+      const highlightGeo = new THREE.CircleGeometry(1.15, 32);
+      const highlightMat = new THREE.MeshBasicMaterial({
+        color: 0x4ade80,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      floorHighlight = new THREE.Mesh(highlightGeo, highlightMat);
+      floorHighlight.rotation.x = -Math.PI / 2;
+      floorHighlight.position.y = 0.025;
+      floorHighlight.visible = false;
+      floorHighlight.userData = { isFloorHighlight: true };
+      scene.add(floorHighlight);
 
       // Resize handler
       function onResize() {
@@ -471,10 +490,10 @@
         if (entry.mesh) scene.remove(entry.mesh);
       });
       objectMeshes = {};
-      // Remove old floor/walls/groups (by name tags)
+      // Remove old floor/walls/groups (by name tags) — protect the persistent floorHighlight
       const toRemove = [];
       scene.children.forEach(c => {
-        if (c.userData && (c.userData.isRoomFloor || c.userData.isRoomWall || c.userData.isStatic)) toRemove.push(c);
+        if (c !== floorHighlight && c.userData && (c.userData.isRoomFloor || c.userData.isRoomWall || c.userData.isStatic)) toRemove.push(c);
       });
       toRemove.forEach(c => scene.remove(c));
 
@@ -688,13 +707,16 @@
       scene.add(mesh);
       objectMeshes[id] = { mesh, data: obj };
 
-      // Subtle entrance animation using scale
-      mesh.scale.set(0.4, 0.4, 0.4);
+      // Stronger placement pop + scale feedback (especially visible for new furniture)
+      mesh.scale.set(0.35, 0.35, 0.35);
       setTimeout(() => {
         if (mesh && mesh.scale) {
-          mesh.scale.set(1, 1, 1);
+          mesh.scale.set(1.12, 1.12, 1.12);
+          setTimeout(() => {
+            if (mesh && mesh.scale) mesh.scale.set(1, 1, 1);
+          }, 180);
         }
-      }, 60);
+      }, 40);
     }
 
     function updateMeshPosition(obj) {
@@ -735,6 +757,7 @@
       }
       selectedId = null;
       renderInspector();
+      if (floorHighlight && !isDraggingObject) floorHighlight.visible = false;
     }
 
     function deleteSelected() {
@@ -747,6 +770,7 @@
         delete objectMeshes[selectedId];
       }
       selectedId = null;
+      if (floorHighlight) floorHighlight.visible = false;
       renderInspector();
       saveModel();
     }
@@ -883,6 +907,7 @@
         hint.classList.add('hidden');
       }
       canvas.style.cursor = '';
+      if (floorHighlight) floorHighlight.visible = false;
     }
 
     // === Interactions ===
@@ -891,6 +916,18 @@
       const nx = (wx / w) + 0.5;
       const nz = (wz / d) + 0.5;
       return { x: Math.max(0, Math.min(1, nx)), z: Math.max(0, Math.min(1, nz)) };
+    }
+
+    // Walk up parent chain to find the root object that carries our userData id (necessary because Groups for furniture/TV/lamps have children meshes that receive the ray hits)
+    function getObjectIdFromIntersect(obj) {
+      let current = obj;
+      while (current) {
+        if (current.userData && current.userData.isObject && current.userData.id && objectMeshes[current.userData.id]) {
+          return current.userData.id;
+        }
+        current = current.parent;
+      }
+      return null;
     }
 
     function onPointerDown(e) {
@@ -903,9 +940,9 @@
 
       let hitObject = null;
       for (let h of hits) {
-        const ud = h.object.userData || {};
-        if (ud.isObject && ud.id && objectMeshes[ud.id]) {
-          hitObject = ud.id;
+        const id = getObjectIdFromIntersect(h.object);
+        if (id) {
+          hitObject = id;
           break;
         }
       }
@@ -917,6 +954,16 @@
         selectObject(hitObject);
         previousMouseX = e.clientX;
         previousMouseY = e.clientY;
+        // show highlight at current object position for feedback
+        const entry = objectMeshes[hitObject];
+        if (entry && entry.mesh && floorHighlight) {
+          floorHighlight.position.set(entry.mesh.position.x, 0.025, entry.mesh.position.z);
+          floorHighlight.visible = true;
+          // slight lift + scale for drag start visual
+          const wy = entry.mesh.position.y;
+          entry.mesh.position.y = wy + 0.65;
+          entry.mesh.scale.set(1.09, 1.09, 1.09);
+        }
         return;
       }
 
@@ -949,8 +996,29 @@
             if (entry && entry.mesh) {
               entry.mesh.position.x = nx;
               entry.mesh.position.z = nz;
+              // keep the lifted y during drag
             }
+            // live update highlight at floor intersection + immediate server save (no Force Save needed)
+            if (floorHighlight) {
+              floorHighlight.position.set(nx, 0.025, nz);
+              floorHighlight.visible = true;
+            }
+            saveModel();
           }
+        }
+        return;
+      }
+
+      // Live 3D preview of floor intersection while a palette item is selected (for intuitive furniture/light placement)
+      if (pendingPlace && floorHighlight) {
+        raycaster.setFromCamera(mouse, camera);
+        const intersect = raycaster.ray.intersectPlane(floorPlane);
+        if (intersect) {
+          const { w, d } = getRoomSize();
+          let nx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
+          let nz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
+          floorHighlight.position.set(nx, 0.025, nz);
+          floorHighlight.visible = true;
         }
         return;
       }
@@ -977,7 +1045,16 @@
 
     function onPointerUp(e) {
       if (isDraggingObject && draggedObjectId) {
-        // finished drag — persist
+        // finished drag — restore visual lift, hide highlight, persist immediately
+        const entry = objectMeshes[draggedObjectId];
+        const room = modelData.rooms[currentRoom];
+        const obj = room && room.objects && room.objects.find(o => o.id === draggedObjectId);
+        if (entry && entry.mesh && obj) {
+          const wy = HEIGHT_Y[obj.height] || 0.18;
+          entry.mesh.position.y = wy;
+          entry.mesh.scale.set(1, 1, 1);
+        }
+        if (floorHighlight) floorHighlight.visible = false;
         saveModel();
       }
       isDraggingObject = false;
@@ -1009,9 +1086,9 @@
       if (!pendingPlace) {
         const hits = raycaster.intersectObjects(scene.children, true);
         for (let h of hits) {
-          const ud = h.object.userData || {};
-          if (ud.isObject && ud.id) {
-            selectObject(ud.id);
+          const id = getObjectIdFromIntersect(h.object);
+          if (id) {
+            selectObject(id);
             return;
           }
         }
@@ -1020,7 +1097,7 @@
         return;
       }
 
-      // Place mode
+      // Place mode — reliable for furniture and all types
       const intersect = raycaster.ray.intersectPlane(floorPlane);
       if (!intersect || !pendingPlace) return;
 
@@ -1048,6 +1125,18 @@
       selectObject(newObj.id);
       saveModel();
 
+      // visual feedback: pop the floor highlight then hide (clear placement spot indication)
+      if (floorHighlight) {
+        floorHighlight.scale.set(1.8, 1.8, 1.8);
+        floorHighlight.visible = true;
+        setTimeout(() => {
+          if (floorHighlight) {
+            floorHighlight.scale.set(1, 1, 1);
+            floorHighlight.visible = false;
+          }
+        }, 220);
+      }
+
       // clear pending state
       clearPendingPlace();
     }
@@ -1059,6 +1148,8 @@
       room.objects = [];
       buildRoomScene();
       clearSelection();
+      clearPendingPlace();
+      if (floorHighlight) floorHighlight.visible = false;
       saveModel();
     }
 
@@ -1087,6 +1178,8 @@
         room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling' });
       }
       buildRoomScene();
+      clearPendingPlace();
+      if (floorHighlight) floorHighlight.visible = false;
       saveModel();
     }
 
