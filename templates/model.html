@@ -104,7 +104,7 @@
       padding: 14px;
     }
 
-    .height-btn {
+    .height-btn, .temp-btn {
       padding: 4px 10px;
       font-size: 11px;
       border-radius: 6px;
@@ -114,7 +114,7 @@
       transition: all 0.1s;
       cursor: pointer;
     }
-    .height-btn.active {
+    .height-btn.active, .temp-btn.active {
       background: #052e16;
       border-color: #4ade80;
       color: #4ade80;
@@ -165,7 +165,7 @@
           <h1 class="text-3xl font-semibold tracking-tighter">Home Model</h1>
           <div class="px-2.5 py-0.5 text-[10px] rounded-full border border-emerald-900 bg-emerald-950 text-emerald-400 font-mono">3D • SPATIAL</div>
         </div>
-        <p class="text-zinc-400 mt-1">Accurate 3D replica of the house. Place lights, furniture &amp; TVs using real floor-plan dimensions.</p>
+        <p class="text-zinc-400 mt-1">Accurate 3D replica of the house. Place lights, furniture &amp; TVs using real floor-plan dimensions. Lights cast real illumination.</p>
       </div>
       <div class="hidden md:block text-right">
         <div class="text-[10px] text-emerald-400/70 font-mono">/model • server persisted</div>
@@ -207,7 +207,7 @@
           </div>
 
           <div class="mt-3 flex items-center justify-between text-[10px] three-legend">
-            <div>Drag objects to move • Click empty floor while a type is selected to place • Drag empty space to orbit view</div>
+            <div>Drag objects to move • Click empty floor while a type is selected to place • Lights cast real illumination • Drag empty space to orbit view</div>
             <div class="hidden md:block">Wheel = zoom • Click object = select</div>
           </div>
         </div>
@@ -219,7 +219,7 @@
         <div class="card p-4">
           <div class="section-label mb-2">Add Object</div>
           <div id="palette" class="grid grid-cols-2 gap-2"></div>
-          <div class="mt-2 text-[10px] text-zinc-500">Choose a type, then click the floor in the 3D view to place it. Drag any object to reposition.</div>
+          <div class="mt-2 text-[10px] text-zinc-500">Choose a type, then click the floor in the 3D view to place it. Drag any object to reposition. Lights affect the scene.</div>
         </div>
 
         <!-- Inspector -->
@@ -255,7 +255,7 @@
       </div>
       <div class="card p-4">
         <div class="font-medium mb-1 text-emerald-400/90">Object Types</div>
-        <div class="text-zinc-400">Lights (recessed / lamp / TV backlight) • TVs • Furniture (couch, bed, desk, table). All fully positioned in real feet. Add more subtypes in code — data is just JSON.</div>
+        <div class="text-zinc-400">Lights (recessed / lamp / TV backlight) now cast real-time illumination • TVs • Furniture (couch, bed, desk, table). All fully positioned in real feet.</div>
       </div>
     </div>
 
@@ -308,17 +308,49 @@
     let currentRoom = 'game-room';
     let scene, camera, renderer, canvas;
     let raycaster, mouse, floorPlane;
-    let objectMeshes = {}; // id -> { mesh, data }
+    let objectMeshes = {}; // id -> { mesh, light?, data, visual? }
     let selectedId = null;
     let pendingPlace = null;
     let isDraggingObject = false;
     let draggedObjectId = null;
     let isOrbiting = false;
     let previousMouseX = 0, previousMouseY = 0;
-    let orbitTheta = 0.8, orbitPhi = 1.05; // starting angles for perspective
-    let floorHighlight = null; // 3D floor intersection marker for visual feedback
+    let orbitTheta = 0.8, orbitPhi = 1.05;
+    let floorHighlight = null;
+    let saveTimeout = null;
 
     const ROOM_CENTER = { x: 0, z: 0 };
+
+    function kelvinToColor(kelvin) {
+      let temp = kelvin / 100;
+      let red, green, blue;
+      if (temp <= 66) {
+        red = 255;
+        green = 99.4708025861 * Math.log(temp) - 161.1195681661;
+        green = Math.max(0, Math.min(255, green));
+        if (temp <= 19) {
+          blue = 0;
+        } else {
+          blue = temp - 10;
+          blue = 138.5177312231 * Math.log(blue) - 305.0447927307;
+          blue = Math.max(0, Math.min(255, blue));
+        }
+      } else {
+        red = temp - 60;
+        red = 329.698727446 * Math.pow(red, -0.1332047592);
+        red = Math.max(0, Math.min(255, red));
+        green = temp - 60;
+        green = 288.1221695283 * Math.pow(green, -0.0755148492);
+        green = Math.max(0, Math.min(255, green));
+        blue = 255;
+      }
+      return { r: red / 255, g: green / 255, b: blue / 255 };
+    }
+
+    function scheduleSave() {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => saveModel(), 180);
+    }
 
     async function loadModel() {
       try {
@@ -328,12 +360,8 @@
         modelData = null;
       }
       if (!modelData || !modelData.rooms) {
-        modelData = {
-          rooms: {},
-          selected_room: 'game-room'
-        };
+        modelData = { rooms: {}, selected_room: 'game-room' };
       }
-      // Ensure all rooms exist with objects array
       Object.keys(ROOM_DIMS).forEach(rid => {
         if (!modelData.rooms[rid]) {
           modelData.rooms[rid] = { name: ROOM_DIMS[rid].name, dims: { width_ft: ROOM_DIMS[rid].width_ft, depth_ft: ROOM_DIMS[rid].depth_ft }, objects: [] };
@@ -395,7 +423,31 @@
       document.getElementById('room-dims').textContent = `${r.width_ft.toFixed(1)}' × ${r.depth_ft.toFixed(1)}' (real floor plan)`;
     }
 
-    // === Three.js Setup ===
+    function applyLightVisual(root, obj) {
+      if (!root) return;
+      const on = obj.on !== false;
+      const rgb = kelvinToColor(obj.color_temp || 4000);
+      const e = on ? 0.35 : 0;
+      root.traverse((child) => {
+        if (child.material && 'emissive' in child.material) {
+          child.material.emissive.setRGB(rgb.r * e, rgb.g * e, rgb.b * e);
+        }
+      });
+    }
+
+    function applyLightProperties(entry, obj) {
+      if (!entry || !entry.light) return;
+      const l = entry.light;
+      l.visible = obj.on !== false;
+      const rgb = kelvinToColor(obj.color_temp || 4000);
+      l.color.setRGB(rgb.r, rgb.g, rgb.b);
+      let intensity = (obj.brightness || 70) / 35;
+      if (obj.subtype === 'recessed') intensity *= 0.85;
+      if (obj.subtype === 'tv-backlight') intensity *= 0.55;
+      l.intensity = intensity;
+      applyLightVisual(entry.mesh, obj);
+    }
+
     function initThree() {
       canvas = document.getElementById('model-canvas');
       const wrap = document.getElementById('canvas-wrap');
@@ -407,7 +459,6 @@
       scene = new THREE.Scene();
       scene.fog = new THREE.Fog(0x0a0a0b, 40, 120);
 
-      // Camera (perspective for nice 3D feel; we control top/iso via position)
       camera = new THREE.PerspectiveCamera(48, wrap.clientWidth / wrap.clientHeight, 0.1, 200);
       camera.position.set(12, 22, 18);
       camera.lookAt(0, 0, 0);
@@ -415,22 +466,15 @@
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
 
-      // Lights
       const hemi = new THREE.HemisphereLight(0xaaaaaa, 0x222222, 0.6);
       scene.add(hemi);
-      const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+      const dir = new THREE.DirectionalLight(0xffffff, 0.55);
       dir.position.set(20, 35, 10);
       scene.add(dir);
 
-      // Floor intersection highlight marker (for place + drag visual feedback)
+      // Floor highlight marker
       const highlightGeo = new THREE.CircleGeometry(1.15, 32);
-      const highlightMat = new THREE.MeshBasicMaterial({
-        color: 0x4ade80,
-        transparent: true,
-        opacity: 0.28,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
+      const highlightMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide });
       floorHighlight = new THREE.Mesh(highlightGeo, highlightMat);
       floorHighlight.rotation.x = -Math.PI / 2;
       floorHighlight.position.y = 0.025;
@@ -438,7 +482,6 @@
       floorHighlight.userData = { isFloorHighlight: true };
       scene.add(floorHighlight);
 
-      // Resize handler
       function onResize() {
         const w = wrap.clientWidth;
         const h = wrap.clientHeight;
@@ -447,18 +490,16 @@
         camera.updateProjectionMatrix();
       }
       window.addEventListener('resize', onResize);
-      // initial size
       setTimeout(onResize, 30);
 
-      // Interaction
       canvas.addEventListener('pointerdown', onPointerDown);
       canvas.addEventListener('pointermove', onPointerMove);
       canvas.addEventListener('pointerup', onPointerUp);
       canvas.addEventListener('pointerleave', onPointerUp);
+      canvas.addEventListener('pointerleave', onPointerUp);
       canvas.addEventListener('wheel', onWheel, { passive: false });
       canvas.addEventListener('click', onCanvasClick);
 
-      // Keyboard delete
       document.addEventListener('keydown', (e) => {
         if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
           e.preventDefault();
@@ -469,7 +510,6 @@
         }
       });
 
-      // Start render loop
       animate();
     }
 
@@ -484,13 +524,12 @@
     }
 
     function buildRoomScene() {
-      // Clear previous
       Object.keys(objectMeshes).forEach(id => {
         const entry = objectMeshes[id];
         if (entry.mesh) scene.remove(entry.mesh);
       });
       objectMeshes = {};
-      // Remove old floor/walls/groups (by name tags) — protect the persistent floorHighlight
+
       const toRemove = [];
       scene.children.forEach(c => {
         if (c !== floorHighlight && c.userData && (c.userData.isRoomFloor || c.userData.isRoomWall || c.userData.isStatic)) toRemove.push(c);
@@ -501,45 +540,34 @@
       ROOM_CENTER.x = 0;
       ROOM_CENTER.z = 0;
 
-      // Floor (accurate size)
-      const floorGeo = new THREE.PlaneGeometry(w, d);
-      const floorMat = new THREE.MeshLambertMaterial({ color: 0x1f242b, flatShading: true });
-      const floor = new THREE.Mesh(floorGeo, floorMat);
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial({ color: 0x1f242b, flatShading: true }));
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = 0;
       floor.userData = { isRoomFloor: true, room: currentRoom };
       scene.add(floor);
 
-      // Invisible floor plane for raycasting (same size)
       floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-      // Subtle grid (feet)
       const grid = new THREE.GridHelper(Math.max(w, d), Math.ceil(Math.max(w, d)), 0x334155, 0x272e38);
       grid.position.y = 0.02;
       grid.userData = { isStatic: true };
       scene.add(grid);
 
-      // Walls (low border + TV/feature wall emphasis)
       const wallH = 0.9;
       const wallMat = new THREE.MeshLambertMaterial({ color: 0x2a313a });
       const tvWallMat = new THREE.MeshLambertMaterial({ color: 0x374151 });
-
-      // Four walls
       const halfW = w / 2, halfD = d / 2;
 
-      // South (positive Z) - viewer side
       const wallS = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, 0.18), wallMat);
       wallS.position.set(0, wallH / 2, halfD + 0.05);
       wallS.userData = { isRoomWall: true };
       scene.add(wallS);
 
-      // North (negative Z) — TV / feature wall (taller & different tone)
       const wallN = new THREE.Mesh(new THREE.BoxGeometry(w, wallH + 1.6, 0.22), tvWallMat);
       wallN.position.set(0, (wallH + 1.6) / 2, -halfD - 0.05);
       wallN.userData = { isRoomWall: true, isTVWall: true };
       scene.add(wallN);
 
-      // East + West
       const wallE = new THREE.Mesh(new THREE.BoxGeometry(0.18, wallH, d), wallMat);
       wallE.position.set(halfW + 0.05, wallH / 2, 0);
       wallE.userData = { isRoomWall: true };
@@ -550,37 +578,28 @@
       wallW.userData = { isRoomWall: true };
       scene.add(wallW);
 
-      // Tiny TV label on feature wall
-      const tvLabel = new THREE.Mesh(
-        new THREE.PlaneGeometry(Math.min(3.5, w * 0.28), 0.7),
-        new THREE.MeshBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.7 })
-      );
+      const tvLabel = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(3.5, w * 0.28), 0.7), new THREE.MeshBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.7 }));
       tvLabel.rotation.y = Math.PI;
       tvLabel.position.set(0, 2.8, -halfD - 0.18);
       tvLabel.userData = { isStatic: true };
       scene.add(tvLabel);
 
-      // Kitchen cabinet hint (static)
       if (currentRoom === 'kitchen') {
-        const cabMat = new THREE.MeshLambertMaterial({ color: 0x3f2a1f });
-        const cab = new THREE.Mesh(new THREE.BoxGeometry(w * 0.22, 1.6, 0.6), cabMat);
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(w * 0.22, 1.6, 0.6), new THREE.MeshLambertMaterial({ color: 0x3f2a1f }));
         cab.position.set(-halfW + 1.4, 0.8, -halfD * 0.6);
         cab.userData = { isStatic: true };
         scene.add(cab);
       }
 
-      // Load objects for this room
       const room = modelData.rooms[currentRoom] || { objects: [] };
       (room.objects || []).forEach(obj => createOrUpdateMesh(obj));
 
-      // Position camera nicely for current room size
       resetCameraForRoom();
     }
 
     function resetCameraForRoom() {
       const { w, d } = getRoomSize();
       const maxDim = Math.max(w, d);
-      // Nice default isometric-ish
       camera.position.set(maxDim * 0.65, maxDim * 0.85, maxDim * 0.75);
       camera.lookAt(0, 1.8, 0);
       orbitTheta = 0.9;
@@ -603,15 +622,12 @@
 
     function createOrUpdateMesh(obj) {
       const id = obj.id;
-      // Remove old if exists
       if (objectMeshes[id] && objectMeshes[id].mesh) {
         scene.remove(objectMeshes[id].mesh);
       }
 
       const { w, d } = getRoomSize();
       const halfW = w / 2, halfD = d / 2;
-
-      // Convert normalized (0-1) to world feet
       const wx = (obj.x - 0.5) * w;
       const wz = (obj.z - 0.5) * d;
       const wy = HEIGHT_Y[obj.height] || 0.18;
@@ -627,7 +643,6 @@
           mesh = new THREE.Mesh(g, m);
           mesh.position.set(wx, wy - 0.05, wz);
         } else if (sub === 'lamp') {
-          // Base + stem + shade
           const group = new THREE.Group();
           const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 0.22, 16), new THREE.MeshLambertMaterial({ color: 0x44403c }));
           base.position.y = 0.11;
@@ -646,10 +661,8 @@
         }
       } else if (cat === 'tv') {
         const group = new THREE.Group();
-        // Body
         const body = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2.2, 0.28), new THREE.MeshLambertMaterial({ color: 0x111827 }));
         body.position.y = 1.1;
-        // Screen
         const screen = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.9, 0.08), new THREE.MeshLambertMaterial({ color: 0x0f172a, emissive: 0x1e3a8a }));
         screen.position.y = 1.1;
         screen.position.z = -0.2;
@@ -665,8 +678,7 @@
           back.position.set(0, 0.95, -0.65);
           const armL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.9, 1.7), new THREE.MeshLambertMaterial({ color: 0x3f4855 }));
           armL.position.set(-1.95, 0.55, 0);
-          const armR = armL.clone();
-          armR.position.x = 1.95;
+          const armR = armL.clone(); armR.position.x = 1.95;
           group.add(seat, back, armL, armR);
           mesh = group;
           mesh.position.set(wx, wy, wz);
@@ -680,7 +692,6 @@
           mesh = group;
           mesh.position.set(wx, wy, wz);
         } else {
-          // table / desk / counter
           const group = new THREE.Group();
           const top = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.22, 1.5), new THREE.MeshLambertMaterial({ color: obj.color || 0x78350f }));
           top.position.y = 1.35;
@@ -688,7 +699,6 @@
           leg.position.y = 0.65;
           const leg2 = leg.clone(); leg2.position.x = 2.0;
           const leg3 = leg.clone(); leg3.position.x = -2.0;
-          const leg4 = leg.clone(); leg4.position.x = 2.0; leg4.position.z = 1.0; // rough
           group.add(top, leg, leg2, leg3);
           mesh = group;
           mesh.position.set(wx, wy, wz);
@@ -696,25 +706,52 @@
       }
 
       if (!mesh) {
-        // Fallback simple box
         mesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 1.4), new THREE.MeshLambertMaterial({ color: 0x64748b }));
         mesh.position.set(wx, wy, wz);
       }
 
-      mesh.userData = { id, isObject: true };
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-      objectMeshes[id] = { mesh, data: obj };
+      let light = null;
+      let root = mesh;
 
-      // Stronger placement pop + scale feedback (especially visible for new furniture)
-      mesh.scale.set(0.35, 0.35, 0.35);
+      if (cat === 'light') {
+        const temp = obj.color_temp || 4000;
+        const rgb = kelvinToColor(temp);
+        const intensity = (obj.brightness || 70) / 35;
+        light = new THREE.PointLight(new THREE.Color(rgb.r, rgb.g, rgb.b), intensity, 40);
+        light.visible = obj.on !== false;
+
+        if (!(mesh instanceof THREE.Group)) {
+          root = new THREE.Group();
+          root.add(mesh);
+        }
+
+        let ly = 0.1;
+        if (sub === 'recessed') ly = -0.05;
+        if (sub === 'lamp') ly = 2.0;
+        if (sub === 'tv-backlight') ly = 0.8;
+        light.position.set(0, ly, 0);
+        root.add(light);
+
+        mesh = root;
+      }
+
+      root.userData = { id, isObject: true };
+      root.castShadow = true;
+      root.receiveShadow = true;
+      scene.add(root);
+
+      const entry = { mesh: root, light, data: obj, visual: (root.children && root.children.length ? root.children[0] : root) };
+      objectMeshes[id] = entry;
+
+      if (cat === 'light') {
+        applyLightProperties(entry, obj);
+      }
+
+      root.scale.set(0.35, 0.35, 0.35);
       setTimeout(() => {
-        if (mesh && mesh.scale) {
-          mesh.scale.set(1.12, 1.12, 1.12);
-          setTimeout(() => {
-            if (mesh && mesh.scale) mesh.scale.set(1, 1, 1);
-          }, 180);
+        if (root && root.scale) {
+          root.scale.set(1.12, 1.12, 1.12);
+          setTimeout(() => { if (root && root.scale) root.scale.set(1, 1, 1); }, 180);
         }
       }, 40);
     }
@@ -731,7 +768,6 @@
 
     function selectObject(id) {
       if (selectedId && objectMeshes[selectedId]) {
-        // reset previous highlight
         const prev = objectMeshes[selectedId].mesh;
         if (prev) prev.scale.set(1, 1, 1);
       }
@@ -741,11 +777,10 @@
         renderInspector();
         return;
       }
-      const mesh = entry.mesh;
-      if (mesh) {
-        // quick pop highlight
-        mesh.scale.set(1.06, 1.06, 1.06);
-        setTimeout(() => { if (mesh && mesh.scale) mesh.scale.set(1, 1, 1); }, 280);
+      const m = entry.mesh;
+      if (m) {
+        m.scale.set(1.06, 1.06, 1.06);
+        setTimeout(() => { if (m && m.scale) m.scale.set(1, 1, 1); }, 280);
       }
       renderInspector();
     }
@@ -781,7 +816,6 @@
       if (!obj) return;
       obj.height = newHeight;
       updateMeshPosition(obj);
-      // visual feedback
       const entry = objectMeshes[id];
       if (entry && entry.mesh) {
         const m = entry.mesh;
@@ -813,7 +847,7 @@
         { v: 'ceiling', label: 'Ceiling' }
       ];
 
-      container.innerHTML = `
+      let html = `
         <div class="space-y-3">
           <div>
             <div class="text-xs text-zinc-400 mb-0.5">Name</div>
@@ -831,6 +865,33 @@
               `).join('')}
             </div>
           </div>
+      `;
+
+      if (obj.type === 'light') {
+        const on = obj.on !== false;
+        const brt = obj.brightness || 70;
+        const ct = obj.color_temp || 4000;
+        html += `
+          <div class="mt-3 pt-2 border-t border-zinc-700">
+            <div class="text-xs text-zinc-400 mb-1">Power</div>
+            <button id="light-toggle" class="text-xs px-3 py-1 rounded ${on ? 'bg-emerald-600 text-white' : 'bg-zinc-700'}">${on ? 'ON' : 'OFF'}</button>
+          </div>
+          <div class="mt-2">
+            <div class="text-xs text-zinc-400 mb-1">Brightness <span id="brt-val">${brt}</span>%</div>
+            <input type="range" id="light-brightness" min="10" max="100" value="${brt}" class="w-full accent-emerald-500">
+          </div>
+          <div class="mt-2">
+            <div class="text-xs text-zinc-400 mb-1">Color Temperature</div>
+            <div class="flex gap-1">
+              <button data-temp="2700" class="temp-btn flex-1 ${ct === 2700 ? 'active' : ''}">Warm</button>
+              <button data-temp="4000" class="temp-btn flex-1 ${ct === 4000 ? 'active' : ''}">Neutral</button>
+              <button data-temp="6500" class="temp-btn flex-1 ${ct === 6500 ? 'active' : ''}">Cool</button>
+            </div>
+          </div>
+        `;
+      }
+
+      html += `
           <div class="flex gap-x-2 pt-1">
             <button id="delete-btn" class="flex-1 text-xs px-3 py-1.5 rounded-lg border border-red-900/60 text-red-400 hover:bg-red-950/40">Delete</button>
             <button id="deselect-btn" class="flex-1 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Deselect</button>
@@ -838,13 +899,11 @@
         </div>
       `;
 
-      // Bind
+      container.innerHTML = html;
+
       const nameInput = container.querySelector('#obj-name');
       if (nameInput) {
-        nameInput.onchange = () => {
-          obj.name = nameInput.value.trim() || obj.subtype;
-          saveModel();
-        };
+        nameInput.onchange = () => { obj.name = nameInput.value.trim() || obj.subtype; saveModel(); };
         nameInput.onblur = () => saveModel();
       }
 
@@ -854,12 +913,45 @@
 
       const del = container.querySelector('#delete-btn');
       if (del) del.onclick = deleteSelected;
-
       const desel = container.querySelector('#deselect-btn');
       if (desel) desel.onclick = clearSelection;
+
+      if (obj.type === 'light') {
+        const toggle = container.querySelector('#light-toggle');
+        if (toggle) {
+          toggle.onclick = () => {
+            obj.on = !obj.on;
+            const entry = objectMeshes[selectedId];
+            applyLightProperties(entry, obj);
+            saveModel();
+            renderInspector();
+          };
+        }
+
+        const brtSlider = container.querySelector('#light-brightness');
+        const brtVal = container.querySelector('#brt-val');
+        if (brtSlider) {
+          brtSlider.oninput = () => {
+            obj.brightness = parseInt(brtSlider.value, 10);
+            if (brtVal) brtVal.textContent = obj.brightness;
+            const entry = objectMeshes[selectedId];
+            applyLightProperties(entry, obj);
+            scheduleSave();
+          };
+        }
+
+        container.querySelectorAll('.temp-btn').forEach(btn => {
+          btn.onclick = () => {
+            obj.color_temp = parseInt(btn.dataset.temp);
+            const entry = objectMeshes[selectedId];
+            applyLightProperties(entry, obj);
+            saveModel();
+            renderInspector();
+          };
+        });
+      }
     }
 
-    // === Palette ===
     function renderPalette() {
       const el = document.getElementById('palette');
       if (!el) return;
@@ -871,18 +963,14 @@
           <span class="swatch" style="background:#${def.color.toString(16).padStart(6,'0')}"></span>
           <span>${def.label}</span>
         `;
-        chip.onclick = () => {
-          setPendingPlace(def, chip);
-        };
+        chip.onclick = () => setPendingPlace(def, chip);
         el.appendChild(chip);
       });
     }
 
     function setPendingPlace(def, chipEl) {
-      // clear previous active
       document.querySelectorAll('#palette .obj-chip').forEach(c => c.classList.remove('active'));
       if (pendingPlace && pendingPlace.subtype === def.subtype) {
-        // toggle off
         clearPendingPlace();
         return;
       }
@@ -890,10 +978,7 @@
       if (chipEl) chipEl.classList.add('active');
       const hint = document.getElementById('place-hint');
       const txt = document.getElementById('place-hint-text');
-      if (hint) {
-        hint.classList.remove('hidden');
-        hint.style.display = 'flex';
-      }
+      if (hint) { hint.classList.remove('hidden'); hint.style.display = 'flex'; }
       if (txt) txt.textContent = `Click floor to place ${def.label}`;
       canvas.style.cursor = 'crosshair';
     }
@@ -902,15 +987,11 @@
       pendingPlace = null;
       document.querySelectorAll('#palette .obj-chip').forEach(c => c.classList.remove('active'));
       const hint = document.getElementById('place-hint');
-      if (hint) {
-        hint.style.display = 'none';
-        hint.classList.add('hidden');
-      }
+      if (hint) { hint.style.display = 'none'; hint.classList.add('hidden'); }
       canvas.style.cursor = '';
       if (floorHighlight) floorHighlight.visible = false;
     }
 
-    // === Interactions ===
     function getNormalizedFromWorld(wx, wz) {
       const { w, d } = getRoomSize();
       const nx = (wx / w) + 0.5;
@@ -918,7 +999,6 @@
       return { x: Math.max(0, Math.min(1, nx)), z: Math.max(0, Math.min(1, nz)) };
     }
 
-    // Walk up parent chain to find the root object that carries our userData id (necessary because Groups for furniture/TV/lamps have children meshes that receive the ray hits)
     function getObjectIdFromIntersect(obj) {
       let current = obj;
       while (current) {
@@ -941,25 +1021,20 @@
       let hitObject = null;
       for (let h of hits) {
         const id = getObjectIdFromIntersect(h.object);
-        if (id) {
-          hitObject = id;
-          break;
-        }
+        if (id) { hitObject = id; break; }
       }
 
       if (hitObject) {
-        // start dragging this object
         isDraggingObject = true;
         draggedObjectId = hitObject;
         selectObject(hitObject);
         previousMouseX = e.clientX;
         previousMouseY = e.clientY;
-        // show highlight at current object position for feedback
+
         const entry = objectMeshes[hitObject];
         if (entry && entry.mesh && floorHighlight) {
           floorHighlight.position.set(entry.mesh.position.x, 0.025, entry.mesh.position.z);
           floorHighlight.visible = true;
-          // slight lift + scale for drag start visual
           const wy = entry.mesh.position.y;
           entry.mesh.position.y = wy + 0.65;
           entry.mesh.scale.set(1.09, 1.09, 1.09);
@@ -967,7 +1042,6 @@
         return;
       }
 
-      // No object hit — check if we should orbit or place
       isOrbiting = true;
       previousMouseX = e.clientX;
       previousMouseY = e.clientY;
@@ -996,9 +1070,7 @@
             if (entry && entry.mesh) {
               entry.mesh.position.x = nx;
               entry.mesh.position.z = nz;
-              // keep the lifted y during drag
             }
-            // live update highlight at floor intersection + immediate server save (no Force Save needed)
             if (floorHighlight) {
               floorHighlight.position.set(nx, 0.025, nz);
               floorHighlight.visible = true;
@@ -1009,7 +1081,6 @@
         return;
       }
 
-      // Live 3D preview of floor intersection while a palette item is selected (for intuitive furniture/light placement)
       if (pendingPlace && floorHighlight) {
         raycaster.setFromCamera(mouse, camera);
         const intersect = raycaster.ray.intersectPlane(floorPlane);
@@ -1045,7 +1116,6 @@
 
     function onPointerUp(e) {
       if (isDraggingObject && draggedObjectId) {
-        // finished drag — restore visual lift, hide highlight, persist immediately
         const entry = objectMeshes[draggedObjectId];
         const room = modelData.rooms[currentRoom];
         const obj = room && room.objects && room.objects.find(o => o.id === draggedObjectId);
@@ -1067,7 +1137,6 @@
       const dir = e.deltaY > 0 ? 1 : -1;
       const factor = 1 + dir * 0.08;
       camera.position.multiplyScalar(factor);
-      // keep a reasonable min distance
       const len = camera.position.length();
       if (len < 6) camera.position.setLength(6);
       if (len > 95) camera.position.setLength(95);
@@ -1082,7 +1151,6 @@
 
       raycaster.setFromCamera(mouse, camera);
 
-      // Try object selection first (if no pending)
       if (!pendingPlace) {
         const hits = raycaster.intersectObjects(scene.children, true);
         for (let h of hits) {
@@ -1092,12 +1160,10 @@
             return;
           }
         }
-        // clicked empty — clear selection
         clearSelection();
         return;
       }
 
-      // Place mode — reliable for furniture and all types
       const intersect = raycaster.ray.intersectPlane(floorPlane);
       if (!intersect || !pendingPlace) return;
 
@@ -1120,12 +1186,17 @@
                 (pendingPlace.type === 'tv') ? 'tv' : 'floor'
       };
 
+      if (pendingPlace.type === 'light') {
+        newObj.on = true;
+        newObj.brightness = 70;
+        newObj.color_temp = 4000;
+      }
+
       room.objects.push(newObj);
       createOrUpdateMesh(newObj);
       selectObject(newObj.id);
       saveModel();
 
-      // visual feedback: pop the floor highlight then hide (clear placement spot indication)
       if (floorHighlight) {
         floorHighlight.scale.set(1.8, 1.8, 1.8);
         floorHighlight.visible = true;
@@ -1137,11 +1208,9 @@
         }, 220);
       }
 
-      // clear pending state
       clearPendingPlace();
     }
 
-    // === Room management ===
     function clearCurrentRoom() {
       const room = modelData.rooms[currentRoom];
       if (!room) return;
@@ -1156,26 +1225,24 @@
     function seedCurrentRoom() {
       const room = modelData.rooms[currentRoom];
       if (!room) return;
-      const defs = ROOM_DIMS[currentRoom];
       room.objects = [];
 
-      // sensible seeds per room
       if (currentRoom === 'game-room') {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'tv-backlight', name: 'T.V Lights', x: 0.5, z: 0.08, height: 'tv' });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'tv-backlight', name: 'T.V Lights', x: 0.5, z: 0.08, height: 'tv', on: true, brightness: 85, color_temp: 6500 });
         room.objects.push({ id: 's2', type: 'furniture', subtype: 'couch', name: 'Sectional', x: 0.33, z: 0.55, height: 'floor' });
-        room.objects.push({ id: 's3', type: 'light', subtype: 'lamp', name: 'Desk Lamp', x: 0.72, z: 0.28, height: 'floor' });
+        room.objects.push({ id: 's3', type: 'light', subtype: 'lamp', name: 'Desk Lamp', x: 0.72, z: 0.28, height: 'floor', on: true, brightness: 65, color_temp: 2700 });
       } else if (currentRoom === 'living-room') {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'lamp', name: 'Floor Lamp', x: 0.2, z: 0.38, height: 'floor' });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'lamp', name: 'Floor Lamp', x: 0.2, z: 0.38, height: 'floor', on: true, brightness: 70, color_temp: 2700 });
         room.objects.push({ id: 's2', type: 'tv', subtype: 'tv', name: 'TV', x: 0.5, z: 0.07, height: 'tv' });
         room.objects.push({ id: 's3', type: 'furniture', subtype: 'couch', name: 'Sofa', x: 0.48, z: 0.42, height: 'floor' });
       } else if (currentRoom === 'master-bedroom') {
         room.objects.push({ id: 's1', type: 'furniture', subtype: 'bed', name: 'Bed', x: 0.5, z: 0.62, height: 'floor' });
-        room.objects.push({ id: 's2', type: 'light', subtype: 'lamp', name: 'Bedside', x: 0.22, z: 0.78, height: 'floor' });
+        room.objects.push({ id: 's2', type: 'light', subtype: 'lamp', name: 'Bedside', x: 0.22, z: 0.78, height: 'floor', on: true, brightness: 50, color_temp: 2700 });
       } else if (currentRoom === 'kitchen') {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Recessed', x: 0.5, z: 0.28, height: 'ceiling' });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Recessed', x: 0.5, z: 0.28, height: 'ceiling', on: true, brightness: 90, color_temp: 4000 });
         room.objects.push({ id: 's2', type: 'furniture', subtype: 'table', name: 'Island', x: 0.5, z: 0.55, height: 'floor' });
       } else {
-        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling' });
+        room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling', on: true, brightness: 70, color_temp: 4000 });
       }
       buildRoomScene();
       clearPendingPlace();
@@ -1193,24 +1260,19 @@
       renderPalette();
       renderInspector();
 
-      // Gentle initial camera animation hint
       setTimeout(() => {
         if (camera) {
           const startY = camera.position.y;
           camera.position.y = startY + 4;
-          setTimeout(() => {
-            if (camera) camera.position.y = startY;
-          }, 420);
+          setTimeout(() => { if (camera) camera.position.y = startY; }, 420);
         }
       }, 650);
 
-      // Auto-save on visibility change (good practice)
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') saveModel();
       });
     }
 
-    // Boot
     document.addEventListener('DOMContentLoaded', async () => {
       initTailwind();
       await buildUI();
