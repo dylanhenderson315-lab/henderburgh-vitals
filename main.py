@@ -1794,20 +1794,48 @@ DEFAULT_MODEL = {
         "game-room": {
             "name": "Game Room",
             "dims": {"width_ft": 16.1667, "depth_ft": 27.6667},
-            "lights": {
-                "light.t_v_lights": {"x": 0.5, "y": 0.1, "height": "tv"}
-            },
+            "objects": [
+                {"id": "seed_tv", "type": "light", "subtype": "tv-backlight", "name": "T.V Lights", "x": 0.50, "z": 0.08, "height": "tv"},
+                {"id": "seed_couch_gr", "type": "furniture", "subtype": "couch", "name": "Sectional", "x": 0.32, "z": 0.58, "height": "floor"}
+            ],
             "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-            "furniture": []
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
         },
         "living-room": {
             "name": "Living Room",
             "dims": {"width_ft": 13.0833, "depth_ft": 23.4167},
-            "lights": {},
+            "objects": [
+                {"id": "seed_lamp_lr", "type": "light", "subtype": "lamp", "name": "Floor Lamp", "x": 0.22, "z": 0.35, "height": "floor"},
+                {"id": "seed_tv_lr", "type": "tv", "subtype": "tv", "name": "TV", "x": 0.50, "z": 0.06, "height": "tv"}
+            ],
             "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-            "furniture": []
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+        },
+        "master-bedroom": {
+            "name": "Master Bedroom",
+            "dims": {"width_ft": 14.9167, "depth_ft": 12.5},
+            "objects": [
+                {"id": "seed_bed", "type": "furniture", "subtype": "bed", "name": "Bed", "x": 0.5, "z": 0.65, "height": "floor"}
+            ],
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+        },
+        "hallway": {
+            "name": "Hallway",
+            "dims": {"width_ft": 3.1667, "depth_ft": 18.0},
+            "objects": [],
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
+        },
+        "kitchen": {
+            "name": "Kitchen",
+            "dims": {"width_ft": 12.4167, "depth_ft": 10.0},
+            "objects": [
+                {"id": "seed_cab1", "type": "furniture", "subtype": "table", "name": "Counter", "x": 0.15, "z": 0.2, "height": "floor"},
+                {"id": "seed_light_k", "type": "light", "subtype": "recessed", "name": "Recessed 1", "x": 0.5, "z": 0.3, "height": "ceiling"}
+            ],
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
         }
     },
     "selected_room": "game-room"
@@ -1827,9 +1855,10 @@ def load_model():
                     data.setdefault("rooms", {})[rid] = rdef
                 else:
                     r = data["rooms"][rid]
+                    if "objects" not in r: r["objects"] = []
                     if "lights" not in r: r["lights"] = {}
-                    if "mode" not in r: r["mode"] = rdef["mode"]
-                    if "settings" not in r: r["settings"] = rdef["settings"]
+                    if "mode" not in r: r["mode"] = rdef.get("mode", "true-colors")
+                    if "settings" not in r: r["settings"] = rdef.get("settings", {})
                     if "furniture" not in r: r["furniture"] = []
                     if "dims" not in r: r["dims"] = rdef["dims"]
                     if "name" not in r: r["name"] = rdef["name"]
