@@ -1755,10 +1755,14 @@
         if (help) help.textContent = '3D primary: Select object to drag, palette for place (pointerup).';
         if (floorHighlight) floorHighlight.visible = false;
 
-        // Force size and render when showing 3D (handles cases where client size was 0 when hidden)
+        // Immediate force (in case layout already good)
+        resize3D();
+        if (renderer) renderer.render(scene, camera);
+
+        // Force after possible layout update
         setTimeout(() => {
           resize3D();
-          renderer.render(scene, camera);
+          if (renderer) renderer.render(scene, camera);
         }, 20);
       } else {
         wrap3d.style.display = 'none';
@@ -1855,17 +1859,20 @@
       // Build the scene immediately (with default size) so content appears right away
       buildRoomScene();
 
-      // Force initial 3D size with safe defaults (avoids 0-size black render)
-      // Render after layout is likely ready, then switch (which will force again)
+      // Force size with safe default and render immediately
+      resize3D();
+      if (renderer) {
+        renderer.render(scene, camera);
+      }
+
+      // Force initial 3D size with safe defaults after layout, re-render, then switch
       setTimeout(() => {
         resize3D();
 
-        // Explicit render after objects are in scene
         if (renderer) {
           renderer.render(scene, camera);
         }
 
-        // Default to 3D (will force size/render again inside switchView)
         switchView('3d');
       }, 80);
 
