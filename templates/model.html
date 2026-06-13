@@ -1042,6 +1042,12 @@
         return;
       }
 
+      if (pendingPlace) {
+        // In placement mode: mousedown on the floor should lead to placement on release.
+        // Do not start camera orbiting.
+        return;
+      }
+
       isOrbiting = true;
       previousMouseX = e.clientX;
       previousMouseY = e.clientY;
@@ -1115,6 +1121,61 @@
     }
 
     function onPointerUp(e) {
+      if (pendingPlace) {
+        // Reliable placement trigger on release while in place mode (after preventing orbit on down)
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersect = raycaster.ray.intersectPlane(floorPlane);
+        if (intersect && pendingPlace) {
+          const { w, d } = getRoomSize();
+          const wx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
+          const wz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
+          const norm = getNormalizedFromWorld(wx, wz);
+
+          const room = modelData.rooms[currentRoom];
+          if (!room.objects) room.objects = [];
+
+          const newObj = {
+            id: 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+            type: pendingPlace.type,
+            subtype: pendingPlace.subtype,
+            name: pendingPlace.label,
+            x: norm.x,
+            z: norm.z,
+            height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
+                    (pendingPlace.type === 'tv') ? 'tv' : 'floor'
+          };
+
+          if (pendingPlace.type === 'light') {
+            newObj.on = true;
+            newObj.brightness = 70;
+            newObj.color_temp = 4000;
+          }
+
+          room.objects.push(newObj);
+          createOrUpdateMesh(newObj);
+          selectObject(newObj.id);
+          saveModel();
+
+          if (floorHighlight) {
+            floorHighlight.scale.set(1.8, 1.8, 1.8);
+            floorHighlight.visible = true;
+            setTimeout(() => {
+              if (floorHighlight) {
+                floorHighlight.scale.set(1, 1, 1);
+                floorHighlight.visible = false;
+              }
+            }, 220);
+          }
+
+          clearPendingPlace();
+        }
+        // fall through to clear flags
+      }
+
       if (isDraggingObject && draggedObjectId) {
         const entry = objectMeshes[draggedObjectId];
         const room = modelData.rooms[currentRoom];
@@ -1164,51 +1225,57 @@
         return;
       }
 
-      const intersect = raycaster.ray.intersectPlane(floorPlane);
-      if (!intersect || !pendingPlace) return;
+      // Primary placement now happens on pointerup (more reliable with pointer events + orbit prevention).
+      // This click path is a fallback / for completeness. It will usually be a no-op because
+      // we clear pendingPlace on the up handler.
+      if (pendingPlace) {
+        // Re-use the same logic as the up handler for safety
+        const intersect = raycaster.ray.intersectPlane(floorPlane);
+        if (intersect && pendingPlace) {
+          const { w, d } = getRoomSize();
+          const wx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
+          const wz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
+          const norm = getNormalizedFromWorld(wx, wz);
 
-      const { w, d } = getRoomSize();
-      const wx = Math.max(-w/2 + 0.3, Math.min(w/2 - 0.3, intersect.x));
-      const wz = Math.max(-d/2 + 0.3, Math.min(d/2 - 0.3, intersect.z));
-      const norm = getNormalizedFromWorld(wx, wz);
+          const room = modelData.rooms[currentRoom];
+          if (!room.objects) room.objects = [];
 
-      const room = modelData.rooms[currentRoom];
-      if (!room.objects) room.objects = [];
+          const newObj = {
+            id: 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+            type: pendingPlace.type,
+            subtype: pendingPlace.subtype,
+            name: pendingPlace.label,
+            x: norm.x,
+            z: norm.z,
+            height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
+                    (pendingPlace.type === 'tv') ? 'tv' : 'floor'
+          };
 
-      const newObj = {
-        id: 'obj_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
-        type: pendingPlace.type,
-        subtype: pendingPlace.subtype,
-        name: pendingPlace.label,
-        x: norm.x,
-        z: norm.z,
-        height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
-                (pendingPlace.type === 'tv') ? 'tv' : 'floor'
-      };
-
-      if (pendingPlace.type === 'light') {
-        newObj.on = true;
-        newObj.brightness = 70;
-        newObj.color_temp = 4000;
-      }
-
-      room.objects.push(newObj);
-      createOrUpdateMesh(newObj);
-      selectObject(newObj.id);
-      saveModel();
-
-      if (floorHighlight) {
-        floorHighlight.scale.set(1.8, 1.8, 1.8);
-        floorHighlight.visible = true;
-        setTimeout(() => {
-          if (floorHighlight) {
-            floorHighlight.scale.set(1, 1, 1);
-            floorHighlight.visible = false;
+          if (pendingPlace.type === 'light') {
+            newObj.on = true;
+            newObj.brightness = 70;
+            newObj.color_temp = 4000;
           }
-        }, 220);
-      }
 
-      clearPendingPlace();
+          room.objects.push(newObj);
+          createOrUpdateMesh(newObj);
+          selectObject(newObj.id);
+          saveModel();
+
+          if (floorHighlight) {
+            floorHighlight.scale.set(1.8, 1.8, 1.8);
+            floorHighlight.visible = true;
+            setTimeout(() => {
+              if (floorHighlight) {
+                floorHighlight.scale.set(1, 1, 1);
+                floorHighlight.visible = false;
+              }
+            }, 220);
+          }
+
+          clearPendingPlace();
+        }
+      }
     }
 
     function clearCurrentRoom() {
