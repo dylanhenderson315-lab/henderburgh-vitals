@@ -183,6 +183,10 @@ def save_model(data):
         "rooms": data.get("rooms") or DEFAULT_MODEL["rooms"],
         "selected_room": data.get("selected_room") or DEFAULT_MODEL["selected_room"]
     }
+    # Preserve the whole-house layout migration version so the client only applies the
+    # blueprint default positions once and never clobbers the user's manual room drags.
+    if "layout_version" in data:
+        clean["layout_version"] = data["layout_version"]
     for rid, rdef in DEFAULT_MODEL["rooms"].items():
         if rid not in clean["rooms"]:
             clean["rooms"][rid] = rdef

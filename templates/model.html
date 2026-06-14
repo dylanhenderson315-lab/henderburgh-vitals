@@ -364,6 +364,8 @@
     };
 
     const WHOLE_HOUSE_ID = '__whole__';
+    // Bump when the blueprint default room layout changes; triggers a one-time client migration.
+    const LAYOUT_VERSION = 2;
     const HEIGHT_Y = { floor: 0.18, tv: 3.9, ceiling: 8.1 };
     const GRID_STEP = 0.05; // ~1 foot in most rooms
 
@@ -547,21 +549,37 @@
         }
       });
       currentRoom = modelData.selected_room || 'game-room';
-      // Normalize whole-house world layout + lock + object extensibility (scale/rot/params/entity for lights)
-      // Set accurate default world positions (centers in ft) so rooms connect as connected floor plan per blueprint:
-      // Living bottom-left, Kitchen above it left, vertical Hallway center (Entry top), Master bottom-right, Game connected to Hall.
-      // With these, 2D rects will abut (walls align), no floating; 3D matches. User can then drag (unlock) to fine-tune + save.
+      // --- Connected whole-house layout (blueprint-accurate adjacency) ---
+      // world = room CENTER in feet (x = east/right, z = south/down). Each room is sized
+      // width_ft (along x) × depth_ft (along z), so a room spans [x±w/2, z±d/2]. These centers
+      // are computed so shared walls coincide exactly — one connected floor plan, no floating
+      // boxes and no overlaps. Derived from the real blueprint topology (north = up):
+      //
+      //   LEFT column : Kitchen stacked directly above Living Room (west walls aligned at x=0)
+      //   CENTER      : vertical Hallway abutting the left column's east wall
+      //   RIGHT column: Game Room (Bedroom 2) above Master Bedroom, abutting the hallway's east wall
+      //
+      // NOTE / data conflict: Game Room is stored 16'2" wide — far wider than the blueprint's
+      // right column (~9–11 ft). Adjacency below is correct, but the overall footprint runs wide
+      // until that wall is re-measured. Re-measure Game Room width to tighten the east side.
       const BLUEPRINT_WORLDS = {
-        'game-room': { x: 8, z: 5, rot: 0 },  // Game Room connected to Hallway
-        'living-room': { x: -8.125, z: -2.71, rot: 0 },  // bottom left
-        'kitchen': { x: -8.125, z: 14, rot: 0 },  // directly above Living on left
-        'hallway': { x: 0, z: 0, rot: 0 },  // vertical center, long (Entry/Foyer at top)
-        'master-bedroom': { x: 9.045, z: -2.71, rot: 0 }  // bottom right
+        'kitchen':        { x: 6.2083,  z: 5.0,     rot: 0 },  // top-left; west wall x=0, north wall z=0
+        'living-room':    { x: 6.5417,  z: 21.7083, rot: 0 },  // below kitchen, shared wall at z=10
+        'hallway':        { x: 14.6667, z: 12.0,    rot: 0 },  // vertical; west wall abuts left column at x=13.0833
+        'game-room':      { x: 24.3333, z: 13.8333, rot: 0 },  // top-right; west wall abuts hallway at x=16.25
+        'master-bedroom': { x: 23.7083, z: 33.9167, rot: 0 }   // below game room, shared wall at z=27.6667
       };
+
+      // One-time migration: snap rooms into the connected blueprint layout. After the user
+      // drags rooms and we save, layout_version is persisted (>= LAYOUT_VERSION) so we never
+      // overwrite their manual adjustments on later loads.
+      const applyBlueprintLayout = (modelData.layout_version || 0) < LAYOUT_VERSION;
       Object.keys(modelData.rooms || {}).forEach(rid => {
         const r = modelData.rooms[rid];
-        if (!r.world || typeof r.world !== 'object' || (r.world.x === 0 && r.world.z === 0 && r.world.rot === 0 && rid !== 'game-room')) {
-          r.world = BLUEPRINT_WORLDS[rid] || { x: 0, z: 0, rot: 0 };
+        if (applyBlueprintLayout && BLUEPRINT_WORLDS[rid]) {
+          r.world = { ...BLUEPRINT_WORLDS[rid] };
+        } else if (!r.world || typeof r.world !== 'object') {
+          r.world = { x: 0, z: 0, rot: 0 };
         }
         if (typeof r.locked === 'undefined') r.locked = false;
         (r.objects || []).forEach(o => {
@@ -571,6 +589,10 @@
           if (o.type === 'furniture' && ['l_couch','l_desk','bookshelf'].includes(o.subtype) && !o.params) o.params = {};
         });
       });
+      if (applyBlueprintLayout) {
+        modelData.layout_version = LAYOUT_VERSION;
+        saveModel();  // persist the migrated connected layout once
+      }
     }
 
     async function saveModel(showToast = false) {

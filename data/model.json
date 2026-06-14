@@ -14,7 +14,10 @@
           "name": "T.V Lights",
           "x": 0.5,
           "z": 0.08,
-          "height": "tv"
+          "height": "tv",
+          "scale": 1,
+          "rotation": 0,
+          "entity_id": null
         },
         {
           "id": "seed_couch_gr",
@@ -23,7 +26,9 @@
           "name": "Sectional",
           "x": 0.32,
           "z": 0.58,
-          "height": "floor"
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0
         }
       ],
       "mode": "true-colors",
@@ -31,7 +36,15 @@
         "intensity": 70,
         "speed": 40,
         "brightnessLimit": 85
-      }
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 24.3333,
+        "z": 13.8333,
+        "rot": 0
+      },
+      "locked": false
     },
     "living-room": {
       "name": "Living Room",
@@ -47,7 +60,10 @@
           "name": "Floor Lamp",
           "x": 0.22,
           "z": 0.35,
-          "height": "floor"
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0,
+          "entity_id": null
         },
         {
           "id": "seed_tv_lr",
@@ -56,7 +72,9 @@
           "name": "TV",
           "x": 0.5,
           "z": 0.06,
-          "height": "tv"
+          "height": "tv",
+          "scale": 1,
+          "rotation": 0
         }
       ],
       "mode": "true-colors",
@@ -64,7 +82,15 @@
         "intensity": 70,
         "speed": 40,
         "brightnessLimit": 85
-      }
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 6.5417,
+        "z": 21.7083,
+        "rot": 0
+      },
+      "locked": false
     },
     "master-bedroom": {
       "name": "Master Bedroom",
@@ -80,7 +106,9 @@
           "name": "Bed",
           "x": 0.5,
           "z": 0.65,
-          "height": "floor"
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0
         }
       ],
       "mode": "true-colors",
@@ -88,7 +116,15 @@
         "intensity": 70,
         "speed": 40,
         "brightnessLimit": 85
-      }
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 23.7083,
+        "z": 33.9167,
+        "rot": 0
+      },
+      "locked": false
     },
     "hallway": {
       "name": "Hallway",
@@ -102,7 +138,15 @@
         "intensity": 70,
         "speed": 40,
         "brightnessLimit": 85
-      }
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 14.6667,
+        "z": 12.0,
+        "rot": 0
+      },
+      "locked": false
     },
     "kitchen": {
       "name": "Kitchen",
@@ -118,7 +162,9 @@
           "name": "Counter",
           "x": 0.15,
           "z": 0.2,
-          "height": "floor"
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0
         },
         {
           "id": "seed_light_k",
@@ -127,7 +173,10 @@
           "name": "Recessed 1",
           "x": 0.5,
           "z": 0.3,
-          "height": "ceiling"
+          "height": "ceiling",
+          "scale": 1,
+          "rotation": 0,
+          "entity_id": null
         }
       ],
       "mode": "true-colors",
@@ -135,8 +184,17 @@
         "intensity": 70,
         "speed": 40,
         "brightnessLimit": 85
-      }
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 6.2083,
+        "z": 5.0,
+        "rot": 0
+      },
+      "locked": false
     }
   },
-  "selected_room": "game-room"
+  "selected_room": "game-room",
+  "layout_version": 2
 }

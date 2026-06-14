@@ -30,3 +30,5 @@ env/
 .vscode/
 *.swp
 *~
+# Transient lock files from storage/json_store
+data/*.lock
