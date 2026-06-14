@@ -384,7 +384,9 @@
       { type: 'furniture', subtype: 'table', label: 'Table', color: 0x854d0e, category: 'furniture' },
       { type: 'furniture', subtype: 'bookshelf', label: 'Bookshelf', color: 0x4b5563, category: 'furniture' },
       // TVs
-      { type: 'tv', subtype: 'tv', label: 'TV', color: 0x1f2937, category: 'tv' }
+      { type: 'tv', subtype: 'tv', label: 'TV', color: 0x1f2937, category: 'tv' },
+      // Doorways
+      { type: 'door', subtype: 'door', label: 'Door', color: 0x8b5a2b, category: 'door' }
     ];
 
     let modelData = null;
@@ -468,7 +470,7 @@
 
     // View & Layers
     let currentView = '3d';
-    let showLayers = { light: true, furniture: true, tv: true };
+    let showLayers = { light: true, furniture: true, tv: true, door: true };
     let snapEnabled = true;
 
     // 2D canvas
@@ -510,6 +512,17 @@
     function snapValue(v) {
       if (!snapEnabled) return Math.max(0, Math.min(1, v));
       return Math.max(0, Math.min(1, Math.round(v / GRID_STEP) * GRID_STEP));
+    }
+
+    function getDefaultDimsForType(subtype) {
+      // Provide reasonable real-world starting dimensions (in ft) for accurate layout recreation
+      if (subtype === 'couch' || subtype === 'l_couch') return { length: 7.0, width: 3.0, height: 2.8 };
+      if (subtype === 'bed') return { length: 6.5, width: 5.0, height: 2.0 };
+      if (subtype === 'desk' || subtype === 'l_desk') return { length: 5.0, width: 2.5, height: 2.5 };
+      if (subtype === 'table') return { length: 4.0, width: 2.0, height: 2.5 };
+      if (subtype === 'bookshelf') return { length: 3.5, width: 1.2, height: 6.5 };
+      if (subtype === 'door') return { length: 2.8, width: 0.2, height: 7.0 };  // length=width of opening, width=thickness, height=door height
+      return { length: 3.0, width: 1.5, height: 2.0 };
     }
 
     async function loadModel() {
@@ -684,7 +697,8 @@
       Object.keys(objectMeshes).forEach(id => {
         const entry = objectMeshes[id];
         if (!entry || !entry.mesh) return;
-        const type = entry.data.type;
+        let type = entry.data.type;
+        if (type === 'door') type = 'furniture'; // doors share furniture layer for simplicity
         entry.mesh.visible = showLayers[type] !== false;
       });
     }
@@ -1213,29 +1227,54 @@
         group.add(body, bezel, screen);
         mesh = group;
         mesh.position.set(wx, wy, wz);
+      } else if (cat === 'door') {
+        // Doorway object for walls, rotatable to align with room walls
+        const group = new THREE.Group();
+        const frameMat = new THREE.MeshLambertMaterial({ color: 0x5c4033 });
+        const panelMat = new THREE.MeshLambertMaterial({ color: obj.color || 0x8b5a2b });
+        const doorW = obj.length || obj.width || 2.8;  // door opening width
+        const doorH = obj.height || 6.8;  // typical door height
+        const thick = obj.depth || 0.18;  // wall thickness / door depth
+        // Simple door frame (U shape)
+        const leftFrame = new THREE.Mesh(new THREE.BoxGeometry(0.12, doorH, thick), frameMat);
+        leftFrame.position.set(-doorW/2 + 0.06, doorH/2, 0);
+        const rightFrame = leftFrame.clone();
+        rightFrame.position.x = doorW/2 - 0.06;
+        const topFrame = new THREE.Mesh(new THREE.BoxGeometry(doorW, 0.12, thick), frameMat);
+        topFrame.position.set(0, doorH - 0.06, 0);
+        // Door panel (slightly inset)
+        const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(doorW - 0.25, doorH - 0.25, 0.08), panelMat);
+        doorPanel.position.set(0, (doorH - 0.25)/2 , 0.02);
+        group.add(leftFrame, rightFrame, topFrame, doorPanel);
+        mesh = group;
+        mesh.position.set(wx, wy, wz);
       } else if (cat === 'furniture') {
+        // Use individual dimensions if provided (length, width, height) for accurate blueprint recreation; fallback to defaults
+        const len = obj.length || 3.5;
+        const wid = obj.width || 1.5;
+        const hgt = obj.height || 2.0;
         if (sub === 'couch') {
           const group = new THREE.Group();
-          const seat = new THREE.Mesh(new THREE.BoxGeometry(3.65, 0.52, 1.58), new THREE.MeshLambertMaterial({ color: obj.color || 0x475569 }));
+          const seat = new THREE.Mesh(new THREE.BoxGeometry(len, 0.52, wid), new THREE.MeshLambertMaterial({ color: obj.color || 0x475569 }));
           seat.position.y = 0.26;
-          const back = new THREE.Mesh(new THREE.BoxGeometry(3.65, 1.28, 0.36), new THREE.MeshLambertMaterial({ color: 0x334155 }));
-          back.position.set(0, 0.92, -0.62);
-          const armL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.88, 1.68), new THREE.MeshLambertMaterial({ color: 0x3f4855 }));
-          armL.position.set(-1.92, 0.52, 0);
-          const armR = armL.clone(); armR.position.x = 1.92;
+          const back = new THREE.Mesh(new THREE.BoxGeometry(len, 1.28, 0.36), new THREE.MeshLambertMaterial({ color: 0x334155 }));
+          back.position.set(0, 0.92, -wid/2 + 0.1);
+          const armL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.88, wid), new THREE.MeshLambertMaterial({ color: 0x3f4855 }));
+          armL.position.set(-len/2 + 0.15, 0.52, 0);
+          const armR = armL.clone(); armR.position.x = len/2 - 0.15;
           // Cushions for more distinct furniture feel
-          const c1 = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.36, 1.3), new THREE.MeshLambertMaterial({ color: 0x3f4855 }));
-          c1.position.set(-0.9, 0.52, 0.02);
-          const c2 = c1.clone(); c2.position.x = 0.9;
+          const c1 = new THREE.Mesh(new THREE.BoxGeometry(len*0.45, 0.36, wid*0.8), new THREE.MeshLambertMaterial({ color: 0x3f4855 }));
+          c1.position.set(-len*0.25, 0.52, 0.02);
+          const c2 = c1.clone(); c2.position.x = len*0.25;
           group.add(seat, back, armL, armR, c1, c2);
           mesh = group;
           mesh.position.set(wx, wy, wz);
         } else if (sub === 'l_couch') {
           // Single unified L-shaped couch (no need for multiple pieces)
           const p = obj.params || {};
-          const mainL = p.main_len || p.length || 7.5;   // long arm
-          const retL  = p.return_len || 4.5;             // return arm
-          const depth = p.depth || 3.0;
+          const mainL = obj.length || p.main_len || p.length || 7.5;   // long arm
+          const retL  = obj.width || p.return_len || 4.5;             // return arm
+          const depth = obj.height || p.depth || 3.0; // use height for depth in some cases, or keep
           const seatH = p.seat_h || 0.5;
           const backH = p.back_h || 1.3;
           const thick = p.thick || 0.9; // "width" of the L arms
@@ -1272,8 +1311,8 @@
         } else if (sub === 'l_desk') {
           // Single L-desk
           const p = obj.params || {};
-          const mainL = p.main_len || 6.5;
-          const retL = p.return_len || 4.0;
+          const mainL = obj.length || p.main_len || 6.5;
+          const retL = obj.width || p.return_len || 4.0;
           const w = p.width || 2.2;
           const thick = 0.18;
 
@@ -1308,9 +1347,9 @@
           mesh.position.set(wx, wy, wz);
         } else if (sub === 'bookshelf') {
           const p = obj.params || {};
-          const ww = p.width || 3.5;
-          const hh = p.height || 6.5;
-          const dd = p.depth || 1.2;
+          const ww = obj.length || p.width || 3.5;
+          const hh = obj.height || p.height || 6.5;
+          const dd = obj.width || p.depth || 1.2;
           const shelves = Math.max(2, Math.min(6, p.shelves || 4));
 
           const group = new THREE.Group();
@@ -1345,24 +1384,35 @@
           mesh.position.set(wx, wy, wz);
         } else if (sub === 'bed') {
           const group = new THREE.Group();
-          const base = new THREE.Mesh(new THREE.BoxGeometry(3.15, 0.68, 5.15), new THREE.MeshLambertMaterial({ color: 0x1e2937 }));
+          const base = new THREE.Mesh(new THREE.BoxGeometry(len, 0.68, wid), new THREE.MeshLambertMaterial({ color: 0x1e2937 }));
           base.position.y = 0.34;
-          const mattress = new THREE.Mesh(new THREE.BoxGeometry(2.95, 0.34, 4.85), new THREE.MeshLambertMaterial({ color: 0x64748b }));
+          const mattress = new THREE.Mesh(new THREE.BoxGeometry(len*0.93, 0.34, wid*0.94), new THREE.MeshLambertMaterial({ color: 0x64748b }));
           mattress.position.y = 0.82;
           // Simple pillow detail
-          const pillow = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.22, 0.9), new THREE.MeshLambertMaterial({ color: 0x94a3b8 }));
-          pillow.position.set(0, 1.0, 1.7);
+          const pillow = new THREE.Mesh(new THREE.BoxGeometry(len*0.4, 0.22, wid*0.3), new THREE.MeshLambertMaterial({ color: 0x94a3b8 }));
+          pillow.position.set(0, 1.0, wid*0.3);
           group.add(base, mattress, pillow);
+          mesh = group;
+          mesh.position.set(wx, wy, wz);
+        } else if (sub === 'table' || sub === 'desk') {
+          const group = new THREE.Group();
+          const top = new THREE.Mesh(new THREE.BoxGeometry(len, 0.2, wid), new THREE.MeshLambertMaterial({ color: obj.color || 0x78350f }));
+          top.position.y = 1.32;
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 1.22, 6), new THREE.MeshLambertMaterial({ color: 0x44403c }));
+          leg.position.y = 0.62;
+          const leg2 = leg.clone(); leg2.position.x = len*0.4;
+          const leg3 = leg.clone(); leg3.position.x = -len*0.4;
+          group.add(top, leg, leg2, leg3);
           mesh = group;
           mesh.position.set(wx, wy, wz);
         } else {
           const group = new THREE.Group();
-          const top = new THREE.Mesh(new THREE.BoxGeometry(2.55, 0.2, 1.48), new THREE.MeshLambertMaterial({ color: obj.color || 0x78350f }));
+          const top = new THREE.Mesh(new THREE.BoxGeometry(len || 2.55, 0.2, wid || 1.48), new THREE.MeshLambertMaterial({ color: obj.color || 0x78350f }));
           top.position.y = 1.32;
           const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 1.22, 6), new THREE.MeshLambertMaterial({ color: 0x44403c }));
           leg.position.y = 0.62;
-          const leg2 = leg.clone(); leg2.position.x = 1.95;
-          const leg3 = leg.clone(); leg3.position.x = -1.95;
+          const leg2 = leg.clone(); leg2.position.x = (len || 2.55)*0.4;
+          const leg3 = leg.clone(); leg3.position.x = -(len || 2.55)*0.4;
           group.add(top, leg, leg2, leg3);
           mesh = group;
           mesh.position.set(wx, wy, wz);
@@ -1570,6 +1620,16 @@
             </div>
           </div>
 
+          ${ (obj.type === 'furniture' || obj.type === 'door') ? `
+          <div class="mt-2 pt-2 border-t border-zinc-700">
+            <div class="text-xs text-zinc-400 mb-1">Dimensions (ft) - individual for accurate layout</div>
+            <div id="dims-group" class="space-y-1 text-[11px]">
+              <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Length</span><input type="range" data-dim="length" min="0.5" max="14" step="0.1" value="${obj.length || 3.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.length || 3.5).toFixed(1)}</span></div>
+              <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Width</span><input type="range" data-dim="width" min="0.2" max="6" step="0.1" value="${obj.width || 1.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.width || 1.5).toFixed(1)}</span></div>
+              <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Height</span><input type="range" data-dim="height" min="0.5" max="9" step="0.1" value="${obj.height || 2.0}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.height || 2.0).toFixed(1)}</span></div>
+            </div>
+          </div>` : '' }
+
           ${ (obj.type === 'furniture' && ['l_couch','l_desk','bookshelf'].includes(obj.subtype)) ? `
           <div class="mt-2 pt-2 border-t border-zinc-700">
             <div class="text-xs text-zinc-400 mb-1">Dimensions (ft)</div>
@@ -1698,6 +1758,31 @@
             draw2DScene();
             scheduleSave();
             // re-render inspector to update the value labels next to sliders
+            renderInspector();
+          };
+        });
+      }
+
+      // Individual dimensions (Length/Width/Height) for furniture and doors - live update + save
+      const dimsContainer = container.querySelector('#dims-group');
+      if (dimsContainer) {
+        dimsContainer.querySelectorAll('input[data-dim]').forEach(inp => {
+          inp.oninput = () => {
+            const dim = inp.dataset.dim;
+            obj[dim] = parseFloat(inp.value);
+            // update the label
+            const valSpan = inp.parentNode.querySelector('.dim-val');
+            if (valSpan) valSpan.textContent = obj[dim].toFixed(1);
+            // live recreate for accurate 3D/2D
+            const entry = objectMeshes[selectedId];
+            if (entry && entry.mesh && entry.mesh.parent) {
+              const parent = entry.mesh.parent;
+              parent.remove(entry.mesh);
+            }
+            createOrUpdateMesh(obj);
+            forceRender3D();
+            draw2DScene();
+            scheduleSave();
             renderInspector();
           };
         });
@@ -2142,7 +2227,8 @@
             height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
                     (pendingPlace.type === 'tv') ? 'tv' : 'floor',
             scale: 1,
-            rotation: 0
+            rotation: 0,
+            ...( (pendingPlace.type === 'furniture' || pendingPlace.type === 'door') ? getDefaultDimsForType(pendingPlace.subtype) : {} )
           };
 
           if (pendingPlace.type === 'light') {
@@ -2270,7 +2356,8 @@
             height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' :
                     (pendingPlace.type === 'tv') ? 'tv' : 'floor',
             scale: 1,
-            rotation: 0
+            rotation: 0,
+            ...( (pendingPlace.type === 'furniture' || pendingPlace.type === 'door') ? getDefaultDimsForType(pendingPlace.subtype) : {} )
           };
 
           if (pendingPlace.type === 'light') {
@@ -2331,6 +2418,39 @@
     let _2dOffsetY = 0;
 
     function get2DTransform() {
+      if (currentRoom === WHOLE_HOUSE_ID) {
+        // Compute bounds across all rooms using their world positions for accurate blueprint adjacency
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        Object.keys(ROOM_DIMS).forEach(rid => {
+          const r = ROOM_DIMS[rid];
+          const wld = (modelData.rooms[rid] || {}).world || {x:0, z:0, rot:0};
+          const hw = r.width_ft / 2;
+          const hd = r.depth_ft / 2;
+          const corners = [
+            {x: wld.x - hw, z: wld.z - hd},
+            {x: wld.x + hw, z: wld.z - hd},
+            {x: wld.x - hw, z: wld.z + hd},
+            {x: wld.x + hw, z: wld.z + hd}
+          ];
+          corners.forEach(c => {
+            minX = Math.min(minX, c.x);
+            maxX = Math.max(maxX, c.x);
+            minZ = Math.min(minZ, c.z);
+            maxZ = Math.max(maxZ, c.z);
+          });
+        });
+        const totalW = (maxX - minX) || 50;
+        const totalD = (maxZ - minZ) || 50;
+        const cw = canvas2d.width;
+        const ch = canvas2d.height;
+        const padding = 20;
+        const scaleX = (cw - padding * 2) / totalW;
+        const scaleY = (ch - padding * 2) / totalD;
+        _2dScale = Math.min(scaleX, scaleY) * 0.95;
+        _2dOffsetX = padding + (cw - padding*2 - totalW * _2dScale) / 2 - minX * _2dScale;
+        _2dOffsetY = padding + (ch - padding*2 - totalD * _2dScale) / 2 - minZ * _2dScale;
+        return { scale: _2dScale, offX: _2dOffsetX, offY: _2dOffsetY, isWhole: true, minX, minZ, totalW, totalD };
+      }
       const room = ROOM_DIMS[currentRoom];
       const cw = canvas2d.width;
       const ch = canvas2d.height;
@@ -2344,7 +2464,13 @@
     }
 
     function worldTo2D(wx, wz) {
-      const { scale, offX, offY } = get2DTransform();
+      const trans = get2DTransform();
+      if (trans.isWhole) {
+        const x = trans.offX + (wx ) * trans.scale;
+        const y = trans.offY + (wz ) * trans.scale;
+        return { x, y };
+      }
+      const { scale, offX, offY } = trans;
       const room = ROOM_DIMS[currentRoom];
       const halfW = room.width_ft / 2;
       const halfD = room.depth_ft / 2;
@@ -2354,7 +2480,15 @@
     }
 
     function screenToNorm(sx, sy) {
-      const { scale, offX, offY } = get2DTransform();
+      const trans = get2DTransform();
+      if (trans.isWhole) {
+        // For whole house, convert screen to world ft (approx, for drag)
+        const scale = trans.scale;
+        let nx = (sx - trans.offX) / scale ;
+        let nz = (sy - trans.offY) / scale ;
+        return { x: nx, z: nz }; // not normalized 0-1, but world for placement in context
+      }
+      const { scale, offX, offY } = trans;
       const room = ROOM_DIMS[currentRoom];
       const halfW = room.width_ft / 2;
       const halfD = room.depth_ft / 2;
@@ -2369,8 +2503,81 @@
       if (!ctx2d || !canvas2d || canvas2d.width < 10 || canvas2d.height < 10) return;
       ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
 
+      const trans = get2DTransform();
+      if (currentRoom === WHOLE_HOUSE_ID) {
+        // Whole House 2D: draw all rooms positioned per their world x/z/rot for accurate blueprint spatial relationships
+        ctx2d.fillStyle = '#0a0c0f';
+        ctx2d.fillRect(0, 0, canvas2d.width, canvas2d.height);
+
+        Object.keys(ROOM_DIMS).forEach(rid => {
+          const r = ROOM_DIMS[rid];
+          const wld = (modelData.rooms[rid] || {}).world || {x:0, z:0, rot:0};
+          const roomW = r.width_ft;
+          const roomD = r.depth_ft;
+          const { scale, offX, offY } = trans;
+
+          const cx = offX + (wld.x ) * scale;
+          const cy = offY + (wld.z ) * scale;
+
+          ctx2d.save();
+          ctx2d.translate(cx, cy);
+          ctx2d.rotate( (wld.rot || 0) * Math.PI / 180 );
+
+          // Room floor
+          ctx2d.fillStyle = '#1f242b';
+          ctx2d.fillRect( -roomW/2 * scale, -roomD/2 * scale, roomW * scale, roomD * scale );
+          ctx2d.strokeStyle = '#334155';
+          ctx2d.lineWidth = 1;
+          ctx2d.strokeRect( -roomW/2 * scale, -roomD/2 * scale, roomW * scale, roomD * scale );
+
+          // Label room name
+          ctx2d.fillStyle = '#9ca3af';
+          ctx2d.font = '10px Inter';
+          ctx2d.fillText(r.name, -roomW/4 * scale, 0);
+
+          // Draw objects for this room (using local 0-1)
+          const roomData = modelData.rooms[rid] || { objects: [] };
+          (roomData.objects || []).forEach(obj => {
+            if (!showLayers[obj.type]) return;
+            const lx = (obj.x - 0.5) * roomW * scale;
+            const lz = (obj.z - 0.5) * roomD * scale;
+            ctx2d.save();
+            ctx2d.translate(lx, lz);
+            // simple scaled size using dims
+            let dw = 8, dh = 4;
+            let col = '#64748b';
+            const fl = obj.length || 3;
+            const fw = obj.width || 1.5;
+            if (obj.type === 'light') {
+              ctx2d.fillStyle = obj.subtype === 'tv-backlight' ? '#60a5fa' : (obj.subtype === 'lamp' ? '#f59e0b' : '#e2e8f0');
+              ctx2d.beginPath();
+              ctx2d.arc(0, 0, 4, 0, Math.PI * 2);
+              ctx2d.fill();
+            } else if (obj.type === 'furniture') {
+              dw = fl * 4; dh = fw * 4;
+              col = (obj.subtype.includes('couch') ? '#475569' : obj.subtype === 'bed' ? '#334155' : '#78350f');
+              ctx2d.fillStyle = col;
+              ctx2d.fillRect(-dw/2, -dh/2, dw, dh);
+              ctx2d.strokeStyle = '#1e2937';
+              ctx2d.strokeRect(-dw/2, -dh/2, dw, dh);
+            } else if (obj.type === 'door') {
+              dw = (obj.length || 2.8) * 3; dh = 2;
+              ctx2d.fillStyle = '#8b5a2b';
+              ctx2d.fillRect(-dw/2, -dh/2, dw, dh);
+            } else if (obj.type === 'tv') {
+              dw = 12; dh = 3;
+              ctx2d.fillStyle = '#1f2937';
+              ctx2d.fillRect(-dw/2, -dh/2, dw, dh);
+            }
+            ctx2d.restore();
+          });
+          ctx2d.restore();
+        });
+        return;
+      }
+
       const room = ROOM_DIMS[currentRoom];
-      const { scale, offX, offY } = get2DTransform();
+      const { scale, offX, offY } = trans;
       const halfW = room.width_ft / 2;
       const halfD = room.depth_ft / 2;
 
@@ -2433,9 +2640,14 @@
             ctx2d.fill();
           }
         } else if (obj.type === 'furniture') {
-          if (obj.subtype === 'couch') { w = 52 * s; h = 26 * s; color = '#475569'; }
-          else if (obj.subtype === 'bed') { w = 36 * s; h = 62 * s; color = '#334155'; }
-          else { w = 38 * s; h = 24 * s; color = '#78350f'; }
+          // Use individual dims for accurate 2D top-down footprint if present (length x width), fallback to scaled defaults
+          const fl = obj.length || 3.5;
+          const fw = obj.width || 1.5;
+          if (obj.subtype === 'couch' || obj.subtype === 'l_couch') { w = fl * 8; h = fw * 8; color = '#475569'; }  // scale factor for screen
+          else if (obj.subtype === 'bed') { w = fl * 6; h = fw * 10; color = '#334155'; }
+          else if (obj.subtype === 'l_desk' || obj.subtype === 'desk') { w = fl * 7; h = fw * 4; color = '#78350f'; }
+          else if (obj.subtype === 'bookshelf') { w = fl * 6; h = fw * 2; color = '#4b5563'; }
+          else { w = fl * 7; h = fw * 4; color = '#78350f'; }
           ctx2d.fillStyle = color;
           ctx2d.fillRect(-w/2, -h/2, w, h);
           ctx2d.strokeStyle = '#1e2937';
@@ -2446,6 +2658,15 @@
           ctx2d.fillRect(-w/2, -h/2, w, h);
           ctx2d.fillStyle = '#0f172a';
           ctx2d.fillRect(-w/2 + 3, -h/2 + 2, w-6, h-4);
+        } else if (obj.type === 'door') {
+          // Door in 2D as narrow rect on wall
+          w = (obj.length || 2.8) * 6;
+          h = (obj.width || 0.2) * 8;
+          color = '#8b5a2b';
+          ctx2d.fillStyle = color;
+          ctx2d.fillRect(-w/2, -h/2, w, h);
+          ctx2d.strokeStyle = '#5c4033';
+          ctx2d.strokeRect(-w/2, -h/2, w, h);
         }
 
         ctx2d.fillStyle = '#e2e8f0';
@@ -2482,12 +2703,20 @@
         return;
       }
 
-      const roomData = modelData.rooms[currentRoom] || { objects: [] };
+      let roomData = modelData.rooms[currentRoom] || { objects: [] };
       let hitId = null;
       for (let obj of roomData.objects || []) {
-        const pos = worldTo2D((obj.x-0.5)*ROOM_DIMS[currentRoom].width_ft, (obj.z-0.5)*ROOM_DIMS[currentRoom].depth_ft);
+        let pos;
+        if (currentRoom === WHOLE_HOUSE_ID) {
+          // approximate for whole (use world + local)
+          const wld = (modelData.rooms[currentRoom] || {}).world || {x:0,z:0};
+          const rdim = ROOM_DIMS[currentRoom] || {width_ft:10, depth_ft:10};
+          pos = worldTo2D( (obj.x-0.5)*rdim.width_ft + wld.x , (obj.z-0.5)*rdim.depth_ft + wld.z );
+        } else {
+          pos = worldTo2D((obj.x-0.5)*ROOM_DIMS[currentRoom].width_ft, (obj.z-0.5)*ROOM_DIMS[currentRoom].depth_ft);
+        }
         const dist = Math.hypot(sx - pos.x, sy - pos.y);
-        const hitR = 22 * (obj.scale || 1);
+        const hitR = 22 * Math.max(1, (obj.length || obj.scale || 1) / 3);
         if (dist < hitR) {
           hitId = obj.id;
           break;
@@ -2574,7 +2803,8 @@
         z: nz,
         height: (pendingPlace.type === 'light' && pendingPlace.subtype === 'recessed') ? 'ceiling' : (pendingPlace.type === 'tv') ? 'tv' : 'floor',
         scale: 1,
-        rotation: 0
+        rotation: 0,
+        ...( (pendingPlace.type === 'furniture' || pendingPlace.type === 'door') ? getDefaultDimsForType(pendingPlace.subtype) : {} )
       };
 
       if (pendingPlace.type === 'light') {
@@ -2661,18 +2891,18 @@
 
       if (currentRoom === 'game-room') {
         room.objects.push({ id: 's1', type: 'light', subtype: 'tv-backlight', name: 'T.V Lights', x: 0.5, z: 0.08, height: 'tv', on: true, brightness: 85, color_temp: 6500, scale: 1, rotation: 0 });
-        room.objects.push({ id: 's2', type: 'furniture', subtype: 'couch', name: 'Sectional', x: 0.33, z: 0.55, height: 'floor', scale: 1, rotation: 0 });
+        room.objects.push({ id: 's2', type: 'furniture', subtype: 'couch', name: 'Sectional', x: 0.33, z: 0.55, height: 'floor', scale: 1, rotation: 0, length: 7.0, width: 3.0, height: 2.8 });
         room.objects.push({ id: 's3', type: 'light', subtype: 'lamp', name: 'Desk Lamp', x: 0.72, z: 0.28, height: 'floor', on: true, brightness: 65, color_temp: 2700, scale: 1, rotation: 0 });
       } else if (currentRoom === 'living-room') {
         room.objects.push({ id: 's1', type: 'light', subtype: 'lamp', name: 'Floor Lamp', x: 0.2, z: 0.38, height: 'floor', on: true, brightness: 70, color_temp: 2700, scale: 1, rotation: 0 });
         room.objects.push({ id: 's2', type: 'tv', subtype: 'tv', name: 'TV', x: 0.5, z: 0.07, height: 'tv', scale: 1, rotation: 0 });
-        room.objects.push({ id: 's3', type: 'furniture', subtype: 'couch', name: 'Sofa', x: 0.48, z: 0.42, height: 'floor', scale: 1, rotation: 90 });
+        room.objects.push({ id: 's3', type: 'furniture', subtype: 'couch', name: 'Sofa', x: 0.48, z: 0.42, height: 'floor', scale: 1, rotation: 90, length: 7.5, width: 3.2, height: 2.8 });
       } else if (currentRoom === 'master-bedroom') {
-        room.objects.push({ id: 's1', type: 'furniture', subtype: 'bed', name: 'Bed', x: 0.5, z: 0.62, height: 'floor', scale: 1, rotation: 0 });
+        room.objects.push({ id: 's1', type: 'furniture', subtype: 'bed', name: 'Bed', x: 0.5, z: 0.62, height: 'floor', scale: 1, rotation: 0, length: 6.5, width: 5.0, height: 2.0 });
         room.objects.push({ id: 's2', type: 'light', subtype: 'lamp', name: 'Bedside', x: 0.22, z: 0.78, height: 'floor', on: true, brightness: 50, color_temp: 2700, scale: 1, rotation: 0 });
       } else if (currentRoom === 'kitchen') {
         room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Recessed', x: 0.5, z: 0.28, height: 'ceiling', on: true, brightness: 90, color_temp: 4000, scale: 1, rotation: 0 });
-        room.objects.push({ id: 's2', type: 'furniture', subtype: 'table', name: 'Island', x: 0.5, z: 0.55, height: 'floor', scale: 1, rotation: 0 });
+        room.objects.push({ id: 's2', type: 'furniture', subtype: 'table', name: 'Island', x: 0.5, z: 0.55, height: 'floor', scale: 1, rotation: 0, length: 4.5, width: 2.2, height: 2.8 });
       } else {
         room.objects.push({ id: 's1', type: 'light', subtype: 'recessed', name: 'Light', x: 0.5, z: 0.4, height: 'ceiling', on: true, brightness: 70, color_temp: 4000, scale: 1, rotation: 0 });
       }
