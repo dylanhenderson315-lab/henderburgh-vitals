@@ -548,13 +548,15 @@
       });
       currentRoom = modelData.selected_room || 'game-room';
       // Normalize whole-house world layout + lock + object extensibility (scale/rot/params/entity for lights)
-      // Set accurate default world positions so rooms connect adjacently matching real blueprint layout (no floating boxes)
+      // Set accurate default world positions (centers in ft) so rooms connect as connected floor plan per blueprint:
+      // Living bottom-left, Kitchen above it left, vertical Hallway center (Entry top), Master bottom-right, Game connected to Hall.
+      // With these, 2D rects will abut (walls align), no floating; 3D matches. User can then drag (unlock) to fine-tune + save.
       const BLUEPRINT_WORLDS = {
-        'game-room': { x: 0, z: 0, rot: 0 },
-        'living-room': { x: -14.625, z: 2.125, rot: 0 },
-        'kitchen': { x: -14.625, z: -14.583, rot: 0 },  // touches south of living: living south ~ -9.58, kitchen north = z-5
-        'hallway': { x: 9.667, z: 0, rot: 90 },
-        'master-bedroom': { x: 9.667, z: -14.25, rot: 0 }  // attached to hall end (hall long 18 after rot)
+        'game-room': { x: 8, z: 5, rot: 0 },  // Game Room connected to Hallway
+        'living-room': { x: -8.125, z: -2.71, rot: 0 },  // bottom left
+        'kitchen': { x: -8.125, z: 14, rot: 0 },  // directly above Living on left
+        'hallway': { x: 0, z: 0, rot: 0 },  // vertical center, long (Entry/Foyer at top)
+        'master-bedroom': { x: 9.045, z: -2.71, rot: 0 }  // bottom right
       };
       Object.keys(modelData.rooms || {}).forEach(rid => {
         const r = modelData.rooms[rid];
@@ -2536,13 +2538,10 @@
           // Room floor
           ctx2d.fillStyle = '#1f242b';
           ctx2d.fillRect( -roomW/2 * scale, -roomD/2 * scale, roomW * scale, roomD * scale );
-          // In whole house, skip per-room stroke to avoid floating box look; rooms appear connected when positions align (like connected floor plan / blueprint)
-          // Only draw stroke in single room mode for clear boundaries. TV wall indicator below still provides structure.
-          if (!trans.isWhole) {
-            ctx2d.strokeStyle = '#334155';
-            ctx2d.lineWidth = 1;
-            ctx2d.strokeRect( -roomW/2 * scale, -roomD/2 * scale, roomW * scale, roomD * scale );
-          }
+          // Draw stroke to show room boundaries/walls. With accurate positions, adjacent rooms will have aligned walls looking like connected floor plan.
+          ctx2d.strokeStyle = '#334155';
+          ctx2d.lineWidth = 1;
+          ctx2d.strokeRect( -roomW/2 * scale, -roomD/2 * scale, roomW * scale, roomD * scale );
 
           // Label room name
           ctx2d.fillStyle = '#9ca3af';
