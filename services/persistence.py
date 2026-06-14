@@ -10,8 +10,26 @@ from typing import Any, Dict, List
 
 from storage.json_store import read_json, write_json
 from services import state
+from config import DATA_DIR as _DATA_DIR
 
-TV_SYNC_FILE = Path("data/tv_sync.json")
+# Resolve the persistence directory once. On Railway set DATA_DIR=/data (a mounted
+# volume) so writes survive redeploys; locally it falls back to ./data.
+DATA_PATH = Path(_DATA_DIR)
+DATA_PATH.mkdir(parents=True, exist_ok=True)
+
+# Bundled defaults shipped in the image (./data). On first run against an empty
+# volume we copy these in so the app starts with the committed blueprint/layout.
+_BUNDLED_DATA = Path(__file__).resolve().parent.parent / 'data'
+def _seed(name: str):
+    dest = DATA_PATH / name
+    src = _BUNDLED_DATA / name
+    if not dest.exists() and src.exists() and src.resolve() != dest.resolve():
+        try:
+            dest.write_text(src.read_text(encoding='utf-8'), encoding='utf-8')
+        except Exception:
+            pass
+
+TV_SYNC_FILE = _seed("tv_sync.json") or (DATA_PATH / "tv_sync.json")
 
 DEFAULT_TV_SYNC = {
     "rooms": {
@@ -83,7 +101,7 @@ def save_tv_sync(data):
 # Separate data file and APIs from existing TV sync / lighting to keep pages isolated.
 # Clean extensible structure for rooms, lights (pos x/y 0-1 + height), furniture, modes/settings.
 # =============================================================================
-MODEL_FILE = Path("data/model.json")
+MODEL_FILE = _seed("model.json") or (DATA_PATH / "model.json")
 
 DEFAULT_MODEL = {
     "rooms": {
@@ -260,7 +278,7 @@ def save_model(data):
 # =============================================================================
 # Xbox Game Log (persistent recently played)
 # =============================================================================
-XBOX_LOG_FILE = Path("data/xbox_log.json")
+XBOX_LOG_FILE = _seed("xbox_log.json") or (DATA_PATH / "xbox_log.json")
 
 def load_xbox_log():
     if XBOX_LOG_FILE.exists():
@@ -277,7 +295,7 @@ def save_xbox_log(log):
 # =============================================================================
 # Home Assistant Lighting Config (custom rooms + groups, persistent)
 # =============================================================================
-LIGHTING_CONFIG_FILE = Path("data/lighting_config.json")
+LIGHTING_CONFIG_FILE = _seed("lighting_config.json") or (DATA_PATH / "lighting_config.json")
 
 DEFAULT_LIGHTING_CONFIG = {
     "rooms": [],   # list of {"id": str, "name": str, "light_ids": list[str]}
@@ -318,7 +336,7 @@ def get_persisted_lighting_structure() -> Dict[str, Any]:
 # =============================================================================
 # Access Requests (for locked lighting page - simple request logging)
 # =============================================================================
-ACCESS_REQUESTS_FILE = Path("data/access_requests.json")
+ACCESS_REQUESTS_FILE = _seed("access_requests.json") or (DATA_PATH / "access_requests.json")
 
 def load_access_requests():
     if ACCESS_REQUESTS_FILE.exists():
@@ -336,7 +354,7 @@ def save_access_requests(reqs):
 # =============================================================================
 # Golf Club Distances (server-persisted, shared across visitors)
 # =============================================================================
-CLUBS_FILE = Path("data/clubs.json")
+CLUBS_FILE = _seed("clubs.json") or (DATA_PATH / "clubs.json")
 
 DEFAULT_CLUBS = [
     {"club": "Driver", "yards": 245},
@@ -369,9 +387,9 @@ def save_clubs(clubs):
 # Blog Message Board (threaded, server-persisted)
 # =============================================================================
 
-MESSAGES_FILE = Path("data/messages.json")
+MESSAGES_FILE = _seed("messages.json") or (DATA_PATH / "messages.json")
 
-LAST_BLOG_READ_FILE = Path("data/last_blog_read.json")
+LAST_BLOG_READ_FILE = _seed("last_blog_read.json") or (DATA_PATH / "last_blog_read.json")
 
 def load_messages():
     if MESSAGES_FILE.exists():

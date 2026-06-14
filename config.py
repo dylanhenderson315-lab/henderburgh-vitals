@@ -17,6 +17,11 @@ DISPLAY_NAME = (os.getenv("DISPLAY_NAME", "HENDERBURGH").strip() or "HENDERBURGH
 SITE_NAME = (os.getenv("SITE_NAME", "HENDERBURGH").strip() or "HENDERBURGH").upper()
 SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
 
+# Directory for persisted JSON (model, blog, etc.). On Railway, point this at a
+# mounted volume (e.g. DATA_DIR=/data) so saved rooms/furniture survive redeploys.
+# Defaults to the in-repo ./data for local development.
+DATA_DIR = os.getenv("DATA_DIR", "data").strip() or "data"
+
 DEFAULT_CACHE_TTL = 600 if PUBLIC_MODE else 180
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL))
 HEARTRATE_CACHE_TTL = int(os.getenv("HEARTRATE_CACHE_TTL", "120" if PUBLIC_MODE else "30"))

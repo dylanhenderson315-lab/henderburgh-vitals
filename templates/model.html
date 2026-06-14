@@ -411,6 +411,7 @@
     let draggedRoomId = null;
     let roomDragGrabOffset = { x: 0, z: 0 };
     let isOrbiting = false;
+    let isPanning = false;   // right-drag / shift-drag to pan the camera target
     let previousMouseX = 0, previousMouseY = 0;
     // Spherical camera state for smooth, predictable orbiting (replaces old orbitTheta/Phi)
     let camRadius = 28;
@@ -920,6 +921,7 @@
       canvas.addEventListener('pointerleave', onPointerUp);
       canvas.addEventListener('wheel', onWheel, { passive: false });
       canvas.addEventListener('click', onCanvasClick);
+      canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // right-drag = pan, no menu
 
       document.addEventListener('keydown', (e) => {
         if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
@@ -974,6 +976,18 @@
     function getRoomSize() {
       const d = ROOM_DIMS[currentRoom] || { width_ft: 12, depth_ft: 12 };
       return { w: d.width_ft, d: d.depth_ft };
+    }
+
+    // Which (non-filler) room's footprint contains a world (x,z) point — for whole-house placement.
+    function roomAtWorld(wx, wz) {
+      for (const rid of Object.keys(ROOM_DIMS)) {
+        if (ROOM_DIMS[rid].filler) continue; // don't drop furniture into filler zones
+        const r = ROOM_DIMS[rid];
+        const wld = (modelData.rooms[rid] || {}).world || { x: 0, z: 0 };
+        if (wx >= wld.x - r.width_ft/2 && wx <= wld.x + r.width_ft/2 &&
+            wz >= wld.z - r.depth_ft/2 && wz <= wld.z + r.depth_ft/2) return rid;
+      }
+      return null;
     }
 
     function buildRoomScene() {
@@ -1245,13 +1259,26 @@
     }
 
     function resetCameraForWholeHouse() {
-      // Fit camera to encompass typical house spread (example positions from defaults)
-      camera.position.set(35, 45, 40);
-      camera.lookAt(5, 2, -5);
-      camRadius = 55;
+      // Frame the ACTUAL house: compute the bounding box of all rooms from their
+      // world positions + dims, aim the orbit pivot at its center, and pull the
+      // camera back to fit. (Previously a hardcoded off-center target caused the
+      // "fixed axis / off-center" feel as the layout changed.)
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      Object.keys(ROOM_DIMS).forEach(rid => {
+        const r = ROOM_DIMS[rid];
+        const wld = (modelData.rooms[rid] || {}).world || { x: 0, z: 0 };
+        minX = Math.min(minX, wld.x - r.width_ft / 2);
+        maxX = Math.max(maxX, wld.x + r.width_ft / 2);
+        minZ = Math.min(minZ, wld.z - r.depth_ft / 2);
+        maxZ = Math.max(maxZ, wld.z + r.depth_ft / 2);
+      });
+      if (!isFinite(minX)) { minX = 0; maxX = 24; minZ = 0; maxZ = 24; }
+      const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+      const spread = Math.max(maxX - minX, maxZ - minZ);
+      camTarget = { x: cx, y: 1.0, z: cz };
+      camRadius = Math.max(20, spread * 1.15);
       camTheta = 0.7;
-      camPhi = 0.85;
-      camTarget = { x: 5, y: 2, z: -3 };
+      camPhi = 0.6;   // a higher, more top-down framing reads the whole plan better
       updateCameraPosition();
     }
 
@@ -2225,6 +2252,16 @@
     function onPointerDown(e) {
       if (currentView !== '3d') return;
 
+      // Pan: right-button or shift+left drag moves the camera target across the ground.
+      if ((e.button === 2 || e.shiftKey) && !pendingPlace) {
+        isPanning = true;
+        previousMouseX = e.clientX;
+        previousMouseY = e.clientY;
+        canvas.style.cursor = 'grabbing';
+        e.preventDefault();
+        return;
+      }
+
       const rect = canvas.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2450,6 +2487,21 @@
         return;
       }
 
+      if (isPanning) {
+        const dx = e.clientX - previousMouseX;
+        const dy = e.clientY - previousMouseY;
+        // Move the orbit target in the ground plane, relative to the current heading.
+        const panScale = camRadius * 0.0016;
+        const rx = Math.cos(camTheta), rz = -Math.sin(camTheta); // screen-right on ground
+        const fx = Math.sin(camTheta), fz = Math.cos(camTheta);  // screen-forward on ground
+        camTarget.x += (-dx * rx + dy * fx) * panScale;
+        camTarget.z += (-dx * rz + dy * fz) * panScale;
+        updateCameraPosition();
+        previousMouseX = e.clientX;
+        previousMouseY = e.clientY;
+        return;
+      }
+
       if (isOrbiting) {
         const dx = e.clientX - previousMouseX;
         const dy = e.clientY - previousMouseY;
@@ -2463,6 +2515,7 @@
     }
 
     function onPointerUp(e) {
+      if (isPanning) { isPanning = false; canvas.style.cursor = ''; return; }
       if (pendingPlace && currentView === '3d') {
         const rect = canvas.getBoundingClientRect();
         mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2471,15 +2524,31 @@
         raycaster.setFromCamera(mouse, camera);
         const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
         if (intersect && pendingPlace) {
-          let w = 20, d = 20;
-          if (currentRoom !== WHOLE_HOUSE_ID) { const rs = getRoomSize(); w=rs.w; d=rs.d; }
-          let nx = (intersect.x + w/2) / w;
-          let nz = (intersect.z + d/2) / d;
-          nx = snapValue(nx);
-          nz = snapValue(nz);
+          // Resolve the target room + its local coordinate frame.
+          // Whole-house: pick the room actually clicked and offset by its world position.
+          // Single room: the room is centered at the origin.
+          let targetRoomId, w, d, originX = 0, originZ = 0;
+          if (currentRoom === WHOLE_HOUSE_ID) {
+            targetRoomId = roomAtWorld(intersect.x, intersect.z);
+            if (targetRoomId) {
+              const wld = modelData.rooms[targetRoomId].world || { x: 0, z: 0 };
+              originX = wld.x; originZ = wld.z;
+              w = ROOM_DIMS[targetRoomId].width_ft; d = ROOM_DIMS[targetRoomId].depth_ft;
+            }
+          } else {
+            targetRoomId = currentRoom;
+            const rs = getRoomSize(); w = rs.w; d = rs.d;
+          }
 
-          let targetRoomId = currentRoom;
-          if (targetRoomId === WHOLE_HOUSE_ID) targetRoomId = Object.keys(ROOM_DIMS)[0] || 'game-room'; // place into first room when in whole-house overview (focus a room for precise multi-room placement)
+          if (!targetRoomId) {
+            // Clicked outside any room (whole-house) — cancel the placement cleanly.
+            clearPendingPlace();
+          } else {
+          let nx = snapValue((intersect.x - originX) / w + 0.5);
+          let nz = snapValue((intersect.z - originZ) / d + 0.5);
+          nx = Math.max(0, Math.min(1, nx));
+          nz = Math.max(0, Math.min(1, nz));
+
           const room = modelData.rooms[targetRoomId];
           if (!room.objects) room.objects = [];
 
@@ -2504,7 +2573,10 @@
           }
 
           room.objects.push(newObj);
-          createOrUpdateMesh(newObj);
+          // Whole-house: rebuild so the new object is parented into its room group at the
+          // correct world offset. Single-room: the lightweight create is enough.
+          if (currentRoom === WHOLE_HOUSE_ID) buildWholeHouseScene();
+          else createOrUpdateMesh(newObj);
           selectObject(newObj.id);
           saveModel();
           forceRender3D();
@@ -2522,6 +2594,7 @@
           }
 
           clearPendingPlace();
+          } // end else (valid target room)
         }
       }
 
@@ -2817,6 +2890,7 @@
             const lz = (obj.z - 0.5) * roomD * scale;
             ctx2d.save();
             ctx2d.translate(lx, lz);
+            ctx2d.rotate((obj.rotation || 0) * Math.PI / 180); // object rotation (room rot already applied above)
             // simple scaled size using dims
             let dw = 8, dh = 4;
             let col = '#64748b';
@@ -2900,6 +2974,7 @@
 
         ctx2d.save();
         ctx2d.translate(x, y);
+        ctx2d.rotate((obj.rotation || 0) * Math.PI / 180); // honor object rotation in 2D (was missing)
 
         const s = obj.scale || 1;
         let w = 28, h = 18;
