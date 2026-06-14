@@ -2432,7 +2432,7 @@
 
       // Orbit around the point under the cursor (re-pivot without moving the camera),
       // so rotation feels natural even on a large multi-room model.
-      const gp = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+      const gp = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
       if (gp) setPivotKeepingCamera(gp.x, gp.z, 0.0);
 
       isOrbiting = true;
@@ -2450,7 +2450,7 @@
 
       if (isDraggingObject && draggedObjectId) {
         raycaster.setFromCamera(mouse, camera);
-        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
         if (intersect) {
           const roomIdForDrag = draggedObjectRoomId || (currentRoom === WHOLE_HOUSE_ID ? null : currentRoom);
           if (!roomIdForDrag) return;
@@ -2515,7 +2515,7 @@
 
       if (isDraggingRoom && draggedRoomId && currentRoom === WHOLE_HOUSE_ID) {
         raycaster.setFromCamera(mouse, camera);
-        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
         if (intersect) {
           const r = modelData.rooms[draggedRoomId];
           if (r && !r.locked) {
@@ -2542,7 +2542,7 @@
 
       if (pendingPlace && floorHighlight) {
         raycaster.setFromCamera(mouse, camera);
-        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
         if (intersect) {
           let w = 20, d = 20;
           if (currentRoom !== WHOLE_HOUSE_ID) {
@@ -2594,7 +2594,7 @@
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
         raycaster.setFromCamera(mouse, camera);
-        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
         if (intersect && pendingPlace) {
           // Resolve the target room + its local coordinate frame.
           // Whole-house: pick the room actually clicked and offset by its world position.
@@ -2725,7 +2725,7 @@
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
-      const gp = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+      const gp = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
       if (!gp) return;
       const rid = roomAtWorld(gp.x, gp.z);
       if (rid) focusRoom(rid, true);
@@ -2756,7 +2756,7 @@
 
       // Fallback placement
       if (pendingPlace) {
-        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+        const intersect = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
         if (intersect && pendingPlace) {
           let w = 20, d = 20;
           if (currentRoom !== WHOLE_HOUSE_ID) { const rs = getRoomSize(); w=rs.w; d=rs.d; }
