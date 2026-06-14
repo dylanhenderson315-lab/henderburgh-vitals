@@ -2430,11 +2430,8 @@
         return;
       }
 
-      // Orbit around the point under the cursor (re-pivot without moving the camera),
-      // so rotation feels natural even on a large multi-room model.
-      const gp = floorPlane ? raycaster.ray.intersectPlane(floorPlane, new THREE.Vector3()) : null;
-      if (gp) setPivotKeepingCamera(gp.x, gp.z, 0.0);
-
+      // Orbit around the current stable pivot (room center, focused room, or house
+      // center). A fixed pivot per view is predictable — no jumping/spinning.
       isOrbiting = true;
       previousMouseX = e.clientX;
       previousMouseY = e.clientY;
