@@ -238,6 +238,7 @@
 
             <!-- 3D only controls -->
             <div id="3d-controls" class="flex items-center gap-x-2">
+              <button onclick="fitHouseView(true)" class="px-3 py-1 text-xs rounded-lg border border-emerald-800 text-emerald-300 hover:bg-emerald-950/40"><i class="fa-solid fa-house mr-1"></i>Fit House</button>
               <button onclick="setCameraView('top')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Top</button>
               <button onclick="setCameraView('iso')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Isometric</button>
               <button onclick="setCameraView('reset')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Reset</button>
@@ -261,8 +262,8 @@
           </div>
 
           <div class="mt-3 flex items-center justify-between text-[10px] three-legend">
-            <div id="view-help">3D primary: Drag objects or rooms (in Whole House). Place via palette. 2D for blueprint precision/view.</div>
-            <div class="hidden md:block">Wheel = zoom (3D) • Click = select</div>
+            <div id="view-help">Whole House: double-click a room to fly in & orbit it • Fit House to pull back • drag = orbit (around cursor) • right/Shift-drag = pan.</div>
+            <div class="hidden md:block">Wheel = zoom • Double-click room = focus • Click = select</div>
           </div>
         </div>
       </div>
@@ -921,6 +922,7 @@
       canvas.addEventListener('pointerleave', onPointerUp);
       canvas.addEventListener('wheel', onWheel, { passive: false });
       canvas.addEventListener('click', onCanvasClick);
+      canvas.addEventListener('dblclick', onCanvasDblClick);        // double-click a room to focus it
       canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // right-drag = pan, no menu
 
       document.addEventListener('keydown', (e) => {
@@ -1258,11 +1260,10 @@
       forceRender3D();
     }
 
-    function resetCameraForWholeHouse() {
-      // Frame the ACTUAL house: compute the bounding box of all rooms from their
-      // world positions + dims, aim the orbit pivot at its center, and pull the
-      // camera back to fit. (Previously a hardcoded off-center target caused the
-      // "fixed axis / off-center" feel as the layout changed.)
+    // === Dollhouse navigation: focus, fit, animated transitions, orbit-around-point ===
+
+    // Bounding box (center + largest dimension) of the whole house in world feet.
+    function houseExtent() {
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
       Object.keys(ROOM_DIMS).forEach(rid => {
         const r = ROOM_DIMS[rid];
@@ -1273,13 +1274,84 @@
         maxZ = Math.max(maxZ, wld.z + r.depth_ft / 2);
       });
       if (!isFinite(minX)) { minX = 0; maxX = 24; minZ = 0; maxZ = 24; }
-      const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-      const spread = Math.max(maxX - minX, maxZ - minZ);
-      camTarget = { x: cx, y: 1.0, z: cz };
-      camRadius = Math.max(20, spread * 1.15);
-      camTheta = 0.7;
-      camPhi = 0.6;   // a higher, more top-down framing reads the whole plan better
-      updateCameraPosition();
+      return { cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, maxDim: Math.max(maxX - minX, maxZ - minZ) };
+    }
+
+    // Smoothly animate the camera (target + spherical params) to a new framing.
+    let _camAnim = null;
+    function flyCameraTo(opts, duration = 540) {
+      if (!camera) return;
+      const start = { x: camTarget.x, y: camTarget.y, z: camTarget.z, r: camRadius, th: camTheta, ph: camPhi };
+      const end = {
+        x: opts.x !== undefined ? opts.x : camTarget.x,
+        y: opts.y !== undefined ? opts.y : camTarget.y,
+        z: opts.z !== undefined ? opts.z : camTarget.z,
+        r: opts.radius !== undefined ? opts.radius : camRadius,
+        th: opts.theta !== undefined ? opts.theta : camTheta,
+        ph: opts.phi !== undefined ? opts.phi : camPhi,
+      };
+      let dth = end.th - start.th;                 // take the short way around
+      while (dth > Math.PI) dth -= 2 * Math.PI;
+      while (dth < -Math.PI) dth += 2 * Math.PI;
+      const t0 = performance.now();
+      if (_camAnim) cancelAnimationFrame(_camAnim);
+      const tick = (now) => {
+        const p = Math.min(1, (now - t0) / duration);
+        const e = 1 - Math.pow(1 - p, 3);          // easeOutCubic
+        camTarget.x = start.x + (end.x - start.x) * e;
+        camTarget.y = start.y + (end.y - start.y) * e;
+        camTarget.z = start.z + (end.z - start.z) * e;
+        camRadius = start.r + (end.r - start.r) * e;
+        camTheta = start.th + dth * e;
+        camPhi = start.ph + (end.ph - start.ph) * e;
+        updateCameraPosition();
+        forceRender3D();
+        if (p < 1) _camAnim = requestAnimationFrame(tick); else _camAnim = null;
+      };
+      _camAnim = requestAnimationFrame(tick);
+    }
+
+    // Re-pivot around a ground point WITHOUT moving the camera (recompute spherical
+    // params from the current camera position). This makes orbit feel natural at any
+    // scale — you rotate around whatever you grabbed, not one fixed center.
+    function setPivotKeepingCamera(px, pz, py) {
+      if (!camera) return;
+      const cp = camera.position;
+      camTarget.x = px; camTarget.z = pz; if (py !== undefined) camTarget.y = py;
+      const dx = cp.x - camTarget.x, dy = cp.y - camTarget.y, dz = cp.z - camTarget.z;
+      camRadius = Math.max(2, Math.sqrt(dx*dx + dy*dy + dz*dz));
+      camPhi = Math.max(0.06, Math.min(1.48, Math.acos(dy / camRadius)));
+      camTheta = Math.atan2(dx, dz);
+    }
+
+    // Pull back to frame the whole house (the "Fit House" button).
+    function fitHouseView(animate = true) {
+      const ex = houseExtent();
+      const opts = { x: ex.cx, y: 1.0, z: ex.cz, radius: Math.max(20, ex.maxDim * 1.15), theta: 0.7, phi: 0.6 };
+      if (animate) flyCameraTo(opts);
+      else { camTarget = { x: opts.x, y: opts.y, z: opts.z }; camRadius = opts.radius; camTheta = opts.theta; camPhi = opts.phi; updateCameraPosition(); }
+    }
+
+    // Fly in and orbit around a specific room (double-click in Whole House).
+    function focusRoom(rid, animate = true) {
+      const r = ROOM_DIMS[rid]; if (!r) return;
+      const wld = (modelData.rooms[rid] || {}).world || { x: 0, z: 0 };
+      const maxDim = Math.max(r.width_ft, r.depth_ft);
+      const opts = { x: wld.x, y: 0.8, z: wld.z, radius: Math.max(9, maxDim * 1.3), theta: camTheta, phi: 0.66 };
+      if (animate) flyCameraTo(opts);
+      else { camTarget = { x: opts.x, y: opts.y, z: opts.z }; camRadius = opts.radius; camPhi = opts.phi; updateCameraPosition(); }
+      // brief floor highlight on the focused room center for feedback
+      if (floorHighlight) {
+        floorHighlight.position.set(wld.x, 0.02, wld.z);
+        floorHighlight.scale.set(maxDim * 0.4, maxDim * 0.4, maxDim * 0.4);
+        floorHighlight.visible = true;
+        setTimeout(() => { if (floorHighlight) { floorHighlight.scale.set(1,1,1); floorHighlight.visible = false; } }, 650);
+      }
+    }
+
+    function resetCameraForWholeHouse() {
+      // Frame the actual house (no animation on first build).
+      fitHouseView(false);
     }
 
     function resetCameraForRoom() {
@@ -1294,22 +1366,17 @@
 
     function setCameraView(mode) {
       if (currentView !== '3d') switchView('3d');
-      const { w, d } = getRoomSize();
-      const maxDim = Math.max(w, d);
+      // Frame the current context: whole-house extent, or the focused single room.
+      let cx = 0, cz = 0, maxDim;
+      if (currentRoom === WHOLE_HOUSE_ID) { const ex = houseExtent(); cx = ex.cx; cz = ex.cz; maxDim = ex.maxDim; }
+      else { const { w, d } = getRoomSize(); maxDim = Math.max(w, d); }
       if (mode === 'top') {
-        camTheta = 0.0;
-        camPhi = 0.08;
-        camRadius = maxDim * 1.05;
-        camTarget = { x: 0, y: 0.35, z: 0 };
-        updateCameraPosition();
+        flyCameraTo({ x: cx, y: 0.35, z: cz, radius: maxDim * 1.15, theta: 0.0, phi: 0.06 });
       } else if (mode === 'iso') {
-        camTheta = 0.65;
-        camPhi = 0.72;
-        camRadius = maxDim * 0.78;
-        camTarget = { x: 0, y: 1.55, z: 0 };
-        updateCameraPosition();
+        flyCameraTo({ x: cx, y: 1.2, z: cz, radius: maxDim * 0.92, theta: 0.65, phi: 0.62 });
       } else {
-        resetCameraForRoom();
+        if (currentRoom === WHOLE_HOUSE_ID) fitHouseView(true);
+        else { resetCameraForRoom(); }
       }
     }
 
@@ -2363,6 +2430,11 @@
         return;
       }
 
+      // Orbit around the point under the cursor (re-pivot without moving the camera),
+      // so rotation feels natural even on a large multi-room model.
+      const gp = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+      if (gp) setPivotKeepingCamera(gp.x, gp.z, 0.0);
+
       isOrbiting = true;
       previousMouseX = e.clientX;
       previousMouseY = e.clientY;
@@ -2644,6 +2716,19 @@
       camRadius *= (dir > 0 ? 1.15 : 0.87);
       camRadius = Math.max(6, Math.min(110, camRadius));
       updateCameraPosition();
+    }
+
+    // Double-click a room (Whole House) to smoothly fly in and orbit around it.
+    function onCanvasDblClick(e) {
+      if (currentView !== '3d' || currentRoom !== WHOLE_HOUSE_ID) return;
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const gp = floorPlane ? raycaster.ray.intersectPlane(floorPlane) : null;
+      if (!gp) return;
+      const rid = roomAtWorld(gp.x, gp.z);
+      if (rid) focusRoom(rid, true);
     }
 
     function onCanvasClick(e) {
