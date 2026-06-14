@@ -3,8 +3,8 @@
     "game-room": {
       "name": "Game Room",
       "dims": {
-        "width_ft": 16.1667,
-        "depth_ft": 27.6667
+        "width_ft": 9.0,
+        "depth_ft": 16.0
       },
       "objects": [
         {
@@ -40,8 +40,8 @@
       "lights": {},
       "furniture": [],
       "world": {
-        "x": 24.3333,
-        "z": 13.8333,
+        "x": 20.75,
+        "z": 14.0,
         "rot": 0
       },
       "locked": false
@@ -87,7 +87,7 @@
       "furniture": [],
       "world": {
         "x": 6.5417,
-        "z": 21.7083,
+        "z": 39.0417,
         "rot": 0
       },
       "locked": false
@@ -95,8 +95,8 @@
     "master-bedroom": {
       "name": "Master Bedroom",
       "dims": {
-        "width_ft": 14.9167,
-        "depth_ft": 12.5
+        "width_ft": 12.1667,
+        "depth_ft": 11.8333
       },
       "objects": [
         {
@@ -120,8 +120,8 @@
       "lights": {},
       "furniture": [],
       "world": {
-        "x": 23.7083,
-        "z": 33.9167,
+        "x": 19.1667,
+        "z": 44.8333,
         "rot": 0
       },
       "locked": false
@@ -143,7 +143,7 @@
       "furniture": [],
       "world": {
         "x": 14.6667,
-        "z": 12.0,
+        "z": 15.0,
         "rot": 0
       },
       "locked": false
@@ -189,12 +189,12 @@
       "furniture": [],
       "world": {
         "x": 6.2083,
-        "z": 5.0,
+        "z": 22.3333,
         "rot": 0
       },
       "locked": false
     }
   },
   "selected_room": "game-room",
-  "layout_version": 2
+  "layout_version": 3
 }

@@ -89,7 +89,7 @@ DEFAULT_MODEL = {
     "rooms": {
         "game-room": {
             "name": "Game Room",
-            "dims": {"width_ft": 16.1667, "depth_ft": 27.6667},
+            "dims": {"width_ft": 9.0, "depth_ft": 16.0},
             "objects": [
                 {"id": "seed_tv", "type": "light", "subtype": "tv-backlight", "name": "T.V Lights", "x": 0.50, "z": 0.08, "height": "tv", "scale": 1, "rotation": 0, "entity_id": None},
                 {"id": "seed_couch_gr", "type": "furniture", "subtype": "couch", "name": "Sectional", "x": 0.32, "z": 0.58, "height": "floor", "scale": 1, "rotation": 0}
@@ -113,7 +113,7 @@ DEFAULT_MODEL = {
         },
         "master-bedroom": {
             "name": "Master Bedroom",
-            "dims": {"width_ft": 14.9167, "depth_ft": 12.5},
+            "dims": {"width_ft": 12.1667, "depth_ft": 11.8333},
             "objects": [
                 {"id": "seed_bed", "type": "furniture", "subtype": "bed", "name": "Bed", "x": 0.5, "z": 0.65, "height": "floor", "scale": 1, "rotation": 0}
             ],

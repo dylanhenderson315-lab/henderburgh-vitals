@@ -356,16 +356,16 @@
 
     // === Data & Config ===
     const ROOM_DIMS = {
-      'game-room': { name: 'Game Room', width_ft: 16.1667, depth_ft: 27.6667 },
+      'game-room': { name: 'Game Room', width_ft: 9.0, depth_ft: 16.0 },
       'living-room': { name: 'Living Room', width_ft: 13.0833, depth_ft: 23.4167 },
-      'master-bedroom': { name: 'Master Bedroom', width_ft: 14.9167, depth_ft: 12.5 },
+      'master-bedroom': { name: 'Master Bedroom', width_ft: 12.1667, depth_ft: 11.8333 },
       'hallway': { name: 'Hallway', width_ft: 3.1667, depth_ft: 18.0 },
       'kitchen': { name: 'Kitchen', width_ft: 12.4167, depth_ft: 10.0 }
     };
 
     const WHOLE_HOUSE_ID = '__whole__';
     // Bump when the blueprint default room layout changes; triggers a one-time client migration.
-    const LAYOUT_VERSION = 2;
+    const LAYOUT_VERSION = 3;
     const HEIGHT_Y = { floor: 0.18, tv: 3.9, ceiling: 8.1 };
     const GRID_STEP = 0.05; // ~1 foot in most rooms
 
@@ -559,15 +559,19 @@
       //   CENTER      : vertical Hallway abutting the left column's east wall
       //   RIGHT column: Game Room (Bedroom 2) above Master Bedroom, abutting the hallway's east wall
       //
-      // NOTE / data conflict: Game Room is stored 16'2" wide — far wider than the blueprint's
-      // right column (~9–11 ft). Adjacency below is correct, but the overall footprint runs wide
-      // until that wall is re-measured. Re-measure Game Room width to tighten the east side.
+      // Geometry (matches the real blueprint, dims from ROOM_DIMS above):
+      //   LEFT  column (west wall x=0): Kitchen (z 17.33–27.33) directly above Living Room (z 27.33–50.75)
+      //   CENTER spine: Hallway x[13.08,16.25], z[6,24] — abuts the left column's east wall
+      //   RIGHT side: Game Room (Bedroom 2) upper-right x[16.25,25.25] z[6,22], right wall on the
+      //               continuous east wall; Master Bedroom bottom-right x[13.08,25.25] z[38.92,50.75]
+      //               sharing Living Room's east wall (x=13.08) and the same east wall (x=25.25).
+      // The vertical gap above Master is real on the blueprint (bathroom/closet band, not modeled).
       const BLUEPRINT_WORLDS = {
-        'kitchen':        { x: 6.2083,  z: 5.0,     rot: 0 },  // top-left; west wall x=0, north wall z=0
-        'living-room':    { x: 6.5417,  z: 21.7083, rot: 0 },  // below kitchen, shared wall at z=10
-        'hallway':        { x: 14.6667, z: 12.0,    rot: 0 },  // vertical; west wall abuts left column at x=13.0833
-        'game-room':      { x: 24.3333, z: 13.8333, rot: 0 },  // top-right; west wall abuts hallway at x=16.25
-        'master-bedroom': { x: 23.7083, z: 33.9167, rot: 0 }   // below game room, shared wall at z=27.6667
+        'kitchen':        { x: 6.2083,  z: 22.3333, rot: 0 },  // left, above Living
+        'living-room':    { x: 6.5417,  z: 39.0417, rot: 0 },  // bottom-left
+        'hallway':        { x: 14.6667, z: 15.0,    rot: 0 },  // central spine, upper half
+        'game-room':      { x: 20.75,   z: 14.0,    rot: 0 },  // upper-right (Bedroom 2), right wall = east wall
+        'master-bedroom': { x: 19.1667, z: 44.8333, rot: 0 }   // bottom-right, beside Living, right wall = east wall
       };
 
       // One-time migration: snap rooms into the connected blueprint layout. After the user
@@ -578,6 +582,10 @@
         const r = modelData.rooms[rid];
         if (applyBlueprintLayout && BLUEPRINT_WORLDS[rid]) {
           r.world = { ...BLUEPRINT_WORLDS[rid] };
+          // Keep stored dims in sync with the blueprint dims (ROOM_DIMS is the source of truth).
+          if (ROOM_DIMS[rid]) {
+            r.dims = { width_ft: ROOM_DIMS[rid].width_ft, depth_ft: ROOM_DIMS[rid].depth_ft };
+          }
         } else if (!r.world || typeof r.world !== 'object') {
           r.world = { x: 0, z: 0, rot: 0 };
         }
