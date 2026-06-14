@@ -1801,7 +1801,7 @@ DEFAULT_MODEL = {
             "mode": "true-colors",
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
             "world": {"x": 0, "z": 0, "rot": 0},
-            "locked": false
+            "locked": False
         },
         "living-room": {
             "name": "Living Room",
@@ -1813,7 +1813,7 @@ DEFAULT_MODEL = {
             "mode": "true-colors",
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
             "world": {"x": -20, "z": 0, "rot": 0},
-            "locked": false
+            "locked": False
         },
         "master-bedroom": {
             "name": "Master Bedroom",
@@ -1824,7 +1824,7 @@ DEFAULT_MODEL = {
             "mode": "true-colors",
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
             "world": {"x": 0, "z": -18, "rot": 0},
-            "locked": false
+            "locked": False
         },
         "hallway": {
             "name": "Hallway",
@@ -1833,7 +1833,7 @@ DEFAULT_MODEL = {
             "mode": "true-colors",
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
             "world": {"x": 17, "z": 5, "rot": 90},
-            "locked": false
+            "locked": False
         },
         "kitchen": {
             "name": "Kitchen",
@@ -1845,7 +1845,7 @@ DEFAULT_MODEL = {
             "mode": "true-colors",
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
             "world": {"x": -18, "z": -12, "rot": 0},
-            "locked": false
+            "locked": False
         }
     },
     "selected_room": "game-room"
