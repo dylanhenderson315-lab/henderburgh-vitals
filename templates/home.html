@@ -975,16 +975,10 @@
   </script>
 
   <!-- Office Lamp Notification Poke (the little quirky icon that makes the physical lamp temporarily "wave" at you) -->
+  <script src="/static/auth.js"></script>
   <script>
-    const ADMIN_TOKEN = "67"; // matches lighting page (enforced server-side)
-    const OFFICE_LAMP = "light.office_lamp";
     let lastPokeTime = 0;
 
-    // Updated poke button behavior:
-    // - Poke: instantaneous blink (off for ~0.25s then back on) via backend. Snappy, no client delay.
-    // - Rate limit: 3s between uses on the button.
-    // - Notification behavior: separate /api/ha/notify for temp blue (can be triggered as needed, e.g. for actual notifications).
-    // Backend handles snapshot/sequence/reliable restore in background task so response is instant.
     async function triggerOfficeLampNotificationPoke() {
       const btn = document.querySelector('button[onclick*="triggerOfficeLampNotificationPoke"]');
       if (!btn) return;
@@ -1013,7 +1007,7 @@
       }
 
       // fire to backend - instant, no await, sequence runs server-side in bg
-      fetch(`/api/ha/poke?token=${ADMIN_TOKEN}`, { method: 'POST' })
+      adminFetch('/api/ha/poke', { method: 'POST' })
         .catch(() => { /* best effort */ });
 
       // keep the notification side-effects (mark read, clear badge, toast) for the "poked/notified" UX
@@ -1042,7 +1036,7 @@
     // Not wired to the poke button by default (poke button is for the blink poke).
     // Kept here for completeness on home page.
     async function triggerLampNotification() {
-      fetch(`/api/ha/notify?token=${ADMIN_TOKEN}`, { method: 'POST' }).catch(() => {});
+      adminFetch('/api/ha/notify', { method: 'POST' }).catch(() => {});
       // optional: could add icon tint etc, but keep minimal
     }
   </script>

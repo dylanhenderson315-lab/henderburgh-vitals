@@ -1,728 +1,106 @@
-"""
-HENDER VITALS Dashboard
-Beautiful personal Oura Ring dashboard — FastAPI + HTMX + Tailwind + Chart.js
-Run with: uvicorn main:app --reload
-"""
+"""HENDER VITALS Dashboard — FastAPI + HTMX + Tailwind + Chart.js"""
 
 from __future__ import annotations
 
-import os
 import asyncio
-import json
-import uuid
+import os
 import time
-from collections import defaultdict
+import uuid
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
-import httpx
-from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Body, FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
 
-load_dotenv()
-
-# =============================================================================
-# Configuration
-# =============================================================================
-OURA_TOKEN = os.getenv("OURA_TOKEN", "").strip()
-OURA_DAYS = int(os.getenv("OURA_DAYS", "14"))
-OURA_BASE_URL = "https://api.ouraring.com/v2"
-
-# Public mode configuration (for henderburgh.com deployment)
-PUBLIC_MODE = os.getenv("PUBLIC_MODE", "false").lower() in ("1", "true", "yes")
-# Always uppercase HENDERBURGH for consistent all-caps branding across the site
-DISPLAY_NAME = (os.getenv("DISPLAY_NAME", "HENDERBURGH").strip() or "HENDERBURGH").upper()
-SITE_NAME = (os.getenv("SITE_NAME", "HENDERBURGH").strip() or "HENDERBURGH").upper()
-SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
-
-# Longer cache in public mode to protect Oura API quota
-DEFAULT_CACHE_TTL = 600 if PUBLIC_MODE else 180  # 10 min public, 3 min local
-CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL))
-
-# Special shorter cache for heart rate (can be more frequent)
-HEARTRATE_CACHE_TTL = int(os.getenv("HEARTRATE_CACHE_TTL", "120" if PUBLIC_MODE else "30"))  # 2 min public, 30s local
-
-# Railway (and other platforms) inject PORT. Default to 8000 for local dev.
-PORT = int(os.getenv("PORT", 8000))
-
-# Auto-refresh interval in seconds (0 or negative = disabled)
-AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "900"))  # 15 min sensible default (Oura data is not real-time); override via env for faster in dev if desired
-
-# Admin token for protected actions (e.g. deleting blog messages)
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
-
-# Xbox (OpenXBL) configuration for Live Now section
-# XBL_API_KEY and XBL_GAMERTAG must be set in Railway (production) or .env (local) for this to work.
-# See .env.example for setup instructions.
-# XBL_XUID is now set (from xbl.io /account lookup) to bypass gamertag profile resolution (the /gamertag endpoint was returning 500 NOT_FOUND even with valid key).
-#
-# Placeholder detection: we only consider the values as "not configured" if they exactly match
-# the example placeholder strings from .env.example ("your_real_xbl_key_here" or "your_exact_gamertag_here").
-# This way, real keys (even if they look like the old default) or the actual gamertag "NutNutBiinks"
-# will trigger real API calls. The old default key in the getenv() fallback is kept for backward compat
-# but will now attempt API (and fail gracefully) instead of forcing not_configured.
-XBL_API_KEY = os.getenv("XBL_API_KEY", "7ede4621-fd2d-4928-919e-8f520a85804d")
-XBL_GAMERTAG = os.getenv("XBL_GAMERTAG", "NutNutBiinks")
-XBL_XUID = os.getenv("XBL_XUID", "")  # Optional: if set, skip gamertag resolution and use this XUID directly for presence call
-
-# Xbox response caching to protect the free-tier 150 req/hour limit on xbl.io.
-# We cache successful profile+presence+account responses for ~5 minutes.
-# This means at most ~12 actual API roundtrips per hour per server process (even with many visitors),
-# plus we always serve the last-known-good data instantly on cache hits or on any failure/rate-limit.
-XBOX_CACHE_TTL_SECONDS = 5 * 60
-
-# Simple in-memory last vitals snapshot for instant structure on /vitals (like HA bootstrap).
-# Allows the page to feel instantly populated with last known scores/metrics + freshness, then background hydrate.
-last_vitals_snapshot = {"data": None, "ts": 0}
-
-# Warn at startup ONLY if using the example placeholder strings (not real values)
-if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
-    print("⚠️  WARNING: Using placeholder XBL_API_KEY / XBL_GAMERTAG. Xbox status will be unavailable until you set real values in .env or Railway env vars. See .env.example for instructions.")
-
-# Admin token used for protected actions (e.g. deleting messages on /blog)
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
-
-# =============================================================================
-# Home Assistant Lighting - instant bootstrap + last known state cache (for premium fast feel)
-# Persisted structure (rooms + sync groups) from lighting_config.json is always shown immediately.
-# Fresh HA data fetched in background; only changed states trigger UI updates.
-# =============================================================================
-last_ha_lights_snapshot: Dict[str, Any] = {"data": None, "ts": 0}  # {lights: {eid: {state, brightness, current_effect, ...}}, ts, total}
-HA_BOOTSTRAP_CACHE_TTL = 45  # seconds; background refresh keeps it fresh for "last known"
-
-# In-memory cache for last successful Xbox status (survives between requests in the same process)
-# We only hit xbl.io when this cache is older than XBOX_CACHE_TTL_SECONDS.
-# On any error (including rate limits) we return the previous last_xbox_data so the UI stays useful.
-last_xbox_data = {"status": "unavailable", "state": "Unknown", "game": "—", "last_updated": 0}
-_last_xbox_fetch_time: float = 0.0  # epoch seconds of the last *successful* network fetch (for cache decision)
-
-# =============================================================================
-# Home Assistant (local only, disabled in PUBLIC_MODE)
-# Connection is to a local instance; only meaningful when running on the LAN.
-# Controls are protected by ADMIN_TOKEN (same as blog).
-# =============================================================================
-HA_URL = os.getenv("HA_URL", "http://192.168.40.203:8123").rstrip("/")
-HA_TOKEN = os.getenv("HA_TOKEN", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIxYjI4YzRmNWEyYzE0NTNlYTA3MmI1MjE2N2RjMTM1ZSIsImlhdCI6MTc4MDk3MzU4NCwiZXhwIjoyMDk2MzMzNTg0fQ.vu-g86YpAOhNfTxnYKwj0peETr6_iqctfoOks8q1iHM")
-HA_ENABLED = (not PUBLIC_MODE) and bool(HA_TOKEN) and bool(HA_URL)
-
-HA_HEADERS = {
-    "Authorization": f"Bearer {HA_TOKEN}",
-    "Content-Type": "application/json",
-} if HA_TOKEN else {}
-
-if not PUBLIC_MODE and not HA_TOKEN:
-    print("⚠️  HA_TOKEN not set. Home Assistant features will be unavailable.")
-
-if PUBLIC_MODE and HA_TOKEN:
-    print("ℹ️  HA integration loaded but disabled because PUBLIC_MODE=true (controls hidden).")
-
-OFFICE_LAMP = "light.office_lamp"
-_poke_last = 0.0
-_notify_last = 0.0
-
-# =============================================================================
-
-if PUBLIC_MODE:
-    if not OURA_TOKEN:
-        raise RuntimeError(
-            "PUBLIC_MODE is enabled but OURA_TOKEN is not set. "
-            "Set OURA_TOKEN as an environment variable on your hosting platform."
-        )
-    print(f"🌍 Running in PUBLIC_MODE for {SITE_URL} — token required, aggressive caching enabled.")
-else:
-    if not OURA_TOKEN:
-        print("⚠️  OURA_TOKEN not set. Dashboard will show setup instructions.")
-
-# =============================================================================
-# Simple Rate Limiter (for public deployments)
-# =============================================================================
-class SimpleRateLimiter:
-    def __init__(self, max_requests: int = 30, window_seconds: int = 60):
-        self.max_requests = max_requests
-        self.window = window_seconds
-        self.requests: Dict[str, List[float]] = defaultdict(list)
-
-    def is_allowed(self, key: str) -> bool:
-        now = time.time()
-        window_start = now - self.window
-        # Clean old entries
-        self.requests[key] = [t for t in self.requests[key] if t > window_start]
-        if len(self.requests[key]) >= self.max_requests:
-            return False
-        self.requests[key].append(now)
-        return True
-
-# In public mode we are more protective
-rate_limiter = SimpleRateLimiter(
-    max_requests=40 if PUBLIC_MODE else 120,
-    window_seconds=60
+from auth import (
+    clear_admin_session_cookie,
+    create_admin_session,
+    invalidate_admin_session,
+    is_admin_authenticated,
+    require_admin,
+    set_admin_session_cookie,
 )
+from clients.oura import OuraClient, _safe_get, get_date_range, process_dashboard_data
+from config import (
+    ADMIN_TOKEN,
+    AUTO_REFRESH_SECONDS,
+    DISPLAY_NAME,
+    HA_ENABLED,
+    OURA_DAYS,
+    OURA_TOKEN,
+    PORT,
+    PUBLIC_MODE,
+    SITE_NAME,
+    SITE_URL,
+)
+from rate_limit import RateLimitMiddleware, rate_limiter
+from services import home_assistant, persistence, state, vitals, xbox
+from services.xbox import fetch_xbox_status
 
-# =============================================================================
-# Oura Client
-# =============================================================================
-class OuraClient:
-    def __init__(self, token: str):
-        self.token = token
-        self._client: Optional[httpx.AsyncClient] = None
-        self._cache: Dict[str, tuple[float, Any]] = {}
-
-    async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
-                base_url=OURA_BASE_URL,
-                headers={"Authorization": f"Bearer {self.token}"},
-                timeout=30.0,
-            )
-        return self._client
-
-    async def close(self):
-        if self._client:
-            await self._client.aclose()
-
-    def _cache_key(self, path: str, params: Dict) -> str:
-        return f"{path}?{sorted(params.items())}"
-
-    async def _get(self, path: str, params: Optional[Dict] = None, bypass_cache: bool = False, custom_ttl: Optional[int] = None) -> Dict[str, Any]:
-        params = params or {}
-        key = self._cache_key(path, params)
-        now = asyncio.get_event_loop().time()
-
-        ttl = custom_ttl if custom_ttl is not None else CACHE_TTL_SECONDS
-
-        if not bypass_cache and key in self._cache:
-            ts, data = self._cache[key]
-            if now - ts < ttl:
-                return data
-
-        client = await self._get_client()
-        resp = await client.get(path, params=params)
-        if resp.status_code == 401:
-            raise HTTPException(401, "Invalid or expired Oura token")
-        if resp.status_code == 403:
-            raise HTTPException(403, "Oura API access forbidden (subscription or permissions)")
-        resp.raise_for_status()
-        data = resp.json()
-        self._cache[key] = (now, data)
-        return data
-
-    # --- Endpoints -----------------------------------------------------------------
-
-    async def get_personal_info(self) -> Dict[str, Any]:
-        return await self._get("/usercollection/personal_info")
-
-    async def get_daily_readiness(self, start: str, end: str) -> List[Dict]:
-        data = await self._get("/usercollection/daily_readiness", {"start_date": start, "end_date": end})
-        return data.get("data", [])
-
-    async def get_daily_sleep(self, start: str, end: str) -> List[Dict]:
-        data = await self._get("/usercollection/daily_sleep", {"start_date": start, "end_date": end})
-        return data.get("data", [])
-
-    async def get_sleep(self, start: str, end: str) -> List[Dict]:
-        """Detailed sleep (contains avg_hrv, avg_breath, lowest_hr, etc.)"""
-        data = await self._get("/usercollection/sleep", {"start_date": start, "end_date": end})
-        return data.get("data", [])
-
-    async def get_daily_activity(self, start: str, end: str) -> List[Dict]:
-        data = await self._get("/usercollection/daily_activity", {"start_date": start, "end_date": end})
-        return data.get("data", [])
-
-    async def get_daily_spo2(self, start: str, end: str) -> List[Dict]:
-        data = await self._get("/usercollection/daily_spo2", {"start_date": start, "end_date": end})
-        return data.get("data", [])
-
-    async def get_heartrate(self, start: str, end: str, bypass_cache: bool = False) -> List[Dict]:
-        """Fetch recent heart rate readings. Uses shorter cache than other metrics."""
-        try:
-            # Use shorter TTL for heartrate
-            original_ttl = CACHE_TTL_SECONDS
-            # Temporarily override for this call if not bypassing
-            if not bypass_cache:
-                # We can't easily override global, so we pass bypass if we want fresh
-                # For now, the fast path uses bypass_cache=True
-                pass
-
-            data = await self._get(
-                "/usercollection/heartrate", 
-                {"start_date": start, "end_date": end},
-                bypass_cache=bypass_cache,
-                custom_ttl=HEARTRATE_CACHE_TTL
-            )
-            return data.get("data", [])
-        except Exception:
-            return []
-
-    async def get_daily_stress(self, start: str, end: str) -> List[Dict]:
-        data = await self._get("/usercollection/daily_stress", {"start_date": start, "end_date": end})
-        return data.get("data", [])
-
-    async def get_daily_cardiovascular_age(self, start: str, end: str) -> List[Dict]:
-        try:
-            data = await self._get("/usercollection/daily_cardiovascular_age", {"start_date": start, "end_date": end})
-            return data.get("data", [])
-        except Exception:
-            return []
-
-    async def get_daily_resilience(self, start: str, end: str) -> List[Dict]:
-        try:
-            data = await self._get("/usercollection/daily_resilience", {"start_date": start, "end_date": end})
-            return data.get("data", [])
-        except Exception:
-            return []
-
-    async def get_workouts(self, start: str, end: str) -> List[Dict]:
-        """Detailed activity sessions (workouts, walks, runs etc). Best source for type/start/duration/distance."""
-        try:
-            data = await self._get("/usercollection/workout", {"start_date": start, "end_date": end})
-            return data.get("data", [])
-        except Exception:
-            return []
-
-
-# =============================================================================
-# Data Processing Helpers
-# =============================================================================
-def _parse_date(d: str) -> date:
-    return datetime.strptime(d, "%Y-%m-%d").date()
-
-def _fmt_duration(seconds: Optional[int]) -> str:
-    if not seconds:
-        return "—"
-    hrs = seconds // 3600
-    mins = (seconds % 3600) // 60
-    return f"{hrs}h {mins}m" if hrs else f"{mins}m"
-
-def _fmt_decimal(val: Optional[float], ndigits: int = 1) -> str:
-    if val is None:
-        return "—"
-    return f"{round(val, ndigits)}"
-
-def _safe_get(d: Dict, path: str, default: Any = None) -> Any:
-    cur = d
-    for k in path.split("."):
-        if isinstance(cur, dict):
-            cur = cur.get(k)
-        else:
-            return default
-    return cur if cur is not None else default
-
-def compute_trend(current: Optional[float], previous: Optional[float], invert: bool = False) -> Dict[str, Any]:
-    """Return {arrow, pct, color} for display."""
-    if current is None or previous is None or previous == 0:
-        return {"arrow": "", "pct": "", "color": "zinc", "dir": 0}
-
-    delta = current - previous
-    pct = abs(delta / previous * 100)
-    dir = 1 if delta > 0 else (-1 if delta < 0 else 0)
-
-    if invert:
-        dir = -dir  # e.g. lower RHR is good
-
-    if dir > 0:
-        arrow, color = "↑", "emerald"
-    elif dir < 0:
-        arrow, color = "↓", "rose"
-    else:
-        arrow, color = "→", "zinc"
-
-    return {
-        "arrow": arrow,
-        "pct": f"{pct:.0f}%",
-        "color": color,
-        "dir": dir,
-    }
-
-def get_date_range(days: int) -> tuple[str, str]:
-    end = date.today()
-    start = end - timedelta(days=days - 1)
-    return start.isoformat(), end.isoformat()
-
-def process_dashboard_data(
-    personal: Dict,
-    readiness: List[Dict],
-    daily_sleep: List[Dict],
-    detailed_sleep: List[Dict],
-    activity: List[Dict],
-    spo2: List[Dict],
-    stress: List[Dict],
-    heartrate: List[Dict],
-    workouts: List[Dict],
-    days: int,
-) -> Dict[str, Any]:
-    """Turn raw API responses into a clean dashboard context dict."""
-    today = date.today().isoformat()
-
-    # --- Latest values (most recent day with data) ---
-    latest_readiness = next((r for r in reversed(readiness) if r.get("score") is not None), None)
-    latest_daily_sleep = next((s for s in reversed(daily_sleep) if s.get("score") is not None), None)
-
-    # Find matching detailed sleep for the same day
-    latest_detailed = None
-    if latest_daily_sleep:
-        day = latest_daily_sleep.get("day")
-        latest_detailed = next((s for s in reversed(detailed_sleep) if s.get("day") == day), None)
-
-    latest_activity = next((a for a in reversed(activity) if a.get("score") is not None), None)
-    latest_spo2 = next((s for s in reversed(spo2) if s.get("spo2_percentage") is not None), None)
-    latest_stress = next((s for s in reversed(stress) if s.get("day_summary")), None)
-
-    # Handle SpO2 which can be a number or an object like {"average": 95.8}
-    spo2_raw = _safe_get(latest_spo2, "spo2_percentage")
-    if isinstance(spo2_raw, dict):
-        spo2_val = spo2_raw.get("average")
-    else:
-        spo2_val = spo2_raw
-    if spo2_val is not None:
-        try:
-            spo2_val = round(float(spo2_val))
-        except (ValueError, TypeError):
-            spo2_val = None
-
-    # Physiological values (prefer detailed sleep)
-    hrv = _safe_get(latest_detailed, "average_hrv")
-    rhr = _safe_get(latest_detailed, "lowest_heart_rate") or _safe_get(latest_detailed, "average_heart_rate")
-    resp_rate = _safe_get(latest_detailed, "average_breath")
-    sleep_efficiency = _safe_get(latest_detailed, "efficiency") or _safe_get(latest_daily_sleep, "contributors.efficiency")
-
-    # Latest heart rate from the heartrate endpoint (most recent reading)
-    latest_hr = None
-    latest_hr_timestamp = None
-    if heartrate:
-        # Search from most recent
-        for entry in reversed(heartrate):
-            if isinstance(entry, dict) and entry.get("bpm") is not None:
-                latest_hr = entry.get("bpm")
-                latest_hr_timestamp = entry.get("timestamp")
-                break
-    # Fallback to resting HR if no heartrate samples
-    if latest_hr is None:
-        latest_hr = rhr
-        latest_hr_timestamp = None  # no precise timestamp for fallback
-
-    # Compute how old the heart rate reading is (in minutes)
-    hr_age_minutes = None
-    if latest_hr_timestamp:
-        try:
-            ts = datetime.fromisoformat(latest_hr_timestamp.replace("Z", "+00:00"))
-            hr_age_minutes = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
-        except Exception:
-            hr_age_minutes = None
-
-    # Temperature from readiness
-    temp_dev = _safe_get(latest_readiness, "temperature_deviation")
-
-    # --- Build time series (last N days) ---
-    # Index by day for easy joining
-    def by_day(items: List[Dict]) -> Dict[str, Dict]:
-        return {item["day"]: item for item in items if item.get("day")}
-
-    r_by_day = by_day(readiness)
-    ds_by_day = by_day(daily_sleep)
-    det_by_day = by_day(detailed_sleep)
-    act_by_day = by_day(activity)
-    spo_by_day = by_day(spo2)
-
-    # Generate last `days` dates (most recent first for display, but we'll reverse for charts)
-    end_date = date.today()
-    series_dates: List[str] = []
-    for i in range(days - 1, -1, -1):
-        d = (end_date - timedelta(days=i)).isoformat()
-        series_dates.append(d)
-
-    # Series data
-    hrv_series: List[Optional[float]] = []
-    sleep_score_series: List[Optional[int]] = []
-    sleep_dur_series: List[Optional[float]] = []  # hours
-    rhr_series: List[Optional[float]] = []
-    readiness_series: List[Optional[int]] = []
-    temp_series: List[Optional[float]] = []
-
-    for d in series_dates:
-        det = det_by_day.get(d, {})
-        ds = ds_by_day.get(d, {})
-        r = r_by_day.get(d, {})
-
-        hrv_series.append(det.get("average_hrv"))
-        sleep_score_series.append(ds.get("score"))
-        dur = det.get("total_sleep_duration") or 0
-        sleep_dur_series.append(round(dur / 3600, 1) if dur else None)
-        rhr_series.append(det.get("lowest_heart_rate") or det.get("average_heart_rate"))
-        readiness_series.append(r.get("score"))
-        temp_series.append(r.get("temperature_deviation"))
-
-    # --- Trends (today vs yesterday) ---
-    def prev_value(series: List[Optional[float]]) -> Optional[float]:
-        vals = [v for v in series if v is not None]
-        return vals[-2] if len(vals) >= 2 else None
-
-    def last_value(series: List[Optional[float]]) -> Optional[float]:
-        vals = [v for v in series if v is not None]
-        return vals[-1] if vals else None
-
-    readiness_trend = compute_trend(
-        last_value(readiness_series),
-        prev_value(readiness_series),
-    )
-    sleep_score_trend = compute_trend(
-        last_value(sleep_score_series),
-        prev_value(sleep_score_series),
-    )
-    hrv_trend = compute_trend(
-        last_value(hrv_series),
-        prev_value(hrv_series),
-    )
-    rhr_trend = compute_trend(
-        last_value(rhr_series),
-        prev_value(rhr_series),
-        invert=True,  # lower is better
-    )
-
-    # Sleep duration trend (hours)
-    sleep_dur_trend = compute_trend(
-        last_value(sleep_dur_series),
-        prev_value(sleep_dur_series),
-    )
-
-    # --- Current display values ---
-    total_sleep = _safe_get(latest_detailed, "total_sleep_duration")
-    deep = _safe_get(latest_detailed, "deep_sleep_duration")
-    rem = _safe_get(latest_detailed, "rem_sleep_duration")
-    light = _safe_get(latest_detailed, "light_sleep_duration")
-
-    # Activity
-    steps = _safe_get(latest_activity, "steps")
-    active_cal = _safe_get(latest_activity, "active_calories")
-
-    # Name (upper for branding consistency; greeting phrases hardcode HENDERBURGH)
-    name = DISPLAY_NAME or (personal.get("name") or personal.get("email", "there").split("@")[0]).upper()
-
-    # Time-based greeting — always HENDERBURGH in ALL CAPS (Eastern Time)
-    local_tz = ZoneInfo("America/New_York")
-    local_now = datetime.now(local_tz)
-    h = local_now.hour
-    m = local_now.minute
-    total_minutes = h * 60 + m
-
-    if 7 * 60 <= total_minutes < 8 * 60 + 30:
-        time_greeting = "HENDERBURGH IS WAKING UP."
-    elif 8 * 60 + 30 <= total_minutes < 17 * 60:
-        time_greeting = "HENDERBURGH IS WORKING."
-    elif 17 * 60 <= total_minutes < 22 * 60:
-        time_greeting = "HENDERBURGH IS RELAXING."
-    elif 22 * 60 <= total_minutes < 24 * 60:
-        time_greeting = "HENDERBURGH IS GETTING READY FOR BED."
-    else:
-        time_greeting = "HENDERBURGH IS SLEEPING."
-
-    # --- Recent detailed activity sessions (Recent Activity section) ---
-    # Pull real per-session data (type, start, duration, distance etc) from workouts collection
-    recent_activities: List[Dict[str, Any]] = []
-    if workouts:
-        try:
-            sorted_ws = sorted(
-                [w for w in workouts if w.get("start_time") and w.get("end_time")],
-                key=lambda w: w.get("start_time", ""),
-                reverse=True,
-            )
-            for w in sorted_ws[:6]:
-                try:
-                    start_iso = w.get("start_time")
-                    end_iso = w.get("end_time")
-                    start_dt = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
-                    end_dt = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
-                    local_start = start_dt.astimezone(local_tz)
-                    dur_sec = int((end_dt - start_dt).total_seconds())
-                    if dur_sec < 60:
-                        continue
-                    # Nice activity type label
-                    raw_act = (w.get("activity") or w.get("type") or "activity").lower().replace("_", " ")
-                    type_map = {
-                        "walking": "Walk",
-                        "running": "Run",
-                        "cycling": "Cycle",
-                        "swimming": "Swim",
-                        "strength training": "Strength",
-                        "yoga": "Yoga",
-                        "pilates": "Pilates",
-                        "hiit": "HIIT",
-                        "workout": "Workout",
-                        "other": "Activity",
-                    }
-                    act_type = type_map.get(raw_act, raw_act.title())
-                    # Start time in Eastern, clean e.g. 2:45 PM (strip leading zero)
-                    start_str = local_start.strftime("%I:%M %p").lstrip("0")  # e.g. 9:05 AM or 10:30 AM
-                    # Duration
-                    dur_min = dur_sec // 60
-                    dur_str = f"{dur_min}m" if dur_min < 60 else f"{dur_min // 60}h {dur_min % 60}m"
-                    # Distance (meters -> miles, US style)
-                    dist_m = w.get("distance") or 0
-                    dist_str = None
-                    if dist_m and dist_m > 50:
-                        miles = round(dist_m / 1609.34, 1)
-                        dist_str = f"{miles} mi"
-                    steps = w.get("steps")
-                    cals = w.get("calories") or w.get("active_calories")
-                    recent_activities.append({
-                        "type": act_type,
-                        "start_time": start_str,
-                        "duration": dur_str,
-                        "distance": dist_str,
-                        "steps": steps if steps else None,
-                        "calories": cals if cals else None,
-                    })
-                except Exception:
-                    continue
-        except Exception:
-            recent_activities = []
-
-    now = datetime.now(ZoneInfo("UTC"))
-
-    return {
-        "name": name,
-        "last_updated": now.strftime("%b %d, %H:%M UTC"),
-        "last_updated_iso": now.isoformat(),
-        "now": now,
-        "time_greeting": time_greeting,
-        "days": days,
-        "today": today,
-
-        # Hero / main scores
-        "readiness_score": _safe_get(latest_readiness, "score"),
-        "sleep_score": _safe_get(latest_daily_sleep, "score"),
-        "activity_score": _safe_get(latest_activity, "score"),
-
-        # Physiological cards
-        "hrv": hrv,
-        "rhr": rhr,
-        "respiratory_rate": resp_rate,
-        "spo2": spo2_val,
-        "temp_deviation": temp_dev,
-        "stress_summary": _safe_get(latest_stress, "day_summary"),
-        "latest_hr": latest_hr,
-        "latest_hr_timestamp": latest_hr_timestamp,
-        "hr_age_minutes": hr_age_minutes,
-
-        # Sleep breakdown
-        "total_sleep": _fmt_duration(total_sleep),
-        "deep_sleep": _fmt_duration(deep),
-        "rem_sleep": _fmt_duration(rem),
-        "light_sleep": _fmt_duration(light),
-        "sleep_efficiency": sleep_efficiency,
-
-        # Activity
-        "steps": steps,
-        "active_calories": active_cal,
-
-        # Recent detailed sessions (new "Recent Activity" section)
-        "recent_activities": recent_activities,
-
-        # Trends
-        "readiness_trend": readiness_trend,
-        "sleep_score_trend": sleep_score_trend,
-        "hrv_trend": hrv_trend,
-        "rhr_trend": rhr_trend,
-        "sleep_dur_trend": sleep_dur_trend,
-
-        # Chart data (for Chart.js)
-        "chart": {
-            "labels": series_dates,
-            "hrv": hrv_series,
-            "sleep_score": sleep_score_series,
-            "sleep_duration": sleep_dur_series,
-            "rhr": rhr_series,
-            "readiness": readiness_series,
-            "temp": temp_series,
-        },
-    }
-
-
-# =============================================================================
-# FastAPI App
-# =============================================================================
-app = FastAPI(title="HENDERBURGH", docs_url=None, redoc_url=None)
 templates = Jinja2Templates(directory="templates")
 
-# Serve static assets (e.g. your floor plan blueprint image as visual reference in /home-assistant).
-# Put the image at static/floorplan.jpg (or update the <img src> in the template).
-# The floor plan view uses it as context while the main organize view (with drag/drop, sync groups, detail panels) stays clean/fast.
-import os
-from fastapi.staticfiles import StaticFiles
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if OURA_TOKEN:
+        state.oura_client = OuraClient(OURA_TOKEN)
+    elif PUBLIC_MODE:
+        raise RuntimeError("PUBLIC_MODE requires OURA_TOKEN")
+    yield
+    if state.oura_client:
+        await state.oura_client.close()
+        state.oura_client = None
+
+
+app = FastAPI(title="HENDERBURGH", docs_url=None, redoc_url=None, lifespan=lifespan)
+app.add_middleware(RateLimitMiddleware)
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Global client (simple singleton for local dashboard)
-oura_client: Optional[OuraClient] = None
 
-
-@app.on_event("startup")
-async def startup():
-    global oura_client
-    if OURA_TOKEN:
-        oura_client = OuraClient(OURA_TOKEN)
-    elif PUBLIC_MODE:
-        # Should never reach here because of the earlier RuntimeError
-        raise RuntimeError("PUBLIC_MODE requires OURA_TOKEN")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    global oura_client
-    if oura_client:
-        await oura_client.close()
-
-
-async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
-    """Fetch everything we need in parallel."""
-    if not oura_client:
-        raise HTTPException(400, "OURA_TOKEN not configured")
-
-    start, end = get_date_range(days)
-
-    personal, readiness, daily_sleep, detailed_sleep, activity, spo2, stress, heartrate, workouts = await asyncio.gather(
-        oura_client.get_personal_info(),
-        oura_client.get_daily_readiness(start, end),
-        oura_client.get_daily_sleep(start, end),
-        oura_client.get_sleep(start, end),
-        oura_client.get_daily_activity(start, end),
-        oura_client.get_daily_spo2(start, end),
-        oura_client.get_daily_stress(start, end),
-        oura_client.get_heartrate(start, end, bypass_cache=True),  # Always get fresh HR on dashboard load
-        oura_client.get_workouts(start, end),
-        return_exceptions=True,
-    )
-
-    # Handle any failures gracefully
-    def safe(val, default=None):
-        return val if not isinstance(val, Exception) else default
-
-    return {
-        "personal": safe(personal, {}),
-        "readiness": safe(readiness, []),
-        "daily_sleep": safe(daily_sleep, []),
-        "detailed_sleep": safe(detailed_sleep, []),
-        "activity": safe(activity, []),
-        "spo2": safe(spo2, []),
-        "stress": safe(stress, []),
-        "heartrate": safe(heartrate, []),
-        "workouts": safe(workouts, []),
-    }
-
-
-# =============================================================================
-# Routes
-# =============================================================================
 def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
-    """Render a Jinja template safely (works around Jinja2Templates cache key bugs on some Python versions)."""
     template = templates.env.get_template(template_name)
-    html = template.render(**context)
-    return HTMLResponse(html)
+    return HTMLResponse(template.render(**context))
 
+
+@app.post("/api/auth/unlock")
+async def auth_unlock(request: Request, body: dict = Body(...)):
+    token = (body.get("token") or "").strip()
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    session_id = create_admin_session()
+    response = JSONResponse({"status": "ok", "unlocked": True})
+    set_admin_session_cookie(response, session_id)
+    return response
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request):
+    invalidate_admin_session(request.cookies.get("admin_session"))
+    response = JSONResponse({"status": "ok", "unlocked": False})
+    clear_admin_session_cookie(response)
+    return response
+
+
+@app.get("/api/auth/status")
+async def auth_status(request: Request):
+    return {"unlocked": is_admin_authenticated(request), "configured": bool(ADMIN_TOKEN)}
+
+
+async def fetch_all_data(days: int = OURA_DAYS):
+    return await vitals.fetch_all_data(days)
+
+
+async def get_current_steps():
+    return await vitals.get_current_steps()
+
+
+async def get_current_heart_rate():
+    return await vitals.get_current_heart_rate()
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -732,33 +110,23 @@ async def home(request: Request):
     hr_age_minutes = None
     latest_hr_timestamp = None
 
-    if oura_client:
+    metrics = vitals.snapshot_home_metrics()
+    if state.oura_client and metrics.get("steps") is None:
         try:
-            # Use the exact same day window as the vitals page for data consistency
             days = 14 if PUBLIC_MODE else OURA_DAYS
-
-            raw = await fetch_all_data(days=days)
-
-            processed = process_dashboard_data(
-                raw.get("personal", {}),
-                raw.get("readiness", []),
-                raw.get("daily_sleep", []),
-                raw.get("detailed_sleep", []),
-                raw.get("activity", []),
-                raw.get("spo2", []),
-                raw.get("stress", []),
-                raw.get("heartrate", []),
-                raw.get("workouts", []),
-                days,
-            )
-
-            steps = processed.get("steps")
-            latest_hr = processed.get("latest_hr")
-            hr_age_minutes = processed.get("hr_age_minutes")
-            latest_hr_timestamp = processed.get("latest_hr_timestamp")
-
+            processed = await vitals.get_processed_vitals(days=days, use_cache=True)
+            metrics = {
+                "steps": processed.get("steps"),
+                "latest_hr": processed.get("latest_hr"),
+                "hr_age_minutes": processed.get("hr_age_minutes"),
+                "latest_hr_timestamp": processed.get("latest_hr_timestamp"),
+            }
         except Exception:
             pass
+    steps = metrics.get("steps")
+    latest_hr = metrics.get("latest_hr")
+    hr_age_minutes = metrics.get("hr_age_minutes")
+    latest_hr_timestamp = metrics.get("latest_hr_timestamp")
 
     # Prepare context for homepage (same values as vitals page)
     steps_ctx = {
@@ -791,10 +159,10 @@ async def home(request: Request):
     recent_messages = []
     blog_unread_count = 0
     try:
-        all_messages = load_messages()
+        all_messages = persistence.load_messages()
 
         # Unread (for the quirky office-lamp poke icon) — counts replies too
-        last_read = load_last_blog_read()
+        last_read = persistence.load_last_blog_read()
         unread_messages = [m for m in all_messages if str(m.get("timestamp", "")) > last_read]
         blog_unread_count = len(unread_messages)
 
@@ -827,11 +195,13 @@ async def home(request: Request):
     })
 
 
+
+
 @app.get("/xbox", response_class=HTMLResponse)
 async def xbox_page(request: Request):
     """Dedicated Xbox profile page with current data and game log."""
-    xbox_data = await get_xbox_status()
-    raw_log = load_xbox_log()
+    xbox_data = await fetch_xbox_status()
+    raw_log = persistence.load_xbox_log()
 
     # Enrich log for clean, professional display (formatted dates, safe fields)
     formatted_log = []
@@ -870,6 +240,8 @@ async def xbox_page(request: Request):
     })
 
 
+
+
 @app.get("/home-assistant", response_class=HTMLResponse)
 async def ha_page(request: Request):
     """Private Home Assistant control page. Controls require admin token (see blog pattern).
@@ -882,7 +254,7 @@ async def ha_page(request: Request):
     try:
         if HA_ENABLED:
             # Lightweight: still useful for header count, but do not let a slow/401 HA kill the instant feel.
-            states = await get_ha_states()
+            states = await home_assistant.get_ha_states()
     except Exception:
         states = []
 
@@ -908,10 +280,10 @@ async def ha_page(request: Request):
         ordered_groups.append((d, ents))
 
     # Exact persisted rooms + groups from lighting_config.json — this is what makes the UI feel instant.
-    initial_lighting = load_lighting_config() if HA_ENABLED else {"rooms": [], "groups": []}
+    initial_lighting = persistence.load_lighting_config() if HA_ENABLED else {"rooms": [], "groups": []}
 
     # Prefer a fast count from last snapshot when available
-    snap_total = (last_ha_lights_snapshot.get("data") or {}).get("total") or 0
+    snap_total = (state.last_ha_lights_snapshot.get("data") or {}).get("total") or 0
     display_count = len(states) or snap_total or (len(initial_lighting.get("rooms", [])) * 2)  # rough but never blocks
 
     return _render("home-assistant.html", {
@@ -925,6 +297,8 @@ async def ha_page(request: Request):
         "initial_lighting": initial_lighting,
         "display_name": DISPLAY_NAME,
     })
+
+
 
 
 @app.get("/vitals", response_class=HTMLResponse)
@@ -948,7 +322,7 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
             )
 
     # In public mode we never show the setup screen
-    if not OURA_TOKEN or not oura_client:
+    if not OURA_TOKEN or not state.oura_client:
         if PUBLIC_MODE:
             return HTMLResponse(
                 "<h1 style='font-family:sans-serif;color:#111'>Configuration error</h1>"
@@ -960,7 +334,7 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
             {
                 "request": request,
                 "setup_mode": True,
-                "token": OURA_TOKEN,
+                "has_token": bool(OURA_TOKEN),
                 "display_name": DISPLAY_NAME,
                 "hr_age_minutes": None,
                 "recent_activities": [],
@@ -968,19 +342,7 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
         )
 
     try:
-        raw = await fetch_all_data(days)
-        ctx = process_dashboard_data(
-            raw["personal"],
-            raw["readiness"],
-            raw["daily_sleep"],
-            raw["detailed_sleep"],
-            raw["activity"],
-            raw["spo2"],
-            raw["stress"],
-            raw.get("heartrate", []),
-            raw.get("workouts", []),
-            days,
-        )
+        ctx = await vitals.get_processed_vitals(days, use_cache=False)
 
         ctx.update({
             "request": request,
@@ -1029,10 +391,14 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
         )
 
 
+
+
 @app.get("/fragment", response_class=HTMLResponse)
 async def dashboard_fragment(request: Request, days: int = OURA_DAYS):
     """Legacy fragment endpoint (still works for the vitals dashboard)."""
     return await vitals_fragment(request, days)
+
+
 
 
 @app.get("/vitals/fragment", response_class=HTMLResponse)
@@ -1047,23 +413,11 @@ async def vitals_fragment(request: Request, days: int = OURA_DAYS):
             200
         )
 
-    if not OURA_TOKEN or not oura_client:
+    if not OURA_TOKEN or not state.oura_client:
         return HTMLResponse("<div class='text-red-400 p-8'>Token not configured</div>", 400)
 
     try:
-        raw = await fetch_all_data(days)
-        ctx = process_dashboard_data(
-            raw["personal"],
-            raw["readiness"],
-            raw["daily_sleep"],
-            raw["detailed_sleep"],
-            raw["activity"],
-            raw["spo2"],
-            raw["stress"],
-            raw.get("heartrate", []),
-            raw.get("workouts", []),
-            days,
-        )
+        ctx = await vitals.get_processed_vitals(days, use_cache=False)
         ctx.update({
             "request": request,
             "setup_mode": False,
@@ -1076,12 +430,14 @@ async def vitals_fragment(request: Request, days: int = OURA_DAYS):
         return HTMLResponse(f"<div class='text-red-400 p-8'>Error: {e}</div>", 500)
 
 
+
+
 @app.get("/api/latest-hr")
 async def api_latest_hr(fresh: bool = False):
     """Lightweight endpoint for fast Heart Rate updates.
     Use ?fresh=true for the live modal (bypasses cache for freshest possible data).
     """
-    if not oura_client:
+    if not state.oura_client:
         return JSONResponse({"bpm": None, "timestamp": None})
 
     try:
@@ -1092,7 +448,7 @@ async def api_latest_hr(fresh: bool = False):
             start_dt = (now - timedelta(minutes=30)).isoformat()
             end_dt = now.isoformat()
 
-            hr_data = await oura_client._get(
+            hr_data = await state.oura_client._get(
                 "/usercollection/heartrate",
                 {"start_datetime": start_dt, "end_datetime": end_dt},
                 bypass_cache=True   # Force fresh data from Oura
@@ -1102,7 +458,7 @@ async def api_latest_hr(fresh: bool = False):
             start_dt = (now - timedelta(hours=4)).isoformat()
             end_dt = now.isoformat()
 
-            hr_data = await oura_client._get(
+            hr_data = await state.oura_client._get(
                 "/usercollection/heartrate",
                 {"start_datetime": start_dt, "end_datetime": end_dt},
                 bypass_cache=False
@@ -1123,7 +479,7 @@ async def api_latest_hr(fresh: bool = False):
         if latest_hr is None:
             # Fallback
             recent_start = (now - timedelta(days=1)).date().isoformat()
-            detailed = await oura_client.get_sleep(recent_start, now.date().isoformat())
+            detailed = await state.oura_client.get_sleep(recent_start, now.date().isoformat())
             if detailed:
                 latest_detailed = detailed[-1] if detailed else None
                 latest_hr = _safe_get(latest_detailed, "average_heart_rate") or _safe_get(latest_detailed, "lowest_heart_rate")
@@ -1146,6 +502,8 @@ async def api_latest_hr(fresh: bool = False):
         return JSONResponse({"bpm": None, "timestamp": None})
 
 
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint for Railway / monitoring (does not hit Oura API)."""
@@ -1160,12 +518,12 @@ async def health():
 
 async def get_current_steps():
     """Internal helper to get current steps and miles (same logic as vitals page)."""
-    if not oura_client:
+    if not state.oura_client:
         return {"steps": None, "miles": None}
 
     try:
         today = date.today().isoformat()
-        activity = await oura_client.get_daily_activity(today, today)
+        activity = await state.oura_client.get_daily_activity(today, today)
         if activity and len(activity) > 0:
             latest = activity[0]
             steps = latest.get("steps") or 0
@@ -1176,6 +534,8 @@ async def get_current_steps():
     return {"steps": None, "miles": None}
 
 
+
+
 @app.get("/api/steps")
 async def api_steps():
     """Lightweight endpoint for current steps (used on homepage Live Now)."""
@@ -1184,14 +544,14 @@ async def api_steps():
 
 async def get_current_heart_rate():
     """Internal helper to get current heart rate (same logic used by vitals page)."""
-    if not oura_client:
+    if not state.oura_client:
         return {"bpm": None, "updated": None}
 
     try:
         now = datetime.now(timezone.utc)
         # Get last ~4 hours of HR samples
         start_dt = (now - timedelta(hours=4)).isoformat()
-        hr_data = await oura_client._get(
+        hr_data = await state.oura_client._get(
             "/usercollection/heartrate",
             {"start_datetime": start_dt, "end_datetime": now.isoformat()},
             bypass_cache=True
@@ -1212,225 +572,27 @@ async def get_current_heart_rate():
     return {"bpm": None, "updated": None}
 
 
+
+
 @app.get("/api/heart-rate")
 async def api_heart_rate():
     """Lightweight endpoint for current heart rate (used on homepage Live Now)."""
     return await get_current_heart_rate()
 
 
+
+
 @app.get("/api/xbox/status")
-async def get_xbox_status():
-    global last_xbox_data, _last_xbox_fetch_time
+async def api_xbox_status():
+    return await fetch_xbox_status()
 
-    # If using placeholder values, return not_configured immediately (no API call)
-    # Detection: ONLY trigger on the exact example placeholder strings from .env.example.
-    # Real values (including the user's actual key and gamertag="NutNutBiinks") will proceed to call xbl.io.
-    # See comment above the XBL_ assignments for full explanation of detection logic.
-    if XBL_API_KEY in ("your_real_xbl_key_here", "your_openxbl_api_key_here") or XBL_GAMERTAG in ("your_gamertag_here", "your_exact_gamertag_here"):
-        return {"status": "not_configured", "state": "Unknown", "game": "—"}
-
-    # Simple time-based cache: serve last known good data instantly if still fresh.
-    # This is the main protection against burning the 150 req/h free tier.
-    now = time.time()
-    if last_xbox_data.get("status") == "ok":
-        age = now - _last_xbox_fetch_time
-        if age < XBOX_CACHE_TTL_SECONDS:
-            return last_xbox_data
-
-    headers = {
-        "X-Authorization": XBL_API_KEY,
-        "Accept": "application/json"
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            xuid = XBL_XUID
-            if not xuid:
-                # Step 1: Resolve gamertag to XUID (only if no direct XUID provided)
-                profile_url = f"https://xbl.io/api/v2/player/gamertag/{XBL_GAMERTAG}"
-                profile_res = await client.get(profile_url, headers=headers, timeout=10)
-
-                if profile_res.status_code != 200:
-                    key_preview = XBL_API_KEY[:8] + "..." if XBL_API_KEY else "None"
-                    print(f"Xbox API error (profile): status={profile_res.status_code} body={profile_res.text[:300]} key_preview={key_preview} gamertag={XBL_GAMERTAG}")
-                    if profile_res.status_code == 401:
-                        print("Xbox: Invalid API key detected - verify your XBL_API_KEY from xbl.io app console (it should return 200 on /account test).")
-                    return last_xbox_data
-
-                profile = profile_res.json()
-                xuid = profile.get("xuid")
-
-                if not xuid:
-                    print("Xbox API error: no xuid returned in profile response")
-                    return last_xbox_data
-
-            # Step 2: Get presence using XUID (either from resolution or direct XBL_XUID)
-            presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
-            presence_res = await client.get(presence_url, headers=headers, timeout=10)
-
-            if presence_res.status_code != 200:
-                key_preview = XBL_API_KEY[:8] + "..." if XBL_API_KEY else "None"
-                print(f"Xbox API error (presence): status={presence_res.status_code} body={presence_res.text[:300]} key_preview={key_preview} xuid={xuid}")
-                return last_xbox_data
-
-            presence = presence_res.json() or {}
-
-            # The xbl.io /presence (and /account) responses wrap the actual data under "content"
-            data = presence.get("content") or presence
-
-            state = data.get("state", "Unknown")
-
-            # Step 3: Extract current game/app name - try multiple paths for robustness
-            game = "—"
-
-            # Path 1: devices[0].titles (most common for current activity)
-            devices = data.get("devices") or []
-            if isinstance(devices, list) and len(devices) > 0:
-                for device in devices:
-                    if not isinstance(device, dict):
-                        continue
-                    titles = device.get("titles") or []
-                    if isinstance(titles, list) and len(titles) > 0:
-                        # Prefer Full placement active title (the main game), then any Active
-                        for title in titles:
-                            if isinstance(title, dict):
-                                if title.get("placement") == "Full" and (title.get("state") == "Active" or title.get("placement") == "Full"):
-                                    game = title.get("name") or title.get("titleName") or "—"
-                                    break
-                        if game == "—":
-                            for title in titles:
-                                if isinstance(title, dict):
-                                    if title.get("placement") == "Active" or title.get("state") == "Active":
-                                        game = title.get("name") or title.get("titleName") or "—"
-                                        break
-                        if game == "—":
-                            # fallback to first title
-                            first_title = titles[0]
-                            if isinstance(first_title, dict):
-                                game = first_title.get("name") or first_title.get("titleName") or "—"
-                    if game != "—":
-                        break
-
-            primary_device = ""
-            if devices and isinstance(devices, list) and devices:
-                d0 = devices[0]
-                if isinstance(d0, dict):
-                    primary_device = d0.get("type", "")
-
-            # Path 2: direct lastSeenTitle (some response formats)
-            if game == "—" and "lastSeenTitle" in data:
-                game = data.get("lastSeenTitle") or "—"
-
-            # Path 3: lastSeen.titleName
-            if game == "—":
-                last_seen = data.get("lastSeen") or {}
-                if isinstance(last_seen, dict):
-                    game = last_seen.get("titleName") or last_seen.get("name") or "—"
-
-            # Path 4: other possible top-level fields (handle different formats)
-            if game == "—":
-                game = (
-                    data.get("titleName")
-                    or data.get("name")
-                    or (data.get("title") or {}).get("name") if isinstance(data.get("title"), dict) else data.get("title")
-                    or "—"
-                )
-
-            # Handle empty / falsy game
-            if not game or str(game).strip() == "":
-                game = "—"
-
-            # Fetch account profile for gamerpic, gamerscore, tenure (static profile info)
-            gamerpic = ""
-            gamerscore = 0
-            tenure = 0
-            gamertag = XBL_GAMERTAG
-            real_name = ""
-            account_tier = "Gold"
-            try:
-                account_res = await client.get("https://xbl.io/api/v2/account", headers=headers, timeout=10)
-                if account_res.status_code == 200:
-                    acc = account_res.json() or {}
-                    acc_content = acc.get("content") or acc
-                    pus = acc_content.get("profileUsers") or []
-                    if pus:
-                        pu = pus[0]
-                        settings_list = pu.get("settings") or []
-                        settings = {s.get("id"): s.get("value") for s in settings_list if isinstance(s, dict)}
-                        gamertag = settings.get("Gamertag") or settings.get("ModernGamertag") or gamertag
-                        gamerpic = settings.get("GameDisplayPicRaw", "")
-                        try:
-                            gamerscore = int(settings.get("Gamerscore", 0))
-                        except:
-                            gamerscore = 0
-                        try:
-                            tenure = int(settings.get("TenureLevel", 0))
-                        except:
-                            tenure = 0
-                        # Real name (may not be present on all accounts / privacy settings)
-                        real_name = (
-                            settings.get("RealName")
-                            or settings.get("FirstName")
-                            or ""
-                        )
-                        if not real_name:
-                            fn = settings.get("FirstName", "") or ""
-                            ln = settings.get("LastName", "") or ""
-                            real_name = (fn + " " + ln).strip()
-                        # Account tier (often Gold / Game Pass etc.)
-                        account_tier = settings.get("AccountTier") or settings.get("Tier") or "Gold"
-            except Exception as e:
-                print(f"Xbox account fetch error: {e}")
-
-            # Log meaningful game changes (only when game actually changes and is valid)
-            if game and game != "—":
-                try:
-                    log = load_xbox_log()
-                    last_entry = log[0] if log else None
-                    if not last_entry or last_entry.get("game") != game:
-                        entry = {
-                            "game": game,
-                            "timestamp": datetime.now().isoformat(),
-                            "device": primary_device or "",
-                        }
-                        log.insert(0, entry)
-                        log = log[:100]  # keep last 100
-                        save_xbox_log(log)
-                except Exception as e:
-                    print(f"Xbox game log error: {e}")
-
-            # Success path: update the shared cache (with timestamp) and return fresh data.
-            # Future calls within XBOX_CACHE_TTL_SECONDS will be served from this without touching xbl.io.
-            fetch_time = time.time()
-            last_xbox_data = {
-                "status": "ok",
-                "state": state,
-                "game": game,
-                "gamertag": gamertag,
-                "gamerpic": gamerpic,
-                "gamerscore": gamerscore,
-                "tenure": tenure,
-                "real_name": real_name,
-                "account_tier": account_tier,
-                "xuid": xuid or XBL_XUID,
-                "last_updated": fetch_time
-            }
-            _last_xbox_fetch_time = fetch_time
-            return last_xbox_data
-
-        except Exception as e:
-            print(f"Xbox API error: {e}")
-            return last_xbox_data
-
-
-# =============================================================================
-# Home Assistant API (read for summary/home card; writes protected by admin token)
-# =============================================================================
 
 @app.get("/api/ha/summary")
 async def api_ha_summary():
     """Lightweight summary used by the homepage Live Now card. Always safe to call."""
-    return await get_ha_summary()
+    return await home_assistant.get_ha_summary()
+
+
 
 
 @app.get("/api/ha/states")
@@ -1438,8 +600,10 @@ async def api_ha_states():
     """Full entity list for the /home-assistant control UI (read-only)."""
     if not HA_ENABLED:
         return {"status": "disabled", "entities": []}
-    states = await get_ha_states()
+    states = await home_assistant.get_ha_states()
     return {"status": "ok", "entities": states}
+
+
 
 
 @app.get("/api/ha/lights-data")
@@ -1447,8 +611,10 @@ async def api_ha_lights_data():
     """Rich data for the professional lighting dashboard: custom rooms, groups, lights, scenes, unassigned."""
     if not HA_ENABLED:
         return {"status": "disabled"}
-    data = await get_ha_lights_data()
+    data = await home_assistant.get_ha_lights_data()
     return {"status": "ok", **data}
+
+
 
 
 @app.get("/api/ha/bootstrap")
@@ -1459,54 +625,58 @@ async def api_ha_bootstrap():
     """
     if not HA_ENABLED:
         return {"status": "disabled", "rooms": [], "groups": [], "last_states": {}}
-    struct = get_persisted_lighting_structure()
+    struct = persistence.get_persisted_lighting_structure()
     return {"status": "ok", **struct}
 
 
 # --- Lighting management (rooms, groups, assignments) - protected by ADMIN_TOKEN ---
 
+
+
 @app.post("/api/ha/lighting/room/create")
-async def create_room(token: Optional[str] = None, name: str = ""):
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
+async def create_room(request: Request, name: str = ""):
+    require_admin(request)
     if not name.strip():
         raise HTTPException(400, "Room name required")
-    config = load_lighting_config()
+    config = persistence.load_lighting_config()
     new_room = {"id": str(uuid.uuid4()), "name": name.strip(), "light_ids": []}
     config["rooms"].append(new_room)
-    save_lighting_config(config)
+    persistence.save_lighting_config(config)
     return {"status": "ok", "room": new_room}
 
 
+
+
 @app.post("/api/ha/lighting/room/rename")
-async def rename_room(token: Optional[str] = None, room_id: str = "", name: str = ""):
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    config = load_lighting_config()
+async def rename_room(request: Request, room_id: str = "", name: str = ""):
+    require_admin(request)
+    config = persistence.load_lighting_config()
     for room in config["rooms"]:
         if room["id"] == room_id:
             room["name"] = name.strip()
-            save_lighting_config(config)
+            persistence.save_lighting_config(config)
             return {"status": "ok"}
     raise HTTPException(404, "Room not found")
 
 
+
+
 @app.post("/api/ha/lighting/room/delete")
-async def delete_room(token: Optional[str] = None, room_id: str = ""):
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    config = load_lighting_config()
+async def delete_room(request: Request, room_id: str = ""):
+    require_admin(request)
+    config = persistence.load_lighting_config()
     config["rooms"] = [r for r in config["rooms"] if r["id"] != room_id]
-    save_lighting_config(config)
+    persistence.save_lighting_config(config)
     return {"status": "ok"}
 
 
+
+
 @app.post("/api/ha/lighting/assign")
-async def assign_light_to_room(token: Optional[str] = None, entity_id: str = "", room_id: str = ""):
+async def assign_light_to_room(request: Request, entity_id: str = "", room_id: str = ""):
     """Assign (move) a light to a room. Pass room_id="" to unassign."""
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    config = load_lighting_config()
+    require_admin(request)
+    config = persistence.load_lighting_config()
     # Remove from all rooms first
     for room in config["rooms"]:
         if entity_id in room.get("light_ids", []):
@@ -1517,38 +687,41 @@ async def assign_light_to_room(token: Optional[str] = None, entity_id: str = "",
                 if entity_id not in room.get("light_ids", []):
                     room.setdefault("light_ids", []).append(entity_id)
                 break
-    save_lighting_config(config)
+    persistence.save_lighting_config(config)
     return {"status": "ok"}
+
+
 
 
 @app.post("/api/ha/lighting/group/create")
-async def create_group(token: Optional[str] = None, name: str = ""):
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
+async def create_group(request: Request, name: str = ""):
+    require_admin(request)
     if not name.strip():
         raise HTTPException(400, "Group name required")
-    config = load_lighting_config()
+    config = persistence.load_lighting_config()
     new_group = {"id": str(uuid.uuid4()), "name": name.strip(), "light_ids": []}
     config["groups"].append(new_group)
-    save_lighting_config(config)
+    persistence.save_lighting_config(config)
     return {"status": "ok", "group": new_group}
 
 
+
+
 @app.post("/api/ha/lighting/group/delete")
-async def delete_group(token: Optional[str] = None, group_id: str = ""):
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    config = load_lighting_config()
+async def delete_group(request: Request, group_id: str = ""):
+    require_admin(request)
+    config = persistence.load_lighting_config()
     config["groups"] = [g for g in config["groups"] if g["id"] != group_id]
-    save_lighting_config(config)
+    persistence.save_lighting_config(config)
     return {"status": "ok"}
 
 
+
+
 @app.post("/api/ha/lighting/group/assign")
-async def assign_light_to_group(token: Optional[str] = None, entity_id: str = "", group_id: str = "", add: bool = True):
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    config = load_lighting_config()
+async def assign_light_to_group(request: Request, entity_id: str = "", group_id: str = "", add: bool = True):
+    require_admin(request)
+    config = persistence.load_lighting_config()
     for group in config["groups"]:
         if group["id"] == group_id:
             if add:
@@ -1557,99 +730,100 @@ async def assign_light_to_group(token: Optional[str] = None, entity_id: str = ""
             else:
                 if entity_id in group.get("light_ids", []):
                     group["light_ids"].remove(entity_id)
-            save_lighting_config(config)
+            persistence.save_lighting_config(config)
             return {"status": "ok"}
     raise HTTPException(404, "Group not found")
+
+
 
 
 @app.post("/api/ha/lighting/group/rename")
-async def rename_group(token: Optional[str] = None, group_id: str = "", name: str = ""):
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    config = load_lighting_config()
+async def rename_group(request: Request, group_id: str = "", name: str = ""):
+    require_admin(request)
+    config = persistence.load_lighting_config()
     for group in config.get("groups", []):
         if group["id"] == group_id:
             group["name"] = name.strip()
-            save_lighting_config(config)
+            persistence.save_lighting_config(config)
             return {"status": "ok"}
     raise HTTPException(404, "Group not found")
 
 
+
+
 @app.post("/api/ha/service/{domain}/{service}")
-async def api_ha_service(
+async def api_ha_service(request: Request, 
     domain: str,
     service: str,
-    token: Optional[str] = None,
-    payload: dict = Body(default={}),
+        payload: dict = Body(default={}),
 ):
     """Generic service caller with rich payload support.
     Requires ?token= matching ADMIN_TOKEN.
     payload can include: entity_id, brightness (0-255), color_temp (mireds), rgb_color: [r,g,b], etc.
     Used by the professional lighting dashboard.
     """
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    require_admin(request)
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
 
     entity_id = payload.get("entity_id")
     extra = {k: v for k, v in payload.items() if k != "entity_id"}
 
-    result = await call_ha_service(domain, service, entity_id, extra)
+    result = await home_assistant.call_ha_service(domain, service, entity_id, extra)
     return {"status": "ok", "domain": domain, "service": service, "entity_id": entity_id, "result": result}
 
 
+
+
 @app.post("/api/ha/poke")
-async def api_ha_poke(
-    token: Optional[str] = None,
-    background_tasks: BackgroundTasks = None,
+async def api_ha_poke(request: Request, 
+        background_tasks: BackgroundTasks = None,
 ):
     """Poke action: instantaneous blink (off ~0.25s then back on). Backend handled.
     Rate limited server-side + client. Returns instantly (bg task does the sequence).
     """
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    require_admin(request)
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
 
-    global _poke_last
     now = time.time()
-    if now - _poke_last < 3.0:
+    if now - state._poke_last < 3.0:
         raise HTTPException(status_code=429, detail="Rate limited. Wait 3 seconds between pokes.")
-    _poke_last = now
+    state._poke_last = now
 
     if background_tasks is not None:
-        background_tasks.add_task(perform_poke_blink)
+        background_tasks.add_task(home_assistant.perform_poke_blink)
     else:
-        asyncio.create_task(perform_poke_blink())
+        asyncio.create_task(home_assistant.perform_poke_blink())
     return {"status": "ok", "action": "poke"}
 
 
+
+
 @app.post("/api/ha/notify")
-async def api_ha_notify(
-    token: Optional[str] = None,
-    background_tasks: BackgroundTasks = None,
+async def api_ha_notify(request: Request, 
+        background_tasks: BackgroundTasks = None,
 ):
     """Notification action: instantaneous blue flash (~0.25s) then restore to previous.
     (Same light + quick flash behavior as used automatically for new blog posts.)
     Backend handled reliably. Returns instantly. (Rate limited.)
     """
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    require_admin(request)
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
 
-    global _notify_last
     now = time.time()
-    if now - _notify_last < 5.0:
+    if now - state._notify_last < 5.0:
         raise HTTPException(status_code=429, detail="Rate limited.")
-    _notify_last = now
+    state._notify_last = now
 
     if background_tasks is not None:
-        background_tasks.add_task(perform_notify_blue)
+        background_tasks.add_task(home_assistant.perform_notify_blue)
     else:
-        asyncio.create_task(perform_notify_blue())
+        asyncio.create_task(home_assistant.perform_notify_blue())
     return {"status": "ok", "action": "notify"}
+
+
 
 
 @app.post("/api/ha/access-request")
@@ -1675,828 +849,65 @@ async def post_access_request(request: Request, name: str = Form(""), message: s
         "timestamp": ts
     }
 
-    reqs = load_access_requests()
+    reqs = persistence.load_access_requests()
     reqs.insert(0, req)  # newest first
-    save_access_requests(reqs)
+    persistence.save_access_requests(reqs)
     return {"status": "received"}
 
 
+
+
 @app.get("/api/ha/access-requests")
-async def get_access_requests(token: Optional[str] = None):
+async def get_access_requests(request: Request):
     """Protected: list access requests (only when page is unlocked with valid token)."""
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    return load_access_requests()
+    require_admin(request)
+    return persistence.load_access_requests()
 
 
-@app.delete("/api/ha/access-requests/{req_id}")
-async def delete_access_request(req_id: str, token: Optional[str] = None):
-    """Protected: delete a specific request."""
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(403, "Invalid admin token")
-    reqs = load_access_requests()
-    reqs = [r for r in reqs if r.get("id") != req_id]
-    save_access_requests(reqs)
-    return {"status": "deleted"}
-
-
-# =============================================================================
-# TV Sync (server-persisted zone assignments, mode, per-mode settings for the TV Sync feature)
-# Replaces previous localStorage; persists across devices/refreshes. Isolated to TV Sync only.
-# =============================================================================
-TV_SYNC_FILE = Path("data/tv_sync.json")
-TV_SYNC_FILE.parent.mkdir(exist_ok=True)
-
-DEFAULT_TV_SYNC = {
-    "rooms": {
-        "game-room": {
-            "lights": {},
-            "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
-        },
-        "living-room": {
-            "lights": {},
-            "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85}
-        }
-    },
-    "selected_room": "game-room"
-}
-
-def load_tv_sync():
-    if TV_SYNC_FILE.exists():
-        try:
-            data = json.loads(TV_SYNC_FILE.read_text())
-            # merge defaults for safety (new room-based structure)
-            if "rooms" not in data:
-                data["rooms"] = DEFAULT_TV_SYNC["rooms"]
-            if "selected_room" not in data:
-                data["selected_room"] = DEFAULT_TV_SYNC["selected_room"]
-            for rid, rdef in DEFAULT_TV_SYNC["rooms"].items():
-                if rid not in data["rooms"]:
-                    data["rooms"][rid] = rdef
-                else:
-                    if "lights" not in data["rooms"][rid]:
-                        data["rooms"][rid]["lights"] = {}
-                    if "mode" not in data["rooms"][rid]:
-                        data["rooms"][rid]["mode"] = rdef["mode"]
-                    if "settings" not in data["rooms"][rid]:
-                        data["rooms"][rid]["settings"] = rdef["settings"]
-            return data
-        except Exception:
-            pass
-    return json.loads(json.dumps(DEFAULT_TV_SYNC))
-
-def save_tv_sync(data):
-    if not isinstance(data, dict):
-        data = {}
-    # ensure new room-based structure
-    clean = {
-        "rooms": data.get("rooms") or DEFAULT_TV_SYNC["rooms"],
-        "selected_room": data.get("selected_room") or DEFAULT_TV_SYNC["selected_room"]
-    }
-    for rid, rdef in DEFAULT_TV_SYNC["rooms"].items():
-        if rid not in clean["rooms"]:
-            clean["rooms"][rid] = rdef
-        else:
-            if "lights" not in clean["rooms"][rid]:
-                clean["rooms"][rid]["lights"] = {}
-            if "mode" not in clean["rooms"][rid]:
-                clean["rooms"][rid]["mode"] = rdef.get("mode", "true-colors")
-            if "settings" not in clean["rooms"][rid]:
-                clean["rooms"][rid]["settings"] = rdef.get("settings", {})
-    TV_SYNC_FILE.write_text(json.dumps(clean, indent=2))
 
 
 @app.get("/api/ha/tv-sync")
 async def get_tv_sync():
     """Public read for TV Sync config (assignments/mode/settings). No token required for viewing the UI."""
-    return load_tv_sync()
+    return persistence.load_tv_sync()
 
 
-@app.post("/api/ha/tv-sync")
-async def post_tv_sync(data: dict, token: Optional[str] = None):
-    """Save TV Sync config (assignments/mode/settings). No token required (layout is non-destructive config; activation of modes still requires unlock for light control)."""
-    save_tv_sync(data)
-    return {"status": "saved"}
-
-
-# =============================================================================
-# Model (dedicated /model page - full spatial home replica foundation)
-# Separate data file and APIs from existing TV sync / lighting to keep pages isolated.
-# Clean extensible structure for rooms, lights (pos x/y 0-1 + height), furniture, modes/settings.
-# =============================================================================
-MODEL_FILE = Path("data/model.json")
-MODEL_FILE.parent.mkdir(exist_ok=True)
-
-DEFAULT_MODEL = {
-    "rooms": {
-        "game-room": {
-            "name": "Game Room",
-            "dims": {"width_ft": 16.1667, "depth_ft": 27.6667},
-            "objects": [
-                {"id": "seed_tv", "type": "light", "subtype": "tv-backlight", "name": "T.V Lights", "x": 0.50, "z": 0.08, "height": "tv", "scale": 1, "rotation": 0, "entity_id": None},
-                {"id": "seed_couch_gr", "type": "furniture", "subtype": "couch", "name": "Sectional", "x": 0.32, "z": 0.58, "height": "floor", "scale": 1, "rotation": 0}
-            ],
-            "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-            "world": {"x": 0, "z": 0, "rot": 0},
-            "locked": False
-        },
-        "living-room": {
-            "name": "Living Room",
-            "dims": {"width_ft": 13.0833, "depth_ft": 23.4167},
-            "objects": [
-                {"id": "seed_lamp_lr", "type": "light", "subtype": "lamp", "name": "Floor Lamp", "x": 0.22, "z": 0.35, "height": "floor", "scale": 1, "rotation": 0, "entity_id": None},
-                {"id": "seed_tv_lr", "type": "tv", "subtype": "tv", "name": "TV", "x": 0.50, "z": 0.06, "height": "tv", "scale": 1, "rotation": 0}
-            ],
-            "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-            "world": {"x": -20, "z": 0, "rot": 0},
-            "locked": False
-        },
-        "master-bedroom": {
-            "name": "Master Bedroom",
-            "dims": {"width_ft": 14.9167, "depth_ft": 12.5},
-            "objects": [
-                {"id": "seed_bed", "type": "furniture", "subtype": "bed", "name": "Bed", "x": 0.5, "z": 0.65, "height": "floor", "scale": 1, "rotation": 0}
-            ],
-            "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-            "world": {"x": 0, "z": -18, "rot": 0},
-            "locked": False
-        },
-        "hallway": {
-            "name": "Hallway",
-            "dims": {"width_ft": 3.1667, "depth_ft": 18.0},
-            "objects": [],
-            "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-            "world": {"x": 17, "z": 5, "rot": 90},
-            "locked": False
-        },
-        "kitchen": {
-            "name": "Kitchen",
-            "dims": {"width_ft": 12.4167, "depth_ft": 10.0},
-            "objects": [
-                {"id": "seed_cab1", "type": "furniture", "subtype": "table", "name": "Counter", "x": 0.15, "z": 0.2, "height": "floor", "scale": 1, "rotation": 0},
-                {"id": "seed_light_k", "type": "light", "subtype": "recessed", "name": "Recessed 1", "x": 0.5, "z": 0.3, "height": "ceiling", "scale": 1, "rotation": 0, "entity_id": None}
-            ],
-            "mode": "true-colors",
-            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
-            "world": {"x": -18, "z": -12, "rot": 0},
-            "locked": False
-        }
-    },
-    "selected_room": "game-room"
-}
-
-def load_model():
-    if MODEL_FILE.exists():
-        try:
-            data = json.loads(MODEL_FILE.read_text())
-            # ensure structure and defaults for scalability
-            if "rooms" not in data:
-                data["rooms"] = DEFAULT_MODEL["rooms"]
-            if "selected_room" not in data:
-                data["selected_room"] = DEFAULT_MODEL["selected_room"]
-            for rid, rdef in DEFAULT_MODEL["rooms"].items():
-                if rid not in data.get("rooms", {}):
-                    data.setdefault("rooms", {})[rid] = rdef
-                else:
-                    r = data["rooms"][rid]
-                    if "objects" not in r: r["objects"] = []
-                    if "lights" not in r: r["lights"] = {}
-                    if "mode" not in r: r["mode"] = rdef.get("mode", "true-colors")
-                    if "settings" not in r: r["settings"] = rdef.get("settings", {})
-                    if "furniture" not in r: r["furniture"] = []
-                    if "dims" not in r: r["dims"] = rdef["dims"]
-                    if "name" not in r: r["name"] = rdef["name"]
-                    # Whole house support: preserve room world layout + lock
-                    if "world" not in r: r["world"] = {"x": 0, "z": 0, "rot": 0}
-                    if "locked" not in r: r["locked"] = False
-            return data
-        except Exception:
-            pass
-    return json.loads(json.dumps(DEFAULT_MODEL))
-
-def save_model(data):
-    if not isinstance(data, dict):
-        data = {}
-    clean = {
-        "rooms": data.get("rooms") or DEFAULT_MODEL["rooms"],
-        "selected_room": data.get("selected_room") or DEFAULT_MODEL["selected_room"]
-    }
-    for rid, rdef in DEFAULT_MODEL["rooms"].items():
-        if rid not in clean["rooms"]:
-            clean["rooms"][rid] = rdef
-        else:
-            r = clean["rooms"][rid]
-            if "objects" not in r: r["objects"] = []
-            if "lights" not in r: r["lights"] = {}
-            if "mode" not in r: r["mode"] = rdef.get("mode", "true-colors")
-            if "settings" not in r: r["settings"] = rdef.get("settings", {})
-            if "furniture" not in r: r["furniture"] = []
-            if "dims" not in r: r["dims"] = rdef.get("dims", {})
-            if "name" not in r: r["name"] = rdef.get("name", rid)
-            # Preserve whole-house layout (world pos + lock) and future object fields (params for L-furniture, entity_id for HA link, scale/rot)
-            if "world" not in r or not isinstance(r.get("world"), dict):
-                r["world"] = {"x": 0, "z": 0, "rot": 0}
-            if "locked" not in r:
-                r["locked"] = False
-            # Ensure objects carry extensible fields
-            for o in r.get("objects", []):
-                if "scale" not in o: o["scale"] = 1
-                if "rotation" not in o: o["rotation"] = 0
-                if "params" not in o and o.get("type") == "furniture" and o.get("subtype") in ("l_couch", "l_desk", "bookshelf"):
-                    o["params"] = {}
-                if "entity_id" not in o and o.get("type") == "light":
-                    o["entity_id"] = None
-    MODEL_FILE.write_text(json.dumps(clean, indent=2))
 
 
 @app.get("/api/model")
 async def get_model():
     """Public read for model data (rooms, positions, heights, modes, furniture)."""
-    return load_model()
+    return persistence.load_model()
+
+
 
 
 @app.post("/api/model")
-async def post_model(data: dict, token: Optional[str] = None):
+async def post_model(request: Request, data: dict):
     """Save model data. No token required (non-destructive spatial config)."""
-    save_model(data)
+    persistence.save_model(data)
     return {"status": "saved"}
 
 
-@app.get("/model", response_class=HTMLResponse)
-async def model_page(request: Request):
-    """Dedicated /model page - brand new spatial home replica foundation. Completely separate from homepage and lighting controls."""
-    return _render("model.html", {
-        "request": request,
-        "public_mode": PUBLIC_MODE,
-        "site_name": SITE_NAME,
-        "display_name": DISPLAY_NAME,
-    })
 
-
-# =============================================================================
-# Xbox Game Log (persistent recently played)
-# =============================================================================
-XBOX_LOG_FILE = Path("data/xbox_log.json")
-XBOX_LOG_FILE.parent.mkdir(exist_ok=True)
-
-def load_xbox_log():
-    if XBOX_LOG_FILE.exists():
-        try:
-            return json.loads(XBOX_LOG_FILE.read_text())
-        except Exception:
-            pass
-    return []
-
-def save_xbox_log(log):
-    XBOX_LOG_FILE.write_text(json.dumps(log, indent=2))
-
-
-# =============================================================================
-# Home Assistant Lighting Config (custom rooms + groups, persistent)
-# =============================================================================
-LIGHTING_CONFIG_FILE = Path("data/lighting_config.json")
-LIGHTING_CONFIG_FILE.parent.mkdir(exist_ok=True)
-
-DEFAULT_LIGHTING_CONFIG = {
-    "rooms": [],   # list of {"id": str, "name": str, "light_ids": list[str]}
-    "groups": []   # same structure, used as Sync Groups / Pairs
-}
-
-def load_lighting_config():
-    if LIGHTING_CONFIG_FILE.exists():
-        try:
-            config = json.loads(LIGHTING_CONFIG_FILE.read_text())
-            if "rooms" not in config:
-                config["rooms"] = []
-            if "groups" not in config:
-                config["groups"] = []
-            return config
-        except Exception:
-            pass
-    return DEFAULT_LIGHTING_CONFIG.copy()
-
-def save_lighting_config(config):
-    LIGHTING_CONFIG_FILE.write_text(json.dumps(config, indent=2))
-
-def get_persisted_lighting_structure() -> Dict[str, Any]:
-    """Fast, no-HA call. Returns rooms + groups exactly as persisted + any last known light states.
-    Used by /api/ha/bootstrap for instant UI render of structure before live HA data arrives.
-    """
-    config = load_lighting_config()
-    snap = last_ha_lights_snapshot.get("data") or {}
-    return {
-        "rooms": config.get("rooms", []),
-        "groups": config.get("groups", []),
-        "last_states": snap.get("lights", {}),
-        "total": snap.get("total", 0),
-        "ts": last_ha_lights_snapshot.get("ts", 0),
-    }
-
-
-# =============================================================================
-# Access Requests (for locked lighting page - simple request logging)
-# =============================================================================
-ACCESS_REQUESTS_FILE = Path("data/access_requests.json")
-ACCESS_REQUESTS_FILE.parent.mkdir(exist_ok=True)
-
-def load_access_requests():
-    if ACCESS_REQUESTS_FILE.exists():
-        try:
-            return json.loads(ACCESS_REQUESTS_FILE.read_text())
-        except Exception:
-            pass
-    return []
-
-def save_access_requests(reqs):
-    ACCESS_REQUESTS_FILE.write_text(json.dumps(reqs, indent=2))
-
-
-# =============================================================================
-# Home Assistant helpers
-# =============================================================================
-
-async def get_ha_states():
-    """Fetch all entity state from Home Assistant. Returns [] if disabled or error."""
-    if not HA_ENABLED:
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"{HA_URL}/api/states", headers=HA_HEADERS)
-            resp.raise_for_status()
-            return resp.json() or []
-    except Exception as e:
-        print(f"HA states fetch error: {e}")
-        return []
-
-
-async def get_ha_areas():
-    """Fetch areas (rooms) from HA config."""
-    if not HA_ENABLED:
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"{HA_URL}/api/config/areas", headers=HA_HEADERS)
-            resp.raise_for_status()
-            return resp.json() or []
-    except Exception as e:
-        print(f"HA areas fetch error: {e}")
-        return []
-
-
-async def get_ha_entity_registry():
-    """Fetch entity registry for area assignments."""
-    if not HA_ENABLED:
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"{HA_URL}/api/config/entity_registry", headers=HA_HEADERS)
-            resp.raise_for_status()
-            return resp.json() or []
-    except Exception as e:
-        print(f"HA entity registry fetch error: {e}")
-        return []
-
-
-async def get_ha_summary():
-    """Improved summary for homepage Live Now card with room-level status.
-    Uses the same area logic as the dashboard for consistency.
-    """
-    if not HA_ENABLED:
-        return {
-            "status": "disabled",
-            "lights_on": 0,
-            "total_lights": 0,
-            "active_scene": "—",
-            "message": "Home Assistant available in local/private mode only."
-        }
-
-    data = await get_ha_lights_data()
-    rooms = data.get("rooms", [])
-    scenes = data.get("scenes", [])
-
-    total_lights = data.get("total_lights", 0)
-    lights_on = 0
-    room_status = []
-
-    for room in rooms:
-        on = room.get("on_count", 0)
-        total = room.get("light_count", 0)
-        lights_on += on
-        if total:
-            room_status.append({
-                "name": room.get("name"),
-                "on": on,
-                "total": total,
-                "brightness_avg": None,  # could enhance later
-            })
-
-    # Best active scene guess
-    active_scene = None
-    for sc in scenes:
-        if sc.get("state") in ("on", "scening"):
-            active_scene = sc.get("friendly_name")
-            break
-    if not active_scene and scenes:
-        # pick first as "favorite" hint, but prefer "—"
-        active_scene = None
-
-    # Top active rooms for the card
-    active_rooms = sorted(
-        [r for r in room_status if r["on"] > 0],
-        key=lambda r: (r["on"], r["total"]),
-        reverse=True
-    )[:3]
-
-    return {
-        "status": "ok",
-        "lights_on": lights_on,
-        "total_lights": total_lights,
-        "active_scene": active_scene or "—",
-        "rooms": room_status,
-        "active_rooms": active_rooms,
-        "last_updated": time.time(),
-    }
-
-
-def _avg_brightness(lights: List[Dict]) -> Optional[int]:
-    vals = []
-    for l in lights:
-        b = l.get("attributes", {}).get("brightness")
-        if b is not None:
-            vals.append(int(b))
-    if not vals:
-        return None
-    return int(sum(vals) / len(vals) / 255 * 100)  # percent
-
-
-async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = None, extra: Optional[dict] = None):
-    """Call a Home Assistant service. Internal; protection done at route level.
-    extra can contain brightness, color_temp, rgb_color etc.
-    """
-    if not HA_ENABLED:
-        raise HTTPException(status_code=503, detail="Home Assistant not enabled (public mode or no token)")
-    payload: dict = extra.copy() if extra else {}
-    if entity_id:
-        payload.setdefault("entity_id", entity_id)
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            url = f"{HA_URL}/api/services/{domain}/{service}"
-            resp = await client.post(url, headers=HA_HEADERS, json=payload)
-            if resp.status_code >= 400:
-                print(f"HA service error {resp.status_code}: {resp.text[:200]}")
-            resp.raise_for_status()
-            try:
-                return resp.json()
-            except Exception:
-                return {"status": "called"}
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"HA error: {e.response.text[:200] if e.response else str(e)}")
-    except Exception as e:
-        print(f"HA service call failed: {domain}/{service} {entity_id} - {e}")
-        raise HTTPException(status_code=502, detail=f"Failed to reach Home Assistant: {str(e)}")
-
-
-async def perform_poke_blink():
-    """Backend-handled snappy poke: instant off for 0.25s then back on to previous state.
-    Runs in background so endpoint returns immediately for instant feel.
-    """
-    global _poke_last
-    try:
-        states = await get_ha_states()
-        prev = None
-        for s in states:
-            if s.get("entity_id") == OFFICE_LAMP:
-                attrs = s.get("attributes", {}) or {}
-                prev = {
-                    "state": s.get("state"),
-                    "brightness": attrs.get("brightness"),
-                    "color_temp": attrs.get("color_temp"),
-                    "rgb_color": attrs.get("rgb_color"),
-                }
-                break
-
-        # instantaneous off
-        await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0})
-        await asyncio.sleep(0.25)
-
-        # back on to previous (or on if no prev)
-        if prev and prev.get("state") == "off":
-            await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0})
-        else:
-            extra = {"transition": 0}
-            if prev:
-                if prev.get("brightness") is not None:
-                    extra["brightness"] = prev["brightness"]
-                if prev.get("color_temp") is not None:
-                    extra["color_temp"] = prev["color_temp"]
-                if prev.get("rgb_color"):
-                    extra["rgb_color"] = prev["rgb_color"]
-            await call_ha_service("light", "turn_on", OFFICE_LAMP, extra)
-    except Exception as e:
-        print(f"perform_poke_blink error: {e}")
-
-
-async def perform_notify_blue():
-    """Backend-handled notification (used for new blog posts): instantaneous blue flash for ~0.25s
-    then immediately restore to previous state (exactly like perform_poke_blink but using blue
-    color instead of off). Uses transition=0 for snap on/off. Runs in background so caller
-    (e.g. /api/messages) returns instantly. Does not modify poke behavior.
-    """
-    global _notify_last
-    try:
-        states = await get_ha_states()
-        prev = None
-        for s in states:
-            if s.get("entity_id") == OFFICE_LAMP:
-                attrs = s.get("attributes", {}) or {}
-                prev = {
-                    "state": s.get("state"),
-                    "brightness": attrs.get("brightness"),
-                    "color_temp": attrs.get("color_temp"),
-                    "rgb_color": attrs.get("rgb_color"),
-                }
-                break
-
-        # instantaneous blue (same blue values as before)
-        blue = {
-            "brightness": 200,
-            "rgb_color": [0, 80, 255],
-            "transition": 0,
-        }
-        await call_ha_service("light", "turn_on", OFFICE_LAMP, blue)
-        await asyncio.sleep(0.25)
-
-        # restore to previous (identical logic and trans=0 to poke_blink)
-        if prev and prev.get("state") == "off":
-            await call_ha_service("light", "turn_off", OFFICE_LAMP, {"transition": 0})
-        else:
-            extra = {"transition": 0}
-            if prev:
-                if prev.get("brightness") is not None:
-                    extra["brightness"] = prev["brightness"]
-                if prev.get("color_temp") is not None:
-                    extra["color_temp"] = prev["color_temp"]
-                if prev.get("rgb_color"):
-                    extra["rgb_color"] = prev["rgb_color"]
-            await call_ha_service("light", "turn_on", OFFICE_LAMP, extra)
-    except Exception as e:
-        print(f"perform_notify_blue error: {e}")
-
-
-async def get_ha_lights_data():
-    """Rich data for lighting dashboard.
-    Uses HA for discovering lights + effects.
-    Uses exact rooms/groups from lighting_config.json for organization (user can create, move lights, rename, etc.).
-    No auto-seeding - config.json is the source of truth for room assignments.
-    New/unmatched lights go to Unassigned.
-    Updates the last_ha_lights_snapshot so bootstrap + "last known" are instant on next loads.
-    """
-    if not HA_ENABLED:
-        return {"rooms": [], "groups": [], "lights_by_room": {}, "unassigned_lights": [], "scenes": [], "total_lights": 0}
-
-    states = await get_ha_states()
-    areas_raw = await get_ha_areas()
-    registry = await get_ha_entity_registry()
-
-    # Build HA area name map
-    ha_area_names = {a.get("area_id"): a.get("name", "Unknown") for a in areas_raw}
-
-    # entity -> ha_area_name fallback
-    entity_to_ha_area = {}
-    for entry in registry:
-        eid = entry.get("entity_id")
-        aid = entry.get("area_id")
-        if eid and aid and aid in ha_area_names:
-            entity_to_ha_area[eid] = ha_area_names[aid]
-
-    config = load_lighting_config()
-    rooms = config.get("rooms", [])
-    groups = config.get("groups", [])
-
-    # Build set of all custom room light ids for unassigned detection
-    # NO auto-seed logic - use exact mapping from config.json only
-    assigned_light_ids = set()
-    for room in rooms:
-        assigned_light_ids.update(room.get("light_ids", []))
-
-    lights_by_room: Dict[str, List[Dict]] = {}
-    unassigned_lights = []
-    all_lights = []
-    sync_controls = []  # Wiz Sync Box or similar - surfaced so you can control the box itself (often appears as light.* or select.*)
-
-    for s in states:
-        eid = str(s.get("entity_id", ""))
-        attrs = s.get("attributes", {}) or {}
-        friendly = attrs.get("friendly_name") or eid.split(".", 1)[1].replace("_", " ").title()
-
-        is_light = eid.startswith("light.")
-        is_sync_related = any(k in eid.lower() for k in ("sync", "wiz_sync", "syncbox", "sync_box")) or "sync" in friendly.lower()
-
-        if not (is_light or is_sync_related):
-            continue
-
-        # Build unified entry
-        entry = {
-            "entity_id": eid,
-            "state": s.get("state", "off"),
-            "attributes": attrs,
-            "friendly_name": friendly,
-            "supported_color_modes": attrs.get("supported_color_modes", []),
-            "effect_list": attrs.get("effect_list", []),
-            "brightness": attrs.get("brightness"),
-            "color_temp": attrs.get("color_temp"),
-            "rgb_color": attrs.get("rgb_color"),
-            "current_effect": attrs.get("effect"),
-            "room_name": "Unassigned",
-            "is_sync": bool(is_sync_related),
-            "options": attrs.get("options", []),  # for select.* sync modes (Vivid, Theater, etc.) if the entity exposes them
-        }
-
-        # Sync box / non-plain-light sync controls get their own list (so UI can highlight them)
-        if is_sync_related and not is_light:
-            sync_controls.append(entry)
-            # Still try to classify into a room below if user manually assigned the entity id in config
-            # (rare but supported)
-        else:
-            all_lights.append(entry)
-
-        # Find which custom room this belongs to (by exact id in lighting_config.json) - strictly from config
-        room_name = "Unassigned"
-        for room in rooms:
-            if eid in room.get("light_ids", []):
-                room_name = room["name"]
-                break
-
-        # Update entry room for display
-        entry["room_name"] = room_name
-
-        if is_sync_related and not is_light:
-            # already added to sync_controls; if it was assigned to a room we still want it in lights_by_room too for the room view
-            if room_name != "Unassigned":
-                lights_by_room.setdefault(room_name, []).append(entry)
-            else:
-                # put sync boxes that aren't assigned into a visible "sync" bucket in unassigned for now
-                # (frontend will show is_sync badge)
-                pass
-        else:
-            if room_name == "Unassigned":
-                unassigned_lights.append(entry)
-            else:
-                lights_by_room.setdefault(room_name, []).append(entry)
-
-    # Sort lights in each room
-    for rname in lights_by_room:
-        lights_by_room[rname].sort(key=lambda x: x["friendly_name"].lower())
-    unassigned_lights.sort(key=lambda x: x["friendly_name"].lower())
-
-    # Scenes
-    scenes = []
-    for s in states:
-        if str(s.get("entity_id", "")).startswith("scene."):
-            attrs = s.get("attributes", {}) or {}
-            scenes.append({
-                "entity_id": s["entity_id"],
-                "state": s.get("state"),
-                "friendly_name": attrs.get("friendly_name") or s["entity_id"].split(".", 1)[1].replace("_", " ").title(),
-                "description": attrs.get("description") or ""
-            })
-    scenes.sort(key=lambda x: x["friendly_name"].lower())
-
-    # Prepare rooms list for UI (include counts)
-    rooms_for_ui = []
-    for room in rooms:
-        rlights = [l for l in all_lights if l["entity_id"] in room.get("light_ids", [])]
-        rooms_for_ui.append({
-            "id": room["id"],
-            "name": room["name"],
-            "light_ids": room.get("light_ids", []),
-            "light_count": len(rlights),
-            "on_count": sum(1 for l in rlights if l["state"] == "on")
-        })
-
-    groups_for_ui = []
-    for group in groups:
-        glights = [l for l in all_lights if l["entity_id"] in group.get("light_ids", [])]
-        groups_for_ui.append({
-            "id": group["id"],
-            "name": group["name"],
-            "light_ids": group.get("light_ids", []),
-            "light_count": len(glights),
-            "on_count": sum(1 for l in glights if l["state"] == "on")
-        })
-
-    result = {
-        "rooms": rooms_for_ui,
-        "groups": groups_for_ui,
-        "lights_by_room": lights_by_room,   # only lights assigned to custom rooms
-        "unassigned_lights": unassigned_lights,
-        "scenes": scenes,
-        "total_lights": len(all_lights),
-        "sync_controls": sync_controls,  # Wiz Sync Box etc. - shown in UI as special items you can control directly
-    }
-
-    # Update in-memory last known snapshot for instant bootstrap + "last known states" on next visit / refresh
-    global last_ha_lights_snapshot
-    lights_map = {}
-    for l in all_lights:
-        lights_map[l["entity_id"]] = {
-            "state": l["state"],
-            "brightness": l.get("brightness"),
-            "current_effect": l.get("current_effect"),
-            "color_temp": l.get("color_temp"),
-            "rgb_color": l.get("rgb_color"),
-        }
-    last_ha_lights_snapshot = {
-        "data": {"lights": lights_map, "total": len(all_lights)},
-        "ts": time.time()
-    }
-
-    return result
-
-
-# =============================================================================
-# Golf Club Distances (server-persisted, shared across visitors)
-# =============================================================================
-CLUBS_FILE = Path("data/clubs.json")
-CLUBS_FILE.parent.mkdir(exist_ok=True)
-
-DEFAULT_CLUBS = [
-    {"club": "Driver", "yards": 245},
-    {"club": "3 Wood", "yards": 220},
-    {"club": "5 Wood", "yards": 200},
-    {"club": "4 Iron", "yards": 185},
-    {"club": "5 Iron", "yards": 175},
-    {"club": "6 Iron", "yards": 165},
-    {"club": "7 Iron", "yards": 155},
-    {"club": "8 Iron", "yards": 145},
-    {"club": "9 Iron", "yards": 135},
-    {"club": "PW", "yards": 125},
-    {"club": "GW", "yards": 110},
-    {"club": "SW", "yards": 90},
-]
-
-def load_clubs():
-    if CLUBS_FILE.exists():
-        try:
-            return json.loads(CLUBS_FILE.read_text())
-        except Exception:
-            pass
-    return DEFAULT_CLUBS.copy()
-
-def save_clubs(clubs):
-    CLUBS_FILE.write_text(json.dumps(clubs, indent=2))
-
-
-# =============================================================================
-# Blog Message Board (threaded, server-persisted)
-# =============================================================================
-
-MESSAGES_FILE = Path("data/messages.json")
-MESSAGES_FILE.parent.mkdir(exist_ok=True)
-
-LAST_BLOG_READ_FILE = Path("data/last_blog_read.json")
-
-def load_messages():
-    if MESSAGES_FILE.exists():
-        try:
-            return json.loads(MESSAGES_FILE.read_text())
-        except Exception:
-            pass
-    return []
-
-def save_messages(messages):
-    MESSAGES_FILE.write_text(json.dumps(messages, indent=2))
-
-def load_last_blog_read():
-    if LAST_BLOG_READ_FILE.exists():
-        try:
-            data = json.loads(LAST_BLOG_READ_FILE.read_text())
-            return data.get("timestamp", "1970-01-01T00:00:00")
-        except Exception:
-            pass
-    return "1970-01-01T00:00:00"
-
-def save_last_blog_read(timestamp=None):
-    if timestamp is None:
-        timestamp = datetime.now(timezone.utc).isoformat()
-    LAST_BLOG_READ_FILE.write_text(json.dumps({"timestamp": timestamp}))
 
 @app.get("/api/messages")
 async def get_messages():
-    messages = load_messages()
+    messages = persistence.load_messages()
     # Sort newest first
     messages.sort(key=lambda m: m.get("timestamp", ""), reverse=True)
     return messages
 
+
+
 @app.post("/api/messages")
-async def post_message(message: dict, background_tasks: BackgroundTasks = None):
-    messages = load_messages()
+async def post_message(request: Request, message: dict, background_tasks: BackgroundTasks = None):
+    if message.get("_hp_field"):
+        raise HTTPException(status_code=400, detail="Rejected")
+    text = (message.get("text") or "").strip()
+    if not text or len(text) > 2000:
+        raise HTTPException(status_code=400, detail="Invalid message")
+    messages = persistence.load_messages()
     now = datetime.now(timezone.utc)
     new_message = {
         "id": str(now.timestamp()),
@@ -2506,39 +917,42 @@ async def post_message(message: dict, background_tasks: BackgroundTasks = None):
         "timestamp": now.isoformat()
     }
     messages.append(new_message)
-    save_messages(messages)
+    persistence.save_messages(messages)
     # Automatically trigger quick blue flash (0.25s instantaneous blue then instant restore to prev state)
     # on new blog message (top-level or reply). Uses same OFFICE_LAMP as poke, but blue color.
     # Behaves exactly like poke function (trans=0, 0.25s, restore logic) but with blue instead of off.
     # Uses BackgroundTasks pattern so POST returns instantly; poke button behavior is completely unchanged.
     if background_tasks is not None:
-        background_tasks.add_task(perform_notify_blue)
+        background_tasks.add_task(home_assistant.perform_notify_blue)
     else:
-        asyncio.create_task(perform_notify_blue())
+        asyncio.create_task(home_assistant.perform_notify_blue())
     return new_message
 
 
 
-@app.delete("/api/messages/{message_id}")
-async def delete_message(message_id: str, token: str = None):
-    """Delete a message. Requires admin token via query param ?token=..."""
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
 
-    messages = load_messages()
+
+@app.delete("/api/messages/{message_id}")
+async def delete_message(message_id: str):
+    """Delete a message. Requires admin token via query param ?token=..."""
+    require_admin(request)
+
+    messages = persistence.load_messages()
     original_len = len(messages)
     messages = [m for m in messages if m.get("id") != message_id]
 
     if len(messages) == original_len:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    save_messages(messages)
+    persistence.save_messages(messages)
     return {"status": "deleted"}
+
+
 
 @app.post("/api/blog/mark-read")
 async def mark_blog_read():
     """Mark all current blog messages as read (for the smart notification hub on home). Personal use, no token needed."""
-    save_last_blog_read()
+    persistence.save_last_blog_read()
     return {"status": "marked"}
 
 
@@ -2546,63 +960,46 @@ async def mark_blog_read():
 # Simple placeholder routes for future sections (Golf, Clips, Blog)
 # =============================================================================
 
-def _placeholder_page(title: str, description: str = "") -> HTMLResponse:
-    html = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title} • HENDERBURGH</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {{ font-family: 'Inter', system_ui, sans-serif; }}
-  </style>
-</head>
-<body class="bg-white text-[#111] min-h-screen flex items-center justify-center">
-  <div class="max-w-md mx-auto px-6 text-center">
-    <a href="/" class="inline-flex items-center gap-x-2 text-sm text-neutral-500 hover:text-neutral-700 mb-8">
-      <span>←</span> <span>HENDERBURGH</span>
-    </a>
-    <h1 class="text-4xl font-semibold tracking-tight mb-3">{title}</h1>
-    <p class="text-lg text-neutral-600 mb-8">{description or "This section is coming soon."}</p>
-    <a href="/" class="inline-block px-6 py-2.5 text-sm border border-neutral-200 rounded-2xl hover:bg-neutral-50 transition">Back to home</a>
-    <div class="mt-12 text-[10px] text-neutral-400">HENDERBURGH</div>
-  </div>
-</body>
-</html>
-"""
-    return HTMLResponse(html)
+
 
 
 @app.get("/api/golf/clubs")
 async def get_clubs():
-    return load_clubs()
+    return persistence.load_clubs()
+
+
 
 @app.post("/api/golf/clubs")
-async def update_clubs(clubs: List[dict]):
-    save_clubs(clubs)
+async def update_clubs(request: Request, clubs: List[dict]):
+    require_admin(request)
+    persistence.save_clubs(clubs)
     return {"status": "saved"}
 
 
+
+
 @app.get("/golf", response_class=HTMLResponse)
-async def golf_page():
+async def golf_page(request: Request):
     return _render("golf.html", {
-        "request": None,
+        "request": request,
     })
+
+
 
 
 @app.get("/clips", response_class=HTMLResponse)
-async def clips_page():
+async def clips_page(request: Request):
     return _render("clips.html", {
-        "request": None,
+        "request": request,
     })
 
 
+
+
 @app.get("/blog", response_class=HTMLResponse)
-async def blog_page():
+async def blog_page(request: Request):
     return _render("blog.html", {
-        "request": None,
+        "request": request,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
@@ -2612,3 +1009,12 @@ async def blog_page():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
+
+
+def main():
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
+
+
+if __name__ == "__main__":
+    main()

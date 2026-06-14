@@ -180,6 +180,7 @@
     </div>
   </footer>
 
+  <script src="/static/auth.js"></script>
   <script>
     async function loadMessages() {
       const res = await fetch('/api/messages');
@@ -213,7 +214,7 @@
       `;
 
       // Admin delete button
-      if (adminToken) {
+      if (isAdminUnlocked) {
         html += `
           <button onclick="deleteMessage('${msg.id}')" 
                   style="float:right; color:#f87171; font-size:18px; line-height:1; background:none; border:none; cursor:pointer; padding:0 4px;" 
@@ -290,34 +291,34 @@
     loadMessages();
 
     // ==================== ADMIN DELETE FUNCTIONALITY ====================
-    let adminToken = null;
+    let isAdminUnlocked = false;
 
-    function enterAdminMode() {
+    async function enterAdminMode() {
       const token = prompt("Enter admin token to manage messages:");
       if (!token) return;
-
-      adminToken = token;
-      sessionStorage.setItem('blogAdminToken', token);
-      alert("Admin mode activated. Delete buttons will now appear.");
-      loadMessages();
-    }
-
-    function initAdminMode() {
-      const savedToken = sessionStorage.getItem('blogAdminToken');
-      if (savedToken) {
-        adminToken = savedToken;
+      try {
+        await unlockAdmin(token);
+        isAdminUnlocked = true;
+        alert("Admin mode activated. Delete buttons will now appear.");
+        loadMessages();
+      } catch (e) {
+        alert("Invalid admin token.");
       }
     }
 
+    async function initAdminMode() {
+      isAdminUnlocked = await checkAdminUnlocked();
+    }
+
     async function deleteMessage(messageId) {
-      if (!adminToken) {
+      if (!isAdminUnlocked) {
         alert("Admin mode is not active.");
         return;
       }
       if (!confirm("Delete this message?")) return;
 
       try {
-        const res = await fetch(`/api/messages/${messageId}?token=${encodeURIComponent(adminToken)}`, {
+        const res = await adminFetch(`/api/messages/${messageId}`, {
           method: 'DELETE'
         });
 

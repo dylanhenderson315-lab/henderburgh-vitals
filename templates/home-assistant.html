@@ -881,6 +881,7 @@
     </div>
   </footer>
 
+  <script src="/static/auth.js"></script>
   <script>
     // Tailwind config
     function initTailwind() {
@@ -890,7 +891,6 @@
     }
 
     // === Persistent unlock via localStorage + nice locked/unlocked experience ===
-    let adminToken = "";
     let isUnlocked = false;
     let haData = null;           // {rooms, lights_by_room, groups, scenes, ...} from live or synthesized
     let lightsState = {};        // entity_id -> current optimistic attrs
@@ -905,29 +905,18 @@
     let searchTerm = '';
     let isHydrated = false;      // true after first successful live data
 
-    function loadSavedToken() {
-      try {
-        const saved = localStorage.getItem('ha_admin_token');
-        if (saved === "67") {
-          adminToken = "67";
-          isUnlocked = true;
-          return true;
-        }
-      } catch (e) {}
-      return false;
+    async function loadSavedToken() {
+      isUnlocked = await checkAdminUnlocked();
+      return isUnlocked;
     }
 
-    function saveToken(remember) {
-      if (remember) {
-        try { localStorage.setItem('ha_admin_token', '67'); } catch (e) {}
-      }
-      adminToken = "67";
+    async function saveToken(remember) {
+      /* session cookie set by /api/auth/unlock */
       isUnlocked = true;
     }
 
-    function clearSavedToken() {
-      try { localStorage.removeItem('ha_admin_token'); } catch (e) {}
-      adminToken = "";
+    async function clearSavedToken() {
+      await logoutAdmin();
       isUnlocked = false;
     }
 
@@ -958,27 +947,23 @@
       if (modal) modal.classList.remove('open');
     }
 
-    function submitUnlock() {
+    async function submitUnlock() {
       const input = document.getElementById('unlock-token');
-      const remember = document.getElementById('remember-token');
       const err = document.getElementById('unlock-error');
       if (!input) return;
 
       const val = (input.value || '').trim();
-      if (val === "67") {
-        const doRemember = remember ? remember.checked : true;
-        saveToken(doRemember);
+      try {
+        await unlockAdmin(val);
+        isUnlocked = true;
         closeUnlockModal();
         removeViewOnlyState();
-        // Re-render everything with full controls
         if (haData) {
           renderPrimaryView();
         }
-        // Show the full control indicator + lock button
         showControlIndicator();
-        // Show the clean admin section for access requests (only when unlocked)
         renderAccessAdminSection();
-      } else {
+      } catch {
         if (err) {
           err.classList.remove('hidden');
           setTimeout(() => err.classList.add('hidden'), 2200);
@@ -1074,7 +1059,7 @@
     async function showAccessRequests() {
       if (!isUnlocked) return;
       try {
-        const res = await fetch(`/api/ha/access-requests?token=${encodeURIComponent(adminToken)}`);
+        const res = await adminFetch('/api/ha/access-requests');
         if (!res.ok) {
           alert('Could not load requests (token issue?)');
           return;
@@ -1114,7 +1099,7 @@
     async function deleteAccessRequest(id, btnEl) {
       if (!confirm('Delete this request?')) return;
       try {
-        const res = await fetch(`/api/ha/access-requests/${id}?token=${encodeURIComponent(adminToken)}`, { method: 'DELETE' });
+        const res = await adminFetch(`/api/ha/access-requests/${id}`, { method: 'DELETE' });
         if (res.ok) {
           if (btnEl && btnEl.closest) {
             const item = btnEl.closest('.border');
@@ -1159,9 +1144,9 @@
 
     async function loadAccessRequestsIntoSection() {
       const listEl = document.getElementById('access-admin-list');
-      if (!listEl || !adminToken) return;
+      if (!listEl || !isUnlocked) return;
       try {
-        const res = await fetch(`/api/ha/access-requests?token=${encodeURIComponent(adminToken)}`);
+        const res = await adminFetch('/api/ha/access-requests');
         if (!res.ok) {
           listEl.innerHTML = '<div class="text-xs text-rose-400">Failed to load requests.</div>';
           return;
@@ -1838,7 +1823,7 @@
       const newName = prompt("Rename room:", currentName);
       if (!newName || newName === currentName) return;
       try {
-        const res = await fetch(`/api/ha/lighting/room/rename?token=${encodeURIComponent(adminToken)}&room_id=${encodeURIComponent(roomId)}&name=${encodeURIComponent(newName)}`, { method: 'POST' });
+        const res = await adminFetch(`/api/ha/lighting/room/rename?room_id=${encodeURIComponent(roomId)}&name=${encodeURIComponent(newName)}`, { method: 'POST' });
         if (res.ok) {
           await refreshAllData();
         } else {
@@ -1851,7 +1836,7 @@
       const newName = prompt("Rename sync group:", currentName);
       if (!newName || newName === currentName) return;
       try {
-        const res = await fetch(`/api/ha/lighting/group/rename?token=${encodeURIComponent(adminToken)}&group_id=${encodeURIComponent(groupId)}&name=${encodeURIComponent(newName)}`, { method: 'POST' });
+        const res = await adminFetch(`/api/ha/lighting/group/rename?group_id=${encodeURIComponent(groupId)}&name=${encodeURIComponent(newName)}`, { method: 'POST' });
         if (res.ok) {
           await refreshAllData();
         } else {
@@ -1863,7 +1848,7 @@
     async function deleteRoom(roomId) {
       if (!confirm("Delete this room? Lights will become unassigned.")) return;
       try {
-        const res = await fetch(`/api/ha/lighting/room/delete?token=${encodeURIComponent(adminToken)}&room_id=${encodeURIComponent(roomId)}`, { method: 'POST' });
+        const res = await adminFetch(`/api/ha/lighting/room/delete?room_id=${encodeURIComponent(roomId)}`, { method: 'POST' });
         if (res.ok) await refreshAllData();
       } catch (e) {}
     }
@@ -1871,7 +1856,7 @@
     async function deleteGroup(groupId) {
       if (!confirm("Delete this group?")) return;
       try {
-        const res = await fetch(`/api/ha/lighting/group/delete?token=${encodeURIComponent(adminToken)}&group_id=${encodeURIComponent(groupId)}`, { method: 'POST' });
+        const res = await adminFetch(`/api/ha/lighting/group/delete?group_id=${encodeURIComponent(groupId)}`, { method: 'POST' });
         if (res.ok) await refreshAllData();
       } catch (e) {}
     }
@@ -2936,13 +2921,13 @@
     }
 
     async function callLightService(eid, extra) {
-      if (!isUnlocked || !adminToken) {
+      if (!isUnlocked) {
         showFeedback('Unlock controls to make changes.', true);
         return false;
       }
       try {
         const payload = { entity_id: eid, transition: 0.4, ...extra };
-        const res = await fetch(`/api/ha/service/light/turn_on?token=${encodeURIComponent(adminToken)}`, {
+        const res = await adminFetch('/api/ha/service/light/turn_on', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -2953,13 +2938,13 @@
 
     // General service caller (for select.* sync modes etc.)
     async function callHAService(domain, service, entity_id, extra = {}) {
-      if (!isUnlocked || !adminToken) {
+      if (!isUnlocked) {
         showFeedback('Unlock controls to make changes.', true);
         return false;
       }
       try {
         const payload = { entity_id, ...extra };
-        const res = await fetch(`/api/ha/service/${domain}/${service}?token=${encodeURIComponent(adminToken)}`, {
+        const res = await adminFetch(`/api/ha/service/${domain}/${service}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -3245,7 +3230,7 @@
       renderCurrentView();
 
       const promises = targetLights.map(l => 
-        fetch(`/api/ha/service/light/${action}?token=${encodeURIComponent(adminToken)}`, {
+        adminFetch(`/api/ha/service/light/${action}`, {
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({entity_id: l.entity_id})
         })
@@ -3333,7 +3318,7 @@
 
     async function turnLightOff(eid) {
       try {
-        await fetch(`/api/ha/service/light/turn_off?token=${encodeURIComponent(adminToken)}`, {
+        await adminFetch('/api/ha/service/light/turn_off', {
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({entity_id: eid})
         });
@@ -3436,7 +3421,7 @@
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Activating...`;
 
       try {
-        await fetch(`/api/ha/service/scene/turn_on?token=${encodeURIComponent(adminToken)}`, {
+        await adminFetch('/api/ha/service/scene/turn_on', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({entity_id: eid})
@@ -3479,11 +3464,10 @@
       }, 80);
     }
 
-    function initializeDashboard() {
+    async function initializeDashboard() {
       initTailwind();
 
-      // Check persistent unlock first (localStorage)
-      loadSavedToken();
+      await loadSavedToken();
 
       // Load TV Sync data from server (spatial whole-house). Only TV Sync code path.
       (async () => {
