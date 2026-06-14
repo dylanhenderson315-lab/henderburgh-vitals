@@ -239,8 +239,15 @@ def save_model(data):
                 if "rotation" not in o: o["rotation"] = 0
                 if "params" not in o and o.get("type") == "furniture" and o.get("subtype") in ("l_couch", "l_desk", "bookshelf"):
                     o["params"] = {}
-                if "entity_id" not in o and o.get("type") == "light":
-                    o["entity_id"] = None
+                if o.get("type") == "light":
+                    if "entity_id" not in o: o["entity_id"] = None
+                    # TV + ambient grouping: which TV this light is paired to, and its role
+                    if "tv_group" not in o: o["tv_group"] = None
+                    if "tv_role" not in o: o["tv_role"] = "ambient"
+                if o.get("type") == "tv":
+                    # Preview state + ambient sync color for paired lights
+                    if "tv_state" not in o: o["tv_state"] = "off"
+                    if "sync_color" not in o: o["sync_color"] = "#3b82f6"
     write_json(MODEL_FILE, clean)
 
 

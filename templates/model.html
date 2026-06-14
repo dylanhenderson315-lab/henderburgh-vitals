@@ -605,6 +605,15 @@
           if (typeof o.scale === 'undefined') o.scale = 1;
           if (typeof o.rotation === 'undefined') o.rotation = 0;
           if (o.type === 'light' && typeof o.entity_id === 'undefined') o.entity_id = null;
+          // TV + ambient grouping defaults
+          if (o.type === 'light') {
+            if (typeof o.tv_group === 'undefined') o.tv_group = null;
+            if (typeof o.tv_role === 'undefined') o.tv_role = 'ambient';
+          }
+          if (o.type === 'tv') {
+            if (typeof o.tv_state === 'undefined') o.tv_state = 'off';
+            if (typeof o.sync_color === 'undefined') o.sync_color = '#3b82f6';
+          }
           if (o.type === 'furniture' && ['l_couch','l_desk','bookshelf'].includes(o.subtype) && !o.params) o.params = {};
         });
       });
@@ -758,11 +767,63 @@
       });
     }
 
+    // === TV + Ambient light grouping (Hue Sync / WiZ style planning) ===
+    function hexToRgb01(hex) {
+      const h = (hex || '#3b82f6').replace('#', '');
+      return { r: parseInt(h.slice(0,2),16)/255, g: parseInt(h.slice(2,4),16)/255, b: parseInt(h.slice(4,6),16)/255 };
+    }
+    // Find a TV object by id across all rooms (works in single-room and whole-house modes).
+    function findTVById(tvId) {
+      if (!tvId || !modelData) return null;
+      for (const rid in modelData.rooms) {
+        const t = (modelData.rooms[rid].objects || []).find(o => o.id === tvId && o.type === 'tv');
+        if (t) return t;
+      }
+      return null;
+    }
+    // If this light is paired to a TV that is currently "on", return the synced rgb (or null).
+    function tvSyncColorFor(obj) {
+      if (!obj || obj.type !== 'light' || !obj.tv_group) return null;
+      const tv = findTVById(obj.tv_group);
+      if (!tv || tv.tv_state !== 'on') return null;
+      return hexToRgb01(tv.sync_color || '#3b82f6');
+    }
+    // Which room contains a given object id (TV grouping is per-room).
+    function roomOfObject(id) {
+      if (!modelData) return currentRoom;
+      for (const rid in modelData.rooms) {
+        if ((modelData.rooms[rid].objects || []).some(o => o.id === id)) return rid;
+      }
+      return currentRoom;
+    }
+    // Re-apply visuals to every light paired to this TV (after toggle / color / pairing change).
+    function refreshPairedLights(tvId) {
+      Object.keys(objectMeshes).forEach(id => {
+        const entry = objectMeshes[id];
+        if (entry && entry.data && entry.data.type === 'light' && entry.data.tv_group === tvId) {
+          applyLightProperties(entry, entry.data);
+        }
+      });
+      forceRender3D();
+      if (currentView === '2d') draw2DScene();
+    }
+
+    // 2D fill color for a light dot: synced TV color when its TV is on, else its own hue.
+    function light2DColor(obj) {
+      const sync = tvSyncColorFor(obj);
+      if (sync && obj.tv_group) { const tv = findTVById(obj.tv_group); if (tv) return tv.sync_color || '#3b82f6'; }
+      return obj.subtype === 'tv-backlight' ? '#60a5fa' : (obj.subtype === 'lamp' ? '#f59e0b' : '#e2e8f0');
+    }
+    function isSyncingNow(obj) {
+      return !!tvSyncColorFor(obj);
+    }
+
     function applyLightVisual(root, obj) {
       if (!root) return;
-      const on = obj.on !== false;
-      const rgb = kelvinToColor(obj.color_temp || 4000);
-      const e = on ? 0.35 : 0;
+      const sync = tvSyncColorFor(obj);
+      const on = (obj.on !== false) || !!sync;       // a synced light glows even if its own switch is off
+      const rgb = sync ? sync : kelvinToColor(obj.color_temp || 4000);
+      const e = on ? (sync ? 0.6 : 0.35) : 0;        // brighter emissive when actively syncing to a TV
       root.traverse((child) => {
         if (child.material && 'emissive' in child.material) {
           child.material.emissive.setRGB(rgb.r * e, rgb.g * e, rgb.b * e);
@@ -773,12 +834,14 @@
     function applyLightProperties(entry, obj) {
       if (!entry || !entry.light) return;
       const l = entry.light;
-      l.visible = obj.on !== false;
-      const rgb = kelvinToColor(obj.color_temp || 4000);
+      const sync = tvSyncColorFor(obj);
+      l.visible = sync ? true : (obj.on !== false);
+      const rgb = sync ? sync : kelvinToColor(obj.color_temp || 4000);
       l.color.setRGB(rgb.r, rgb.g, rgb.b);
       let intensity = (obj.brightness || 70) / 35;
       if (obj.subtype === 'recessed') intensity *= 0.85;
       if (obj.subtype === 'tv-backlight') intensity *= 0.55;
+      if (sync) intensity *= (obj.tv_role === 'backlight' ? 1.15 : 0.8); // backlight punchier, ambient softer
       l.intensity = intensity;
       applyLightVisual(entry.mesh, obj);
     }
@@ -1590,9 +1653,17 @@
 
     function deleteSelected() {
       if (!selectedId) return;
-      const room = modelData.rooms[currentRoom];
+      const rid = roomOfObject(selectedId);
+      const room = modelData.rooms[rid];
       if (!room || !room.objects) return;
+      const removed = room.objects.find(o => o.id === selectedId);
       room.objects = room.objects.filter(o => o.id !== selectedId);
+      // If a TV is removed, unpair any lights that referenced it (no dangling groups).
+      if (removed && removed.type === 'tv') {
+        Object.values(modelData.rooms).forEach(rm => {
+          (rm.objects || []).forEach(o => { if (o.tv_group === selectedId) o.tv_group = null; });
+        });
+      }
       if (objectMeshes[selectedId]) {
         scene.remove(objectMeshes[selectedId].mesh);
         delete objectMeshes[selectedId];
@@ -1631,7 +1702,8 @@
         container.innerHTML = `<div class="text-sm text-zinc-400">Select an object (in 3D or 2D) or add a new one from the palette.</div>`;
         return;
       }
-      const room = modelData.rooms[currentRoom] || { objects: [] };
+      const objRoomId = roomOfObject(selectedId);
+      const room = modelData.rooms[objRoomId] || { objects: [] };
       const obj = (room.objects || []).find(o => o.id === selectedId);
       if (!obj) {
         container.innerHTML = `<div class="text-sm text-zinc-400">Object not found.</div>`;
@@ -1744,6 +1816,68 @@
               <option value="">-- Not linked --</option>
             </select>
             <div class="text-[10px] text-zinc-500 mt-0.5">When linked, model shows real-time color/brightness/on from HA.</div>
+          </div>
+        `;
+
+        // --- TV Group: pair this light to a TV as bias/ambient lighting ---
+        const lightRoomTVs = (room.objects || []).filter(o => o.type === 'tv');
+        const pairedTV = obj.tv_group ? lightRoomTVs.find(t => t.id === obj.tv_group) : null;
+        html += `
+          <div class="mt-2 pt-2 border-t border-zinc-700">
+            <div class="text-xs text-zinc-400 mb-1">TV Group <span class="text-[10px] text-zinc-500">(bias / ambient)</span></div>
+            <select id="light-tv" class="w-full bg-[#111113] border border-zinc-700 rounded px-2 py-1 text-xs">
+              <option value="">-- Not paired to a TV --</option>
+              ${lightRoomTVs.map(t => `<option value="${t.id}" ${obj.tv_group === t.id ? 'selected' : ''}>${t.name || 'TV'}</option>`).join('')}
+            </select>
+            ${obj.tv_group ? `
+            <div class="flex gap-1 mt-1.5" id="light-role-group">
+              <button data-lr="backlight" class="lr-btn flex-1 text-[11px] px-2 py-1 rounded ${obj.tv_role === 'backlight' ? 'bg-blue-600 text-white' : 'bg-zinc-700'}">Backlight</button>
+              <button data-lr="ambient" class="lr-btn flex-1 text-[11px] px-2 py-1 rounded ${(obj.tv_role || 'ambient') === 'ambient' ? 'bg-violet-600 text-white' : 'bg-zinc-700'}">Ambient</button>
+            </div>
+            <div class="text-[10px] ${pairedTV && pairedTV.tv_state === 'on' ? 'text-emerald-400' : 'text-zinc-500'} mt-1">
+              ${pairedTV && pairedTV.tv_state === 'on' ? '● Syncing now — '+(pairedTV.name||'TV')+' is on' : 'Paired to '+((pairedTV&&pairedTV.name)||'TV')+' (turn TV on to preview)'}
+            </div>` : `<div class="text-[10px] text-zinc-500 mt-0.5">Pair to a TV so it reacts as bias/ambient lighting.</div>`}
+          </div>
+        `;
+      }
+
+      // --- TV inspector: power preview, ambient color, paired-light management ---
+      if (obj.type === 'tv') {
+        const tvOn = obj.tv_state === 'on';
+        const sc = (obj.sync_color || '#3b82f6').toLowerCase();
+        const roomLights = (room.objects || []).filter(o => o.type === 'light');
+        const pairedCount = roomLights.filter(l => l.tv_group === obj.id).length;
+        const swatches = ['#3b82f6','#8b5cf6','#ef4444','#10b981','#f59e0b','#ec4899','#ffffff'];
+        html += `
+          <div class="mt-3 pt-2 border-t border-zinc-700">
+            <div class="text-xs text-zinc-400 mb-1">TV Power <span class="text-[10px] text-zinc-500">(preview sync)</span></div>
+            <button id="tv-power" class="text-xs px-3 py-1 rounded ${tvOn ? 'bg-emerald-600 text-white' : 'bg-zinc-700'}">${tvOn ? 'ON — syncing lights' : 'OFF'}</button>
+          </div>
+          <div class="mt-2">
+            <div class="text-xs text-zinc-400 mb-1">Ambient sync color</div>
+            <div class="flex gap-1 flex-wrap" id="tv-swatches">
+              ${swatches.map(c => `<button data-c="${c}" title="${c}" class="w-6 h-6 rounded border ${sc === c.toLowerCase() ? 'border-white' : 'border-zinc-600'}" style="background:${c}"></button>`).join('')}
+            </div>
+          </div>
+          <div class="mt-3 pt-2 border-t border-zinc-700">
+            <div class="text-xs text-zinc-400 mb-1">Paired lights <span class="text-[10px] text-zinc-500">(${pairedCount}/${roomLights.length})</span></div>
+            <div id="tv-pair-list" class="space-y-1">
+              ${roomLights.length ? roomLights.map(l => {
+                const paired = l.tv_group === obj.id;
+                const claimedElsewhere = !paired && l.tv_group;
+                return `<div class="flex items-center justify-between gap-2 text-[11px] bg-[#111113] border border-zinc-800 rounded px-2 py-1">
+                  <label class="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
+                    <input type="checkbox" data-pair="${l.id}" ${paired ? 'checked' : ''} class="accent-emerald-500 shrink-0">
+                    <span class="truncate">${l.name || l.subtype}${claimedElsewhere ? ' <span class=\"text-zinc-600\">(other TV)</span>' : ''}</span>
+                  </label>
+                  ${paired ? `<div class="flex gap-0.5 shrink-0">
+                    <button data-role="${l.id}" data-r="backlight" class="role-btn px-1.5 py-0.5 rounded ${l.tv_role === 'backlight' ? 'bg-blue-600 text-white' : 'bg-zinc-700'}">Back</button>
+                    <button data-role="${l.id}" data-r="ambient" class="role-btn px-1.5 py-0.5 rounded ${(l.tv_role || 'ambient') === 'ambient' ? 'bg-violet-600 text-white' : 'bg-zinc-700'}">Amb</button>
+                  </div>` : ''}
+                </div>`;
+              }).join('') : `<div class="text-[11px] text-zinc-500">No lights in this room yet. Add lights, then pair them here.</div>`}
+            </div>
+            <div class="text-[10px] text-zinc-500 mt-1">Turn the TV on to preview paired lights glowing in the sync color.</div>
           </div>
         `;
       }
@@ -1939,6 +2073,83 @@
           };
           linkSel.parentNode.appendChild(tog);
         }
+
+        // TV grouping for this light: pick a TV + role (backlight/ambient)
+        const lightTvSel = container.querySelector('#light-tv');
+        if (lightTvSel) {
+          lightTvSel.onchange = () => {
+            obj.tv_group = lightTvSel.value || null;
+            if (obj.tv_group && !obj.tv_role) obj.tv_role = 'ambient';
+            const entry = objectMeshes[selectedId];
+            if (entry) applyLightProperties(entry, obj);
+            forceRender3D();
+            saveModel();
+            renderInspector();
+          };
+        }
+        container.querySelectorAll('.lr-btn').forEach(btn => {
+          btn.onclick = () => {
+            obj.tv_role = btn.dataset.lr;
+            const entry = objectMeshes[selectedId];
+            if (entry) applyLightProperties(entry, obj);
+            forceRender3D();
+            saveModel();
+            renderInspector();
+          };
+        });
+      }
+
+      // TV controls: power preview, ambient color, paired-light management
+      if (obj.type === 'tv') {
+        const pwr = container.querySelector('#tv-power');
+        if (pwr) pwr.onclick = () => {
+          obj.tv_state = obj.tv_state === 'on' ? 'off' : 'on';
+          saveModel();
+          refreshPairedLights(obj.id);   // light up / restore paired lights
+          renderInspector();
+        };
+
+        container.querySelectorAll('#tv-swatches button').forEach(b => {
+          b.onclick = () => {
+            obj.sync_color = b.dataset.c;
+            saveModel();
+            if (obj.tv_state === 'on') refreshPairedLights(obj.id);
+            renderInspector();
+          };
+        });
+
+        // Pair / unpair a light to this TV
+        container.querySelectorAll('input[data-pair]').forEach(cb => {
+          cb.onchange = () => {
+            const light = (room.objects || []).find(o => o.id === cb.dataset.pair);
+            if (!light) return;
+            if (cb.checked) {
+              light.tv_group = obj.id;
+              if (!light.tv_role) light.tv_role = 'ambient';
+            } else {
+              light.tv_group = null;
+            }
+            const entry = objectMeshes[light.id];
+            if (entry) applyLightProperties(entry, light);
+            forceRender3D();
+            saveModel();
+            renderInspector();
+          };
+        });
+
+        // Per-light role toggle from the TV's paired list
+        container.querySelectorAll('.role-btn').forEach(b => {
+          b.onclick = () => {
+            const light = (room.objects || []).find(o => o.id === b.dataset.role);
+            if (!light) return;
+            light.tv_role = b.dataset.r;
+            const entry = objectMeshes[light.id];
+            if (entry) applyLightProperties(entry, light);
+            forceRender3D();
+            saveModel();
+            renderInspector();
+          };
+        });
       }
     }
 
@@ -2612,7 +2823,10 @@
             const fl = obj.length || 3;
             const fw = obj.width || 1.5;
             if (obj.type === 'light') {
-              ctx2d.fillStyle = obj.subtype === 'tv-backlight' ? '#60a5fa' : (obj.subtype === 'lamp' ? '#f59e0b' : '#e2e8f0');
+              ctx2d.fillStyle = light2DColor(obj);
+              if (isSyncingNow(obj)) {   // soft glow halo when actively syncing to a TV
+                ctx2d.globalAlpha = 0.22; ctx2d.beginPath(); ctx2d.arc(0, 0, 9, 0, Math.PI * 2); ctx2d.fill(); ctx2d.globalAlpha = 1;
+              }
               ctx2d.beginPath();
               ctx2d.arc(0, 0, 4, 0, Math.PI * 2);
               ctx2d.fill();
@@ -2692,15 +2906,19 @@
         let color = '#64748b';
 
         if (obj.type === 'light') {
-          ctx2d.fillStyle = obj.subtype === 'tv-backlight' ? '#60a5fa' : (obj.subtype === 'lamp' ? '#f59e0b' : '#e2e8f0');
+          const syncing = isSyncingNow(obj);
+          ctx2d.fillStyle = light2DColor(obj);
           ctx2d.beginPath();
           ctx2d.arc(0, 0, 9 * s, 0, Math.PI * 2);
           ctx2d.fill();
-          if (obj.on !== false) {
-            ctx2d.fillStyle = 'rgba(74,222,128,0.6)';
+          if (syncing || obj.on !== false) {
+            // Glow halo: sync color when syncing to a TV, else the normal "on" green
+            ctx2d.fillStyle = syncing ? light2DColor(obj) : 'rgba(74,222,128,0.6)';
+            ctx2d.globalAlpha = syncing ? 0.3 : 1;
             ctx2d.beginPath();
             ctx2d.arc(0, 0, 14 * s, 0, Math.PI * 2);
             ctx2d.fill();
+            ctx2d.globalAlpha = 1;
           }
         } else if (obj.type === 'furniture') {
           // Use individual dims for accurate 2D top-down footprint if present (length x width), fallback to scaled defaults
