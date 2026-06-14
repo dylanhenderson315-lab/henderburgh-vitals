@@ -124,7 +124,7 @@ DEFAULT_MODEL = {
         },
         "hallway": {
             "name": "Hallway",
-            "dims": {"width_ft": 3.1667, "depth_ft": 18.0},
+            "dims": {"width_ft": 3.1667, "depth_ft": 16.0},
             "objects": [],
             "mode": "true-colors",
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
@@ -142,6 +142,35 @@ DEFAULT_MODEL = {
             "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
             "world": {"x": -18, "z": -12, "rot": 0},
             "locked": False
+        },
+        "3rd-bedroom": {
+            "name": "3rd Bedroom",
+            "dims": {"width_ft": 11.3333, "depth_ft": 16.3333},
+            "objects": [],
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": 5.6667, "z": 9.1667, "rot": 0},
+            "locked": False
+        },
+        "entry-foyer": {
+            "name": "Entry / Foyer",
+            "dims": {"width_ft": 12.1667, "depth_ft": 6.0},
+            "objects": [],
+            "filler": True,
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": 19.1667, "z": 3.0, "rot": 0},
+            "locked": True
+        },
+        "baths-closets": {
+            "name": "Baths & Closets",
+            "dims": {"width_ft": 12.1667, "depth_ft": 16.9167},
+            "objects": [],
+            "filler": True,
+            "mode": "true-colors",
+            "settings": {"intensity": 70, "speed": 40, "brightnessLimit": 85},
+            "world": {"x": 19.1667, "z": 30.4583, "rot": 0},
+            "locked": True
         }
     },
     "selected_room": "game-room"

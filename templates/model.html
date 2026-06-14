@@ -359,13 +359,19 @@
       'game-room': { name: 'Game Room', width_ft: 9.0, depth_ft: 16.0 },
       'living-room': { name: 'Living Room', width_ft: 13.0833, depth_ft: 23.4167 },
       'master-bedroom': { name: 'Master Bedroom', width_ft: 12.1667, depth_ft: 11.8333 },
-      'hallway': { name: 'Hallway', width_ft: 3.1667, depth_ft: 18.0 },
-      'kitchen': { name: 'Kitchen', width_ft: 12.4167, depth_ft: 10.0 }
+      'hallway': { name: 'Hallway', width_ft: 3.1667, depth_ft: 16.0 },
+      'kitchen': { name: 'Kitchen', width_ft: 12.4167, depth_ft: 10.0 },
+      '3rd-bedroom': { name: '3rd Bedroom', width_ft: 11.3333, depth_ft: 16.3333 },
+      // Filler zones: non-essential spaces from the blueprint, included so the whole-house
+      // footprint is literal. Marked filler:true → hidden from the editable room tabs and
+      // drawn dimmer/hatched. Dimensions here are approximate space-fillers, not for planning.
+      'entry-foyer': { name: 'Entry / Foyer', width_ft: 12.1667, depth_ft: 6.0, filler: true },
+      'baths-closets': { name: 'Baths & Closets', width_ft: 12.1667, depth_ft: 16.9167, filler: true }
     };
 
     const WHOLE_HOUSE_ID = '__whole__';
     // Bump when the blueprint default room layout changes; triggers a one-time client migration.
-    const LAYOUT_VERSION = 3;
+    const LAYOUT_VERSION = 4;
     const HEIGHT_Y = { floor: 0.18, tv: 3.9, ceiling: 8.1 };
     const GRID_STEP = 0.05; // ~1 foot in most rooms
 
@@ -569,9 +575,14 @@
       const BLUEPRINT_WORLDS = {
         'kitchen':        { x: 6.2083,  z: 22.3333, rot: 0 },  // left, above Living
         'living-room':    { x: 6.5417,  z: 39.0417, rot: 0 },  // bottom-left
-        'hallway':        { x: 14.6667, z: 15.0,    rot: 0 },  // central spine, upper half
+        'hallway':        { x: 14.6667, z: 14.0,    rot: 0 },  // central spine z[6,22], meets bath band
         'game-room':      { x: 20.75,   z: 14.0,    rot: 0 },  // upper-right (Bedroom 2), right wall = east wall
-        'master-bedroom': { x: 19.1667, z: 44.8333, rot: 0 }   // bottom-right, beside Living, right wall = east wall
+        'master-bedroom': { x: 19.1667, z: 44.8333, rot: 0 },  // bottom-right, beside Living, right wall = east wall
+        '3rd-bedroom':    { x: 5.6667,  z: 9.1667,  rot: 0 },  // top-left, directly above Kitchen (z 1–17.33)
+        // Filler zones (literal footprint): Entry caps the top-right; the bath/closet band
+        // fills the real gap between Game Room (bottom z=22) and Master Bedroom (top z=38.92).
+        'entry-foyer':    { x: 19.1667, z: 3.0,     rot: 0 },  // top-right, x[13.08,25.25] z[0,6]
+        'baths-closets':  { x: 19.1667, z: 30.4583, rot: 0 }   // right-center, x[13.08,25.25] z[22,38.92]
       };
 
       // One-time migration: snap rooms into the connected blueprint layout. After the user
@@ -650,8 +661,10 @@
       };
       el.appendChild(wholeBtn);
 
-      // Individual rooms + lock toggle (only meaningful in whole house context)
+      // Individual rooms + lock toggle (only meaningful in whole house context).
+      // Filler zones are part of the whole-house footprint only — not separately editable.
       Object.keys(ROOM_DIMS).forEach(rid => {
+        if (ROOM_DIMS[rid].filler) return;
         const wrapper = document.createElement('div');
         wrapper.style.display = 'inline-flex';
         wrapper.style.alignItems = 'center';
@@ -2565,18 +2578,25 @@
           ctx2d.translate(cx, cy);
           ctx2d.rotate( (wld.rot || 0) * Math.PI / 180 );
 
-          // Room floor
-          ctx2d.fillStyle = '#1f242b';
+          const isFiller = !!r.filler;
+
+          // Room floor (filler zones are dimmer to read as non-essential space)
+          ctx2d.fillStyle = isFiller ? '#15181d' : '#1f242b';
           ctx2d.fillRect( -roomW/2 * scale, -roomD/2 * scale, roomW * scale, roomD * scale );
           // Draw stroke to show room boundaries/walls. With accurate positions, adjacent rooms will have aligned walls looking like connected floor plan.
-          ctx2d.strokeStyle = '#334155';
+          ctx2d.strokeStyle = isFiller ? '#2b333d' : '#334155';
           ctx2d.lineWidth = 1;
+          if (isFiller) ctx2d.setLineDash([4, 3]);
           ctx2d.strokeRect( -roomW/2 * scale, -roomD/2 * scale, roomW * scale, roomD * scale );
+          ctx2d.setLineDash([]);
 
-          // Label room name
-          ctx2d.fillStyle = '#9ca3af';
-          ctx2d.font = '10px Inter';
+          // Label room name (muted for filler)
+          ctx2d.fillStyle = isFiller ? '#5b6470' : '#9ca3af';
+          ctx2d.font = isFiller ? 'italic 9px Inter' : '10px Inter';
           ctx2d.fillText(r.name, -roomW/4 * scale, 0);
+
+          // Filler zones carry no objects — skip the rest of the per-room object draw.
+          if (isFiller) { ctx2d.restore(); return; }
 
           // Draw objects for this room (using local 0-1)
           const roomData = modelData.rooms[rid] || { objects: [] };
