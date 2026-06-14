@@ -76,7 +76,7 @@ async def fetch_xbox_status():
             # The xbl.io /presence (and /account) responses wrap the actual data under "content"
             data = presence.get("content") or presence
 
-            state = data.get("state", "Unknown")
+            presence_state = data.get("state", "Unknown")
 
             # Step 3: Extract current game/app name - try multiple paths for robustness
             game = "—"
@@ -202,7 +202,7 @@ async def fetch_xbox_status():
             fetch_time = time.time()
             state.last_xbox_data = {
                 "status": "ok",
-                "state": state,
+                "state": presence_state,
                 "game": game,
                 "gamertag": gamertag,
                 "gamerpic": gamerpic,

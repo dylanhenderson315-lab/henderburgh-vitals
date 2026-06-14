@@ -996,6 +996,19 @@ async def clips_page(request: Request):
 
 
 
+@app.get("/model", response_class=HTMLResponse)
+async def model_page(request: Request):
+    """Dedicated /model page - spatial home replica. Data served via /api/model."""
+    return _render("model.html", {
+        "request": request,
+        "public_mode": PUBLIC_MODE,
+        "site_name": SITE_NAME,
+        "display_name": DISPLAY_NAME,
+    })
+
+
+
+
 @app.get("/blog", response_class=HTMLResponse)
 async def blog_page(request: Request):
     return _render("blog.html", {
