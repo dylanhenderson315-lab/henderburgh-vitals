@@ -884,7 +884,8 @@ async def get_model():
 
 @app.post("/api/model")
 async def post_model(request: Request, data: dict):
-    """Save model data. No token required (non-destructive spatial config)."""
+    """Save model data. Admin only — the model is locked so visitors can't alter it."""
+    require_admin(request)
     persistence.save_model(data)
     return {"status": "saved"}
 
@@ -998,12 +999,15 @@ async def clips_page(request: Request):
 
 @app.get("/model", response_class=HTMLResponse)
 async def model_page(request: Request):
-    """Dedicated /model page - spatial home replica. Data served via /api/model."""
+    """Dedicated /model page - spatial home replica. Data served via /api/model.
+    Editing is locked to admins; visitors get a read-only view."""
     return _render("model.html", {
         "request": request,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
+        "is_admin": is_admin_authenticated(request),
+        "has_admin_token": bool(ADMIN_TOKEN),
     })
 
 

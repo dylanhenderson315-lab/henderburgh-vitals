@@ -270,8 +270,17 @@
 
       <!-- Palette + Inspector -->
       <div class="lg:col-span-4 space-y-4">
-        <!-- Improved Categorized Palette -->
-        <div class="card p-4">
+        <!-- Lock bar: model is read-only until an admin unlocks editing -->
+        <div id="lock-bar" class="card p-3 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-xs">
+            <i id="lock-icon" class="fa-solid fa-lock text-amber-400"></i>
+            <span id="lock-label" class="text-zinc-300">Locked — view only</span>
+          </div>
+          <button id="lock-action" class="text-xs px-3 py-1.5 rounded-lg border border-emerald-800 text-emerald-300 hover:bg-emerald-950/40">Unlock to edit</button>
+        </div>
+
+        <!-- Improved Categorized Palette (admin only) -->
+        <div id="palette-card" class="card p-4">
           <div class="section-label mb-2">Add Object</div>
 
           <!-- Lights -->
@@ -303,8 +312,8 @@
           </div>
         </div>
 
-        <!-- Room actions -->
-        <div class="card p-4">
+        <!-- Room actions (admin only) -->
+        <div id="roomactions-card" class="card p-4">
           <div class="section-label mb-2">Room Actions</div>
           <div class="flex flex-wrap gap-2">
             <button onclick="clearCurrentRoom()" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Clear Room</button>
@@ -397,6 +406,12 @@
       // Doorways
       { type: 'door', subtype: 'door', label: 'Door', color: 0x8b5a2b, category: 'door' }
     ];
+
+    // Edit gating: the model is locked (read-only) unless an authenticated admin unlocks it.
+    // Server also enforces this — POST /api/model requires admin — so this is UX, not the gate.
+    const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+    const HAS_ADMIN_TOKEN = {{ 'true' if has_admin_token else 'false' }};
+    let canEdit = IS_ADMIN;
 
     let modelData = null;
     let currentRoom = 'game-room';
@@ -627,6 +642,7 @@
 
     async function saveModel(showToast = false) {
       if (!modelData) return;
+      if (!canEdit) return;   // locked: visitors cannot persist changes (server enforces too)
       modelData.selected_room = currentRoom;
       try {
         await fetch('/api/model', {
@@ -1746,7 +1762,7 @@
     }
 
     function deleteSelected() {
-      if (!selectedId) return;
+      if (!selectedId || !canEdit) return;
       const rid = roomOfObject(selectedId);
       const room = modelData.rooms[rid];
       if (!room || !room.objects) return;
@@ -1801,6 +1817,22 @@
       const obj = (room.objects || []).find(o => o.id === selectedId);
       if (!obj) {
         container.innerHTML = `<div class="text-sm text-zinc-400">Object not found.</div>`;
+        return;
+      }
+
+      // Locked / view-only: show a read-only summary, no edit controls.
+      if (!canEdit) {
+        const tvName = (obj.type === 'light' && obj.tv_group)
+          ? (findTVById(obj.tv_group)?.name || 'TV') : null;
+        container.innerHTML = `
+          <div class="space-y-2 text-sm">
+            <div class="font-medium text-zinc-200">${obj.name || obj.subtype}</div>
+            <div class="text-xs text-zinc-400">Type: <span class="text-zinc-300">${obj.type} / ${obj.subtype}</span></div>
+            ${obj.type === 'light' ? `<div class="text-xs text-zinc-400">Power: <span class="text-zinc-300">${obj.on === false ? 'Off' : 'On'}</span> · Brightness: <span class="text-zinc-300">${obj.brightness || 70}%</span></div>` : ''}
+            ${tvName ? `<div class="text-xs text-zinc-400">Paired to TV: <span class="text-zinc-300">${tvName}</span> (${obj.tv_role || 'ambient'})</div>` : ''}
+            ${obj.type === 'tv' ? `<div class="text-xs text-zinc-400">TV preview: <span class="text-zinc-300">${obj.tv_state === 'on' ? 'On — syncing' : 'Off'}</span></div>` : ''}
+            <div class="text-[10px] text-amber-400/80 pt-1"><i class="fa-solid fa-lock mr-1"></i>Locked — unlock to edit.</div>
+          </div>`;
         return;
       }
 
@@ -2273,6 +2305,7 @@
     }
 
     function setPendingPlace(def, chipEl) {
+      if (!canEdit) return;   // locked: no placing objects
       document.querySelectorAll('.obj-chip').forEach(c => c.classList.remove('active'));
       if (pendingPlace && pendingPlace.subtype === def.subtype) {
         clearPendingPlace();
@@ -2359,6 +2392,7 @@
       }
 
       if (hitObject) {
+        if (!canEdit) { selectObject(hitObject); return; } // locked: select to view, but no dragging
         // Raycast-first: object hit always starts drag (never orbit or room drag). 3D primary reliable.
         isDraggingObject = true;
         draggedObjectId = hitObject;
@@ -2382,8 +2416,8 @@
         return;
       }
 
-      // No object: check for room floor (for whole-house room repositioning)
-      if (currentRoom === WHOLE_HOUSE_ID) {
+      // No object: check for room floor (for whole-house room repositioning) — admin only
+      if (currentRoom === WHOLE_HOUSE_ID && canEdit) {
         let hitRoomId = null;
         for (let h of hits) {
           const ud = h.object && h.object.userData;
@@ -3160,7 +3194,7 @@
       }
 
       if (hitId) {
-        _2dDraggingId = hitId;
+        if (canEdit) _2dDraggingId = hitId; // locked: select to view, but no dragging
         selectObject(hitId);
       }
     }
@@ -3235,7 +3269,7 @@
     }
 
     function placeObjectAt(nx, nz) {
-      if (!pendingPlace) return;
+      if (!pendingPlace || !canEdit) return;
       let targetRoomId = currentRoom;
       if (targetRoomId === WHOLE_HOUSE_ID) targetRoomId = Object.keys(ROOM_DIMS)[0] || 'game-room';
       const room = modelData.rooms[targetRoomId];
@@ -3364,6 +3398,54 @@
       saveModel();
     }
 
+    // Lock UI: show edit tools only when unlocked; provide unlock/lock controls.
+    function initLockUI() {
+      const bar = document.getElementById('lock-bar');
+      const icon = document.getElementById('lock-icon');
+      const label = document.getElementById('lock-label');
+      const action = document.getElementById('lock-action');
+      const paletteCard = document.getElementById('palette-card');
+      const roomActions = document.getElementById('roomactions-card');
+
+      // Hide the editing panels entirely when locked.
+      if (paletteCard) paletteCard.style.display = canEdit ? '' : 'none';
+      if (roomActions) roomActions.style.display = canEdit ? '' : 'none';
+
+      if (canEdit) {
+        if (icon) { icon.className = 'fa-solid fa-lock-open text-emerald-400'; }
+        if (label) { label.textContent = 'Editing unlocked'; label.className = 'text-emerald-300'; }
+        if (action) {
+          action.textContent = 'Lock';
+          action.className = 'text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800';
+          action.onclick = async () => {
+            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+            location.reload();
+          };
+        }
+      } else {
+        if (icon) { icon.className = 'fa-solid fa-lock text-amber-400'; }
+        if (label) { label.textContent = 'Locked — view only'; }
+        if (action) {
+          action.textContent = HAS_ADMIN_TOKEN ? 'Unlock to edit' : 'Locked';
+          action.disabled = !HAS_ADMIN_TOKEN;
+          action.onclick = async () => {
+            if (!HAS_ADMIN_TOKEN) return;
+            const token = prompt('Enter admin password to unlock editing:');
+            if (!token) return;
+            try {
+              const res = await fetch('/api/auth/unlock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+              });
+              if (res.ok) { location.reload(); }
+              else { alert('Incorrect password.'); }
+            } catch (e) { alert('Unlock failed. Try again.'); }
+          };
+        }
+      }
+    }
+
     async function buildUI() {
       await loadModel();
       renderRoomSelector();
@@ -3374,6 +3456,7 @@
       renderPalette();
       renderInspector();
       initLayerToggles();
+      initLockUI();
 
       // Snap toggle
       const snapCb = document.getElementById('snap-toggle');
