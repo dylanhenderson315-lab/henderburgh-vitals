@@ -442,6 +442,24 @@
     let haLights = {};
     let haPollTimer = null;
 
+    // Drive the REAL paired bulb via Home Assistant (shared backend; admin cookie authorizes).
+    async function controlRealLight(entityId, service, payload = {}) {
+      if (!entityId) return;
+      try {
+        await fetch(`/api/ha/service/light/${service}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity_id: entityId, ...payload })
+        });
+        // refresh live state shortly after so the model + inspector reflect reality
+        setTimeout(loadHALightsForModel, 350);
+      } catch (e) {}
+    }
+    function hexToRgbArr(hex) {
+      const h = (hex || '#ffffff').replace('#', '');
+      return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    }
+
     async function loadHALightsForModel() {
       try {
         const res = await fetch('/api/ha/lights-data');
@@ -1941,9 +1959,49 @@
             <select id="light-link" class="w-full bg-[#111113] border border-zinc-700 rounded px-2 py-1 text-xs">
               <option value="">-- Not linked --</option>
             </select>
-            <div class="text-[10px] text-zinc-500 mt-0.5">When linked, model shows real-time color/brightness/on from HA.</div>
+            <div class="text-[10px] text-zinc-500 mt-0.5">When linked, controls below drive the real bulb live.</div>
           </div>
         `;
+
+        // --- Live control of the REAL paired bulb (drives Home Assistant directly) ---
+        if (obj.entity_id) {
+          const ha = haLights[obj.entity_id] || {};
+          const realOn = (ha.state || 'off') === 'on';
+          const realBri = Math.round(((ha.brightness || (realOn ? 200 : 0)) / 255) * 100);
+          const rgb = ha.rgb_color || [255, 200, 120];
+          const hex = '#' + rgb.map(c => Math.max(0, Math.min(255, c|0)).toString(16).padStart(2, '0')).join('');
+          const modes = ha.supported_color_modes || [];
+          const supportsRgb = modes.some(m => (m || '').includes('rgb') || (m || '').includes('hs') || (m || '').includes('xy'));
+          const effects = ha.effect_list || [];
+          html += `
+          <div class="mt-2 pt-2 border-t border-emerald-900/40">
+            <div class="text-xs text-emerald-300/90 mb-1.5"><i class="fa-solid fa-bolt mr-1"></i>Live light — ${ha.friendly_name || obj.entity_id}</div>
+            <div class="flex gap-1 mb-2">
+              <button data-real="on" class="real-pow flex-1 text-[11px] px-2 py-1 rounded ${realOn ? 'bg-emerald-600 text-white' : 'bg-zinc-700'}">On</button>
+              <button data-real="off" class="real-pow flex-1 text-[11px] px-2 py-1 rounded ${!realOn ? 'bg-zinc-500 text-white' : 'bg-zinc-700'}">Off</button>
+            </div>
+            <div class="mb-2">
+              <div class="text-[11px] text-zinc-400 mb-0.5">Brightness <span id="real-bri-val">${realBri}</span>%</div>
+              <input type="range" id="real-bri" min="1" max="100" value="${realBri || 70}" class="w-full accent-emerald-500">
+            </div>
+            ${supportsRgb ? `
+            <div class="mb-1 flex items-center gap-2">
+              <span class="text-[11px] text-zinc-400">Color</span>
+              <input type="color" id="real-color" value="${hex}" class="w-12 h-8 p-0 bg-transparent border border-zinc-700 rounded cursor-pointer">
+              <div class="flex gap-1">
+                ${['#ff3b30','#ff9500','#ffd60a','#34c759','#0a84ff','#bf5af2','#ffffff'].map(c => `<button data-rc="${c}" class="real-swatch w-5 h-5 rounded border border-zinc-600" style="background:${c}"></button>`).join('')}
+              </div>
+            </div>` : ''}
+            ${effects.length ? `
+            <div class="mt-2">
+              <div class="text-[11px] text-zinc-400 mb-0.5">Effect</div>
+              <select id="real-effect" class="w-full bg-[#111113] border border-zinc-700 rounded px-2 py-1 text-[11px]">
+                <option value="">-- none --</option>
+                ${effects.map(ef => `<option value="${ef}" ${ha.current_effect === ef ? 'selected' : ''}>${ef}</option>`).join('')}
+              </select>
+            </div>` : ''}
+          </div>`;
+        }
 
         // --- TV Group: pair this light to a TV as bias/ambient lighting ---
         const lightRoomTVs = (room.objects || []).filter(o => o.type === 'tv');
@@ -2201,6 +2259,33 @@
         }
 
         // TV grouping for this light: pick a TV + role (backlight/ambient)
+        // Live real-bulb controls (only present when linked to an HA entity)
+        if (obj.entity_id) {
+          container.querySelectorAll('.real-pow').forEach(b => {
+            b.onclick = () => controlRealLight(obj.entity_id, b.dataset.real === 'on' ? 'turn_on' : 'turn_off');
+          });
+          const rbri = container.querySelector('#real-bri');
+          const rbriVal = container.querySelector('#real-bri-val');
+          if (rbri) {
+            let briT = null;
+            rbri.oninput = () => {
+              if (rbriVal) rbriVal.textContent = rbri.value;
+              clearTimeout(briT);
+              briT = setTimeout(() => controlRealLight(obj.entity_id, 'turn_on', { brightness_pct: parseInt(rbri.value, 10) }), 160);
+            };
+          }
+          const rcolor = container.querySelector('#real-color');
+          if (rcolor) {
+            let colT = null;
+            rcolor.oninput = () => { clearTimeout(colT); colT = setTimeout(() => controlRealLight(obj.entity_id, 'turn_on', { rgb_color: hexToRgbArr(rcolor.value) }), 160); };
+          }
+          container.querySelectorAll('.real-swatch').forEach(s => {
+            s.onclick = () => { if (rcolor) rcolor.value = s.dataset.rc; controlRealLight(obj.entity_id, 'turn_on', { rgb_color: hexToRgbArr(s.dataset.rc) }); };
+          });
+          const reff = container.querySelector('#real-effect');
+          if (reff) reff.onchange = () => { if (reff.value) controlRealLight(obj.entity_id, 'turn_on', { effect: reff.value }); };
+        }
+
         const lightTvSel = container.querySelector('#light-tv');
         if (lightTvSel) {
           lightTvSel.onchange = () => {
