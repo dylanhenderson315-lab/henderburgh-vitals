@@ -29,6 +29,34 @@ def _seed(name: str):
         except Exception:
             pass
 
+# Force a one-time overwrite of the persisted model from the committed baseline.
+# Use ONLY to recover after data loss: bump MODEL_SEED_VERSION, redeploy once, and the
+# persisted file (even on a volume) is replaced by the bundled baseline, then left alone
+# again (the stored seed_version matches), so future edits persist normally.
+MODEL_SEED_VERSION = 2
+
+def _restore_model_if_needed():
+    dest = DATA_PATH / "model.json"
+    src = _BUNDLED_DATA / "model.json"
+    if not src.exists() or src.resolve() == dest.resolve():
+        return
+    try:
+        cur = json.loads(dest.read_text(encoding='utf-8')) if dest.exists() else {}
+    except Exception:
+        cur = {}
+    if int(cur.get("seed_version", 0)) >= MODEL_SEED_VERSION:
+        return  # already at/over the recovery version — never clobber live edits again
+    try:
+        data = json.loads(src.read_text(encoding='utf-8'))
+        data["seed_version"] = MODEL_SEED_VERSION
+        # keep a copy of whatever was there before, just in case
+        if dest.exists():
+            (DATA_PATH / "model.pre-restore.json").write_text(dest.read_text(encoding='utf-8'), encoding='utf-8')
+        dest.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        print(f"♻️  Restored model.json from baseline (seed_version -> {MODEL_SEED_VERSION})")
+    except Exception as e:
+        print(f"model restore skipped: {e}")
+
 TV_SYNC_FILE = _seed("tv_sync.json") or (DATA_PATH / "tv_sync.json")
 
 DEFAULT_TV_SYNC = {
@@ -102,6 +130,7 @@ def save_tv_sync(data):
 # Clean extensible structure for rooms, lights (pos x/y 0-1 + height), furniture, modes/settings.
 # =============================================================================
 MODEL_FILE = _seed("model.json") or (DATA_PATH / "model.json")
+_restore_model_if_needed()  # one-time recovery overwrite when MODEL_SEED_VERSION is bumped
 
 DEFAULT_MODEL = {
     "rooms": {
@@ -234,6 +263,9 @@ def save_model(data):
     # blueprint default positions once and never clobbers the user's manual room drags.
     if "layout_version" in data:
         clean["layout_version"] = data["layout_version"]
+    # Preserve the recovery marker so a restored file isn't re-restored on the next boot.
+    if "seed_version" in data:
+        clean["seed_version"] = data["seed_version"]
     for rid, rdef in DEFAULT_MODEL["rooms"].items():
         if rid not in clean["rooms"]:
             clean["rooms"][rid] = rdef
@@ -266,6 +298,23 @@ def save_model(data):
                     # Preview state + ambient sync color for paired lights
                     if "tv_state" not in o: o["tv_state"] = "off"
                     if "sync_color" not in o: o["sync_color"] = "#3b82f6"
+    # Safety net: before overwriting, keep the previous version + a small rotation of
+    # timestamped backups so a bad save / reset is never total data loss.
+    try:
+        total_objs = sum(len(r.get("objects", [])) for r in clean.get("rooms", {}).values())
+        if MODEL_FILE.exists() and total_objs > 0:
+            prev = MODEL_FILE.read_text(encoding='utf-8')
+            (DATA_PATH / "model.bak.json").write_text(prev, encoding='utf-8')
+            bdir = DATA_PATH / "model_backups"
+            bdir.mkdir(exist_ok=True)
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+            (bdir / f"model-{ts}.json").write_text(prev, encoding='utf-8')
+            backups = sorted(bdir.glob("model-*.json"))
+            for old in backups[:-20]:  # keep the 20 most recent
+                try: old.unlink()
+                except OSError: pass
+    except Exception:
+        pass
     write_json(MODEL_FILE, clean)
 
 

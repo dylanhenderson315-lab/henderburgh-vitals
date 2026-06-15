@@ -507,12 +507,26 @@ async def api_latest_hr(fresh: bool = False):
 @app.get("/health")
 async def health():
     """Health check endpoint for Railway / monitoring (does not hit Oura API)."""
+    # Storage diagnostics: confirm whether model edits persist (volume) and how many
+    # objects are currently saved — used to verify the persistence fix is working.
+    import os as _os
+    from services import persistence as _p
+    try:
+        _m = _p.load_model()
+        _objs = sum(len(r.get("objects", [])) for r in _m.get("rooms", {}).values())
+        _sv = _m.get("seed_version")
+    except Exception:
+        _objs, _sv = None, None
     return {
         "status": "ok",
         "public_mode": PUBLIC_MODE,
         "has_token": bool(OURA_TOKEN),
         "display_name": DISPLAY_NAME,
         "site": SITE_NAME,
+        "data_dir": _os.getenv("DATA_DIR", "data"),
+        "data_dir_is_volume": _os.getenv("DATA_DIR", "data") not in ("data", "./data"),
+        "model_objects": _objs,
+        "model_seed_version": _sv,
     }
 
 
