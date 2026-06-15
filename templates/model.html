@@ -104,6 +104,7 @@
       padding: 14px;
     }
 
+    #ambient-toggle.amb-on { background:#3f2d04; border-color:#a16207; color:#fde68a; }
     .height-btn, .temp-btn {
       padding: 4px 10px;
       font-size: 11px;
@@ -242,6 +243,8 @@
               <button onclick="setCameraView('top')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Top</button>
               <button onclick="setCameraView('iso')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Isometric</button>
               <button onclick="setCameraView('reset')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Reset</button>
+              <button id="ambient-toggle" onclick="toggleAmbientPreview()" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800"><i class="fa-solid fa-tv mr-1"></i>Ambient Preview</button>
+              <button id="ambient-push" onclick="applyPreviewToBulbs()" style="display:none" class="px-3 py-1 text-xs rounded-lg border border-amber-800 text-amber-300 hover:bg-amber-950/40">Apply to bulbs</button>
             </div>
           </div>
 
@@ -383,6 +386,17 @@
     // Bump when the blueprint default room layout changes; triggers a one-time client migration.
     const LAYOUT_VERSION = 4;
     const HEIGHT_Y = { floor: 0.18, tv: 3.9, ceiling: 8.1 };
+    // Precise vertical position (feet). Lights/TVs use numeric y_ft when set (height slider);
+    // otherwise fall back to the categorical level. Drives 3D placement AND the height-aware
+    // ambient TV-region sampling, so a light higher on the wall samples a higher screen row.
+    function getObjectY(obj) {
+      if (obj && typeof obj.y_ft === 'number') return obj.y_ft;
+      return (obj && HEIGHT_Y[obj.height]) || 0.18;
+    }
+    // Ambient (TV Sync) Preview: WiZ Sync Box does the real HDMI→light mapping internally and
+    // HA can't stream those per-frame colors, so this is a PLANNING preview — we sample a
+    // virtual TV gradient by each light's horizontal position + height to show/plan the look.
+    let ambientPreview = false;
     const GRID_STEP = 0.05; // ~1 foot in most rooms
 
     // Per-room world layout (in feet, relative to arbitrary house origin). Supports whole-house floor plan assembly.
@@ -824,6 +838,48 @@
       if (!tv || tv.tv_state !== 'on') return null;
       return hexToRgb01(tv.sync_color || '#3b82f6');
     }
+
+    // --- Position + height -> TV screen region mapping (planning preview) ---
+    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+    function hslToRgb01(h, s, l) {
+      // h,s,l in 0..1 -> {r,g,b} 0..1
+      const a = s * Math.min(l, 1 - l);
+      const f = (n) => { const k = (n + h * 12) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+      return { r: f(0), g: f(8), b: f(4) };
+    }
+    function rgb01ToHex(c) {
+      return '#' + [c.r, c.g, c.b].map(x => Math.round(Math.max(0, Math.min(1, x)) * 255).toString(16).padStart(2, '0')).join('');
+    }
+    // The virtual TV screen for a TV object: horizontal span in normalized room-x, vertical
+    // span in feet centered on the TV's height. screen_w_norm / screen_h_ft are editable later.
+    function tvScreenBounds(tv) {
+      const halfW = (typeof tv.screen_w_norm === 'number' ? tv.screen_w_norm : 0.30);
+      const cx = tv.x;
+      const cy = getObjectY(tv) || 3.6;
+      const halfH = (typeof tv.screen_h_ft === 'number' ? tv.screen_h_ft : 1.5);
+      return { left: cx - halfW, right: cx + halfW, bottom: Math.max(0.1, cy - halfH), top: cy + halfH, cx, cy, halfW, halfH };
+    }
+    // Procedural "what the TV is showing" — hue sweeps left->right, brightness rises bottom->top.
+    // u: 0 (screen left) .. 1 (right); v: 0 (bottom) .. 1 (top). Swap for a real frame later.
+    function sampleTVRegion(u, v) {
+      const hue = clamp01(u) * 0.92;          // red(left) -> violet(right)
+      const light = 0.28 + clamp01(v) * 0.46; // darker low on the screen, brighter up top
+      return hslToRgb01(hue, 0.85, light);
+    }
+    // The ambient color a light should take from its TV, based on horizontal pos + height.
+    function ambientColorFor(obj) {
+      if (!ambientPreview || !obj || obj.type !== 'light' || !obj.tv_group) return null;
+      const tv = findTVById(obj.tv_group);
+      if (!tv) return null;
+      const b = tvScreenBounds(tv);
+      const u = clamp01((obj.x - b.left) / Math.max(1e-3, b.right - b.left));
+      const v = clamp01((getObjectY(obj) - b.bottom) / Math.max(1e-3, b.top - b.bottom));
+      return sampleTVRegion(u, v);
+    }
+    // Single resolver: ambient-preview region color wins, else flat TV-on sync color, else none.
+    function lightOverrideColor(obj) {
+      return ambientColorFor(obj) || tvSyncColorFor(obj);
+    }
     // Which room contains a given object id (TV grouping is per-room).
     function roomOfObject(id) {
       if (!modelData) return currentRoom;
@@ -844,19 +900,63 @@
       if (currentView === '2d') draw2DScene();
     }
 
+    // Re-color EVERY light in the scene (used when ambient preview / TV / heights change).
+    function refreshAllAmbient() {
+      Object.values(objectMeshes).forEach(e => {
+        if (e && e.data && e.data.type === 'light') applyLightProperties(e, e.data);
+      });
+      forceRender3D();
+      draw2DScene();
+    }
+
+    function _toast(msg) {
+      const t = document.createElement('div');
+      t.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-zinc-800 text-zinc-100 text-xs px-4 py-1.5 rounded-2xl border border-zinc-700 z-[300]';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 1600);
+    }
+
+    function setAmbientPreview(on) {
+      ambientPreview = !!on;
+      const btn = document.getElementById('ambient-toggle');
+      if (btn) {
+        btn.classList.toggle('amb-on', ambientPreview);
+        btn.innerHTML = `<i class="fa-solid fa-tv mr-1"></i>${ambientPreview ? 'Ambient: ON' : 'Ambient Preview'}`;
+      }
+      const push = document.getElementById('ambient-push');
+      if (push) push.style.display = ambientPreview ? '' : 'none';
+      refreshAllAmbient();
+    }
+    function toggleAmbientPreview() { setAmbientPreview(!ambientPreview); }
+
+    // One-shot: push the currently-previewed ambient colors to the real bulbs (admin/HA only).
+    function applyPreviewToBulbs() {
+      if (!ambientPreview) { _toast('Turn on Ambient Preview first'); return; }
+      let n = 0;
+      Object.values(objectMeshes).forEach(e => {
+        const o = e && e.data;
+        if (o && o.type === 'light' && o.entity_id) {
+          const c = ambientColorFor(o);
+          if (c) { controlRealLight(o.entity_id, 'turn_on', { rgb_color: [Math.round(c.r*255), Math.round(c.g*255), Math.round(c.b*255)] }); n++; }
+        }
+      });
+      _toast(n ? `Pushed ambient colors to ${n} bulb(s)` : 'No paired + linked lights to push');
+    }
+
     // 2D fill color for a light dot: synced TV color when its TV is on, else its own hue.
     function light2DColor(obj) {
-      const sync = tvSyncColorFor(obj);
-      if (sync && obj.tv_group) { const tv = findTVById(obj.tv_group); if (tv) return tv.sync_color || '#3b82f6'; }
+      const ov = lightOverrideColor(obj);
+      if (ov) return rgb01ToHex(ov);
       return obj.subtype === 'tv-backlight' ? '#60a5fa' : (obj.subtype === 'lamp' ? '#f59e0b' : '#e2e8f0');
     }
     function isSyncingNow(obj) {
-      return !!tvSyncColorFor(obj);
+      return !!lightOverrideColor(obj);
     }
 
     function applyLightVisual(root, obj) {
       if (!root) return;
-      const sync = tvSyncColorFor(obj);
+      const sync = lightOverrideColor(obj);
       const on = (obj.on !== false) || !!sync;       // a synced light glows even if its own switch is off
       const rgb = sync ? sync : kelvinToColor(obj.color_temp || 4000);
       const e = on ? (sync ? 0.6 : 0.35) : 0;        // brighter emissive when actively syncing to a TV
@@ -870,7 +970,7 @@
     function applyLightProperties(entry, obj) {
       if (!entry || !entry.light) return;
       const l = entry.light;
-      const sync = tvSyncColorFor(obj);
+      const sync = lightOverrideColor(obj);
       l.visible = sync ? true : (obj.on !== false);
       const rgb = sync ? sync : kelvinToColor(obj.color_temp || 4000);
       l.color.setRGB(rgb.r, rgb.g, rgb.b);
@@ -1206,7 +1306,7 @@
       const halfW = w / 2, halfD = d / 2;
       const wx = (obj.x - 0.5) * w;
       const wz = (obj.z - 0.5) * d;
-      const wy = HEIGHT_Y[obj.height] || 0.18;
+      const wy = getObjectY(obj);
 
       // ... (the entire original geometry creation for lights/furniture/tv is long; we will call a refactored core and then parent)
       // To keep patch small and correct, we temporarily use a scene temp add then reparent.
@@ -1424,7 +1524,7 @@
       const halfW = w / 2, halfD = d / 2;
       const wx = (obj.x - 0.5) * w;
       const wz = (obj.z - 0.5) * d;
-      const wy = HEIGHT_Y[obj.height] || 0.18;
+      const wy = getObjectY(obj);
 
       let mesh;
       const cat = obj.type;
@@ -1729,7 +1829,7 @@
       const { w, d } = getRoomSize();
       const wx = (obj.x - 0.5) * w;
       const wz = (obj.z - 0.5) * d;
-      const wy = HEIGHT_Y[obj.height] || 0.18;
+      const wy = getObjectY(obj);
       entry.mesh.position.set(wx, wy, wz);
       applyObjectTransform(obj);
       if (currentView === '3d' && renderer) {
@@ -1808,6 +1908,7 @@
       const obj = room && room.objects && room.objects.find(o => o.id === id);
       if (!obj) return;
       obj.height = newHeight;
+      obj.y_ft = HEIGHT_Y[newHeight];   // keep the exact-height slider in sync with the level
       updateMeshPosition(obj);
       const entry = objectMeshes[id];
       if (entry && entry.mesh) {
@@ -1871,13 +1972,19 @@
             <div class="text-xs px-2 py-px rounded bg-zinc-800 border border-zinc-700">${obj.type} / ${obj.subtype}</div>
           </div>
           <div>
-            <div class="text-xs text-zinc-400 mb-1">Height</div>
+            <div class="text-xs text-zinc-400 mb-1">Height level</div>
             <div class="flex gap-x-1" id="height-group">
               ${heights.map(h => `
                 <button data-h="${h.v}" class="height-btn flex-1 ${obj.height === h.v ? 'active' : ''}">${h.label}</button>
               `).join('')}
             </div>
           </div>
+          ${ (obj.type === 'light' || obj.type === 'tv') ? `
+          <div>
+            <div class="text-xs text-zinc-400 mb-1">Exact height <span id="yft-val" class="text-emerald-300">${getObjectY(obj).toFixed(1)}</span> ft <span class="text-[10px] text-zinc-500">(off floor)</span></div>
+            <input type="range" id="obj-yft" min="0" max="9" step="0.1" value="${getObjectY(obj)}" class="w-full accent-emerald-500">
+            <div class="text-[10px] text-zinc-500">Fine vertical position — also sets which screen row this light samples in Ambient Preview.</div>
+          </div>` : '' }
           <div>
             <div class="text-xs text-zinc-400 mb-1">Scale <span id="scale-val">${(obj.scale || 1).toFixed(2)}</span></div>
             <input type="range" id="obj-scale" min="0.3" max="3.5" step="0.05" value="${obj.scale || 1}" class="w-full accent-emerald-500">
@@ -2085,6 +2192,24 @@
       container.querySelectorAll('#height-group button').forEach(btn => {
         btn.onclick = () => setObjectHeight(selectedId, btn.dataset.h);
       });
+
+      // Exact height slider (numeric y_ft) — live 3D move + ambient re-sample
+      const yft = container.querySelector('#obj-yft');
+      const yftVal = container.querySelector('#yft-val');
+      if (yft) {
+        yft.oninput = () => {
+          obj.y_ft = parseFloat(yft.value);
+          if (yftVal) yftVal.textContent = obj.y_ft.toFixed(1);
+          updateMeshPosition(obj);
+          // height changes the sampled screen row, so re-color paired lights live
+          const entry = objectMeshes[obj.id];
+          if (entry) applyLightProperties(entry, obj);
+          if (obj.type === 'tv') refreshAllAmbient(); // moving the screen affects all its lights
+          forceRender3D();
+          draw2DScene();
+          scheduleSave();
+        };
+      }
 
       // Scale slider (live preview + auto save)
       const scaleSlider = container.querySelector('#obj-scale');
@@ -2792,7 +2917,7 @@
         const room = modelData.rooms[roomId];
         const obj = room && room.objects && room.objects.find(o => o.id === draggedObjectId);
         if (entry && entry.mesh && obj) {
-          const wy = HEIGHT_Y[obj.height] || 0.18;
+          const wy = getObjectY(obj);
           entry.mesh.position.y = wy;
           const bs = obj.scale || 1;
           entry.mesh.scale.set(bs, bs, bs);
