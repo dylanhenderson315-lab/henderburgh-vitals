@@ -866,15 +866,34 @@
       const light = 0.28 + clamp01(v) * 0.46; // darker low on the screen, brighter up top
       return hslToRgb01(hue, 0.85, light);
     }
-    // The ambient color a light should take from its TV, based on horizontal pos + height.
-    function ambientColorFor(obj) {
-      if (!ambientPreview || !obj || obj.type !== 'light' || !obj.tv_group) return null;
+    // The TV screen region a light is responsible for, as (u,v) in 0..1.
+    // This is the spatial source of truth: derived from the lamp's horizontal position
+    // and height relative to its paired TV — UNLESS the user manually pinned a region
+    // (obj.region), which then wins. u: 0 left .. 1 right; v: 0 bottom .. 1 top.
+    function screenUV(obj) {
+      if (!obj || obj.type !== 'light' || !obj.tv_group) return null;
       const tv = findTVById(obj.tv_group);
       if (!tv) return null;
+      if (obj.region && typeof obj.region.u === 'number' && typeof obj.region.v === 'number') {
+        return { u: clamp01(obj.region.u), v: clamp01(obj.region.v), tv, manual: true };
+      }
       const b = tvScreenBounds(tv);
       const u = clamp01((obj.x - b.left) / Math.max(1e-3, b.right - b.left));
       const v = clamp01((getObjectY(obj) - b.bottom) / Math.max(1e-3, b.top - b.bottom));
-      return sampleTVRegion(u, v);
+      return { u, v, tv, manual: false };
+    }
+    // Human label for a region, e.g. "Bottom-Right", "Center", "Top-Left".
+    function regionLabel(u, v) {
+      const col = u < 0.34 ? 'Left' : (u > 0.66 ? 'Right' : 'Center');
+      const row = v > 0.66 ? 'Top' : (v < 0.34 ? 'Bottom' : 'Middle');
+      if (row === 'Middle' && col === 'Center') return 'Center';
+      return `${row}-${col}`;
+    }
+    // The ambient color a light should take from its TV (its region's screen color).
+    function ambientColorFor(obj) {
+      if (!ambientPreview) return null;
+      const uv = screenUV(obj);
+      return uv ? sampleTVRegion(uv.u, uv.v) : null;
     }
     // Single resolver: ambient-preview region color wins, else flat TV-on sync color, else none.
     function lightOverrideColor(obj) {
@@ -2113,6 +2132,15 @@
         // --- TV Group: pair this light to a TV as bias/ambient lighting ---
         const lightRoomTVs = (room.objects || []).filter(o => o.type === 'tv');
         const pairedTV = obj.tv_group ? lightRoomTVs.find(t => t.id === obj.tv_group) : null;
+        // Screen region this light owns (auto from position, or manually pinned).
+        const uvNow = obj.tv_group ? screenUV(obj) : null;
+        // 3x3 picker cells -> (u,v) at cell centers; rows top->bottom.
+        const regionCells = [
+          [{u:0.17,v:0.83},{u:0.5,v:0.83},{u:0.83,v:0.83}],
+          [{u:0.17,v:0.5 },{u:0.5,v:0.5 },{u:0.83,v:0.5 }],
+          [{u:0.17,v:0.17},{u:0.5,v:0.17},{u:0.83,v:0.17}],
+        ];
+        const cellActive = (c) => uvNow && Math.abs(uvNow.u - c.u) < 0.17 && Math.abs(uvNow.v - c.v) < 0.17;
         html += `
           <div class="mt-2 pt-2 border-t border-zinc-700">
             <div class="text-xs text-zinc-400 mb-1">TV Group <span class="text-[10px] text-zinc-500">(bias / ambient)</span></div>
@@ -2127,6 +2155,23 @@
             </div>
             <div class="text-[10px] ${pairedTV && pairedTV.tv_state === 'on' ? 'text-emerald-400' : 'text-zinc-500'} mt-1">
               ${pairedTV && pairedTV.tv_state === 'on' ? '● Syncing now — '+(pairedTV.name||'TV')+' is on' : 'Paired to '+((pairedTV&&pairedTV.name)||'TV')+' (turn TV on to preview)'}
+            </div>
+
+            <!-- Screen region this light is responsible for (the spatial source of truth) -->
+            <div class="mt-2 pt-2 border-t border-zinc-800">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[11px] text-zinc-400">Screen region <span class="text-zinc-500">${uvNow ? (uvNow.manual ? '(pinned)' : '(from position)') : ''}</span></span>
+                <span class="text-[11px] text-emerald-300">${uvNow ? regionLabel(uvNow.u, uvNow.v) : '—'}</span>
+              </div>
+              <div class="grid grid-cols-3 gap-0.5 w-[84px]" id="region-grid">
+                ${regionCells.map(rowArr => rowArr.map(c => `
+                  <button data-ru="${c.u}" data-rv="${c.v}" class="region-cell h-6 rounded-sm border ${cellActive(c) ? 'bg-emerald-500/40 border-emerald-400' : 'bg-[#111113] border-zinc-700 hover:border-zinc-500'}"></button>
+                `).join('')).join('')}
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <button id="region-auto" class="text-[10px] px-2 py-0.5 rounded border ${obj.region ? 'border-zinc-700 hover:bg-zinc-800' : 'border-emerald-800 text-emerald-300'}">Auto from position</button>
+                <span class="text-[10px] text-zinc-500">Tap a cell to pin manually</span>
+              </div>
             </div>` : `<div class="text-[10px] text-zinc-500 mt-0.5">Pair to a TV so it reacts as bias/ambient lighting.</div>`}
           </div>
         `;
@@ -2433,6 +2478,27 @@
             renderInspector();
           };
         });
+
+        // Screen-region picker: pin a region manually, or revert to position-derived.
+        container.querySelectorAll('.region-cell').forEach(cell => {
+          cell.onclick = () => {
+            obj.region = { u: parseFloat(cell.dataset.ru), v: parseFloat(cell.dataset.rv) };
+            const entry = objectMeshes[selectedId];
+            if (entry) applyLightProperties(entry, obj);
+            forceRender3D(); draw2DScene();
+            saveModel();
+            renderInspector();
+          };
+        });
+        const regionAuto = container.querySelector('#region-auto');
+        if (regionAuto) regionAuto.onclick = () => {
+          delete obj.region;   // back to "derived from position"
+          const entry = objectMeshes[selectedId];
+          if (entry) applyLightProperties(entry, obj);
+          forceRender3D(); draw2DScene();
+          saveModel();
+          renderInspector();
+        };
       }
 
       // TV controls: power preview, ambient color, paired-light management
@@ -2926,6 +2992,8 @@
         saveModel();
         forceRender3D();
         draw2DScene();
+        // Refresh the inspector so the position-derived screen region updates after a move.
+        if (draggedObjectId === selectedId) renderInspector();
       }
 
       if (isDraggingRoom && draggedRoomId) {
