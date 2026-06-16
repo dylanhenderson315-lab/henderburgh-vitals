@@ -1247,7 +1247,7 @@
         // === Background fast refresh for Heart Rate card only (more "live" feel) ===
         // This runs independently of the full dashboard refresh.
         // Uses the fast endpoint which can bypass cache.
-        const hrFastInterval = 90 * 1000; // every 90 seconds
+        const hrFastInterval = 45 * 1000; // every 45s (pauses when tab hidden to protect Oura quota)
         let hrFastTimer = null;
 
         function updateMainHeartRate() {
@@ -1275,8 +1275,8 @@
         function startHrFastUpdates() {
           if (hrFastTimer) clearInterval(hrFastTimer);
           hrFastTimer = setInterval(updateMainHeartRate, hrFastInterval);
-          // Prime it
-          setTimeout(updateMainHeartRate, 15000);
+          // Prime it quickly so the live HR shows soon after load
+          setTimeout(updateMainHeartRate, 4000);
         }
 
         document.addEventListener('visibilitychange', () => {

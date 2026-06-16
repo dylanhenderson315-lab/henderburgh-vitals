@@ -27,7 +27,7 @@ CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL))
 HEARTRATE_CACHE_TTL = int(os.getenv("HEARTRATE_CACHE_TTL", "120" if PUBLIC_MODE else "30"))
 
 PORT = int(os.getenv("PORT", 8000))
-AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "900"))
+AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "300"))
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
 SESSION_COOKIE_NAME = "admin_session"
