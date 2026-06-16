@@ -67,6 +67,26 @@ def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
     return HTMLResponse(template.render(**context))
 
 
+def client_ip(request: Request) -> str:
+    """Real visitor IP behind Cloudflare + Railway.
+
+    The site is proxied by Cloudflare, so request.client.host (and often the first
+    X-Forwarded-For hop) is a Cloudflare edge IP — not the visitor. Cloudflare puts the
+    true client IP in CF-Connecting-IP (and True-Client-IP on Enterprise). Prefer those,
+    then fall back to the first X-Forwarded-For entry, then the raw socket.
+    """
+    for header in ("cf-connecting-ip", "true-client-ip"):
+        val = (request.headers.get(header) or "").strip()
+        if val:
+            return val
+    xff = (request.headers.get("x-forwarded-for") or "").strip()
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else "unknown"
+
+
 @app.post("/api/auth/unlock")
 async def auth_unlock(request: Request, body: dict = Body(...)):
     token = (body.get("token") or "").strip()
@@ -313,8 +333,7 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
         days = 14
     # Basic rate limiting in public mode
     if PUBLIC_MODE:
-        client_ip = request.client.host if request.client else "unknown"
-        if not rate_limiter.is_allowed(client_ip):
+        if not rate_limiter.is_allowed(client_ip(request)):
             return HTMLResponse(
                 "<div style='font-family:sans-serif;padding:40px;text-align:center;color:#666'>"
                 "Too many requests. Please slow down.</div>",
@@ -848,9 +867,8 @@ async def post_access_request(request: Request, name: str = Form(""), message: s
     if not message or not message.strip():
         raise HTTPException(400, "Message is required")
 
-    # Robust client IP (handles reverse proxies / Railway / nginx X-Forwarded-For)
-    xff = request.headers.get("x-forwarded-for", "") or ""
-    ip = xff.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    # Real visitor IP via Cloudflare's CF-Connecting-IP (was logging Cloudflare edge IPs)
+    ip = client_ip(request)
     ua = request.headers.get("user-agent", "unknown")
     ts = datetime.now(timezone.utc).isoformat()
 

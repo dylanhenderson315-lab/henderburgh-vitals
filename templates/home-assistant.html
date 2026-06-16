@@ -1574,6 +1574,25 @@
       }, 50);
     }
 
+    // Friendly icon for a WiZ scene/effect name so the mode grid reads at a glance for anyone.
+    // (Effects come from Home Assistant's effect_list for the bulb; newer WiZ-app-only scenes
+    // appear here automatically once the HA WiZ integration adds them.)
+    function effectIcon(name) {
+      const n = (name || '').toLowerCase();
+      const map = [
+        ['ocean','🌊'],['deepdive','🤿'],['romance','💗'],['sunset','🌇'],['party','🎉'],
+        ['fireplace','🔥'],['cozy','🛋️'],['forest','🌲'],['jungle','🌴'],['pastel','🎨'],
+        ['wake','🌅'],['bedtime','🌙'],['night','🌜'],['warm white','🟡'],['daylight','☀️'],
+        ['cool white','❄️'],['cool blue','🧊'],['focus','🎯'],['relax','😌'],['true colors','🌈'],
+        ['tv','📺'],['plantgrowth','🌱'],['spring','🌷'],['summer','🌞'],['fall','🍂'],['autumn','🍂'],
+        ['mojito','🍹'],['club','🪩'],['christmas','🎄'],['halloween','🎃'],['candle','🕯️'],
+        ['golden','🟠'],['pulse','💓'],['steampunk','⚙️'],['rhythm','🎵'],['snow','❄️'],
+        ['aurora','🌌'],['rainbow','🌈'],['diwali','🪔'],['white','💡'],['alarm','⏰']
+      ];
+      for (const [k, ic] of map) { if (n.includes(k)) return ic; }
+      return '✨';
+    }
+
     // --- Light Detail View (premium slide-in panel) ---
     function openLightDetail(eid) {
       const panel = document.getElementById('light-detail');
@@ -1665,8 +1684,8 @@
                 ${effectList.map(eff => {
                   const safe = eff.replace(/'/g, "\\'");
                   const active = curEffect === eff ? 'active !bg-emerald-500/20 !border-emerald-400 !text-white' : '';
-                  return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();" 
-                          class="effect-btn flex-1 basis-[48%] min-w-[110px] text-left px-3 py-2 text-[13px] leading-tight ${active} rounded-xl">${eff}</button>`;
+                  return `<button onclick="applyEffect('${eid}', '${safe}', this); openLightDetail('${eid}'); event.stopImmediatePropagation();"
+                          class="effect-btn flex-1 basis-[48%] min-w-[110px] text-left px-3 py-2 text-[13px] leading-tight ${active} rounded-xl"><span class="mr-1.5">${effectIcon(eff)}</span>${eff}</button>`;
                 }).join('')}
               </div>
             </div>` : ''}
