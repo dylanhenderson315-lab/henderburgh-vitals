@@ -916,10 +916,43 @@ async def get_model():
 
 @app.post("/api/model")
 async def post_model(request: Request, data: dict):
-    """Save model data. Admin only — the model is locked so visitors can't alter it."""
+    """Save model data. Admin only — the model is locked so visitors can't alter it.
+    Rejects stale writes (an old tab whose client_rev is behind) to prevent data loss."""
     require_admin(request)
-    persistence.save_model(data)
-    return {"status": "saved"}
+    try:
+        rev = persistence.save_model(data)
+    except persistence.StaleWriteError:
+        raise HTTPException(status_code=409, detail="Stale save: this page is out of date. Reload before editing.")
+    return {"status": "saved", "rev": rev}
+
+
+@app.get("/api/model/backups")
+async def get_model_backups(request: Request):
+    """Admin: list saved model snapshots (for recovery)."""
+    require_admin(request)
+    return {"backups": persistence.list_model_backups()}
+
+
+@app.get("/api/model/backup/{name}")
+async def get_model_backup(name: str, request: Request):
+    """Admin: fetch one backup's full content (for recovery/inspection)."""
+    require_admin(request)
+    data = persistence.read_model_backup(name)
+    if data is None:
+        raise HTTPException(404, "Backup not found")
+    return data
+
+
+@app.post("/api/model/restore/{name}")
+async def restore_model_backup(name: str, request: Request):
+    """Admin: restore a named backup as the current model."""
+    require_admin(request)
+    data = persistence.read_model_backup(name)
+    if data is None:
+        raise HTTPException(404, "Backup not found")
+    data.pop("client_rev", None)
+    rev = persistence.save_model(data)
+    return {"status": "restored", "from": name, "rev": rev}
 
 
 

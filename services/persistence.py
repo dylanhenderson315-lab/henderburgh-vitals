@@ -49,9 +49,12 @@ def _restore_model_if_needed():
     try:
         data = json.loads(src.read_text(encoding='utf-8'))
         data["seed_version"] = MODEL_SEED_VERSION
-        # keep a copy of whatever was there before, just in case
+        # keep a TIMESTAMPED copy of whatever was there before (never overwrite a recovery point)
         if dest.exists():
-            (DATA_PATH / "model.pre-restore.json").write_text(dest.read_text(encoding='utf-8'), encoding='utf-8')
+            from datetime import datetime as _dt, timezone as _tz
+            _stamp = _dt.now(_tz.utc).strftime("%Y%m%d-%H%M%S")
+            bdir = DATA_PATH / "model_backups"; bdir.mkdir(exist_ok=True)
+            (bdir / f"prerestore-{_stamp}.json").write_text(dest.read_text(encoding='utf-8'), encoding='utf-8')
         dest.write_text(json.dumps(data, indent=2), encoding='utf-8')
         print(f"♻️  Restored model.json from baseline (seed_version -> {MODEL_SEED_VERSION})")
     except Exception as e:
@@ -247,14 +250,72 @@ def load_model():
                     # Whole house support: preserve room world layout + lock
                     if "world" not in r: r["world"] = {"x": 0, "z": 0, "rot": 0}
                     if "locked" not in r: r["locked"] = False
+            data.setdefault("rev", 0)  # concurrency revision for the stale-write guard
             return data
         except Exception:
             pass
-    return json.loads(json.dumps(DEFAULT_MODEL))
+    d = json.loads(json.dumps(DEFAULT_MODEL))
+    d.setdefault("rev", 0)
+    return d
+
+class StaleWriteError(Exception):
+    """Raised when a save is based on an older revision than what's stored (stale tab)."""
+
+
+def list_model_backups():
+    """Recovery: all saved model snapshots (newest first) with their object counts."""
+    out = []
+    bdir = DATA_PATH / "model_backups"
+    candidates = []
+    if (DATA_PATH / "model.bak.json").exists():
+        candidates.append(DATA_PATH / "model.bak.json")
+    if (DATA_PATH / "model.pre-restore.json").exists():
+        candidates.append(DATA_PATH / "model.pre-restore.json")
+    if bdir.exists():
+        candidates += sorted(bdir.glob("*.json"), reverse=True)
+    for p in candidates:
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            objs = sum(len(r.get("objects", [])) for r in d.get("rooms", {}).values())
+            out.append({"name": p.name, "objects": objs, "rev": d.get("rev"), "seed_version": d.get("seed_version")})
+        except Exception:
+            continue
+    return out
+
+
+def read_model_backup(name: str):
+    """Return a named backup's parsed content (recovery)."""
+    safe = Path(name).name  # no path traversal
+    for p in (DATA_PATH / safe, DATA_PATH / "model_backups" / safe):
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                return None
+    return None
+
 
 def save_model(data):
     if not isinstance(data, dict):
         data = {}
+
+    # --- Stale-write guard (prevents an old tab from clobbering newer data) ---
+    # Each save bumps a monotonic rev. If the client posts a client_rev older than what's
+    # stored, reject it instead of overwriting good data with stale/default content.
+    stored_rev = 0
+    try:
+        if MODEL_FILE.exists():
+            stored_rev = int(json.loads(MODEL_FILE.read_text(encoding="utf-8")).get("rev", 0))
+    except Exception:
+        stored_rev = 0
+    client_rev = data.get("client_rev")
+    if client_rev is not None:
+        try:
+            if int(client_rev) < stored_rev:
+                raise StaleWriteError(f"client_rev {client_rev} < stored {stored_rev}")
+        except (TypeError, ValueError):
+            pass
+
     clean = {
         "rooms": data.get("rooms") or DEFAULT_MODEL["rooms"],
         "selected_room": data.get("selected_room") or DEFAULT_MODEL["selected_room"]
@@ -263,9 +324,10 @@ def save_model(data):
     # blueprint default positions once and never clobbers the user's manual room drags.
     if "layout_version" in data:
         clean["layout_version"] = data["layout_version"]
-    # Preserve the recovery marker so a restored file isn't re-restored on the next boot.
-    if "seed_version" in data:
-        clean["seed_version"] = data["seed_version"]
+    # ALWAYS stamp the recovery marker + bump the revision so seed_version can never go
+    # missing (which previously re-armed the restore-on-boot and wiped edits).
+    clean["seed_version"] = MODEL_SEED_VERSION
+    clean["rev"] = stored_rev + 1
     for rid, rdef in DEFAULT_MODEL["rooms"].items():
         if rid not in clean["rooms"]:
             clean["rooms"][rid] = rdef
@@ -316,6 +378,7 @@ def save_model(data):
     except Exception:
         pass
     write_json(MODEL_FILE, clean)
+    return clean["rev"]
 
 
 

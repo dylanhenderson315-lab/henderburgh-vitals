@@ -590,6 +590,7 @@
       if (!modelData || !modelData.rooms) {
         modelData = { rooms: {}, selected_room: 'game-room' };
       }
+      currentRev = (typeof modelData.rev === 'number') ? modelData.rev : 0;  // sync the stale-write guard
       Object.keys(ROOM_DIMS).forEach(rid => {
         if (!modelData.rooms[rid]) {
           modelData.rooms[rid] = { name: ROOM_DIMS[rid].name, dims: { width_ft: ROOM_DIMS[rid].width_ft, depth_ft: ROOM_DIMS[rid].depth_ft }, objects: [] };
@@ -672,22 +673,38 @@
       }
     }
 
+    let currentRev = 0;            // server revision this page is in sync with
+    let staleReloadPrompted = false;
     async function saveModel(showToast = false) {
       if (!modelData) return;
       if (!canEdit) return;   // locked: visitors cannot persist changes (server enforces too)
       modelData.selected_room = currentRoom;
+      modelData.client_rev = currentRev;   // stale-write guard: server rejects if we're behind
       try {
-        await fetch('/api/model', {
+        const res = await fetch('/api/model', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(modelData)
         });
-        if (showToast) {
-          const t = document.createElement('div');
-          t.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-200 text-xs px-4 py-1 rounded-2xl border border-emerald-800 z-[300]';
-          t.textContent = 'Saved';
-          document.body.appendChild(t);
-          setTimeout(() => t.remove(), 1100);
+        if (res.status === 409) {
+          // Another tab/session saved newer data — don't clobber it.
+          if (!staleReloadPrompted) {
+            staleReloadPrompted = true;
+            alert('This page was out of date (another session edited the model). Reloading so you don’t overwrite newer changes.');
+            location.reload();
+          }
+          return;
+        }
+        if (res.ok) {
+          const j = await res.json().catch(() => ({}));
+          if (typeof j.rev === 'number') currentRev = j.rev;   // stay in sync
+          if (showToast) {
+            const t = document.createElement('div');
+            t.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-emerald-900 text-emerald-200 text-xs px-4 py-1 rounded-2xl border border-emerald-800 z-[300]';
+            t.textContent = 'Saved';
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 1100);
+          }
         }
       } catch (e) {}
     }
