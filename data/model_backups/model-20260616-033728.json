@@ -1,0 +1,603 @@
+{
+  "rooms": {
+    "game-room": {
+      "name": "Game Room",
+      "dims": {
+        "width_ft": 9,
+        "depth_ft": 16
+      },
+      "objects": [
+        {
+          "id": "seed_tv",
+          "type": "light",
+          "subtype": "tv-backlight",
+          "name": "T.V Lights",
+          "x": 1,
+          "z": 0.5,
+          "height": "tv",
+          "scale": 1,
+          "rotation": 0,
+          "entity_id": "light.t_v_lights",
+          "tv_group": null,
+          "tv_role": "ambient",
+          "on": true
+        },
+        {
+          "id": "obj_1781488933652_3321",
+          "type": "furniture",
+          "subtype": "couch",
+          "name": "Couch",
+          "x": 0.1,
+          "z": 0.4,
+          "height": 2.8,
+          "scale": 0.8,
+          "rotation": 90,
+          "length": 14,
+          "width": 2.5
+        },
+        {
+          "id": "obj_1781489037347_4125",
+          "type": "furniture",
+          "subtype": "bookshelf",
+          "name": "Bookshelf",
+          "x": 0.5,
+          "z": 0,
+          "height": 6.5,
+          "scale": 1,
+          "rotation": 0,
+          "length": 7.2,
+          "width": 0.7,
+          "params": {}
+        },
+        {
+          "id": "obj_1781489185603_6509",
+          "type": "door",
+          "subtype": "door",
+          "name": "Door",
+          "x": 0,
+          "z": 0.9,
+          "height": 7,
+          "scale": 1,
+          "rotation": 90,
+          "length": 2.8,
+          "width": 0.2
+        },
+        {
+          "id": "obj_1781489206725_6145",
+          "type": "furniture",
+          "subtype": "l_desk",
+          "name": "L-Desk",
+          "x": 0.8,
+          "z": 0.9500000000000001,
+          "height": 2.5,
+          "scale": 1,
+          "rotation": 180,
+          "length": 5,
+          "width": 2.5,
+          "params": {}
+        },
+        {
+          "id": "obj_1781489250907_215",
+          "type": "tv",
+          "subtype": "tv",
+          "name": "TV",
+          "x": 1,
+          "z": 0.5,
+          "height": "tv",
+          "scale": 2.3,
+          "rotation": 90,
+          "tv_state": "off",
+          "sync_color": "#3b82f6"
+        },
+        {
+          "id": "obj_1781490557393_4100",
+          "type": "light",
+          "subtype": "lamp",
+          "name": "Lamp",
+          "x": 0.30000000000000004,
+          "z": 0,
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": "light.bookshelf_lamp",
+          "tv_group": null,
+          "tv_role": "ambient"
+        }
+      ],
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 21.28717356989351,
+        "z": 14.389130537382588,
+        "rot": 0
+      },
+      "locked": true
+    },
+    "living-room": {
+      "name": "Living Room",
+      "dims": {
+        "width_ft": 13.0833,
+        "depth_ft": 23.4167
+      },
+      "objects": [
+        {
+          "id": "seed_lamp_lr",
+          "type": "light",
+          "subtype": "lamp",
+          "name": "Floor Lamp",
+          "x": 0.9500000000000001,
+          "z": 0.9500000000000001,
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        },
+        {
+          "id": "seed_tv_lr",
+          "type": "tv",
+          "subtype": "tv",
+          "name": "TV",
+          "x": 1,
+          "z": 0.6000000000000001,
+          "height": "tv",
+          "scale": 2.8,
+          "rotation": 90,
+          "tv_state": "off",
+          "sync_color": "#3b82f6"
+        },
+        {
+          "id": "obj_1781489446765_3828",
+          "type": "furniture",
+          "subtype": "l_couch",
+          "name": "L-Couch",
+          "x": 0.1,
+          "z": 0.8,
+          "height": 2.8,
+          "scale": 1.3,
+          "rotation": 90,
+          "length": 7,
+          "width": 3,
+          "params": {}
+        },
+        {
+          "id": "obj_1781489524522_5429",
+          "type": "furniture",
+          "subtype": "bookshelf",
+          "name": "Bookshelf",
+          "x": 0.1,
+          "z": 0.4,
+          "height": 1.5,
+          "scale": 1,
+          "rotation": 90,
+          "length": 1.9,
+          "width": 0.6,
+          "params": {
+            "shelves": 2,
+            "height": 4.6
+          }
+        },
+        {
+          "id": "obj_1781489616648_7944",
+          "type": "furniture",
+          "subtype": "desk",
+          "name": "Desk",
+          "x": 1,
+          "z": 0.6000000000000001,
+          "height": "floor",
+          "scale": 1,
+          "rotation": 90,
+          "length": 10.1,
+          "width": 1.3
+        },
+        {
+          "id": "obj_1781490612836_6708",
+          "type": "light",
+          "subtype": "tv-backlight",
+          "name": "Backlight",
+          "x": 1,
+          "z": 0.6000000000000001,
+          "height": "tv",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": "light.living_room_tv_lights",
+          "tv_group": null,
+          "tv_role": "ambient"
+        }
+      ],
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 6.804504567488557,
+        "z": 40.59008928797093,
+        "rot": 0
+      },
+      "locked": true
+    },
+    "master-bedroom": {
+      "name": "Master Bedroom",
+      "dims": {
+        "width_ft": 12.1667,
+        "depth_ft": 11.8333
+      },
+      "objects": [
+        {
+          "id": "obj_1781490017583_9345",
+          "type": "furniture",
+          "subtype": "bed",
+          "name": "Bed",
+          "x": 0.8,
+          "z": 0.55,
+          "height": 2,
+          "scale": 1,
+          "rotation": 90,
+          "length": 6.5,
+          "width": 5
+        },
+        {
+          "id": "obj_1781490052653_8216",
+          "type": "tv",
+          "subtype": "tv",
+          "name": "TV",
+          "x": 0,
+          "z": 0.5,
+          "height": "tv",
+          "scale": 1,
+          "rotation": 270,
+          "tv_state": "off",
+          "sync_color": "#3b82f6"
+        },
+        {
+          "id": "obj_1781490720383_30",
+          "type": "light",
+          "subtype": "lamp",
+          "name": "Lamp",
+          "x": 0.9,
+          "z": 0.9,
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": "light.tv_lamp_2",
+          "tv_group": null,
+          "tv_role": "ambient"
+        },
+        {
+          "id": "obj_1781490724194_3593",
+          "type": "light",
+          "subtype": "lamp",
+          "name": "Lamp",
+          "x": 0.9,
+          "z": 0.15000000000000002,
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": "light.tv_lamp_1",
+          "tv_group": null,
+          "tv_role": "ambient"
+        }
+      ],
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 20.271670642466056,
+        "z": 46.22492794637807,
+        "rot": 0
+      },
+      "locked": true
+    },
+    "hallway": {
+      "name": "Hallway",
+      "dims": {
+        "width_ft": 3.1667,
+        "depth_ft": 16
+      },
+      "objects": [
+        {
+          "id": "obj_1781490119173_87",
+          "type": "light",
+          "subtype": "recessed",
+          "name": "Recessed",
+          "x": 0.5,
+          "z": 0,
+          "height": "ceiling",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        },
+        {
+          "id": "obj_1781490126702_6220",
+          "type": "light",
+          "subtype": "recessed",
+          "name": "Recessed",
+          "x": 0.5,
+          "z": 0.35000000000000003,
+          "height": "ceiling",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        },
+        {
+          "id": "obj_1781490129829_5252",
+          "type": "light",
+          "subtype": "recessed",
+          "name": "Recessed",
+          "x": 0.5,
+          "z": 0.65,
+          "height": "ceiling",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        },
+        {
+          "id": "obj_1781490133632_1080",
+          "type": "light",
+          "subtype": "recessed",
+          "name": "Recessed",
+          "x": 0.5,
+          "z": 1,
+          "height": "ceiling",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        }
+      ],
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 14.845581907512969,
+        "z": 14.469187069654367,
+        "rot": 0
+      },
+      "locked": true
+    },
+    "kitchen": {
+      "name": "Kitchen",
+      "dims": {
+        "width_ft": 12.4167,
+        "depth_ft": 10
+      },
+      "objects": [
+        {
+          "id": "seed_cab1",
+          "type": "furniture",
+          "subtype": "table",
+          "name": "Counter",
+          "x": 0.15000000000000002,
+          "z": 0.1,
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0
+        },
+        {
+          "id": "seed_light_k",
+          "type": "light",
+          "subtype": "recessed",
+          "name": "Recessed 1",
+          "x": 0.30000000000000004,
+          "z": 0.45,
+          "height": "ceiling",
+          "scale": 1,
+          "rotation": 0,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        },
+        {
+          "id": "obj_1781490909943_4258",
+          "type": "furniture",
+          "subtype": "table",
+          "name": "Table",
+          "x": 0.1,
+          "z": 0.6000000000000001,
+          "height": 2.5,
+          "scale": 1,
+          "rotation": 90,
+          "length": 7.8,
+          "width": 3
+        },
+        {
+          "id": "obj_1781490967915_5183",
+          "type": "furniture",
+          "subtype": "table",
+          "name": "Table",
+          "x": 0.5,
+          "z": 0.8500000000000001,
+          "height": 2.5,
+          "scale": 1,
+          "rotation": 0,
+          "length": 8.3,
+          "width": 2.8
+        },
+        {
+          "id": "obj_1781491047198_2567",
+          "type": "light",
+          "subtype": "recessed",
+          "name": "Recessed",
+          "x": 0.7000000000000001,
+          "z": 0.45,
+          "height": "ceiling",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        }
+      ],
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "lights": {},
+      "furniture": [],
+      "world": {
+        "x": 6.679012724812103,
+        "z": 22.944941248181696,
+        "rot": 0
+      },
+      "locked": true
+    },
+    "3rd-bedroom": {
+      "name": "3rd Bedroom",
+      "dims": {
+        "width_ft": 11.3333,
+        "depth_ft": 16.3333
+      },
+      "objects": [
+        {
+          "id": "obj_1781491249733_505",
+          "type": "furniture",
+          "subtype": "desk",
+          "name": "Desk",
+          "x": 0.45,
+          "z": 0.9500000000000001,
+          "height": 2.5,
+          "scale": 1,
+          "rotation": 0,
+          "length": 3.4,
+          "width": 1.6
+        },
+        {
+          "id": "obj_1781491278399_2066",
+          "type": "light",
+          "subtype": "lamp",
+          "name": "Lamp",
+          "x": 0.30000000000000004,
+          "z": 0.9500000000000001,
+          "height": "floor",
+          "scale": 1,
+          "rotation": 0,
+          "on": true,
+          "brightness": 70,
+          "color_temp": 4000,
+          "entity_id": null,
+          "tv_group": null,
+          "tv_role": "ambient"
+        }
+      ],
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "world": {
+        "x": 7.137315448428474,
+        "z": 8.091753752863859,
+        "rot": 0
+      },
+      "locked": true,
+      "lights": {},
+      "furniture": []
+    },
+    "entry-foyer": {
+      "name": "Entry / Foyer",
+      "dims": {
+        "width_ft": 12.1667,
+        "depth_ft": 6
+      },
+      "objects": [],
+      "filler": true,
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "world": {
+        "x": 19.1667,
+        "z": 3,
+        "rot": 0
+      },
+      "locked": true,
+      "lights": {},
+      "furniture": []
+    },
+    "baths-closets": {
+      "name": "Baths & Closets",
+      "dims": {
+        "width_ft": 12.1667,
+        "depth_ft": 16.9167
+      },
+      "objects": [],
+      "filler": true,
+      "mode": "true-colors",
+      "settings": {
+        "intensity": 70,
+        "speed": 40,
+        "brightnessLimit": 85
+      },
+      "world": {
+        "x": 19.1667,
+        "z": 30.4583,
+        "rot": 0
+      },
+      "locked": true,
+      "lights": {},
+      "furniture": []
+    }
+  },
+  "selected_room": "3rd-bedroom",
+  "layout_version": 4
+}
