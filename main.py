@@ -87,11 +87,34 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+# Failed unlock attempts per IP (in-memory), for brute-force protection on the admin PIN.
+_UNLOCK_FAILS: Dict[str, list] = {}
+
+
 @app.post("/api/auth/unlock")
 async def auth_unlock(request: Request, body: dict = Body(...)):
+    import hmac as _hmac
+    import time as _time
+
+    ip = client_ip(request)
+    now = _time.time()
+    window, max_fails, lock_secs = 900, 5, 900  # 5 tries / 15 min, then 15-min lockout
+
+    fails = [t for t in _UNLOCK_FAILS.get(ip, []) if now - t < window]
+    if len(fails) >= max_fails:
+        # Brute-force protection: makes a short PIN safe (5 guesses per 15 min).
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+
     token = (body.get("token") or "").strip()
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    # constant-time compare to avoid timing leaks
+    ok = bool(ADMIN_TOKEN) and _hmac.compare_digest(token, ADMIN_TOKEN)
+    if not ok:
+        fails.append(now)
+        _UNLOCK_FAILS[ip] = fails
+        remaining = max(0, max_fails - len(fails))
+        raise HTTPException(status_code=403, detail=f"Invalid admin token ({remaining} attempts left)")
+
+    _UNLOCK_FAILS.pop(ip, None)  # reset on success
     session_id = create_admin_session()
     response = JSONResponse({"status": "ok", "unlocked": True})
     set_admin_session_cookie(response, session_id)
