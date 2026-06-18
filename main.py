@@ -836,9 +836,9 @@ async def api_ha_poke(request: Request,
         background_tasks: BackgroundTasks = None,
 ):
     """Poke action: instantaneous blink (off ~0.25s then back on). Backend handled.
-    Rate limited server-side + client. Returns instantly (bg task does the sequence).
+    Public on purpose — anyone (e.g. a friend) can poke the lamp. Rate limited so it
+    can't be spammed. Only blinks the office lamp; no other control is exposed.
     """
-    require_admin(request)
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
 

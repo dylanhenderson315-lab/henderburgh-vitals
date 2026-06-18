@@ -1007,7 +1007,7 @@
       }
 
       // fire to backend - instant, no await, sequence runs server-side in bg
-      adminFetch('/api/ha/poke', { method: 'POST' })
+      fetch('/api/ha/poke', { method: 'POST' })
         .catch(() => { /* best effort */ });
 
       // keep the notification side-effects (mark read, clear badge, toast) for the "poked/notified" UX
@@ -1036,7 +1036,7 @@
     // Not wired to the poke button by default (poke button is for the blink poke).
     // Kept here for completeness on home page.
     async function triggerLampNotification() {
-      adminFetch('/api/ha/notify', { method: 'POST' }).catch(() => {});
+      fetch('/api/ha/notify', { method: 'POST' }).catch(() => {});
       // optional: could add icon tint etc, but keep minimal
     }
   </script>
