@@ -461,6 +461,20 @@
       .entity-grid .card {
         min-height: 80px;
       }
+
+      /* --- Simplified mobile light cards (WiZ-style: name + toggle + ONE brightness bar) --- */
+      /* Hide color-temp, RGB and effects on the card; they live behind a tap (detail panel). */
+      .light-card .control-wrapper ~ .control-wrapper { display: none !important; }
+      /* Make the single brightness bar a big, thumb-friendly target */
+      .light-card .control-wrapper input[type="range"] {
+        height: 30px;
+      }
+      .light-card .control-wrapper input[type="range"]::-webkit-slider-thumb {
+        width: 26px; height: 26px;
+      }
+      /* Quiet the dense sub-text so the card reads at a glance */
+      .light-card .text-\[9px\] { display: none; }
+      .light-card { padding: 14px; }
     }
 
     /* Enhanced drag feedback for touch */
