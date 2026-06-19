@@ -2881,12 +2881,56 @@
         </div>`;
     }
 
+    // Whole-card drag-to-dim (WiZ killer move, beaten by live color): drag horizontally
+    // anywhere on a light card to set brightness; the live-color fill follows your finger.
+    // Vertical drags still scroll; taps still open the detail panel.
+    function initDragToDim(card, eid) {
+      if (card._dragDim) return; card._dragDim = true;
+      let sx = 0, sy = 0, sBri = 70, mode = 0; // 0 undecided · 1 dimming · 2 scroll/ignore
+      card.addEventListener('touchstart', (e) => {
+        if (e.target.closest('input,button,select,a,.mode-toggle,.effect-btn')) { mode = 2; return; }
+        const st = getLightState(eid) || {};
+        sBri = st.brightness ? Math.max(1, Math.round(st.brightness / 2.55)) : 70;
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY; mode = 0;
+      }, { passive: true });
+      card.addEventListener('touchmove', (e) => {
+        if (mode === 2) return;
+        const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+        if (mode === 0) {
+          if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) { mode = 2; return; } // let it scroll
+          if (Math.abs(dx) > 12) mode = 1; else return;
+        }
+        if (mode === 1) {
+          e.preventDefault();
+          const w = card.offsetWidth || 320;
+          const pct = Math.max(1, Math.min(100, sBri + Math.round(dx / w * 130)));
+          const st = getLightState(eid) || {};
+          const rgb = (Array.isArray(st.rgb_color) && st.rgb_color.length >= 3) ? st.rgb_color : [255, 196, 120];
+          const c = `rgba(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0},`;
+          card.style.background = `linear-gradient(90deg, ${c}0.30) 0%, ${c}0.30) ${pct}%, rgba(255,255,255,0.015) ${pct}%)`;
+          card.style.borderColor = `${c}0.45)`;
+          const rng = card.querySelector('input[type=range]'); if (rng) rng.value = pct;
+          const lbl = card.querySelector('.tabular-nums'); if (lbl) lbl.textContent = pct + '%';
+          card._pendingBri = pct;
+          debouncedBrightness(eid, String(pct), card);
+        }
+      }, { passive: false });
+      const end = () => { if (mode === 1) card._suppress = Date.now(); mode = 0; };
+      card.addEventListener('touchend', end, { passive: true });
+      card.addEventListener('touchcancel', end, { passive: true });
+      // a drag shouldn't also count as a tap (which opens the detail panel)
+      card.addEventListener('click', (e) => {
+        if (card._suppress && Date.now() - card._suppress < 500) { e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
+    }
+
     function initMobileTouchOnContainer(container) {
       if (window.innerWidth < 768) {
         container.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
           const eid = card.dataset.eid;
           if (eid && !card._touchInit) {
             initTouchDrag(card, eid);
+            if (card.classList.contains('light-card')) initDragToDim(card, eid);
             card._touchInit = true;
           }
         });
