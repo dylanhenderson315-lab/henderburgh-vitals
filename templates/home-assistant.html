@@ -2785,6 +2785,16 @@
 
       const isSkeleton = state === 'unknown' && !isHydrated;
 
+      // Live-color brightness fill: the whole card subtly becomes the bulb's REAL color,
+      // filled to its REAL brightness — so the page is a live mirror of the house (beats
+      // WiZ's monochrome blue). Falls back to a warm white when the bulb has no RGB.
+      const _rgb = st.rgb_color || light.rgb_color || (st.attributes && st.attributes.rgb_color) || [255, 196, 120];
+      const _fillPct = isOn ? (briPct || 100) : 0;
+      const _rgba = (a) => `rgba(${_rgb[0]|0},${_rgb[1]|0},${_rgb[2]|0},${a})`;
+      const _cardStyle = isOn
+        ? `background: linear-gradient(90deg, ${_rgba(0.22)} 0%, ${_rgba(0.22)} ${_fillPct}%, rgba(255,255,255,0.015) ${_fillPct}%); border-color:${_rgba(0.38)};`
+        : '';
+
       // Determine title and sub info. For group reps we show the group as the primary identity.
       let displayName = friendly;
       let subInfoHtml = '';
@@ -2802,7 +2812,7 @@
       }
 
       return `
-        <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}"
+        <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}" style="${_cardStyle}"
              onclick="var _ex=(window.innerWidth<640?'button,input,select,.effect-btn':'button,input[type=range],select,.effect-btn');if(!event.target.closest(_ex))openLightDetail('${eid}');">
           <div class="flex items-start justify-between mb-2">
             <div>
