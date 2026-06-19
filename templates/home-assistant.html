@@ -477,6 +477,20 @@
       .light-card { padding: 14px; }
     }
 
+    /* WiZ-style room/light toggle switch */
+    .wiz-toggle {
+      width: 44px; height: 26px; border-radius: 999px; background: #3f3f46;
+      position: relative; flex: none; transition: background .18s ease; cursor: pointer;
+      border: none; padding: 0;
+    }
+    .wiz-toggle.on { background: #10b981; }
+    .wiz-toggle span {
+      position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+      border-radius: 50%; background: #fff; transition: left .18s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+    .wiz-toggle.on span { left: 21px; }
+
     /* Enhanced drag feedback for touch */
     .dragging {
       opacity: 0.6 !important;
@@ -2051,10 +2065,37 @@
     // Rooms view: stacked premium sections. Each has clear master controls (All On/Off + quick % + slider) + its lights.
     function renderRoomsView(container, searchLower) {
       const rooms = haData.rooms || [];
-      let html = `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-500">— tap a light for full controls</span></div>`;
+      let html = `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-500">— tap a room to jump, toggle to switch it</span></div>`;
 
       if (rooms.length === 0) {
         html += `<div class="card p-6 text-sm text-zinc-400">No rooms yet. Create one from the sidebar.</div>`;
+      }
+
+      // WiZ-style room grid up top: every room's on/off toggle in one screen, no scrolling.
+      if (rooms.length && !searchLower) {
+        html += `<div class="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-5">`;
+        rooms.forEach(room => {
+          const onCount = room.on_count || 0;
+          const total = room.light_count || ((haData.lights_by_room || {})[room.name] || []).length;
+          const anyOn = onCount > 0;
+          const action = anyOn ? 'turn_off' : 'turn_on';
+          const toggle = isUnlocked
+            ? `<button onclick="event.stopPropagation(); roomOrGroupMaster('${room.id}','${action}',false); setTimeout(()=>refreshAllData(),350);" class="wiz-toggle ${anyOn ? 'on' : ''}" aria-label="toggle ${room.name}"><span></span></button>`
+            : '';
+          html += `
+            <div class="card p-3 cursor-pointer flex flex-col justify-between min-h-[92px]" style="${anyOn ? 'border-color:rgba(16,185,129,0.45)' : ''}"
+                 onclick="document.querySelector('[data-room-section=&quot;${room.id}&quot;]')?.scrollIntoView({behavior:'smooth',block:'start'});">
+              <div class="flex items-center justify-between">
+                <i class="fa-solid ${roomIcon(room.name)} ${anyOn ? 'text-emerald-300' : 'text-zinc-500'}"></i>
+                ${toggle}
+              </div>
+              <div class="mt-2">
+                <div class="text-sm font-medium truncate">${room.name}</div>
+                <div class="text-[10px] ${anyOn ? 'text-emerald-400/80' : 'text-zinc-500'}">${onCount}/${total} on</div>
+              </div>
+            </div>`;
+        });
+        html += `</div>`;
       }
 
       rooms.forEach(room => {
@@ -2783,6 +2824,30 @@
     // Reusable premium light card (used by Rooms, Lights, Groups, etc.)
     // When asGroup is provided, renders a single representative card for the whole sync group
     // (using proxy light's state/eid for actions+detail, but group name as title). Controls fan out via getSyncGroupLights.
+    // Pick a clean icon per light from its name (scannability — the #1 quick win).
+    function lightIcon(light) {
+      const n = ((light && (light.friendly_name || light.entity_id)) || '').toLowerCase();
+      if (n.includes('tv') || n.includes('backlight')) return 'fa-tv';
+      if (n.includes('desk')) return 'fa-pen-ruler';
+      if (n.includes('book') || n.includes('shelf')) return 'fa-book';
+      if (n.includes('strip') || n.includes('portable')) return 'fa-bolt';
+      if (n.includes('ceiling') || n.includes('recessed') || n.includes('can')) return 'fa-circle-dot';
+      if (n.includes('office')) return 'fa-lamp';
+      return 'fa-lightbulb';
+    }
+    // Icon per room.
+    function roomIcon(name) {
+      const n = (name || '').toLowerCase();
+      if (n.includes('game')) return 'fa-gamepad';
+      if (n.includes('kitchen')) return 'fa-utensils';
+      if (n.includes('living')) return 'fa-couch';
+      if (n.includes('bed')) return 'fa-bed';
+      if (n.includes('hall')) return 'fa-door-open';
+      if (n.includes('bath')) return 'fa-bath';
+      if (n.includes('office')) return 'fa-desktop';
+      return 'fa-house';
+    }
+
     function createLightCardHTML(light, forceSyncBadgeName = null, asGroup = null) {
       const eid = light.entity_id;
       const st = getLightState(eid) || {};
@@ -2830,7 +2895,10 @@
              onclick="var _ex=(window.innerWidth<640?'button,input,select,.effect-btn':'button,input[type=range],select,.effect-btn');if(!event.target.closest(_ex))openLightDetail('${eid}');">
           <div class="flex items-start justify-between mb-2">
             <div>
-              <div class="font-medium text-sm truncate">${displayName}</div>
+              <div class="font-medium text-sm truncate flex items-center gap-2">
+                <i class="fa-solid ${asGroup ? 'fa-link' : lightIcon(light)} ${isOn ? 'text-emerald-300' : 'text-zinc-500'} text-xs"></i>
+                <span class="truncate">${displayName}</span>
+              </div>
               ${subInfoHtml}
               ${light && light.is_sync ? `<div class="text-[9px] text-amber-400 inline px-1 rounded bg-amber-900/30 mr-1">SYNC BOX</div>` : ''}
               <div class="text-[10px] text-zinc-500">${isOn && state !== 'unknown' ? 'On' : (state === 'unknown' ? 'Syncing…' : 'Off')}${curEffect ? ' • ' + curEffect : ''}</div>
@@ -2845,7 +2913,7 @@
               <span>Brightness</span>
               <span class="tabular-nums text-xs text-zinc-400">${state === 'unknown' ? '—' : briPct + '%'}</span>
             </div>
-            <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400"
+            <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full ${isOn ? 'accent-emerald-400' : 'accent-zinc-600'}"
                    oninput="debouncedBrightness('${eid}', this.value, this)"
                    onpointerdown="event.stopPropagation()">
           </div>
@@ -2929,7 +2997,8 @@
         container.querySelectorAll('.light-card, .light-pill, .floor-plan-room').forEach(card => {
           const eid = card.dataset.eid;
           if (eid && !card._touchInit) {
-            initTouchDrag(card, eid);
+            // (Removed the long-press quick-actions popover — it felt weird and is now
+            //  redundant: tap = full controls, horizontal drag = brightness, toggle = on/off.)
             if (card.classList.contains('light-card')) initDragToDim(card, eid);
             card._touchInit = true;
           }
