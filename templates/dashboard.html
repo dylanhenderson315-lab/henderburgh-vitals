@@ -378,7 +378,8 @@
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
           </div>
           <div class="text-xs text-zinc-500 mt-1">Last night • {{ total_sleep }}</div>
-          {% if insights and insights.sleep %}<div class="text-[11px] text-zinc-400 mt-1.5 leading-snug">{{ insights.sleep }}</div>{% endif %}
+          {% if insights and insights.sleep_dur %}<div class="text-[11px] text-zinc-400 mt-1.5 leading-snug">{{ insights.sleep_dur }}</div>
+          {% elif insights and insights.sleep %}<div class="text-[11px] text-zinc-400 mt-1.5 leading-snug">{{ insights.sleep }}</div>{% endif %}
         </div>
 
         <!-- Activity / Steps (prominent) -->
