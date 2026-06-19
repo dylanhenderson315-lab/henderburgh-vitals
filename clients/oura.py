@@ -180,6 +180,87 @@ def get_date_range(days: int) -> tuple[str, str]:
     start = end - timedelta(days=days - 1)
     return start.isoformat(), end.isoformat()
 
+
+def _band(value, bands, fallback="—"):
+    """bands: list of (max_inclusive, text); first match wins. None value -> fallback."""
+    if value is None:
+        return fallback
+    for ceiling, text in bands:
+        if ceiling is None or value <= ceiling:
+            return text
+    return fallback
+
+
+def compute_insights(ctx: Dict[str, Any]) -> Dict[str, str]:
+    """Witty + genuinely informative one-liner per metric (the 'steps comparison' energy,
+    applied to the whole page). Computed from the real values so they refresh each load.
+    Plain-English meaning first, personality second — never medical advice."""
+    g = ctx.get
+    ins: Dict[str, str] = {}
+
+    ins["readiness"] = _band(g("readiness_score"), [
+        (59, "Amber. Your body's quietly voting for a recovery day."),
+        (69, "Middling — push if you want, but don't be a hero today."),
+        (84, "Solid. Full tank — spend the energy on something that matters."),
+        (None, "Peak. Green light — go chase something big."),
+    ])
+    ins["sleep"] = _band(g("sleep_score"), [
+        (59, "Rough night. Caffeine's a patch today, not a fix."),
+        (69, "Light on sleep — you'll feel the gap by mid-afternoon."),
+        (84, "Good rest — enough to run on, just shy of gold."),
+        (None, "Textbook night. Your brain got the full spa treatment."),
+    ])
+    ins["activity"] = _band(g("activity_score"), [
+        (59, "Quiet day for the legs — a short walk would wake them up."),
+        (84, "Decent hustle. Your body's staying honest."),
+        (None, "You moved like you meant it today."),
+    ])
+    ins["hrv"] = _band(g("hrv"), [
+        (34, "Running hot — your body's whispering 'ease up.'"),
+        (49, "A little frayed — a short night or stress talking."),
+        (69, "Balanced and resilient. This is your sweet spot."),
+        (None, "Nervous system cruising — deeply recovered."),
+    ])
+    ins["rhr"] = _band(g("rhr"), [
+        (54, "Calm engine — barely sipping fuel. Athlete territory."),
+        (64, "Steady and relaxed. Right where you want it."),
+        (74, "A touch elevated — stress, caffeine, or a late meal?"),
+        (None, "Running high — hydrate, breathe, check in with yourself."),
+    ])
+    ins["respiratory_rate"] = _band(g("respiratory_rate"), [
+        (11, "Unusually slow — deeply relaxed breathing."),
+        (16, "Slow and easy — calm waters."),
+        (18, "Right in the normal band."),
+        (None, "Faster than your usual — stress or fighting something off?"),
+    ])
+    ins["spo2"] = _band(g("spo2"), [
+        (94, "A touch low — congestion, altitude, or how you slept."),
+        (97, "Healthy and steady — blood's well-fueled."),
+        (None, "Oxygen flowing crystal clear."),
+    ])
+    td = g("temp_deviation")
+    if td is None:
+        ins["temp_deviation"] = "—"
+    elif abs(td) < 0.3:
+        ins["temp_deviation"] = "Body temp dead on baseline — no red flags."
+    elif td >= 0.6:
+        ins["temp_deviation"] = "Notably warm — early sign of stress or a bug brewing?"
+    elif td > 0:
+        ins["temp_deviation"] = "Running a hair warm — worth keeping an eye on."
+    else:
+        ins["temp_deviation"] = "Running cool — often the calm after good recovery."
+    ins["latest_hr"] = _band(g("latest_hr"), [
+        (59, "Resting calm — heart barely ticking over."),
+        (89, "Up and about — everyday rhythm."),
+        (109, "Heart's working — moving, or a little amped."),
+        (None, "Pumping hard — mid-effort or running on adrenaline."),
+    ])
+    ac = g("active_calories")
+    if ac:
+        ins["active_calories"] = f"{ac} kcal of active burn — about {round(ac/100)} mini-Snickers' worth of effort."
+    return ins
+
+
 def process_dashboard_data(
     personal: Dict,
     readiness: List[Dict],
@@ -420,8 +501,18 @@ def process_dashboard_data(
 
     now = datetime.now(ZoneInfo("UTC"))
 
+    _ctx_for_insights = {
+        "readiness_score": _safe_get(latest_readiness, "score"),
+        "sleep_score": _safe_get(latest_daily_sleep, "score"),
+        "activity_score": _safe_get(latest_activity, "score"),
+        "hrv": hrv, "rhr": rhr, "respiratory_rate": resp_rate, "spo2": spo2_val,
+        "temp_deviation": temp_dev, "latest_hr": latest_hr, "active_calories": active_cal,
+    }
+    insights = compute_insights(_ctx_for_insights)
+
     return {
         "name": name,
+        "insights": insights,
         "last_updated": now.strftime("%b %d, %H:%M UTC"),
         "last_updated_iso": now.isoformat(),
         "now": now,

@@ -355,6 +355,7 @@
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
           </div>
           <div class="text-xs text-zinc-500 mt-1">Yesterday's readiness</div>
+          {% if insights and insights.readiness %}<div class="text-[11px] text-zinc-400 mt-1.5 leading-snug">{{ insights.readiness }}</div>{% endif %}
         </div>
 
         <!-- Sleep -->
@@ -377,6 +378,7 @@
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
           </div>
           <div class="text-xs text-zinc-500 mt-1">Last night • {{ total_sleep }}</div>
+          {% if insights and insights.sleep %}<div class="text-[11px] text-zinc-400 mt-1.5 leading-snug">{{ insights.sleep }}</div>{% endif %}
         </div>
 
         <!-- Activity / Steps (prominent) -->
@@ -394,6 +396,7 @@
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
           </div>
           <div class="text-xs text-zinc-500 mt-1">{{ steps or "—" }} steps • {{ active_calories or "—" }} kcal</div>
+          {% if insights and insights.activity %}<div class="text-[11px] text-zinc-400 mt-1.5 leading-snug">{{ insights.activity }}</div>{% endif %}
         </div>
       </div>
 
@@ -566,7 +569,7 @@
             </div>
             {% endif %}
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Average nightly HRV</div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.hrv if insights else "Average nightly HRV" }}</div>
         </div>
         {% endif %}
 
@@ -590,7 +593,7 @@
             </div>
             {% endif %}
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Lowest heart rate overnight</div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.rhr if insights else "Lowest heart rate overnight" }}</div>
         </div>
         {% endif %}
 
@@ -609,7 +612,8 @@
               </div>
             </div>
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5" id="latest-hr-updated"
+          {% if insights and insights.latest_hr %}<div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.latest_hr }}</div>{% endif %}
+          <div class="text-[11px] text-zinc-500 mt-1.5" id="latest-hr-updated"
                data-timestamp="{{ latest_hr_timestamp or '' }}"
                data-age-minutes="{{ hr_age_minutes or '' }}">
             {% if hr_age_minutes is not none and hr_age_minutes > 15 %}
@@ -638,7 +642,7 @@
               </div>
             </div>
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Average breaths per minute</div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.respiratory_rate if insights else "Average breaths per minute" }}</div>
         </div>
         {% endif %}
 
@@ -657,7 +661,7 @@
               </div>
             </div>
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Average overnight SpO₂</div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.spo2 if insights else "Average overnight SpO₂" }}</div>
         </div>
         {% endif %}
 
@@ -676,7 +680,7 @@
               </div>
             </div>
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Deviation from baseline</div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.temp_deviation if insights else "Deviation from baseline" }}</div>
         </div>
         {% endif %}
 
