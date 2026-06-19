@@ -477,6 +477,23 @@
       .light-card { padding: 14px; }
     }
 
+    /* Warm→cool color-temperature slider with a true gradient track + clear center */
+    input.temp-slider {
+      -webkit-appearance: none; appearance: none;
+      height: 10px; border-radius: 999px; outline: none;
+      background: linear-gradient(90deg, #f59e0b 0%, #fcd34d 30%, #f4f4f5 50%, #bae6fd 70%, #38bdf8 100%);
+    }
+    input.temp-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #fff; border: 2px solid #52525b; cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,.5);
+    }
+    input.temp-slider::-moz-range-thumb {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #fff; border: 2px solid #52525b; cursor: pointer;
+    }
+
     /* WiZ-style room/light toggle switch */
     .wiz-toggle {
       width: 44px; height: 26px; border-radius: 999px; background: #3f3f46;
@@ -1669,7 +1686,7 @@
         html += `
           <div>
             <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
-            <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400 mb-1"
+            <input type="range" min="0" max="100" value="50" class="w-full temp-slider mb-1"
                    oninput="debouncedColorTemp('${eid}', this.value, this)"
                    onpointerdown="event.stopPropagation()">
           </div>
@@ -2128,7 +2145,7 @@
             </div>
             <div>
               <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
-              <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
+              <input type="range" min="0" max="100" value="50" class="w-full temp-slider"
                      onchange="roomOrGroupMasterColorTemp('${room.id}', this.value, false)">
             </div>
           </div>` : `
@@ -2241,7 +2258,7 @@
             </div>
             <div>
               <div class="flex justify-between text-xs mb-1"><span class="text-amber-300">Warm</span><span class="text-sky-300">Cool</span></div>
-              <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400" onchange="roomOrGroupMasterColorTemp('${group.id}', this.value, true)">
+              <input type="range" min="0" max="100" value="50" class="w-full temp-slider" onchange="roomOrGroupMasterColorTemp('${group.id}', this.value, true)">
             </div>
           </div>
           <div class="text-[10px] text-emerald-400/70 mb-2">True sync: brightness, color, and dynamic effects start at the exact same moment across all lights in this group.</div>` : `
@@ -2903,9 +2920,7 @@
               ${light && light.is_sync ? `<div class="text-[9px] text-amber-400 inline px-1 rounded bg-amber-900/30 mr-1">SYNC BOX</div>` : ''}
               <div class="text-[10px] text-zinc-500">${isOn && state !== 'unknown' ? 'On' : (state === 'unknown' ? 'Syncing…' : 'Off')}${curEffect ? ' • ' + curEffect : ''}</div>
             </div>
-            <button onclick="event.stopImmediatePropagation(); toggleLight('${eid}', this)" class="ha-btn text-[10px] px-2 py-0.5 min-h-[32px] ${isOn ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : ''}">
-              ${state === 'unknown' ? '…' : (isOn ? 'On' : 'Off')}
-            </button>
+            <button onclick="event.stopImmediatePropagation(); this.classList.toggle('on'); toggleLight('${eid}', this)" class="wiz-toggle ${isOn ? 'on' : ''}" aria-label="toggle ${displayName}"><span></span></button>
           </div>
 
           <div class="mb-2 control-wrapper">
@@ -2924,7 +2939,7 @@
               <span class="text-amber-300">Warm</span>
               <span class="text-sky-300">Cool</span>
             </div>
-            <input type="range" min="0" max="100" value="50" class="w-full accent-amber-400"
+            <input type="range" min="0" max="100" value="50" class="w-full temp-slider"
                    oninput="debouncedColorTemp('${eid}', this.value, this)"
                    onpointerdown="event.stopPropagation()">
           </div>` : ''}
