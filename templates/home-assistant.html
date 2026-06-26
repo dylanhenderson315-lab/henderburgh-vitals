@@ -1741,7 +1741,7 @@
                 <span>Speed</span>
                 <span id="detail-speed-val" class="text-[10px] tabular-nums">${curSpeed}</span>
               </div>
-              <input type="range" min="1" max="100" value="${curSpeed}" class="w-full accent-emerald-400"
+              <input id="detail-speed-slider" type="range" min="1" max="100" value="${curSpeed}" class="w-full accent-emerald-400"
                      oninput="debouncedEffectSpeed('${eid}', parseInt(this.value)); const v=document.getElementById('detail-speed-val'); if(v) v.textContent=this.value;"
                      onpointerdown="event.stopPropagation()">
               <div class="flex justify-between text-[9px] text-zinc-500 mt-0.5">
@@ -1749,6 +1749,11 @@
                 <span>Normal</span>
                 <span>Fast</span>
               </div>
+              <button onclick="event.stopImmediatePropagation(); setEffectSpeed('${eid}', 100); var s=document.getElementById('detail-speed-slider'); if(s)s.value=100; var v=document.getElementById('detail-speed-val'); if(v)v.textContent='MAX';"
+                      class="mt-2 w-full py-2.5 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 shadow"
+                      style="background:linear-gradient(90deg,#f59e0b,#ef4444,#ec4899);">
+                <i class="fa-solid fa-bolt"></i> Ultra Fast
+              </button>
             </div>` : ''}
 
             ${ (light.options && light.options.length) ? `
