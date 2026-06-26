@@ -3344,44 +3344,36 @@
       return (st.effect_speed != null) ? st.effect_speed : 50;
     }
 
+    // WiZ exposes effect speed as a separate number entity (number.<light>_effect_speed, range 10–200).
+    // Map the 1–100 slider into that range and set it via number.set_value (NOT light.turn_on).
+    function effectSpeedEntity(lightEid) {
+      return 'number.' + lightEid.replace(/^light\./, '') + '_effect_speed';
+    }
+    function speedSliderToValue(pct) {
+      return Math.round(10 + (Math.max(1, Math.min(100, parseInt(pct))) / 100) * (200 - 10));
+    }
+
     async function setEffectSpeed(eid, speed) {
-      // Immediate (non-debounced) version for discrete changes. Updates whole group with retries for reliability.
       const groupLights = getSyncGroupLights(eid);
       groupLights.forEach(l => updateLightState(l, {effect_speed: speed}));
       renderCurrentView();
-
-      const effect = getLightState(eid).current_effect || '';
-      if (!effect) return;
-
-      const currentBrightness = (getLightState(eid) || {}).brightness;
-      const results = await Promise.all(groupLights.map(async (l) => {
-        const payload = {effect, speed_pct: speed};
-        if (currentBrightness != null) payload.brightness = currentBrightness;
-        const ok = await callWithRetry(() => callLightService(l, payload), 2);
-        return ok;
-      }));
+      const value = speedSliderToValue(speed);
+      const results = await Promise.all(groupLights.map(l =>
+        callWithRetry(() => callHAService('number', 'set_value', effectSpeedEntity(l), {value}), 2)
+      ));
       if (!results.every(Boolean)) {
         showFeedback('Speed update had some issues on the group (partial).', true);
       }
     }
 
     function debouncedEffectSpeed(eid, speed) {
-      // For continuous slider: optimistic update immediately, debounce the HA calls (like brightness/color).
       const groupLights = getSyncGroupLights(eid);
       groupLights.forEach(l => updateLightState(l, {effect_speed: speed}));
-
+      const value = speedSliderToValue(speed);
       debounce(async () => {
-        const effect = getLightState(eid).current_effect || '';
-        if (!effect) return;
-        const currentBrightness = (getLightState(eid) || {}).brightness;
-        const results = await Promise.all(groupLights.map(async (l) => {
-          const payload = {effect, speed_pct: speed};
-          if (currentBrightness != null) payload.brightness = currentBrightness;
-          return await callWithRetry(() => callLightService(l, payload), 2);
-        }));
-        if (results.some(r => !r)) {
-          // non-fatal for continuous slider
-        }
+        await Promise.all(groupLights.map(l =>
+          callWithRetry(() => callHAService('number', 'set_value', effectSpeedEntity(l), {value}), 2)
+        ));
       }, 'effect-speed-' + eid);
     }
 
@@ -3534,12 +3526,13 @@
 
     function debouncedColorTemp(eid, val, inputEl) {
       const mired = Math.round(500 - (parseInt(val) / 100) * (500 - 153));
+      const kelvin = Math.round(1000000 / mired);  // current HA API; also switches the bulb out of any running effect
       const groupLights = getSyncGroupLights(eid);
-      groupLights.forEach(l => updateLightState(l, {color_temp: mired, state: 'on'}));
+      groupLights.forEach(l => updateLightState(l, {color_temp: mired, current_effect: '', mode: 'static', state: 'on'}));
 
       debounce(async () => {
         const results = await Promise.all(groupLights.map(async (l) => {
-          return await callWithRetry(() => callLightService(l, {color_temp: mired}), 2);
+          return await callWithRetry(() => callLightService(l, {color_temp_kelvin: kelvin}), 2);
         }));
         if (results.some(r => !r)) {
           showFeedback('Some color temperature updates had issues.', true);
