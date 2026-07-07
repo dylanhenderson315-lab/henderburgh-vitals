@@ -181,6 +181,22 @@ def get_date_range(days: int) -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
+def time_greeting_now() -> str:
+    """Time-of-day fallback status (Eastern). The home page upgrades this live
+    client-side with real data (Xbox / lights / heart rate)."""
+    local_now = datetime.now(ZoneInfo("America/New_York"))
+    total_minutes = local_now.hour * 60 + local_now.minute
+    if 7 * 60 <= total_minutes < 8 * 60 + 30:
+        return "HENDERBURGH IS WAKING UP."
+    if 8 * 60 + 30 <= total_minutes < 17 * 60:
+        return "HENDERBURGH IS WORKING."
+    if 17 * 60 <= total_minutes < 22 * 60:
+        return "HENDERBURGH IS RELAXING."
+    if 22 * 60 <= total_minutes < 24 * 60:
+        return "HENDERBURGH IS GETTING READY FOR BED."
+    return "HENDERBURGH IS SLEEPING."
+
+
 def _avg(vals):
     nums = [v for v in (vals or []) if v is not None]
     return sum(nums) / len(nums) if nums else None
@@ -416,22 +432,7 @@ def process_dashboard_data(
     name = DISPLAY_NAME or (personal.get("name") or personal.get("email", "there").split("@")[0]).upper()
 
     # Time-based greeting — always HENDERBURGH in ALL CAPS (Eastern Time)
-    local_tz = ZoneInfo("America/New_York")
-    local_now = datetime.now(local_tz)
-    h = local_now.hour
-    m = local_now.minute
-    total_minutes = h * 60 + m
-
-    if 7 * 60 <= total_minutes < 8 * 60 + 30:
-        time_greeting = "HENDERBURGH IS WAKING UP."
-    elif 8 * 60 + 30 <= total_minutes < 17 * 60:
-        time_greeting = "HENDERBURGH IS WORKING."
-    elif 17 * 60 <= total_minutes < 22 * 60:
-        time_greeting = "HENDERBURGH IS RELAXING."
-    elif 22 * 60 <= total_minutes < 24 * 60:
-        time_greeting = "HENDERBURGH IS GETTING READY FOR BED."
-    else:
-        time_greeting = "HENDERBURGH IS SLEEPING."
+    time_greeting = time_greeting_now()
 
     # --- Recent detailed activity sessions (Recent Activity section) ---
     # Pull real per-session data (type, start, duration, distance etc) from workouts collection

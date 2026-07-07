@@ -135,6 +135,25 @@
       letter-spacing: -0.025em;
     }
 
+    /* Aurora: soft drifting glows tinted by the house's REAL current light colors */
+    .aurora-blob {
+      position: absolute;
+      width: 46vw; height: 46vw;
+      max-width: 560px; max-height: 560px;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0;
+      transition: background 2.5s ease, opacity 2.5s ease;
+      will-change: transform;
+    }
+    #aurora-1 { top: -30%; left: -8%;  animation: drift1 26s ease-in-out infinite alternate; }
+    #aurora-2 { top: -20%; right: -6%; animation: drift2 32s ease-in-out infinite alternate; }
+    #aurora-3 { top: 10%;  left: 34%;  animation: drift3 38s ease-in-out infinite alternate; }
+    @keyframes drift1 { from { transform: translate(0,0) scale(1); }   to { transform: translate(6vw, 3vh) scale(1.15); } }
+    @keyframes drift2 { from { transform: translate(0,0) scale(1.1); } to { transform: translate(-5vw, 4vh) scale(0.95); } }
+    @keyframes drift3 { from { transform: translate(0,0) scale(0.9); } to { transform: translate(3vw, -3vh) scale(1.1); } }
+    @media (prefers-reduced-motion: reduce) { .aurora-blob { animation: none; } }
+
     /* Live Now specific balance - compact but intentional spacing */
     .live-now {
       gap: 14px;
@@ -377,13 +396,25 @@
     </div>
   </header>
 
-  <!-- Hero section (compact green gradient, balanced height, no excessive empty space) -->
-  <div class="hero w-full bg-gradient-to-b from-emerald-950 via-[#0a0a0b] to-[#0a0a0b] min-h-[280px] pt-10 pb-6">
-    <div class="max-w-[1080px] mx-auto px-6 w-full">
-      <!-- Personal Intro + OS Hub feel -->
-      <div class="mb-6 max-w-2xl">
-        <p class="text-lg text-zinc-300">
-          HENDERBURGH'S PERSONAL OS. Instant state at a glance.
+  <!-- Living hero: the aurora glow is painted from the REAL current colors of the
+       house lights (via /api/ha/lights-data), and the headline is synthesized from
+       every live source — Xbox, lights, heart rate, time. The site mirrors the house. -->
+  <div class="hero relative overflow-hidden w-full bg-gradient-to-b from-emerald-950 via-[#0a0a0b] to-[#0a0a0b] min-h-[280px] pt-10 pb-6">
+    <div id="aurora" class="absolute inset-0 pointer-events-none" style="transition: opacity 2s ease;">
+      <div class="aurora-blob" id="aurora-1"></div>
+      <div class="aurora-blob" id="aurora-2"></div>
+      <div class="aurora-blob" id="aurora-3"></div>
+    </div>
+    <div class="max-w-[1080px] mx-auto px-6 w-full relative z-10">
+      <div class="mb-2">
+        <p class="section-label">HENDERBURGH'S PERSONAL OS · LIVE</p>
+      </div>
+      <div class="mb-6 max-w-3xl">
+        <h1 id="live-headline" class="font-display text-4xl sm:text-5xl font-semibold tracking-tight text-zinc-100" style="transition: opacity .6s ease;">
+          {{ time_greeting or "HENDERBURGH IS HERE." }}
+        </h1>
+        <p id="live-subline" class="text-sm sm:text-base text-zinc-400 mt-3" style="transition: opacity .6s ease;">
+          Reading the house…
         </p>
       </div>
 
@@ -1046,5 +1077,99 @@
     }
   </script>
 
+  <!-- ============ THE LIVING HERO ============
+       The site mirrors the house: the aurora glow is painted from the REAL current
+       colors of the lights, and the headline is synthesized from every live source
+       (Xbox > house dark > time of day). Factual, never fluffy. -->
+  <script>
+    (function () {
+      const HR_BPM = {{ heart_rate.bpm if heart_rate and heart_rate.bpm is not none else 'null' }};
+      const LIVE = { xbox: null, lights: null };
+
+      function flatLights(d) {
+        const out = [];
+        if (!d) return out;
+        Object.values(d.lights_by_room || {}).forEach(arr => arr.forEach(l => out.push(l)));
+        (d.unassigned_lights || []).forEach(l => out.push(l));
+        return out;
+      }
+
+      function easternHour() {
+        try {
+          return parseInt(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(new Date()), 10);
+        } catch (e) { return new Date().getHours(); }
+      }
+
+      function synthesize() {
+        const hEl = document.getElementById('live-headline');
+        const sEl = document.getElementById('live-subline');
+        if (!hEl || !sEl) return;
+
+        const lights = flatLights(LIVE.lights);
+        const onLights = lights.filter(l => l.state === 'on');
+        const hasLightData = lights.length > 0;
+        const hr = HR_BPM ? ` · heart ${HR_BPM} bpm` : '';
+        const hour = easternHour();
+
+        let head = null, sub = null;
+
+        // 1. Gaming beats everything (live Xbox presence)
+        const xb = LIVE.xbox;
+        if (xb && xb.status === 'ok' && /online/i.test(xb.state || '') && xb.game && xb.game !== '—' && !/^home$/i.test(xb.game)) {
+          head = 'HENDERBURGH IS GAMING.';
+          sub = `${xb.game}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
+        }
+        // 2. House completely dark
+        else if (hasLightData && onLights.length === 0) {
+          if (hour >= 22 || hour < 7) { head = 'HENDERBURGH IS SLEEPING.'; sub = `Every light in the house is off${hr}`; }
+          else { head = 'HENDERBURGH IS OUT.'; sub = 'The house is dark right now.'; }
+        }
+        // 3. Time of day, enriched with live house facts
+        else {
+          head = hEl.dataset.base || hEl.textContent.trim();
+          if (hasLightData) {
+            // brightest room = the room with the most lights on
+            const rooms = {};
+            onLights.forEach(l => { const r = l.room_name || 'somewhere'; rooms[r] = (rooms[r] || 0) + 1; });
+            const topRoom = Object.entries(rooms).sort((a, b) => b[1] - a[1])[0];
+            sub = `${onLights.length} of ${lights.length} lights on${topRoom && topRoom[0] !== 'Unassigned' ? ` · ${topRoom[0]} lit` : ''}${hr}`;
+          } else {
+            sub = HR_BPM ? `Heart ${HR_BPM} bpm · live from the Oura Ring` : 'Live from the house.';
+          }
+        }
+
+        if (!hEl.dataset.base) hEl.dataset.base = hEl.textContent.trim();
+        if (hEl.textContent.trim() !== head) { hEl.style.opacity = 0; setTimeout(() => { hEl.textContent = head; hEl.style.opacity = 1; }, 320); }
+        if (sEl.textContent.trim() !== sub) { sEl.style.opacity = 0; setTimeout(() => { sEl.textContent = sub; sEl.style.opacity = 1; }, 320); }
+      }
+
+      function paintAurora() {
+        const lights = flatLights(LIVE.lights).filter(l => l.state === 'on');
+        const blobs = [1, 2, 3].map(i => document.getElementById('aurora-' + i)).filter(Boolean);
+        if (!blobs.length) return;
+        // Real bulb colors; warm-white fallback for on-lights without RGB reported
+        const colors = lights.map(l => (Array.isArray(l.rgb_color) && l.rgb_color.length >= 3) ? l.rgb_color : [255, 196, 120]);
+        // de-dup close colors so the glow shows the house's actual palette
+        const distinct = [];
+        colors.forEach(c => { if (!distinct.some(d => Math.abs(d[0]-c[0]) + Math.abs(d[1]-c[1]) + Math.abs(d[2]-c[2]) < 90)) distinct.push(c); });
+        blobs.forEach((b, i) => {
+          const c = distinct[i % Math.max(1, distinct.length)];
+          if (!lights.length || !c) { b.style.opacity = 0; return; }
+          b.style.background = `radial-gradient(circle, rgba(${c[0]|0},${c[1]|0},${c[2]|0},0.5) 0%, transparent 70%)`;
+          b.style.opacity = 0.5;
+        });
+      }
+
+      async function tick() {
+        try { const r = await fetch('/api/xbox/status'); if (r.ok) LIVE.xbox = await r.json(); } catch (e) {}
+        try { const r = await fetch('/api/ha/lights-data'); if (r.ok) { const d = await r.json(); if (d.status === 'ok') LIVE.lights = d; } } catch (e) {}
+        synthesize();
+        paintAurora();
+      }
+
+      tick();
+      setInterval(tick, 12000);
+    })();
+  </script>
 </body>
 </html>

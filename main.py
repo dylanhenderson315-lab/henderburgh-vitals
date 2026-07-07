@@ -24,7 +24,7 @@ from auth import (
     require_admin,
     set_admin_session_cookie,
 )
-from clients.oura import OuraClient, _safe_get, get_date_range, process_dashboard_data
+from clients.oura import OuraClient, _safe_get, get_date_range, process_dashboard_data, time_greeting_now
 from config import (
     ADMIN_TOKEN,
     AUTO_REFRESH_SECONDS,
@@ -235,6 +235,7 @@ async def home(request: Request):
         "heart_rate": hr_ctx,
         "recent_messages": recent_messages,
         "blog_unread_count": blog_unread_count,
+        "time_greeting": time_greeting_now(),
     })
 
 
