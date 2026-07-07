@@ -241,9 +241,16 @@ async def home(request: Request):
 
 
 @app.get("/xbox", response_class=HTMLResponse)
-async def xbox_page(request: Request):
-    """Dedicated Xbox profile page with current data and game log."""
-    xbox_data = await fetch_xbox_status()
+async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
+    """Dedicated Xbox profile page with current data and game log.
+    Stale-while-revalidate: if we have any last-known-good data, render instantly
+    with it and refresh from xbl.io in the background (was blocking ~1.5s)."""
+    if state.last_xbox_data.get("status") == "ok":
+        xbox_data = state.last_xbox_data
+        if background_tasks is not None:
+            background_tasks.add_task(fetch_xbox_status)
+    else:
+        xbox_data = await fetch_xbox_status()
     raw_log = persistence.load_xbox_log()
 
     # Enrich log for clean, professional display (formatted dates, safe fields)

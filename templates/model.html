@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Model • HENDERBURGH</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <meta property="og:title" content="HENDERBURGH • 3D Model">
+  <meta property="og:description" content="A living 3D digital twin of the house — rooms, furniture, and real smart lights.">
+  <meta property="og:type" content="website">
   <meta name="description" content="3D spatial home replica foundation — precise placement of lights, furniture and TVs using real dimensions.">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -174,9 +178,12 @@
 
         <nav class="hidden md:flex items-center gap-x-8 text-sm">
           <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
+          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
+          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
+          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
+          <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
           <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
           <a href="/model" class="text-white font-medium">Model</a>
-          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
           <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
 
@@ -187,7 +194,21 @@
     </div>
   </header>
 
-  <main class="max-w-[1120px] mx-auto px-6 pt-8 pb-16">
+  <!-- Mobile bottom navigation (consistent site-wide) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+    <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
+      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
+      <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/xbox" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
+      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+    </div>
+  </nav>
+
+  <main class="max-w-[1120px] mx-auto px-6 pt-8 pb-24 md:pb-16">
     <div class="flex items-end justify-between mb-6">
       <div>
         <div class="flex items-center gap-x-3">

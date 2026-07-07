@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if public_mode %}{{ site_name | upper }} • VITALS{% else %}HENDERBURGH • Vitals{% endif %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <meta property="og:title" content="HENDERBURGH • Vitals">
+  <meta property="og:description" content="Live Oura Ring health data — readiness, sleep, HRV, heart rate.">
+  <meta property="og:type" content="website">
 
   {% if public_mode %}
   <!-- Public site SEO & Social -->
@@ -276,6 +280,7 @@
           <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
           <a href="/vitals" class="text-white font-medium">Vitals</a>
           <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
+          <a href="/model" class="hover:text-white text-zinc-400 transition">Model</a>
           <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
           <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
           <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
@@ -863,6 +868,7 @@
       <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
       <a href="/vitals" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
       <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
       <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
       <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
       <a href="/xbox" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
