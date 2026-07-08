@@ -712,6 +712,9 @@
         </div>
       </div>
     </div>
+    <!-- Live LED strip: the real current palette of every light that's on, in room order.
+         The house's own status bar — crossfades as bulbs change. -->
+    <div id="light-strip" style="height:3px; opacity:.35; background:linear-gradient(90deg,#065f46,#10b981,#065f46); transition: background 1.6s ease, opacity 1.6s ease;"></div>
   </header>
 
   <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
@@ -1948,7 +1951,34 @@
     }
 
     // Central dispatcher for the 5 primary views (Rooms / Lights / Groups / Scenes / Plan)
+    // The header's live LED strip: paints the real palette of every ON light, in order.
+    // Off lights contribute nothing; nothing on -> dim emerald idle. Warm-white fallback
+    // for on-lights that don't report RGB.
+    function paintLightStrip() {
+      const strip = document.getElementById('light-strip');
+      if (!strip || !haData) return;
+      const all = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
+      const stops = [];
+      all.forEach(l => {
+        const st = getLightState(l.entity_id) || {};
+        const on = (st.state || l.state) === 'on';
+        if (!on) return;
+        const rgb = st.rgb_color || l.rgb_color;
+        const c = (Array.isArray(rgb) && rgb.length >= 3) ? rgb : [255, 196, 120];
+        stops.push(`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`);
+      });
+      if (!stops.length) {
+        strip.style.opacity = '.35';
+        strip.style.background = 'linear-gradient(90deg,#065f46,#10b981,#065f46)';
+        return;
+      }
+      if (stops.length === 1) stops.push(stops[0]);
+      strip.style.opacity = '.95';
+      strip.style.background = `linear-gradient(90deg, ${stops.join(', ')})`;
+    }
+
     function renderPrimaryView(fromHydrate = false) {
+      paintLightStrip();
       const container = document.getElementById('dashboard-content');
       if (!container) return;
       if (!haData) {
@@ -2859,7 +2889,7 @@
       if (n.includes('book') || n.includes('shelf')) return 'fa-book';
       if (n.includes('strip') || n.includes('portable')) return 'fa-bolt';
       if (n.includes('ceiling') || n.includes('recessed') || n.includes('can')) return 'fa-circle-dot';
-      if (n.includes('office')) return 'fa-lamp';
+      if (n.includes('office')) return 'fa-bell';  // the poke/notification lamp (fa-lamp is FA-Pro-only and rendered blank)
       return 'fa-lightbulb';
     }
     // Icon per room.
@@ -2981,6 +3011,7 @@
       if (card._dragDim) return; card._dragDim = true;
       let sx = 0, sy = 0, sBri = 70, mode = 0; // 0 undecided · 1 dimming · 2 scroll/ignore
       card.addEventListener('touchstart', (e) => {
+        if (!isUnlocked) { mode = 2; return; }  // locked = view only; no fake dimming
         if (e.target.closest('input,button,select,a,.mode-toggle,.effect-btn')) { mode = 2; return; }
         const st = getLightState(eid) || {};
         sBri = st.brightness ? Math.max(1, Math.round(st.brightness / 2.55)) : 70;
@@ -3499,6 +3530,10 @@
     }
 
     function toggleLight(eid, el) {
+      // Guard BEFORE the optimistic update: when locked, callLightService returns false
+      // (no throw), so the .catch() never fired and the UI showed a toggle that never
+      // happened. Never lie to the user.
+      if (!isUnlocked) { showFeedback('Unlock controls to make changes.', true); return; }
       const st = getLightState(eid);
       const currentlyOn = (st.state || 'off') === 'on';
       const newState = currentlyOn ? 'off' : 'on';
@@ -3516,6 +3551,7 @@
     }
 
     function debouncedBrightness(eid, percent, inputEl) {
+      if (!isUnlocked) return;  // locked: no optimistic UI for calls that will be rejected
       const brightness = Math.max(1, Math.round(parseInt(percent) * 2.55));
       // Act as ONE for the whole sync group
       const groupLights = getSyncGroupLights(eid);
@@ -3690,12 +3726,13 @@
         }).catch(() => {});
       }, bootstrapped ? 40 : 120);
 
-      // Gentle auto background refresh every ~40s (keeps states fresh without user action)
+      // Live background refresh every 12s (visibility-gated) — keeps card colors,
+      // toggles and the header light-strip a true mirror of the house.
       setInterval(() => {
         if (document.visibilityState === 'visible') {
           hydrateLiveStates(true);
         }
-      }, 40000);
+      }, 12000);
 
       // Make sure active buttons reflect default
       updateActiveViewButtons();
