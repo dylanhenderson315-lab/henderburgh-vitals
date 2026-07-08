@@ -209,72 +209,17 @@
   </footer>
 
   <script>
-    const clips = [
-      {
-        id: 1,
-        title: "Clutch 1v3",
-        date: "Feb 12, 2026",
-        src: "clips/clutch-moment.mp4",
-        tags: ["Clutch"],
-        description: "3v1 retake on defense"
-      },
-      {
-        id: 2,
-        title: "Insane team play",
-        date: "Jan 28, 2026",
-        src: "clips/team-win.mp4",
-        tags: ["Team Play"],
-        description: "Perfect coordination on Haven"
-      },
-      {
-        id: 3,
-        title: "Ace on Haven",
-        date: "Jan 15, 2026",
-        src: "clips/ace.mp4",
-        tags: ["Ace", "Clutch"],
-        description: "5 kills in a single round"
-      },
-      {
-        id: 4,
-        title: "1v4 Retake",
-        date: "Dec 3, 2025",
-        src: "clips/clutch-moment.mp4",
-        tags: ["Clutch"],
-        description: "Impossible retake on B site"
-      },
-      {
-        id: 5,
-        title: "Perfect Execute",
-        date: "Nov 22, 2025",
-        src: "clips/team-win.mp4",
-        tags: ["Execute", "Team Play"],
-        description: "Textbook A site execute"
-      },
-      {
-        id: 6,
-        title: "Post-plant 3k",
-        date: "Nov 8, 2025",
-        src: "clips/ace.mp4",
-        tags: ["Post-plant", "Clutch"],
-        description: "Clutch post-plant on Bind"
-      },
-      {
-        id: 7,
-        title: "4k on Bind",
-        date: "Oct 19, 2025",
-        src: "clips/clutch-moment.mp4",
-        tags: ["Clutch"],
-        description: "Back-to-back clutches"
-      },
-      {
-        id: 8,
-        title: "Last Second Defuse",
-        date: "Oct 5, 2025",
-        src: "clips/team-win.mp4",
-        tags: ["Clutch", "Execute"],
-        description: "1.3 seconds left"
-      }
-    ];
+    // Real clips only — loaded from /api/clips (files on the server volume).
+    // The old version shipped 8 hardcoded fake clips that all 404'd into dead players.
+    let clips = [];
+
+    async function loadClips() {
+      try {
+        const res = await fetch('/api/clips');
+        if (res.ok) clips = (await res.json()).clips || [];
+      } catch (e) { clips = []; }
+      renderClips();
+    }
 
     function renderClips(filteredClips) {
       const grid = document.getElementById('clips-grid');
@@ -282,30 +227,37 @@
 
       const toRender = filteredClips || clips;
 
+      if (!toRender.length) {
+        // Honest, clean empty state — never a wall of broken video players.
+        const filters = document.getElementById('filter-buttons');
+        if (filters) filters.style.display = 'none';
+        grid.innerHTML = `
+          <div class="col-span-full">
+            <div class="border border-dashed border-zinc-700 rounded-3xl p-14 text-center">
+              <i class="fa-solid fa-clapperboard text-3xl text-zinc-600 mb-4"></i>
+              <div class="text-lg font-medium text-zinc-300 mb-1">No clips yet</div>
+              <div class="text-sm text-zinc-500 max-w-md mx-auto">
+                Drop video files (.mp4 / .mov / .webm) into <span class="font-mono text-zinc-400">/data/clips</span> on the server
+                and they appear here automatically — newest first, named from the filename.
+              </div>
+            </div>
+          </div>`;
+        return;
+      }
+
       toRender.forEach(clip => {
         const card = document.createElement('div');
         card.className = 'clip-card';
-        card.dataset.tags = clip.tags.join(',');
-
-        const tagsHTML = clip.tags.map(tag => 
-          `<span class="tag">${tag}</span>`
-        ).join('');
-
         card.innerHTML = `
-          <video controls preload="metadata" class="w-full">
-            <source src="${clip.src}" type="video/mp4">
+          <video controls preload="metadata" playsinline class="w-full">
+            <source src="/media/clips/${encodeURIComponent(clip.name)}">
             Your browser does not support the video tag.
           </video>
           <div class="clip-meta">
             <div class="title">${clip.title}</div>
-            <div class="date">${clip.date}</div>
-            ${clip.description ? `<div class="text-sm text-zinc-400 mt-1">${clip.description}</div>` : ''}
-            <div class="flex flex-wrap gap-1 mt-3">
-              ${tagsHTML}
-            </div>
+            <div class="date">${clip.date} · ${clip.size_mb} MB</div>
           </div>
         `;
-
         grid.appendChild(card);
       });
     }
@@ -329,8 +281,8 @@
       const cards = grid.querySelectorAll('.clip-card');
 
       cards.forEach(card => {
-        const tags = card.dataset.tags.split(',');
-        
+        const tags = (card.dataset.tags || '').split(',');
+
         if (filter === 'all') {
           card.style.display = '';
         } else {
@@ -345,7 +297,7 @@
 
     // Initialize
     function initClipsPage() {
-      renderClips();
+      loadClips();
 
       // Make sure "All" button starts active
       const allBtn = document.querySelector('#filter-buttons button[data-filter="all"]');

@@ -495,6 +495,25 @@ def save_clubs(clubs):
     write_json(CLUBS_FILE, clubs)
 
 
+# Golf rounds — server-side so they survive browser clears and sync across devices
+# (they previously lived only in localStorage).
+GOLF_ROUNDS_FILE = _seed("golf_rounds.json") or (DATA_PATH / "golf_rounds.json")
+
+
+def load_golf_rounds():
+    if GOLF_ROUNDS_FILE.exists():
+        try:
+            data = read_json(GOLF_ROUNDS_FILE, [])
+            return data if isinstance(data, list) else []
+        except Exception:
+            pass
+    return []
+
+
+def save_golf_rounds(rounds):
+    write_json(GOLF_ROUNDS_FILE, rounds if isinstance(rounds, list) else [])
+
+
 # =============================================================================
 # Blog Message Board (threaded, server-persisted)
 # =============================================================================

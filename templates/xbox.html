@@ -331,5 +331,32 @@
       document.addEventListener('mouseleave', e=>{const c=e.target.closest('.card');if(c){anime.remove(c);anime({targets:c,translateY:0,scale:1,duration:200,easing:'easeOutQuad'});}},true);
     }
   </script>
+
+  <!-- Live status: the page no longer goes stale — presence + current game refresh
+       every 30s (visibility-gated; the server caches xbl.io calls, so this is cheap). -->
+  <script>
+    (function () {
+      const PILL_ON  = 'status-pill px-3 py-1 text-sm font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+      const PILL_OFF = 'status-pill px-3 py-1 text-sm font-semibold rounded-full bg-zinc-700/60 text-zinc-400 border border-zinc-600/40';
+      async function tick() {
+        if (document.visibilityState !== 'visible') return;
+        try {
+          const r = await fetch('/api/xbox/status');
+          if (!r.ok) return;
+          const d = await r.json();
+          if (d.status !== 'ok') return;
+          const online = /online/i.test(d.state || '');
+          const g = document.getElementById('current-game');
+          if (g && d.game) g.textContent = d.game === '—' ? 'No active game' : d.game;
+          ['profile-state', 'current-state'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.textContent = d.state || 'Unknown'; el.className = online ? PILL_ON : PILL_OFF; }
+          });
+        } catch (e) {}
+      }
+      setInterval(tick, 30000);
+      setTimeout(tick, 5000);
+    })();
+  </script>
 </body>
 </html>

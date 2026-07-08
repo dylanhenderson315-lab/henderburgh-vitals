@@ -8,11 +8,12 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Body, FastAPI, Form, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -1073,6 +1074,19 @@ async def update_clubs(request: Request, clubs: List[dict]):
     return {"status": "saved"}
 
 
+@app.get("/api/golf/rounds")
+async def get_golf_rounds():
+    """Rounds live server-side (volume) so they survive browser clears + sync across devices."""
+    return persistence.load_golf_rounds()
+
+
+@app.post("/api/golf/rounds")
+async def update_golf_rounds(request: Request, rounds: List[dict]):
+    require_admin(request)
+    persistence.save_golf_rounds(rounds)
+    return {"status": "saved"}
+
+
 
 
 @app.get("/golf", response_class=HTMLResponse)
@@ -1089,6 +1103,39 @@ async def clips_page(request: Request):
     return _render("clips.html", {
         "request": request,
     })
+
+
+# Real clips: video files live in DATA_DIR/clips on the persistent volume (survive
+# deploys). The page previously shipped 8 hardcoded fake clips that all 404'd.
+_CLIP_EXTS = (".mp4", ".mov", ".webm", ".m4v")
+
+
+@app.get("/api/clips")
+async def api_clips():
+    """List real clip files, newest first."""
+    out = []
+    d = persistence.DATA_PATH / "clips"
+    if d.exists():
+        for p in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+            if p.is_file() and p.suffix.lower() in _CLIP_EXTS:
+                st = p.stat()
+                out.append({
+                    "name": p.name,
+                    "title": p.stem.replace("-", " ").replace("_", " ").title(),
+                    "size_mb": round(st.st_size / 1048576, 1),
+                    "date": datetime.fromtimestamp(st.st_mtime).strftime("%b %d, %Y"),
+                })
+    return {"clips": out}
+
+
+@app.get("/media/clips/{name}")
+async def media_clip(name: str):
+    """Serve a clip file from the volume (path-traversal safe)."""
+    safe = Path(name).name
+    p = persistence.DATA_PATH / "clips" / safe
+    if not p.is_file() or p.suffix.lower() not in _CLIP_EXTS:
+        raise HTTPException(404, "Clip not found")
+    return FileResponse(p)
 
 
 

@@ -368,18 +368,43 @@
     ];
 
     // ==================== STORAGE ====================
-    function loadData() {
-      // Rounds still use localStorage for now
-      const savedRounds = localStorage.getItem('henderburgh_golf_rounds');
-      if (savedRounds) {
-        rounds = JSON.parse(savedRounds);
+    // Rounds are server-side now (survive browser clears, sync across devices).
+    // localStorage stays as an offline mirror + one-time migration source.
+    async function loadData() {
+      let serverRounds = null;
+      try {
+        const res = await fetch('/api/golf/rounds');
+        if (res.ok) serverRounds = await res.json();
+      } catch (e) {}
+
+      let localRounds = [];
+      try { localRounds = JSON.parse(localStorage.getItem('henderburgh_golf_rounds')) || []; } catch (e) {}
+
+      if (Array.isArray(serverRounds) && serverRounds.length) {
+        rounds = serverRounds;
+      } else if (localRounds.length) {
+        // Migrate old device-local rounds to the server once (applies when unlocked)
+        rounds = localRounds;
+        pushRoundsToServer();
       } else {
-        rounds = [];
+        rounds = Array.isArray(serverRounds) ? serverRounds : [];
       }
+      localStorage.setItem('henderburgh_golf_rounds', JSON.stringify(rounds));
+    }
+
+    async function pushRoundsToServer() {
+      try {
+        await fetch('/api/golf/rounds', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rounds)
+        });
+      } catch (e) {}
     }
 
     function saveRounds() {
       localStorage.setItem('henderburgh_golf_rounds', JSON.stringify(rounds));
+      pushRoundsToServer();
     }
 
     // Clubs are now loaded/saved from the server
@@ -677,8 +702,8 @@
     }
 
     async function initGolfPage() {
-      loadData();                    // still loads rounds from localStorage
-      await loadClubs();             // now loads clubs from server
+      await loadData();              // rounds from the server (localStorage = offline mirror)
+      await loadClubs();             // clubs from server
 
       // Set today's date in the form by default
       const dateInput = document.getElementById('round-date');

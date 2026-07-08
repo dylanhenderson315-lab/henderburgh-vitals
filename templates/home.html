@@ -931,6 +931,12 @@
     // Check for now playing track
     const nowPlayingTrack = tracks.find(t => t['@attr'] && t['@attr'].nowplaying === 'true');
 
+    // Feed the living hero's brain: it knows when music is actually playing
+    window.LIVE_NOWPLAYING = nowPlayingTrack
+      ? { name: nowPlayingTrack.name, artist: nowPlayingTrack.artist['#text'] }
+      : null;
+    if (window.__synthesizeLive) window.__synthesizeLive();
+
     if (nowPlayingTrack) {
       const name = nowPlayingTrack.name;
       const artist = nowPlayingTrack.artist['#text'];
@@ -1119,7 +1125,13 @@
           head = 'HENDERBURGH IS GAMING.';
           sub = `${xb.game}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
         }
-        // 2. House completely dark
+        // 2. Music actually playing (live last.fm scrobble)
+        else if (window.LIVE_NOWPLAYING) {
+          const t = window.LIVE_NOWPLAYING;
+          head = 'HENDERBURGH IS LISTENING.';
+          sub = `${t.name} — ${t.artist}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
+        }
+        // 3. House completely dark
         else if (hasLightData && onLights.length === 0) {
           if (hour >= 22 || hour < 7) { head = 'HENDERBURGH IS SLEEPING.'; sub = `Every light in the house is off${hr}`; }
           else { head = 'HENDERBURGH IS OUT.'; sub = 'The house is dark right now.'; }
@@ -1144,9 +1156,13 @@
       }
 
       function paintAurora() {
-        const lights = flatLights(LIVE.lights).filter(l => l.state === 'on');
+        let lights = flatLights(LIVE.lights).filter(l => l.state === 'on');
         const blobs = [1, 2, 3].map(i => document.getElementById('aurora-' + i)).filter(Boolean);
         if (!blobs.length) return;
+        // Priority: the Game Room desk lights ("Desk Lamp" + "Desk Light Bars") set the
+        // page's mood when they're on — they're the signature lights of the command center.
+        const desk = lights.filter(l => /desk/i.test(l.friendly_name || '') && /game/i.test(l.room_name || ''));
+        if (desk.length) lights = desk;
         // Real bulb colors; warm-white fallback for on-lights without RGB reported
         const colors = lights.map(l => (Array.isArray(l.rgb_color) && l.rgb_color.length >= 3) ? l.rgb_color : [255, 196, 120]);
         // de-dup close colors so the glow shows the house's actual palette
@@ -1167,6 +1183,7 @@
         paintAurora();
       }
 
+      window.__synthesizeLive = synthesize;  // last.fm hook re-synthesizes on now-playing changes
       tick();
       setInterval(tick, 12000);
     })();
