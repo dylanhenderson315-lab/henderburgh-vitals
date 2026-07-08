@@ -1074,6 +1074,22 @@ async def update_clubs(request: Request, clubs: List[dict]):
     return {"status": "saved"}
 
 
+@app.get("/api/os-state")
+async def api_os_state():
+    """The vitals Operating State (one prioritized truthful headline) for other pages —
+    e.g. the lighting page's context-aware mode suggestions. Cached vitals, cheap."""
+    try:
+        ctx = await vitals.get_processed_vitals(use_cache=True)
+        ins = ctx.get("insights") or {}
+        return {
+            "os_state": ins.get("os_state"),
+            "readiness": ctx.get("readiness_score"),
+            "sleep": ctx.get("sleep_score"),
+        }
+    except Exception:
+        return {"os_state": None, "readiness": None, "sleep": None}
+
+
 @app.get("/api/golf/rounds")
 async def get_golf_rounds():
     """Rounds live server-side (volume) so they survive browser clears + sync across devices."""

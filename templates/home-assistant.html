@@ -2120,10 +2120,93 @@
       renderPrimaryView();
     }
 
+    // ==================== HOUSE MODES (the magical core) ====================
+    // One-tap, real lighting moods. Every mode is honest HA calls — no fake states.
+    const DESK_LIGHTS = ['light.office_lamp', 'light.wiz_rgbw_tunable_ef497e'];  // powers the homepage aurora
+
+    let osState = null;  // vitals Operating State (fetched once; drives the suggestion chip)
+    fetch('/api/os-state').then(r => r.ok ? r.json() : null).then(d => { osState = d; renderCurrentView(); }).catch(() => {});
+
+    function allLightIds() {
+      return [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])]
+        .filter(l => !l.is_sync).map(l => l.entity_id);
+    }
+    function roomLightIds(name) {
+      return ((haData.lights_by_room || {})[name] || []).map(l => l.entity_id);
+    }
+
+    const HOUSE_MODES = {
+      'desk-focus':   { icon: 'fa-bullseye',      name: 'Desk Focus',        desc: 'The aurora lights, dialed for work',
+                        run: () => [[DESK_LIGHTS, { color_temp_kelvin: 4500, brightness_pct: 90 }]] },
+      'deep-work':    { icon: 'fa-brain',         name: 'Deep Work',         desc: 'Clean bright game room',
+                        run: () => [[roomLightIds('Game Room'), { color_temp_kelvin: 5000, brightness_pct: 85 }]] },
+      'wind-down':    { icon: 'fa-moon',          name: 'Recovery Wind-Down', desc: 'Whole house warm & dim',
+                        run: () => [[allLightIds(), { color_temp_kelvin: 2700, brightness_pct: 30 }]] },
+      'gaming':       { icon: 'fa-gamepad',       name: 'Gaming Atmosphere', desc: 'Rich violet game room',
+                        run: () => [[roomLightIds('Game Room'), { rgb_color: [140, 60, 235], brightness_pct: 55 }]] },
+      'house-calm':   { icon: 'fa-spa',           name: 'Whole House Calm',  desc: 'Balanced warm glow everywhere',
+                        run: () => [[allLightIds(), { color_temp_kelvin: 2900, brightness_pct: 45 }]] },
+      'spread-vibe':  { icon: 'fa-wand-magic-sparkles', name: 'Spread the Vibe', desc: 'Whole house matches the aurora',
+                        run: () => {
+                          // The aurora is painted from the desk lights — take their real color house-wide.
+                          const desk = [...Object.values(haData.lights_by_room || {}).flat()]
+                            .find(l => DESK_LIGHTS.includes(l.entity_id) && (getLightState(l.entity_id).state || l.state) === 'on');
+                          const st = desk ? getLightState(desk.entity_id) : {};
+                          const rgb = (st.rgb_color || (desk && desk.rgb_color)) || [255, 196, 120];
+                          return [[allLightIds(), { rgb_color: rgb, brightness_pct: 55 }]];
+                        } },
+    };
+
+    async function runMode(key) {
+      const mode = HOUSE_MODES[key];
+      if (!mode) return;
+      if (!isUnlocked) { showFeedback('Unlock controls to set a mode.', true); return; }
+      const steps = mode.run().filter(([ids]) => ids && ids.length);
+      if (!steps.length) { showFeedback('No lights found for this mode.', true); return; }
+      const results = await Promise.all(steps.map(([ids, payload]) => callLightService(ids, payload)));
+      showFeedback(results.every(Boolean) ? `${mode.name} set` : `${mode.name}: some lights didn't respond`, !results.every(Boolean));
+      setTimeout(() => refreshAllData(), 600);
+    }
+
+    // Context-aware suggestion — truthful, gentle, optional. Amber vitals -> wind down;
+    // evening -> gaming/calm; otherwise nothing (silence over noise).
+    function modeSuggestion() {
+      const hour = new Date().getHours();
+      if (osState && osState.os_state && osState.os_state.tone === 'amber') {
+        return { key: 'wind-down', why: `${osState.os_state.title.toLowerCase()} — a warmer, softer palette would feel right` };
+      }
+      if (hour >= 21) return { key: 'house-calm', why: 'late evening — the house could wind down' };
+      if (hour >= 17) return { key: 'gaming', why: 'evening — rich game-room atmosphere time' };
+      return null;
+    }
+
+    function renderModesSection() {
+      const sug = modeSuggestion();
+      return `
+        <div class="mb-5">
+          <div class="section-label mb-2">House Modes</div>
+          ${sug ? `
+          <button onclick="runMode('${sug.key}')" class="w-full text-left mb-2 px-4 py-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 active:scale-[0.99] transition">
+            <span class="text-[11px] text-amber-300/90"><i class="fa-solid fa-lightbulb mr-1.5"></i>Suggestion · ${sug.why}</span>
+            <span class="block text-sm text-zinc-200 mt-0.5 font-medium">Tap for ${HOUSE_MODES[sug.key].name} →</span>
+          </button>` : ''}
+          <div class="grid grid-cols-2 lg:grid-cols-3 gap-2">
+            ${Object.entries(HOUSE_MODES).map(([key, m]) => `
+              <button onclick="runMode('${key}')"
+                class="mode-card text-left p-4 rounded-2xl border border-zinc-700 bg-[#141518] hover:border-emerald-500/40 active:scale-[0.97] transition min-h-[86px]">
+                <i class="fa-solid ${m.icon} text-emerald-300/90 text-sm"></i>
+                <div class="text-sm font-semibold text-zinc-100 mt-1.5 leading-tight">${m.name}</div>
+                <div class="text-[10px] text-zinc-500 mt-0.5 leading-snug">${m.desc}</div>
+              </button>`).join('')}
+          </div>
+        </div>`;
+    }
+
     // Rooms view: stacked premium sections. Each has clear master controls (All On/Off + quick % + slider) + its lights.
     function renderRoomsView(container, searchLower) {
       const rooms = haData.rooms || [];
-      let html = `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-500">— tap a room to jump, toggle to switch it</span></div>`;
+      let html = searchLower ? '' : renderModesSection();
+      html += `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-500">— tap a room to jump, toggle to switch it</span></div>`;
 
       if (rooms.length === 0) {
         html += `<div class="card p-6 text-sm text-zinc-400">No rooms yet. Create one from the sidebar.</div>`;
