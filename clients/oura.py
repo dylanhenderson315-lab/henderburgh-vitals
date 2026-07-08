@@ -269,6 +269,27 @@ def compute_insights(ctx: Dict[str, Any]) -> Dict[str, str]:
     ac = g("active_calories")
     if ac:
         ins["active_calories"] = f"≈ {round(ac / 10)} min of jogging, or {round(ac / 285, 1)} pizza slices earned back."
+
+    # --- Operating State: ONE prioritized headline, worst signal wins. Factual, no fluff. ---
+    r, s, h = g("readiness_score"), g("sleep_score"), g("hrv")
+    if td is not None and td >= 0.5:
+        ins["os_state"] = {"tone": "amber", "title": "ELEVATED TEMPERATURE",
+                           "text": f"Skin temp {td:+.1f} °C over baseline — Oura's early illness signal. Worth an easy day."}
+    elif r is not None and r < 70:
+        ins["os_state"] = {"tone": "amber", "title": "RECOVERY FLAGGED",
+                           "text": f"Readiness {r} — below the good band (70+). The data says recover, not push."}
+    elif s is not None and s < 70:
+        ins["os_state"] = {"tone": "amber", "title": "SHORT ON SLEEP",
+                           "text": f"Sleep {s} — under the good band. Expect the mid-afternoon dip; tonight matters."}
+    elif r is not None and s is not None and r >= 85 and s >= 85:
+        ins["os_state"] = {"tone": "emerald", "title": "ALL SYSTEMS GREEN",
+                           "text": f"Readiness {r} · sleep {s}{f' · HRV {round(h)} ms' if h else ''} — peak window. Spend it on something hard."}
+    elif r is not None or s is not None:
+        bits = [b for b in [f"readiness {r}" if r is not None else None,
+                            f"sleep {s}" if s is not None else None,
+                            f"HRV {round(h)} ms" if h else None] if b]
+        ins["os_state"] = {"tone": "emerald", "title": "OPERATING NORMALLY",
+                           "text": " · ".join(bits).capitalize() + " — steady state, nothing flagged."}
     return ins
 
 

@@ -201,6 +201,7 @@
       color: #f4f4f5;
     }
   </style>
+  <script defer src="/static/os-command.js"></script>
 </head>
 <body class="bg-[#0f1115] text-[#e2e8f0] min-h-screen">
   {% if setup_mode %}
@@ -337,6 +338,26 @@
         <!-- Status moved to top nav for less clutter; last-updated + countdown + refresh button live there -->
         {% endif %}
       </div>
+
+      {% if insights and insights.os_state %}
+      <!-- Operating State: ONE prioritized truthful headline (worst signal wins) — the
+           deeper-truth layer of the same living OS as the homepage hero. -->
+      <div class="mb-6 rounded-3xl border p-5 sm:p-6
+                  {% if insights.os_state.tone == 'amber' %}border-amber-500/30 bg-amber-500/5{% else %}border-emerald-500/25 bg-emerald-500/5{% endif %}">
+        <div class="flex items-start gap-x-4">
+          <div class="mt-0.5 w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0
+                      {% if insights.os_state.tone == 'amber' %}bg-amber-500/15{% else %}bg-emerald-500/15{% endif %}">
+            <i class="fa-solid {% if insights.os_state.tone == 'amber' %}fa-triangle-exclamation text-amber-400{% else %}fa-circle-check text-emerald-400{% endif %}"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="text-[10px] font-semibold tracking-[2.5px] {% if insights.os_state.tone == 'amber' %}text-amber-400/90{% else %}text-emerald-400/90{% endif %}">
+              OPERATING STATE — {{ insights.os_state.title }}
+            </div>
+            <div class="text-base sm:text-lg text-zinc-200 mt-1 leading-snug">{{ insights.os_state.text }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       <!-- Hero Scores - Prioritized key metrics for scannability (Readiness, Sleep, HRV/RHR/Steps/Activity focus) -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
