@@ -153,6 +153,73 @@ async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = 
         raise HTTPException(status_code=502, detail=f"Failed to reach Home Assistant: {str(e)}")
 
 
+# =============================================================================
+# Thunderstorm — an orchestrated dynamic mode WiZ doesn't ship.
+# The server conducts it: a dim blue-grey storm base, then randomized lightning
+# (1–3 rapid bright strikes) every 12–45s, fading back to base. Sleep-safe:
+# the base is very dim, and the storm auto-ends after 8 hours.
+# =============================================================================
+_storm_task: Optional[asyncio.Task] = None
+_storm_entities: List[str] = []
+
+STORM_BASE = {"rgb_color": [30, 40, 70], "brightness_pct": 8, "transition": 2}
+STORM_AFTERGLOW = {"rgb_color": [60, 75, 120], "brightness_pct": 18, "transition": 0}
+STORM_STRIKE = {"rgb_color": [215, 228, 255], "brightness_pct": 100, "transition": 0}
+STORM_MAX_SECONDS = 8 * 3600
+
+
+async def _storm_loop(entity_ids: List[str]):
+    import random
+    try:
+        end = time.time() + STORM_MAX_SECONDS
+        await call_ha_service("light", "turn_on", entity_ids, dict(STORM_BASE))
+        while time.time() < end:
+            await asyncio.sleep(random.uniform(12, 45))
+            for _ in range(random.randint(1, 3)):          # multi-strike bursts feel real
+                await call_ha_service("light", "turn_on", entity_ids, dict(STORM_STRIKE))
+                await asyncio.sleep(random.uniform(0.12, 0.30))
+                await call_ha_service("light", "turn_on", entity_ids, dict(STORM_AFTERGLOW))
+                await asyncio.sleep(random.uniform(0.15, 0.55))
+            await call_ha_service("light", "turn_on", entity_ids, dict(STORM_BASE))
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        print(f"thunderstorm loop error: {e}")
+
+
+def storm_status() -> Dict[str, Any]:
+    running = _storm_task is not None and not _storm_task.done()
+    return {"running": running, "entities": _storm_entities if running else []}
+
+
+async def storm_start(entity_ids: List[str]) -> Dict[str, Any]:
+    global _storm_task, _storm_entities
+    await storm_stop(restore=False)
+    _storm_entities = entity_ids
+    _storm_task = asyncio.create_task(_storm_loop(entity_ids))
+    return storm_status()
+
+
+async def storm_stop(restore: bool = True) -> Dict[str, Any]:
+    global _storm_task, _storm_entities
+    if _storm_task and not _storm_task.done():
+        _storm_task.cancel()
+        try:
+            await _storm_task
+        except Exception:
+            pass
+        if restore and _storm_entities:
+            # leave the room calm, not mid-strike
+            try:
+                await call_ha_service("light", "turn_on", _storm_entities,
+                                      {"color_temp_kelvin": 2700, "brightness_pct": 25, "transition": 2})
+            except Exception:
+                pass
+    _storm_task = None
+    _storm_entities = []
+    return storm_status()
+
+
 async def perform_poke_blink():
     """Backend-handled snappy poke: instant off for 0.25s then back on to previous state.
     Runs in background so endpoint returns immediately for instant feel.

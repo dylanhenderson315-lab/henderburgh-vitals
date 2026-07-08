@@ -498,6 +498,20 @@
       background: #fff; border: 2px solid #52525b; cursor: pointer;
     }
 
+    /* Thunderstorm card while the storm is live: slow storm-blue breathing +
+       an occasional lightning flicker. Motion carries meaning (a storm IS running). */
+    .storm-live {
+      background: linear-gradient(135deg, #10142a, #1b2340 55%, #10142a);
+      animation: storm-breathe 5s ease-in-out infinite;
+    }
+    @keyframes storm-breathe {
+      0%, 100% { box-shadow: 0 0 0 rgba(129,140,248,0); }
+      45%      { box-shadow: 0 0 22px rgba(129,140,248,.25); }
+      50%      { box-shadow: 0 0 30px rgba(199,210,254,.5); }  /* the flash */
+      55%      { box-shadow: 0 0 22px rgba(129,140,248,.25); }
+    }
+    @media (prefers-reduced-motion: reduce) { .storm-live { animation: none; } }
+
     /* WiZ-style room/light toggle switch */
     .wiz-toggle {
       width: 44px; height: 26px; border-radius: 999px; background: #3f3f46;
@@ -2180,6 +2194,31 @@
       return null;
     }
 
+    // Thunderstorm: a RUNNING orchestrated mode (server conducts random lightning).
+    // Card shows the honest live state; targets the Bedroom (sleep mode) or falls back
+    // to the Game Room if no bedroom lights respond.
+    let stormRunning = false;
+    fetch('/api/ha/thunderstorm').then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) { stormRunning = !!d.running; renderCurrentView(); } }).catch(() => {});
+
+    async function toggleThunderstorm() {
+      if (!isUnlocked) { showFeedback('Unlock controls to start the storm.', true); return; }
+      const ids = roomLightIds('Bedroom').length ? roomLightIds('Bedroom') : roomLightIds('Game Room');
+      if (!ids.length) { showFeedback('No lights available for the storm.', true); return; }
+      try {
+        const res = await fetch('/api/ha/thunderstorm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: stormRunning ? 'stop' : 'start', entity_ids: ids })
+        });
+        if (res.status === 403) { showFeedback('Locked — unlock to control the storm.', true); return; }
+        const d = await res.json();
+        stormRunning = !!d.running;
+        showFeedback(stormRunning ? 'Thunderstorm rolling in ⛈ — sleep well' : 'Storm cleared — lights restored to calm warm');
+        renderCurrentView();
+      } catch (e) { showFeedback('Storm call failed.', true); }
+    }
+
     function renderModesSection() {
       const sug = modeSuggestion();
       return `
@@ -2198,6 +2237,15 @@
                 <div class="text-sm font-semibold text-zinc-100 mt-1.5 leading-tight">${m.name}</div>
                 <div class="text-[10px] text-zinc-500 mt-0.5 leading-snug">${m.desc}</div>
               </button>`).join('')}
+            <button onclick="toggleThunderstorm()"
+              class="mode-card text-left p-4 rounded-2xl border transition active:scale-[0.97] min-h-[86px]
+                     ${stormRunning ? 'storm-live border-indigo-400/60' : 'border-zinc-700 bg-[#141518] hover:border-indigo-400/50'}">
+              <i class="fa-solid fa-cloud-bolt ${stormRunning ? 'text-indigo-200' : 'text-indigo-300/90'} text-sm"></i>
+              <div class="text-sm font-semibold text-zinc-100 mt-1.5 leading-tight">${stormRunning ? 'Storm Rolling ⛈' : 'Thunderstorm'}</div>
+              <div class="text-[10px] ${stormRunning ? 'text-indigo-200/80' : 'text-zinc-500'} mt-0.5 leading-snug">
+                ${stormRunning ? 'Live — tap to clear the skies' : 'Real lightning to sleep to · bedroom'}
+              </div>
+            </button>
           </div>
         </div>`;
     }
