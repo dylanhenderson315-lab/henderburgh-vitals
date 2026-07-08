@@ -154,70 +154,118 @@ async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = 
 
 
 # =============================================================================
-# Thunderstorm — an orchestrated dynamic mode WiZ doesn't ship.
-# The server conducts it: a dim blue-grey storm base, then randomized lightning
-# (1–3 rapid bright strikes) every 12–45s, fading back to base. Sleep-safe:
-# the base is very dim, and the storm auto-ends after 8 hours.
+# Orchestrated effects — dynamic scenes WiZ doesn't ship, conducted by the
+# server as a cancellable loop against any set of lights. One orchestration
+# runs at a time (starting a new one replaces the old). Auto-ends after 8h;
+# stopping restores calm warm light instead of leaving a scene mid-frame.
 # =============================================================================
-_storm_task: Optional[asyncio.Task] = None
-_storm_entities: List[str] = []
+_fx_task: Optional[asyncio.Task] = None
+_fx_entities: List[str] = []
+_fx_pattern: str = ""
 
-STORM_BASE = {"rgb_color": [30, 40, 70], "brightness_pct": 8, "transition": 2}
-STORM_AFTERGLOW = {"rgb_color": [60, 75, 120], "brightness_pct": 18, "transition": 0}
-STORM_STRIKE = {"rgb_color": [215, 228, 255], "brightness_pct": 100, "transition": 0}
-STORM_MAX_SECONDS = 8 * 3600
+FX_MAX_SECONDS = 8 * 3600
 
 
-async def _storm_loop(entity_ids: List[str]):
+async def _fx_thunderstorm(ids: List[str], rnd):
+    """Dim blue-grey storm base; randomized 1–3 rapid lightning strikes every 12–45s."""
+    base = {"rgb_color": [30, 40, 70], "brightness_pct": 8, "transition": 2}
+    await call_ha_service("light", "turn_on", ids, dict(base))
+    while True:
+        await asyncio.sleep(rnd.uniform(12, 45))
+        for _ in range(rnd.randint(1, 3)):
+            await call_ha_service("light", "turn_on", ids,
+                                  {"rgb_color": [215, 228, 255], "brightness_pct": 100, "transition": 0})
+            await asyncio.sleep(rnd.uniform(0.12, 0.30))
+            await call_ha_service("light", "turn_on", ids,
+                                  {"rgb_color": [60, 75, 120], "brightness_pct": 18, "transition": 0})
+            await asyncio.sleep(rnd.uniform(0.15, 0.55))
+        await call_ha_service("light", "turn_on", ids, dict(base))
+
+
+async def _fx_aurora(ids: List[str], rnd):
+    """Northern lights: slow drifting waves of green / teal / violet."""
+    palette = [[20, 190, 120], [30, 160, 190], [110, 70, 200], [20, 200, 170], [60, 120, 220]]
+    while True:
+        c = palette[rnd.randrange(len(palette))]
+        await call_ha_service("light", "turn_on", ids,
+                              {"rgb_color": c, "brightness_pct": rnd.randint(25, 45), "transition": 5})
+        await asyncio.sleep(rnd.uniform(6, 10))
+
+
+async def _fx_snowy_sky(ids: List[str], rnd):
+    """The WiZ-app scene HA never got: gentle drifting cool whites / pale blues."""
+    palette = [[225, 238, 255], [195, 215, 250], [240, 246, 255], [175, 200, 245]]
+    while True:
+        c = palette[rnd.randrange(len(palette))]
+        await call_ha_service("light", "turn_on", ids,
+                              {"rgb_color": c, "brightness_pct": rnd.randint(30, 60), "transition": 4})
+        await asyncio.sleep(rnd.uniform(5, 8))
+
+
+async def _fx_lava_lamp(ids: List[str], rnd):
+    """Slow morphing warm reds / oranges / magentas, like a lava lamp."""
+    palette = [[255, 60, 10], [255, 120, 0], [200, 20, 110], [255, 40, 60], [230, 90, 20]]
+    while True:
+        c = palette[rnd.randrange(len(palette))]
+        await call_ha_service("light", "turn_on", ids,
+                              {"rgb_color": c, "brightness_pct": rnd.randint(35, 55), "transition": 6})
+        await asyncio.sleep(rnd.uniform(7, 11))
+
+
+FX_PATTERNS = {
+    "thunderstorm": _fx_thunderstorm,
+    "aurora": _fx_aurora,
+    "snowy-sky": _fx_snowy_sky,
+    "lava-lamp": _fx_lava_lamp,
+}
+
+
+async def _fx_runner(pattern: str, ids: List[str]):
     import random
+    rnd = random.Random()
     try:
-        end = time.time() + STORM_MAX_SECONDS
-        await call_ha_service("light", "turn_on", entity_ids, dict(STORM_BASE))
-        while time.time() < end:
-            await asyncio.sleep(random.uniform(12, 45))
-            for _ in range(random.randint(1, 3)):          # multi-strike bursts feel real
-                await call_ha_service("light", "turn_on", entity_ids, dict(STORM_STRIKE))
-                await asyncio.sleep(random.uniform(0.12, 0.30))
-                await call_ha_service("light", "turn_on", entity_ids, dict(STORM_AFTERGLOW))
-                await asyncio.sleep(random.uniform(0.15, 0.55))
-            await call_ha_service("light", "turn_on", entity_ids, dict(STORM_BASE))
-    except asyncio.CancelledError:
+        await asyncio.wait_for(FX_PATTERNS[pattern](ids, rnd), timeout=FX_MAX_SECONDS)
+    except (asyncio.CancelledError, asyncio.TimeoutError):
         pass
     except Exception as e:
-        print(f"thunderstorm loop error: {e}")
+        print(f"orchestrated effect '{pattern}' error: {e}")
 
 
-def storm_status() -> Dict[str, Any]:
-    running = _storm_task is not None and not _storm_task.done()
-    return {"running": running, "entities": _storm_entities if running else []}
+def fx_status() -> Dict[str, Any]:
+    running = _fx_task is not None and not _fx_task.done()
+    return {"running": running,
+            "pattern": _fx_pattern if running else None,
+            "entities": _fx_entities if running else []}
 
 
-async def storm_start(entity_ids: List[str]) -> Dict[str, Any]:
-    global _storm_task, _storm_entities
-    await storm_stop(restore=False)
-    _storm_entities = entity_ids
-    _storm_task = asyncio.create_task(_storm_loop(entity_ids))
-    return storm_status()
+async def fx_start(pattern: str, entity_ids: List[str]) -> Dict[str, Any]:
+    global _fx_task, _fx_entities, _fx_pattern
+    if pattern not in FX_PATTERNS:
+        raise HTTPException(400, f"Unknown pattern. Available: {', '.join(FX_PATTERNS)}")
+    await fx_stop(restore=False)
+    _fx_entities, _fx_pattern = entity_ids, pattern
+    _fx_task = asyncio.create_task(_fx_runner(pattern, entity_ids))
+    return fx_status()
 
 
-async def storm_stop(restore: bool = True) -> Dict[str, Any]:
-    global _storm_task, _storm_entities
-    if _storm_task and not _storm_task.done():
-        _storm_task.cancel()
+async def fx_stop(restore: bool = True) -> Dict[str, Any]:
+    global _fx_task, _fx_entities, _fx_pattern
+    if _fx_task and not _fx_task.done():
+        _fx_task.cancel()
         try:
-            await _storm_task
+            await _fx_task
         except Exception:
             pass
-        if restore and _storm_entities:
-            # leave the room calm, not mid-strike
+        if restore and _fx_entities:
             try:
-                await call_ha_service("light", "turn_on", _storm_entities,
+                await call_ha_service("light", "turn_on", _fx_entities,
                                       {"color_temp_kelvin": 2700, "brightness_pct": 25, "transition": 2})
             except Exception:
                 pass
-    _storm_task = None
-    _storm_entities = []
-    return storm_status()
+    _fx_task = None
+    _fx_entities = []
+    _fx_pattern = ""
+    return fx_status()
 
 
 async def perform_poke_blink():

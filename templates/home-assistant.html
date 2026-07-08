@@ -498,20 +498,6 @@
       background: #fff; border: 2px solid #52525b; cursor: pointer;
     }
 
-    /* Thunderstorm card while the storm is live: slow storm-blue breathing +
-       an occasional lightning flicker. Motion carries meaning (a storm IS running). */
-    .storm-live {
-      background: linear-gradient(135deg, #10142a, #1b2340 55%, #10142a);
-      animation: storm-breathe 5s ease-in-out infinite;
-    }
-    @keyframes storm-breathe {
-      0%, 100% { box-shadow: 0 0 0 rgba(129,140,248,0); }
-      45%      { box-shadow: 0 0 22px rgba(129,140,248,.25); }
-      50%      { box-shadow: 0 0 30px rgba(199,210,254,.5); }  /* the flash */
-      55%      { box-shadow: 0 0 22px rgba(129,140,248,.25); }
-    }
-    @media (prefers-reduced-motion: reduce) { .storm-live { animation: none; } }
-
     /* WiZ-style room/light toggle switch */
     .wiz-toggle {
       width: 44px; height: 26px; border-radius: 999px; background: #3f3f46;
@@ -1746,6 +1732,19 @@
 
             ${effectList.length ? `
             <div>
+              <!-- Henderburgh Originals: server-orchestrated scenes WiZ doesn't ship.
+                   Work on ANY light (whole sync group). Honest running state. -->
+              <div class="text-xs mb-1.5 text-zinc-400">Henderburgh Originals</div>
+              <div class="flex flex-wrap gap-1.5 mb-3">
+                ${FX_ORIGINALS.map(fx => {
+                  const active = fxState.running && fxState.pattern === fx.key && (fxState.entities || []).includes(eid);
+                  return `<button onclick="toggleOrchestrated('${fx.key}', '${eid}'); event.stopImmediatePropagation();"
+                    class="effect-btn flex-1 basis-[48%] min-w-[110px] text-left px-3 py-2 text-[13px] leading-tight rounded-xl ${active ? 'active !bg-indigo-500/20 !border-indigo-400 !text-white' : ''}">
+                    <span class="mr-1.5">${fx.icon}</span>${fx.name}${active ? ' · running' : ''}
+                    <span class="block text-[9px] ${active ? 'text-indigo-200/80' : 'text-zinc-500'}">${active ? 'tap to stop' : fx.desc}</span>
+                  </button>`;
+                }).join('')}
+              </div>
               <div class="text-xs mb-1.5 text-zinc-400">Effect</div>
               <!-- Genius & easy: large, readable, generous tap targets (no more tiny cramped grid of 9px text). Current stands out strongly. Scroll if many. -->
               <div class="flex flex-wrap gap-1.5 max-h-[168px] overflow-auto p-1 bg-[#111113] border border-zinc-800 rounded-2xl">
@@ -2149,26 +2148,26 @@
       return ((haData.lights_by_room || {})[name] || []).map(l => l.entity_id);
     }
 
+    // Six modes = the user's REAL routines, one tap each. A step is
+    // [entity_ids, payload] (light.turn_on) or [entity_ids, null, 'turn_off'].
+    const DESK_BARS = 'light.wiz_rgbw_tunable_ef497e';   // "Desk Light Bars"
+    const TV_LIGHTS = 'light.t_v_lights';
+
     const HOUSE_MODES = {
-      'desk-focus':   { icon: 'fa-bullseye',      name: 'Desk Focus',        desc: 'The aurora lights, dialed for work',
-                        run: () => [[DESK_LIGHTS, { color_temp_kelvin: 4500, brightness_pct: 90 }]] },
-      'deep-work':    { icon: 'fa-brain',         name: 'Deep Work',         desc: 'Clean bright game room',
-                        run: () => [[roomLightIds('Game Room'), { color_temp_kelvin: 5000, brightness_pct: 85 }]] },
-      'wind-down':    { icon: 'fa-moon',          name: 'Recovery Wind-Down', desc: 'Whole house warm & dim',
-                        run: () => [[allLightIds(), { color_temp_kelvin: 2700, brightness_pct: 30 }]] },
-      'gaming':       { icon: 'fa-gamepad',       name: 'Gaming Atmosphere', desc: 'Rich violet game room',
-                        run: () => [[roomLightIds('Game Room'), { rgb_color: [140, 60, 235], brightness_pct: 55 }]] },
-      'house-calm':   { icon: 'fa-spa',           name: 'Whole House Calm',  desc: 'Balanced warm glow everywhere',
-                        run: () => [[allLightIds(), { color_temp_kelvin: 2900, brightness_pct: 45 }]] },
-      'spread-vibe':  { icon: 'fa-wand-magic-sparkles', name: 'Spread the Vibe', desc: 'Whole house matches the aurora',
-                        run: () => {
-                          // The aurora is painted from the desk lights — take their real color house-wide.
-                          const desk = [...Object.values(haData.lights_by_room || {}).flat()]
-                            .find(l => DESK_LIGHTS.includes(l.entity_id) && (getLightState(l.entity_id).state || l.state) === 'on');
-                          const st = desk ? getLightState(desk.entity_id) : {};
-                          const rgb = (st.rgb_color || (desk && desk.rgb_color)) || [255, 196, 120];
-                          return [[allLightIds(), { rgb_color: rgb, brightness_pct: 55 }]];
-                        } },
+      'work':      { icon: 'fa-laptop-code', name: 'Work Mode',   desc: 'Desk bars on Party, lamp neutral',
+                     run: () => [[[DESK_BARS], { effect: 'Party' }],
+                                 [['light.office_lamp'], { color_temp_kelvin: 4500, brightness_pct: 80 }]] },
+      'meeting':   { icon: 'fa-video',       name: 'Meeting Mode', desc: 'Steady white — no colors shifting',
+                     run: () => [[roomLightIds('Game Room'), { color_temp_kelvin: 4200, brightness_pct: 75 }]] },
+      'movie':     { icon: 'fa-film',        name: 'Movie Time',  desc: 'TV lights sync mood, rest dim warm',
+                     run: () => [[[TV_LIGHTS], { effect: 'TV time' }],
+                                 [roomLightIds('Game Room').filter(id => id !== TV_LIGHTS), { color_temp_kelvin: 2700, brightness_pct: 12 }]] },
+      'gaming':    { icon: 'fa-gamepad',     name: 'Gaming',      desc: 'Rich violet game room',
+                     run: () => [[roomLightIds('Game Room'), { rgb_color: [140, 60, 235], brightness_pct: 55 }]] },
+      'wind-down': { icon: 'fa-moon',        name: 'Wind-Down',   desc: 'Whole house warm & dim',
+                     run: () => [[allLightIds(), { color_temp_kelvin: 2700, brightness_pct: 30 }]] },
+      'lights-out':{ icon: 'fa-power-off',   name: 'Lights Out',  desc: 'Everything off, one tap',
+                     run: () => [[allLightIds(), null, 'turn_off']] },
     };
 
     async function runMode(key) {
@@ -2177,7 +2176,8 @@
       if (!isUnlocked) { showFeedback('Unlock controls to set a mode.', true); return; }
       const steps = mode.run().filter(([ids]) => ids && ids.length);
       if (!steps.length) { showFeedback('No lights found for this mode.', true); return; }
-      const results = await Promise.all(steps.map(([ids, payload]) => callLightService(ids, payload)));
+      const results = await Promise.all(steps.map(([ids, payload, svc]) =>
+        svc === 'turn_off' ? callHAService('light', 'turn_off', ids) : callLightService(ids, payload)));
       showFeedback(results.every(Boolean) ? `${mode.name} set` : `${mode.name}: some lights didn't respond`, !results.every(Boolean));
       setTimeout(() => refreshAllData(), 600);
     }
@@ -2194,29 +2194,38 @@
       return null;
     }
 
-    // Thunderstorm: a RUNNING orchestrated mode (server conducts random lightning).
-    // Card shows the honest live state; targets the Bedroom (sleep mode) or falls back
-    // to the Game Room if no bedroom lights respond.
-    let stormRunning = false;
-    fetch('/api/ha/thunderstorm').then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) { stormRunning = !!d.running; renderCurrentView(); } }).catch(() => {});
+    // Orchestrated effects (Henderburgh Originals): server-conducted scenes WiZ
+    // doesn't ship. They live in each light's Effects panel — start on ANY light
+    // (applies to its whole sync group). One orchestration runs at a time.
+    const FX_ORIGINALS = [
+      { key: 'thunderstorm', name: 'Thunderstorm', icon: '⛈', desc: 'random lightning to sleep to' },
+      { key: 'snowy-sky',    name: 'Snowy Sky',    icon: '❄️', desc: 'the WiZ-app scene HA never got' },
+      { key: 'aurora',       name: 'Aurora',       icon: '🌌', desc: 'drifting northern lights' },
+      { key: 'lava-lamp',    name: 'Lava Lamp',    icon: '🌋', desc: 'slow morphing warm color' },
+    ];
+    let fxState = { running: false, pattern: null, entities: [] };
+    function refreshFxState() {
+      return fetch('/api/ha/orchestrate').then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) fxState = d; return fxState; }).catch(() => fxState);
+    }
+    refreshFxState();
 
-    async function toggleThunderstorm() {
-      if (!isUnlocked) { showFeedback('Unlock controls to start the storm.', true); return; }
-      const ids = roomLightIds('Bedroom').length ? roomLightIds('Bedroom') : roomLightIds('Game Room');
-      if (!ids.length) { showFeedback('No lights available for the storm.', true); return; }
+    async function toggleOrchestrated(pattern, eid) {
+      if (!isUnlocked) { showFeedback('Unlock controls to run effects.', true); return; }
+      const ids = getSyncGroupLights(eid);
+      const isRunningHere = fxState.running && fxState.pattern === pattern && (fxState.entities || []).includes(eid);
       try {
-        const res = await fetch('/api/ha/thunderstorm', {
+        const res = await fetch('/api/ha/orchestrate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: stormRunning ? 'stop' : 'start', entity_ids: ids })
+          body: JSON.stringify(isRunningHere ? { action: 'stop' } : { action: 'start', pattern, entity_ids: ids })
         });
-        if (res.status === 403) { showFeedback('Locked — unlock to control the storm.', true); return; }
-        const d = await res.json();
-        stormRunning = !!d.running;
-        showFeedback(stormRunning ? 'Thunderstorm rolling in ⛈ — sleep well' : 'Storm cleared — lights restored to calm warm');
-        renderCurrentView();
-      } catch (e) { showFeedback('Storm call failed.', true); }
+        if (res.status === 403) { showFeedback('Locked — unlock to run effects.', true); return; }
+        fxState = await res.json();
+        const meta = FX_ORIGINALS.find(f => f.key === pattern);
+        showFeedback(fxState.running ? `${meta ? meta.name : pattern} running ${meta ? meta.icon : ''}` : 'Effect stopped — restored to calm warm');
+        openLightDetail(eid);   // re-render the panel with the honest state
+      } catch (e) { showFeedback('Effect call failed.', true); }
     }
 
     function renderModesSection() {
@@ -2237,15 +2246,6 @@
                 <div class="text-sm font-semibold text-zinc-100 mt-1.5 leading-tight">${m.name}</div>
                 <div class="text-[10px] text-zinc-500 mt-0.5 leading-snug">${m.desc}</div>
               </button>`).join('')}
-            <button onclick="toggleThunderstorm()"
-              class="mode-card text-left p-4 rounded-2xl border transition active:scale-[0.97] min-h-[86px]
-                     ${stormRunning ? 'storm-live border-indigo-400/60' : 'border-zinc-700 bg-[#141518] hover:border-indigo-400/50'}">
-              <i class="fa-solid fa-cloud-bolt ${stormRunning ? 'text-indigo-200' : 'text-indigo-300/90'} text-sm"></i>
-              <div class="text-sm font-semibold text-zinc-100 mt-1.5 leading-tight">${stormRunning ? 'Storm Rolling ⛈' : 'Thunderstorm'}</div>
-              <div class="text-[10px] ${stormRunning ? 'text-indigo-200/80' : 'text-zinc-500'} mt-0.5 leading-snug">
-                ${stormRunning ? 'Live — tap to clear the skies' : 'Real lightning to sleep to · bedroom'}
-              </div>
-            </button>
           </div>
         </div>`;
     }
@@ -3863,6 +3863,7 @@
       setInterval(() => {
         if (document.visibilityState === 'visible') {
           hydrateLiveStates(true);
+          refreshFxState();   // keep orchestrated-effect state honest too
         }
       }, 12000);
 

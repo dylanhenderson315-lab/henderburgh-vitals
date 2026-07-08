@@ -1074,15 +1074,15 @@ async def update_clubs(request: Request, clubs: List[dict]):
     return {"status": "saved"}
 
 
-@app.get("/api/ha/thunderstorm")
-async def get_thunderstorm():
-    """Is the storm running? Public read so the UI can show the honest state."""
-    return home_assistant.storm_status()
+@app.get("/api/ha/orchestrate")
+async def get_orchestrate():
+    """Which orchestrated effect is running (if any)? Public read for honest UI state."""
+    return home_assistant.fx_status()
 
 
-@app.post("/api/ha/thunderstorm")
-async def post_thunderstorm(request: Request, body: dict = Body(default={})):
-    """Start/stop the orchestrated thunderstorm (admin). body: {action, entity_ids}."""
+@app.post("/api/ha/orchestrate")
+async def post_orchestrate(request: Request, body: dict = Body(default={})):
+    """Start/stop an orchestrated effect (admin). body: {action, pattern, entity_ids}."""
     require_admin(request)
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(403, "Home Assistant controls are disabled")
@@ -1091,9 +1091,9 @@ async def post_thunderstorm(request: Request, body: dict = Body(default={})):
         ids = [e for e in (body.get("entity_ids") or []) if isinstance(e, str) and e.startswith("light.")]
         if not ids:
             raise HTTPException(400, "entity_ids required")
-        return await home_assistant.storm_start(ids)
+        return await home_assistant.fx_start((body.get("pattern") or "").strip(), ids)
     if action == "stop":
-        return await home_assistant.storm_stop()
+        return await home_assistant.fx_stop()
     raise HTTPException(400, "action must be start or stop")
 
 

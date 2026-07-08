@@ -419,17 +419,6 @@
         </p>
       </div>
 
-      <!-- THE LIVING MINIMAP: the real floor plan (from the 3D model's true geometry),
-           each room glowing its actual current light color, updating on the 12s pulse.
-           Tap any room to jump to Lighting. Hidden until real data arrives — never fake. -->
-      <a id="house-map-wrap" href="/home-assistant" class="block mb-4" style="display:none; max-width: 520px;"
-         title="The house, live — tap to open Lighting">
-        <div class="flex items-center justify-between mb-1.5">
-          <span class="section-label">THE HOUSE · LIVE</span>
-          <span id="house-map-count" class="text-[10px] text-zinc-500"></span>
-        </div>
-        <svg id="house-map" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; display:block;"></svg>
-      </a>
 
       <!-- Quirky little notification icon: click it and the office lamp temporarily flashes to physically signal you (or someone else) poked it -->
       {% if not public_mode %}
@@ -1189,86 +1178,11 @@
         });
       }
 
-      // ===== THE LIVING MINIMAP =====
-      // The real floor plan (true geometry from /api/model), rotated to landscape,
-      // each room filled with its actual current light color. No data -> hidden.
-      const MAP_ROOMS = {   // model room id -> Home Assistant room name
-        'game-room': 'Game Room', 'living-room': 'Living Room', 'kitchen': 'Kitchen',
-        'hallway': 'Hallway', '3rd-bedroom': '3rd Bedroom', 'master-bedroom': 'Bedroom',
-      };
-      let mapBuilt = false, mapRects = {};
-
-      async function buildMinimap() {
-        if (mapBuilt) return;
-        let model = null;
-        try { const r = await fetch('/api/model'); if (r.ok) model = await r.json(); } catch (e) { return; }
-        if (!model || !model.rooms) return;
-        const svg = document.getElementById('house-map');
-        const wrap = document.getElementById('house-map-wrap');
-        if (!svg || !wrap) return;
-
-        // house extent in feet
-        let maxX = 0, maxZ = 0;
-        const rooms = [];
-        Object.entries(model.rooms).forEach(([rid, r]) => {
-          const d = r.dims || {}, w = r.world || {};
-          if (!d.width_ft || !d.depth_ft || typeof w.x !== 'number') return;
-          const x0 = w.x - d.width_ft / 2, x1 = w.x + d.width_ft / 2;
-          const z0 = w.z - d.depth_ft / 2, z1 = w.z + d.depth_ft / 2;
-          maxX = Math.max(maxX, x1); maxZ = Math.max(maxZ, z1);
-          rooms.push({ rid, filler: !!r.filler, x0, x1, z0, z1 });
-        });
-        if (!rooms.length) return;
-
-        // rotate 90°: screen-x = z, screen-y = maxX - x  (landscape strip)
-        svg.setAttribute('viewBox', `0 0 ${maxZ.toFixed(1)} ${maxX.toFixed(1)}`);
-        const ns = 'http://www.w3.org/2000/svg';
-        rooms.forEach(r => {
-          const rect = document.createElementNS(ns, 'rect');
-          rect.setAttribute('x', r.z0.toFixed(2));
-          rect.setAttribute('y', (maxX - r.x1).toFixed(2));
-          rect.setAttribute('width', (r.z1 - r.z0).toFixed(2));
-          rect.setAttribute('height', (r.x1 - r.x0).toFixed(2));
-          rect.setAttribute('rx', '0.8');
-          rect.setAttribute('fill', '#15171b');
-          rect.setAttribute('stroke', r.filler ? '#232529' : '#2e3138');
-          rect.setAttribute('stroke-width', '0.35');
-          if (r.filler) rect.setAttribute('stroke-dasharray', '1.2 0.9');
-          rect.style.transition = 'fill 1.8s ease';
-          svg.appendChild(rect);
-          if (!r.filler) mapRects[r.rid] = rect;
-        });
-        mapBuilt = true;
-        wrap.style.display = 'block';
-        paintMinimap();
-      }
-
-      function paintMinimap() {
-        if (!mapBuilt || !LIVE.lights) return;
-        let onTotal = 0;
-        Object.entries(MAP_ROOMS).forEach(([rid, haName]) => {
-          const rect = mapRects[rid];
-          if (!rect) return;
-          const lights = (LIVE.lights.lights_by_room || {})[haName] || [];
-          const on = lights.filter(l => l.state === 'on');
-          onTotal += on.length;
-          if (!on.length) { rect.setAttribute('fill', '#15171b'); return; }
-          const rgb = on.map(l => (Array.isArray(l.rgb_color) && l.rgb_color.length >= 3) ? l.rgb_color : [255, 196, 120])
-                        .reduce((a, c) => [a[0] + c[0], a[1] + c[1], a[2] + c[2]], [0, 0, 0])
-                        .map(v => Math.round(v / on.length));
-          rect.setAttribute('fill', `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.55)`);
-        });
-        const count = document.getElementById('house-map-count');
-        if (count) count.textContent = onTotal ? `${onTotal} light${onTotal === 1 ? '' : 's'} on` : 'all dark';
-      }
-
       async function tick() {
         try { const r = await fetch('/api/xbox/status'); if (r.ok) LIVE.xbox = await r.json(); } catch (e) {}
         try { const r = await fetch('/api/ha/lights-data'); if (r.ok) { const d = await r.json(); if (d.status === 'ok') LIVE.lights = d; } } catch (e) {}
         synthesize();
         paintAurora();
-        buildMinimap();
-        paintMinimap();
       }
 
       window.__synthesizeLive = synthesize;  // last.fm hook re-synthesizes on now-playing changes
