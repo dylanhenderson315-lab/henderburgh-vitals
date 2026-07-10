@@ -2335,9 +2335,10 @@
       { re: /(minimum|barely)/i,    pct: 5 },   { re: /quarter/i,       pct: 25 },
     ];
 
-    // Targets: ALL matching rooms are unioned ("kitchen and bedroom" hits both).
-    function vibeRooms(text) {
-      const t = text.toLowerCase();
+    // Target matcher: ALL matching rooms/groups are unioned ("kitchen and bedroom"
+    // hits both). Returns empty when nothing matches (callers decide the default).
+    function matchTargets(text) {
+      const t = (text || '').toLowerCase();
       const ids = new Set(); const labels = [];
       if (/(desk|office)/.test(t)) { ['light.wiz_rgbw_tunable_ef497e', 'light.office_lamp'].forEach(i => ids.add(i)); labels.push('Desk lights'); }
       if (/tv lights?|backlight/.test(t)) { ['light.t_v_lights', 'light.living_room_tv_lights'].forEach(i => ids.add(i)); labels.push('TV lights'); }
@@ -2345,12 +2346,32 @@
       for (const room of (haData.rooms || [])) {
         if (t.includes((room.name || '').toLowerCase())) { roomLightIds(room.name).forEach(i => ids.add(i)); labels.push(room.name); }
       }
-      if (!ids.size) return { ids: allLightIds(), label: 'Whole house' };
-      return { ids: [...ids], label: labels.join(' + ') };
+      return { ids, labels };
     }
 
     function parseVibe(text) {
-      const where = vibeRooms(text);
+      // Exclusion clause: "… except/but not/besides/excluding/other than/apart from X".
+      // The action + targets are parsed from the MAIN clause only — otherwise
+      // "turn off all lights except bedroom" would match Bedroom as the target
+      // and do the exact opposite of the intent.
+      const exSplit = text.split(/\b(?:except|besides|excluding|other than|apart from|but not)\b/i);
+      const main = exSplit[0];
+      const exclusion = exSplit.slice(1).join(' ');
+
+      const mainTargets = matchTargets(main);
+      let ids, whereLabel;
+      if (mainTargets.ids.size) { ids = [...mainTargets.ids]; whereLabel = mainTargets.labels.join(' + '); }
+      else { ids = allLightIds(); whereLabel = 'Whole house'; }
+
+      if (exclusion.trim()) {
+        const ex = matchTargets(exclusion);
+        if (!ex.ids.size) return null;   // "except <something we don't know>" — be honest, don't guess
+        ids = ids.filter(i => !ex.ids.has(i));
+        whereLabel += ` except ${ex.labels.join(' + ')}`;
+        if (!ids.length) return null;    // exclusion swallowed everything
+      }
+      const where = { ids, label: whereLabel };
+      text = main;   // actions (off/on, colors, moods, scenes) come from the main clause
       if (!where.ids.length) return null;
 
       // on/off verbs first — the most common commands of all
