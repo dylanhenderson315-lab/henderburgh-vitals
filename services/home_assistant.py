@@ -12,18 +12,27 @@ from fastapi import HTTPException
 from config import HA_ENABLED, HA_HEADERS, HA_URL, OFFICE_LAMP
 from services import persistence, state
 
-async def get_ha_states():
-    """Fetch all entity state from Home Assistant. Returns [] if disabled or error."""
+async def fetch_ha_states() -> tuple[list, bool]:
+    """Fetch all entity state from Home Assistant.
+    Returns (states, ha_ok). ha_ok is False when HA is disabled or the request failed —
+    callers must not treat an empty list as "the house has no lights" in that case.
+    """
     if not HA_ENABLED:
-        return []
+        return [], False
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(f"{HA_URL}/api/states", headers=HA_HEADERS)
             resp.raise_for_status()
-            return resp.json() or []
+            return (resp.json() or []), True
     except Exception as e:
         print(f"HA states fetch error: {e}")
-        return []
+        return [], False
+
+
+async def get_ha_states():
+    """Fetch all entity state from Home Assistant. Returns [] if disabled or error."""
+    states, _ok = await fetch_ha_states()
+    return states
 
 
 async def get_ha_areas():
@@ -353,6 +362,97 @@ async def perform_notify_blue():
         print(f"perform_notify_blue error: {e}")
 
 
+def _synth_lights_from_config_and_snapshot(rooms: List[Dict], groups: List[Dict]) -> Dict[str, Any]:
+    """When HA is unreachable, still return the configured structure with last-known states.
+    Prevents the lighting page from showing "no lights" after a tunnel blip.
+    """
+    snap = ((state.last_ha_lights_snapshot or {}).get("data") or {}).get("lights") or {}
+    lights_by_room: Dict[str, List[Dict]] = {}
+    all_lights: List[Dict] = []
+    assigned: set = set()
+
+    for room in rooms:
+        rname = room.get("name") or "Room"
+        for eid in room.get("light_ids") or []:
+            assigned.add(eid)
+            prev = snap.get(eid) or {}
+            entry = {
+                "entity_id": eid,
+                "state": prev.get("state", "unknown"),
+                "attributes": {},
+                "friendly_name": eid.replace("light.", "").replace("_", " ").title(),
+                "supported_color_modes": [],
+                "effect_list": [],
+                "brightness": prev.get("brightness"),
+                "color_temp": prev.get("color_temp"),
+                "rgb_color": prev.get("rgb_color"),
+                "current_effect": prev.get("current_effect"),
+                "room_name": rname,
+                "is_sync": False,
+                "options": [],
+            }
+            lights_by_room.setdefault(rname, []).append(entry)
+            all_lights.append(entry)
+
+    unassigned_lights: List[Dict] = []
+    for group in groups:
+        for eid in group.get("light_ids") or []:
+            if eid in assigned:
+                continue
+            assigned.add(eid)
+            prev = snap.get(eid) or {}
+            entry = {
+                "entity_id": eid,
+                "state": prev.get("state", "unknown"),
+                "attributes": {},
+                "friendly_name": eid.replace("light.", "").replace("_", " ").title(),
+                "supported_color_modes": [],
+                "effect_list": [],
+                "brightness": prev.get("brightness"),
+                "color_temp": prev.get("color_temp"),
+                "rgb_color": prev.get("rgb_color"),
+                "current_effect": prev.get("current_effect"),
+                "room_name": "Unassigned",
+                "is_sync": False,
+                "options": [],
+            }
+            unassigned_lights.append(entry)
+            all_lights.append(entry)
+
+    rooms_for_ui = []
+    for room in rooms:
+        rlights = [l for l in all_lights if l["entity_id"] in (room.get("light_ids") or [])]
+        rooms_for_ui.append({
+            "id": room["id"],
+            "name": room["name"],
+            "light_ids": room.get("light_ids", []),
+            "light_count": len(rlights),
+            "on_count": sum(1 for l in rlights if l["state"] == "on"),
+        })
+
+    groups_for_ui = []
+    for group in groups:
+        glights = [l for l in all_lights if l["entity_id"] in (group.get("light_ids") or [])]
+        groups_for_ui.append({
+            "id": group["id"],
+            "name": group["name"],
+            "light_ids": group.get("light_ids", []),
+            "light_count": len(glights),
+            "on_count": sum(1 for l in glights if l["state"] == "on"),
+        })
+
+    return {
+        "rooms": rooms_for_ui,
+        "groups": groups_for_ui,
+        "lights_by_room": lights_by_room,
+        "unassigned_lights": unassigned_lights,
+        "scenes": [],
+        "total_lights": len(all_lights),
+        "sync_controls": [],
+        "ha_ok": False,
+    }
+
+
 async def get_ha_lights_data():
     """Rich data for lighting dashboard.
     Uses HA for discovering lights + effects.
@@ -362,9 +462,21 @@ async def get_ha_lights_data():
     Updates the state.last_ha_lights_snapshot so bootstrap + "last known" are instant on next loads.
     """
     if not HA_ENABLED:
-        return {"rooms": [], "groups": [], "lights_by_room": {}, "unassigned_lights": [], "scenes": [], "total_lights": 0}
+        return {
+            "rooms": [], "groups": [], "lights_by_room": {}, "unassigned_lights": [],
+            "scenes": [], "total_lights": 0, "sync_controls": [], "ha_ok": False,
+        }
 
-    states = await get_ha_states()
+    states, ha_ok = await fetch_ha_states()
+    config = persistence.load_lighting_config()
+    rooms = config.get("rooms", [])
+    groups = config.get("groups", [])
+
+    # HA down: still return configured structure (last-known states) so the UI
+    # never collapses to "No lights in this room" after a tunnel blip.
+    if not ha_ok:
+        return _synth_lights_from_config_and_snapshot(rooms, groups)
+
     areas_raw = await get_ha_areas()
     registry = await get_ha_entity_registry()
 
@@ -378,10 +490,6 @@ async def get_ha_lights_data():
         aid = entry.get("area_id")
         if eid and aid and aid in ha_area_names:
             entity_to_ha_area[eid] = ha_area_names[aid]
-
-    config = persistence.load_lighting_config()
-    rooms = config.get("rooms", [])
-    groups = config.get("groups", [])
 
     # Build set of all custom room light ids for unassigned detection
     # NO auto-seed logic - use exact mapping from config.json only
@@ -503,6 +611,7 @@ async def get_ha_lights_data():
         "scenes": scenes,
         "total_lights": len(all_lights),
         "sync_controls": sync_controls,  # Wiz Sync Box etc. - shown in UI as special items you can control directly
+        "ha_ok": True,
     }
 
     # Update in-memory last known snapshot for instant bootstrap + "last known states" on next visit / refresh

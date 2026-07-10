@@ -530,6 +530,12 @@ def set_guest_access(enabled: bool, hours: float = 12.0) -> dict:
 
 
 def guest_access_status() -> dict:
+    """Return whether guest light control is open.
+
+    Auto-expiry is enforced here (server-side): once expires_at passes, status is
+    disabled and the file is rewritten so a restart can't accidentally re-open it.
+    Guests only ever get light control via require_light_control — never admin.
+    """
     from datetime import datetime, timezone
     data = read_json(GUEST_ACCESS_FILE, {})
     if not isinstance(data, dict) or not data.get("enabled"):
@@ -537,7 +543,12 @@ def guest_access_status() -> dict:
     exp = data.get("expires_at")
     try:
         if exp and datetime.fromisoformat(exp) <= datetime.now(timezone.utc):
-            return {"enabled": False, "expires_at": None}   # auto-expired
+            # Persist the closed state so we don't re-read a stale "enabled" forever.
+            try:
+                write_json(GUEST_ACCESS_FILE, {"enabled": False, "expires_at": None})
+            except Exception:
+                pass
+            return {"enabled": False, "expires_at": None}
     except Exception:
         return {"enabled": False, "expires_at": None}
     return {"enabled": True, "expires_at": exp}

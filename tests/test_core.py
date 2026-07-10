@@ -98,3 +98,69 @@ def test_golf_write_requires_admin():
     client = TestClient(main.app)
     res = client.post("/api/golf/clubs", json=[{"club": "Driver", "yards": 250}])
     assert res.status_code == 403
+
+
+def test_guest_mode_light_control_gate(tmp_path, monkeypatch):
+    """Guest Mode: open house grants light control without admin session;
+    closing (or default off) rejects anonymous control. Guest toggle itself is admin-only.
+    """
+    import main
+    from services import persistence
+
+    # Point guest access file at a temp path so tests don't touch real data.
+    guest_file = tmp_path / "guest_access.json"
+    monkeypatch.setattr(persistence, "GUEST_ACCESS_FILE", guest_file)
+
+    client = TestClient(main.app)
+
+    # Default: locked — anonymous light control rejected
+    assert persistence.guest_access_status()["enabled"] is False
+    res = client.post("/api/ha/service/light/turn_on", json={"entity_id": "light.office_lamp"})
+    assert res.status_code == 403
+
+    # Anonymous cannot self-open guest access
+    res = client.post("/api/ha/guest-access", json={"enabled": True, "hours": 1})
+    assert res.status_code == 403
+
+    # Admin opens guest access
+    unlock = client.post("/api/auth/unlock", json={"token": "test-admin-secret"})
+    assert unlock.status_code == 200
+    res = client.post("/api/ha/guest-access", json={"enabled": True, "hours": 12})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["enabled"] is True
+    assert body["expires_at"]
+
+    # Public status reflects open house
+    st = client.get("/api/auth/status").json()
+    assert st["guest"] is True
+
+    # Fresh client (no admin cookie) can pass the light-control gate while guest is open.
+    # In test env HA is often not configured, so we may still get 403 from the HA_ENABLED
+    # check — but it must NOT be the lock message ("Controls are locked").
+    anon = TestClient(main.app)
+    res = anon.post("/api/ha/service/light/turn_on", json={"entity_id": "light.office_lamp"})
+    detail = (res.json() or {}).get("detail", "")
+    assert "Controls are locked" not in str(detail), res.text
+
+    # Admin closes guest access
+    res = client.post("/api/ha/guest-access", json={"enabled": False})
+    assert res.status_code == 200
+    assert res.json()["enabled"] is False
+
+    # Anonymous locked again at the light-control gate
+    res = anon.post("/api/ha/service/light/turn_on", json={"entity_id": "light.office_lamp"})
+    assert res.status_code == 403
+    assert "Controls are locked" in str((res.json() or {}).get("detail", ""))
+
+
+def test_synth_lights_keeps_structure_when_ha_down():
+    from services.home_assistant import _synth_lights_from_config_and_snapshot
+
+    rooms = [{"id": "hallway", "name": "Hallway", "light_ids": ["light.hallway_light_1", "light.hallway_light_2"]}]
+    groups = []
+    out = _synth_lights_from_config_and_snapshot(rooms, groups)
+    assert out["ha_ok"] is False
+    assert out["total_lights"] == 2
+    assert len(out["lights_by_room"]["Hallway"]) == 2
+    assert out["rooms"][0]["light_count"] == 2

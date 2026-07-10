@@ -11,14 +11,28 @@ async function checkAdminUnlocked() {
   }
 }
 
-/** Full auth picture: {unlocked (admin), guest (open-house light control), guest_expires}. */
+/**
+ * Full auth picture for Guest Mode:
+ * - unlocked: real admin password session
+ * - guest: house-wide light control open (no password), auto-expiring
+ * - guest_expires: ISO timestamp when guest access auto-locks
+ *
+ * Light control UI should treat (unlocked || guest) as "can control lights".
+ * Admin-only panels (guest toggle, access requests, model backups) need unlocked.
+ */
 async function getAuthStatus() {
   try {
     const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
-    if (!res.ok) return { unlocked: false, guest: false, guest_expires: null };
-    return await res.json();
+    if (!res.ok) return { unlocked: false, guest: false, guest_expires: null, configured: false };
+    const data = await res.json();
+    return {
+      unlocked: !!data.unlocked,
+      guest: !!data.guest,
+      guest_expires: data.guest_expires || null,
+      configured: !!data.configured,
+    };
   } catch {
-    return { unlocked: false, guest: false, guest_expires: null };
+    return { unlocked: false, guest: false, guest_expires: null, configured: false };
   }
 }
 

@@ -704,11 +704,17 @@ async def api_ha_states():
 
 @app.get("/api/ha/lights-data")
 async def api_ha_lights_data():
-    """Rich data for the professional lighting dashboard: custom rooms, groups, lights, scenes, unassigned."""
+    """Rich data for the professional lighting dashboard: custom rooms, groups, lights, scenes, unassigned.
+
+    Public read (view-only). Control still gated by require_light_control (admin OR guest mode).
+    When HA is unreachable, payload may include ha_ok=false with last-known / config structure
+    so the UI does not collapse to empty rooms.
+    """
     if not HA_ENABLED:
-        return {"status": "disabled"}
+        return {"status": "disabled", "ha_ok": False, "rooms": [], "groups": [], "lights_by_room": {}, "unassigned_lights": [], "scenes": [], "total_lights": 0, "sync_controls": []}
     data = await home_assistant.get_ha_lights_data()
-    return {"status": "ok", **data}
+    status = "ok" if data.get("ha_ok", True) else "degraded"
+    return {"status": status, **data}
 
 
 

@@ -683,7 +683,8 @@
       letter-spacing: -0.2px;
     }
   </style>
-  <script defer src="/static/os-command.js"></script>
+  <!-- ?v= busts Cloudflare's long cache of /static/* so Guest Mode helpers ship with the HTML -->
+  <script defer src="/static/os-command.js?v=20260710-guest1"></script>
 </head>
 <body class="bg-[#0a0a0b] text-zinc-200 antialiased">
   <!-- Header -->
@@ -954,7 +955,7 @@
     </div>
   </footer>
 
-  <script src="/static/auth.js"></script>
+  <script src="/static/auth.js?v=20260710-guest1"></script>
   <script>
     // Tailwind config
     function initTailwind() {
@@ -984,7 +985,20 @@
     let guestAccess = { enabled: false, expires_at: null };
 
     async function loadSavedToken() {
-      const st = await getAuthStatus();
+      // Guest Mode: isUnlocked = admin session OR open guest light control.
+      // Defensive: if Cloudflare still serves a stale auth.js without getAuthStatus,
+      // fall back inline so the lighting page still boots instead of dying mid-init.
+      let st = { unlocked: false, guest: false, guest_expires: null };
+      try {
+        if (typeof getAuthStatus === 'function') {
+          st = await getAuthStatus();
+        } else {
+          const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+          if (res.ok) st = await res.json();
+        }
+      } catch (e) {
+        console.warn('auth status failed', e);
+      }
       isAdminSession = !!st.unlocked;
       guestAccess = { enabled: !!st.guest, expires_at: st.guest_expires || null };
       isUnlocked = isAdminSession || guestAccess.enabled;
@@ -1384,7 +1398,17 @@
       try {
         const res = await fetch('/api/ha/lights-data');
         const data = await res.json();
-        if (data.status === 'ok') {
+        if (data.status === 'ok' || data.status === 'degraded') {
+          const liveCount = data.total_lights || 0;
+          const bootstrapCount = (haData && haData.total_lights) || 0;
+          // Don't let a HA outage / empty payload wipe a good bootstrap structure.
+          // Guest Mode and view-only both still need the room cards to render.
+          if (liveCount === 0 && bootstrapCount > 0 && data.ha_ok === false) {
+            console.warn('HA unreachable — keeping bootstrap structure');
+            updateLastRefresh('HA unreachable · showing saved structure');
+            return false;
+          }
+
           haData = data;
           // Merge / initialize live state (optimistic keeps priority for in-flight)
           const allRoomLights = Object.values(data.lights_by_room || {}).flat();
@@ -1414,6 +1438,9 @@
             };
           });
           isHydrated = true;
+          if (data.ha_ok === false) {
+            updateLastRefresh('HA degraded · last known states');
+          }
           return true;
         }
       } catch (e) {
@@ -2517,16 +2544,20 @@
     }
 
     // Admin-only: open/close guest light control ("show a friend the site").
+    // Server-enforced via require_light_control — guests cannot call this endpoint.
     async function toggleGuestAccess() {
       if (!isAdminSession) return;
       try {
-        const res = await fetch('/api/ha/guest-access', {
-          method: 'POST', credentials: 'same-origin',
+        const res = await adminFetch('/api/ha/guest-access', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: !guestAccess.enabled, hours: 12 })
         });
         if (!res.ok) { showFeedback('Could not change guest access.', true); return; }
-        guestAccess = await res.json();
+        const data = await res.json();
+        guestAccess = { enabled: !!data.enabled, expires_at: data.expires_at || null };
+        // Admin stays unlocked either way; only guests rely on guestAccess for isUnlocked.
+        isUnlocked = isAdminSession || guestAccess.enabled;
         showFeedback(guestAccess.enabled
           ? 'House is open — anyone with the link can control lights (auto-locks in 12h)'
           : 'Guest access closed — visitors are view-only again');
