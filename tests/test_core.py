@@ -170,3 +170,38 @@ def test_synth_lights_keeps_structure_when_ha_down():
     assert out["total_lights"] == 2
     assert len(out["lights_by_room"]["Hallway"]) == 2
     assert out["rooms"][0]["light_count"] == 2
+
+
+def test_blog_delete_requires_admin_and_works(tmp_path, monkeypatch):
+    """Blog delete was broken: handler called require_admin(request) without injecting Request."""
+    import main
+    from services import persistence
+
+    msg_file = tmp_path / "messages.json"
+    monkeypatch.setattr(persistence, "MESSAGES_FILE", msg_file)
+
+    client = TestClient(main.app)
+
+    # Anonymous cannot delete
+    res = client.delete("/api/messages/nope")
+    assert res.status_code == 403
+
+    # Unlock as admin
+    unlock = client.post("/api/auth/unlock", json={"token": "test-admin-secret"})
+    assert unlock.status_code == 200
+
+    # Create a top-level post + reply
+    parent = client.post("/api/messages", json={"name": "Dylan", "text": "parent post"}).json()
+    reply = client.post(
+        "/api/messages",
+        json={"name": "Friend", "text": "reply", "parent_id": parent["id"]},
+    ).json()
+    assert parent.get("id") and reply.get("id")
+
+    # Delete parent — reply should go too
+    res = client.delete(f"/api/messages/{parent['id']}")
+    assert res.status_code == 200, res.text
+    remaining = client.get("/api/messages").json()
+    ids = {m.get("id") for m in remaining}
+    assert parent["id"] not in ids
+    assert reply["id"] not in ids

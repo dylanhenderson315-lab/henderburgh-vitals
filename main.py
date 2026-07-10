@@ -1089,19 +1089,23 @@ async def post_message(request: Request, message: dict, background_tasks: Backgr
 
 
 @app.delete("/api/messages/{message_id}")
-async def delete_message(message_id: str):
-    """Delete a message. Requires admin token via query param ?token=..."""
+async def delete_message(request: Request, message_id: str):
+    """Delete a message (and its replies). Admin session cookie required."""
     require_admin(request)
 
     messages = persistence.load_messages()
     original_len = len(messages)
-    messages = [m for m in messages if m.get("id") != message_id]
+    # Drop the message and any direct replies so the board doesn't leave orphans.
+    messages = [
+        m for m in messages
+        if m.get("id") != message_id and m.get("parent_id") != message_id
+    ]
 
     if len(messages) == original_len:
         raise HTTPException(status_code=404, detail="Message not found")
 
     persistence.save_messages(messages)
-    return {"status": "deleted"}
+    return {"status": "deleted", "id": message_id}
 
 
 

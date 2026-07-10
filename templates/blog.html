@@ -319,10 +319,10 @@
 
     async function deleteMessage(messageId) {
       if (!isAdminUnlocked) {
-        alert("Admin mode is not active.");
+        alert("Admin mode is not active. Tap Admin and enter your token first.");
         return;
       }
-      if (!confirm("Delete this message?")) return;
+      if (!confirm("Delete this message (and any replies)?")) return;
 
       try {
         const res = await adminFetch(`/api/messages/${messageId}`, {
@@ -331,12 +331,24 @@
 
         if (res.ok) {
           loadMessages();
-        } else {
-          const err = await res.json();
-          alert("Delete failed: " + (err.detail || "Invalid admin token"));
+          return;
         }
+        // Session may have expired after a deploy — prompt to re-unlock.
+        if (res.status === 403) {
+          isAdminUnlocked = false;
+          alert("Admin session expired. Tap Admin and unlock again, then delete.");
+          return;
+        }
+        if (res.status === 404) {
+          alert("Message not found (maybe already deleted).");
+          loadMessages();
+          return;
+        }
+        const err = await res.json().catch(() => ({}));
+        const detail = typeof err.detail === 'string' ? err.detail : (err.detail ? JSON.stringify(err.detail) : res.statusText);
+        alert("Delete failed: " + (detail || ("HTTP " + res.status)));
       } catch (e) {
-        alert("Failed to delete message.");
+        alert("Failed to delete message: " + (e && e.message ? e.message : "network error"));
       }
     }
 
