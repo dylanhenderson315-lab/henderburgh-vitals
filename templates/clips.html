@@ -269,12 +269,15 @@
             Add a large video (R2 link)
           </div>
           <div class="text-xs text-zinc-500 leading-relaxed mb-3">
-            For big files (like the wedding video). Upload it to your R2 bucket, then paste its
-            <span class="text-zinc-400">media.henderburgh.com</span> link here. Streams free, no size limit.
+            For big files (like the wedding video). Upload it to your R2 bucket, then just type its
+            filename below. Streams free, no size limit.
           </div>
-          <input id="link-url" type="url" inputmode="url" placeholder="https://media.henderburgh.com/wedding.mp4"
-                 class="w-full bg-[#0f1115] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50 mb-2"
-                 autocomplete="off">
+          <div class="flex items-stretch mb-2 rounded-xl overflow-hidden border border-zinc-700 focus-within:border-sky-500/50 bg-[#0f1115]">
+            <span class="flex items-center px-3 text-xs text-zinc-500 bg-[#15181d] border-r border-zinc-700 select-none whitespace-nowrap">media.henderburgh.com/</span>
+            <input id="link-url" type="text" inputmode="url" placeholder="wedding.mp4"
+                   class="flex-1 min-w-0 bg-transparent px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none"
+                   autocomplete="off">
+          </div>
           <input id="link-title" type="text" placeholder="Optional title (e.g. Our Wedding)"
                  class="w-full sm:max-w-md bg-[#0f1115] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
                  autocomplete="off">
@@ -456,7 +459,7 @@
         statusEl.className = 'text-xs mt-2 ' + (bad ? 'text-rose-400' : 'text-emerald-400');
         statusEl.classList.remove('hidden');
       };
-      if (!/^https:\/\//i.test(url)) { showStatus('Enter a full https:// link.', true); return; }
+      if (!url || /\s/.test(url)) { showStatus('Type the filename, e.g. wedding.mp4', true); return; }
       btn.disabled = true;
       try {
         const res = await adminFetch('/api/clips/link', {

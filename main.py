@@ -35,6 +35,7 @@ from config import (
     OURA_TOKEN,
     PORT,
     PUBLIC_MODE,
+    R2_PUBLIC_BASE,
     SITE_NAME,
     SITE_URL,
 )
@@ -1425,8 +1426,11 @@ async def add_clip_link(request: Request, body: dict = Body(default={})):
     url = (body.get("url") or "").strip()
     title = (body.get("title") or "").strip()
     kind = (body.get("kind") or "video").strip().lower()
+    # Smart shorthand: a bare filename ("wedding.mp4") auto-expands to the R2 base.
+    if url and not url.lower().startswith("http"):
+        url = f"{R2_PUBLIC_BASE}/{url.lstrip('/')}"
     if not url.startswith("https://"):
-        raise HTTPException(400, "URL must start with https://")
+        raise HTTPException(400, "Enter a filename (e.g. wedding.mp4) or a full https:// link")
     if kind not in ("video", "image"):
         kind = "video"
     if not title:

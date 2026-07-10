@@ -30,6 +30,10 @@ PORT = int(os.getenv("PORT", 8000))
 AUTO_REFRESH_SECONDS = int(os.getenv("AUTO_REFRESH_SECONDS", "300"))
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
+
+# Public base URL of the Cloudflare R2 bucket (custom domain). Lets the Clips
+# page accept a bare filename ("wedding.mp4") and auto-build the full link.
+R2_PUBLIC_BASE = os.getenv("R2_PUBLIC_BASE", "https://media.henderburgh.com").strip().rstrip("/")
 SESSION_COOKIE_NAME = "admin_session"
 SESSION_MAX_AGE_SECONDS = 7 * 24 * 3600
 
