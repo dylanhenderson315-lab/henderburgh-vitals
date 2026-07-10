@@ -131,9 +131,15 @@ def test_guest_mode_light_control_gate(tmp_path, monkeypatch):
     assert body["enabled"] is True
     assert body["expires_at"]
 
-    # Public status reflects open house
+    # Public status reflects open house (can_control even without admin cookie)
     st = client.get("/api/auth/status").json()
     assert st["guest"] is True
+    assert st["can_control"] is True
+    # Fresh anonymous status also can_control
+    anon_status = TestClient(main.app).get("/api/auth/status").json()
+    assert anon_status["unlocked"] is False
+    assert anon_status["guest"] is True
+    assert anon_status["can_control"] is True
 
     # Fresh client (no admin cookie) can pass the light-control gate while guest is open.
     # In test env HA is often not configured, so we may still get 403 from the HA_ENABLED

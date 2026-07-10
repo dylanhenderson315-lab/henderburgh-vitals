@@ -955,8 +955,11 @@
     </div>
   </footer>
 
-  <script src="/static/auth.js?v=20260710-guest1"></script>
+  <script src="/static/auth.js?v=20260710-guest2"></script>
   <script>
+    // Server-baked auth so Guest Mode is correct on first paint (no race with /api/auth/status).
+    window.INITIAL_AUTH = {{ initial_auth | tojson }};
+
     // Tailwind config
     function initTailwind() {
       if (typeof tailwind !== 'undefined') {
@@ -964,8 +967,13 @@
       }
     }
 
-    // === Persistent unlock via localStorage + nice locked/unlocked experience ===
+    // === Access model ===
+    // isUnlocked     = can control lights (admin password session OR guest access open)
+    // isAdminSession = real password session (guest toggle, access requests, admin panels)
+    // guestAccess    = house-wide open switch (no password), auto-expires server-side
     let isUnlocked = false;
+    let isAdminSession = false;
+    let guestAccess = { enabled: false, expires_at: null };
     let haData = null;           // {rooms, lights_by_room, groups, scenes, ...} from live or synthesized
     let lightsState = {};        // entity_id -> current optimistic attrs
     let primaryView = 'rooms';   // 'rooms' (default), 'lights', 'groups', 'scenes', 'plan', 'tv-sync'
@@ -979,56 +987,113 @@
     let searchTerm = '';
     let isHydrated = false;      // true after first successful live data
 
-    // isUnlocked = "can control lights" (admin session OR guest access).
-    // isAdminSession = real password session (admin panels, guest toggle).
-    let isAdminSession = false;
-    let guestAccess = { enabled: false, expires_at: null };
+    function normalizeAuthStatus(st) {
+      st = st || {};
+      const admin = !!st.unlocked;
+      const guest = !!st.guest;
+      const can = (st.can_control != null) ? !!st.can_control : (admin || guest);
+      return {
+        unlocked: admin,
+        guest,
+        guest_expires: st.guest_expires || null,
+        configured: !!st.configured,
+        can_control: can,
+      };
+    }
 
-    async function loadSavedToken() {
-      // Guest Mode: isUnlocked = admin session OR open guest light control.
-      // Defensive: if Cloudflare still serves a stale auth.js without getAuthStatus,
-      // fall back inline so the lighting page still boots instead of dying mid-init.
-      let st = { unlocked: false, guest: false, guest_expires: null };
-      try {
-        if (typeof getAuthStatus === 'function') {
-          st = await getAuthStatus();
-        } else {
-          const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
-          if (res.ok) st = await res.json();
+    function applyAuthSnapshot(st, { silent = false, forceRender = false } = {}) {
+      const prev = {
+        unlocked: isUnlocked,
+        admin: isAdminSession,
+        guest: guestAccess.enabled,
+      };
+      const next = normalizeAuthStatus(st);
+      isAdminSession = next.unlocked;
+      guestAccess = { enabled: next.guest, expires_at: next.guest_expires };
+      isUnlocked = next.can_control;
+
+      if (isUnlocked) removeViewOnlyState();
+      else applyViewOnlyState();
+
+      updateAccessChrome();
+
+      const changed = (
+        prev.unlocked !== isUnlocked ||
+        prev.admin !== isAdminSession ||
+        prev.guest !== guestAccess.enabled
+      );
+
+      if (changed && !silent) {
+        if (isUnlocked && !prev.unlocked) {
+          showFeedback(isAdminSession
+            ? 'Admin unlocked — full control'
+            : 'Guest access is open — you can control the lights');
+        } else if (!isUnlocked && prev.unlocked) {
+          showFeedback('Access ended — the page is view-only again', true);
+        } else if (guestAccess.enabled && !prev.guest) {
+          showFeedback('Guest access opened — friends can control lights with no password');
+        } else if (!guestAccess.enabled && prev.guest && isAdminSession) {
+          showFeedback('Guest access closed — only your admin session still controls lights');
         }
-      } catch (e) {
-        console.warn('auth status failed', e);
       }
-      isAdminSession = !!st.unlocked;
-      guestAccess = { enabled: !!st.guest, expires_at: st.guest_expires || null };
-      isUnlocked = isAdminSession || guestAccess.enabled;
+
+      if ((changed || forceRender) && haData) {
+        renderCurrentView();
+      }
       return isUnlocked;
     }
 
-    // React live when the admin flips guest access: controls appear/disappear
-    // within one 12s pulse on every open device — no reload needed.
-    async function refreshAuthLive() {
-      const wasUnlocked = isUnlocked;
-      await loadSavedToken();
-      if (isUnlocked !== wasUnlocked) {
-        if (isUnlocked) { removeViewOnlyState(); showFeedback('Guest access opened — you can control the lights now'); }
-        else { applyViewOnlyState(); showFeedback('Access ended — the page is view-only again', true); }
-        renderCurrentView();
+    async function fetchAuthStatus() {
+      // Prefer shared helper; fall back if a stale cached auth.js is missing it.
+      try {
+        if (typeof getAuthStatus === 'function') {
+          return normalizeAuthStatus(await getAuthStatus());
+        }
+        const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+        if (res.ok) return normalizeAuthStatus(await res.json());
+      } catch (e) {
+        console.warn('auth status failed', e);
       }
+      return normalizeAuthStatus({ unlocked: false, guest: false, can_control: false });
+    }
+
+    async function loadSavedToken() {
+      // First paint: trust server-baked INITIAL_AUTH (includes live guest switch).
+      if (window.INITIAL_AUTH) {
+        applyAuthSnapshot(window.INITIAL_AUTH, { silent: true });
+      }
+      const st = await fetchAuthStatus();
+      // Keep INITIAL_AUTH in sync for any late readers
+      window.INITIAL_AUTH = st;
+      return applyAuthSnapshot(st, { silent: true });
+    }
+
+    // Poll often enough that friends feel guest open/close within a few seconds.
+    async function refreshAuthLive() {
+      const st = await fetchAuthStatus();
+      applyAuthSnapshot(st);
     }
 
     async function saveToken(remember) {
       /* session cookie set by /api/auth/unlock */
+      isAdminSession = true;
       isUnlocked = true;
+      applyAuthSnapshot({
+        unlocked: true,
+        guest: guestAccess.enabled,
+        guest_expires: guestAccess.expires_at,
+        can_control: true,
+      }, { silent: true, forceRender: true });
     }
 
     async function clearSavedToken() {
       await logoutAdmin();
-      isUnlocked = false;
+      // After admin logout, guest may still be open — re-read honest server state.
+      const st = await fetchAuthStatus();
+      applyAuthSnapshot(st, { silent: true, forceRender: true });
     }
 
     function applyViewOnlyState() {
-      // Add view-only class to main content so cards look softer + controls are non-interactive
       const main = document.getElementById('main-content');
       if (main) main.classList.add('view-only');
     }
@@ -1036,6 +1101,14 @@
     function removeViewOnlyState() {
       const main = document.getElementById('main-content');
       if (main) main.classList.remove('view-only');
+    }
+
+    function removeLockedBanner() {
+      document.getElementById('view-only-banner')?.remove();
+    }
+
+    function lockedReasonMessage() {
+      return 'Controls are locked. Ask the host to open Guest access, or unlock with the admin token.';
     }
 
     // === Modal + Unlock / Request logic ===
@@ -1062,14 +1135,12 @@
       const val = (input.value || '').trim();
       try {
         await unlockAdmin(val);
-        isUnlocked = true;
-        isAdminSession = true;
         closeUnlockModal();
-        removeViewOnlyState();
-        if (haData) {
-          renderPrimaryView();
-        }
-        showControlIndicator();
+        // Re-read full status so guest flag stays honest alongside admin session.
+        const st = await fetchAuthStatus();
+        st.unlocked = true;
+        st.can_control = true;
+        applyAuthSnapshot(st, { silent: false, forceRender: true });
         renderAccessAdminSection();
       } catch {
         if (err) {
@@ -1136,7 +1207,11 @@
     }
 
     function showControlIndicator() {
-      // Add a small indicator + lock button in the top bar area if not present
+      updateAccessChrome();
+    }
+
+    function updateAccessChrome() {
+      // Top-bar chip: Admin / Guest / none
       let ind = document.getElementById('control-indicator');
       if (!ind) {
         const topBar = document.querySelector('.flex.items-center.justify-between.mb-3');
@@ -1145,23 +1220,45 @@
           ind.id = 'control-indicator';
           ind.className = 'ml-auto flex items-center gap-2 text-xs';
           topBar.appendChild(ind);
-        } else {
-          return;
         }
       }
-      ind.innerHTML = `
-        <span class="full-control-indicator flex items-center gap-1 px-2.5 py-0.5">
-          <i class="fa-solid fa-unlock text-[10px]"></i>
-          <span>Full control</span>
-        </span>
-        <button onclick="lockControls()" class="lock-btn text-zinc-400 hover:text-white">Lock</button>
-      `;
+      if (ind) {
+        if (isAdminSession) {
+          ind.innerHTML = `
+            <span class="full-control-indicator flex items-center gap-1 px-2.5 py-0.5">
+              <i class="fa-solid fa-user-shield text-[10px]"></i>
+              <span>Admin</span>
+            </span>
+            ${guestAccess.enabled ? '<span class="text-emerald-300/90 text-[10px]">· guest open</span>' : ''}
+            <button onclick="lockControls()" class="lock-btn text-zinc-400 hover:text-white unlock-btn">Lock admin</button>`;
+        } else if (isUnlocked && guestAccess.enabled) {
+          ind.innerHTML = `
+            <span class="full-control-indicator flex items-center gap-1 px-2.5 py-0.5">
+              <i class="fa-solid fa-user-group text-[10px]"></i>
+              <span>Guest control</span>
+            </span>`;
+        } else {
+          ind.innerHTML = '';
+        }
+      }
+
+      // Locked banner only when truly cannot control
+      if (isUnlocked) removeLockedBanner();
+      else renderLockedBannerIfNeeded();
+
+      if (isAdminSession) {
+        try { renderAccessAdminSection(); } catch (e) {}
+      } else {
+        document.getElementById('access-admin-section')?.remove();
+      }
     }
 
-    function lockControls() {
-      clearSavedToken();
-      // Reload so the page starts in locked state cleanly
-      location.reload();
+    async function lockControls() {
+      // Drop admin session only. If Guest access is still open, you stay able to control lights as a guest.
+      await clearSavedToken();
+      showFeedback(isUnlocked
+        ? 'Admin session locked — guest control is still open'
+        : 'Locked — view only');
     }
 
     async function showAccessRequests() {
@@ -1286,37 +1383,43 @@
       }
     }
 
-    function renderLockedBannerIfNeeded(container) {
-      if (isUnlocked) return;
+    function renderLockedBannerIfNeeded() {
+      if (isUnlocked) {
+        removeLockedBanner();
+        return;
+      }
 
-      // Inject a nice view-only banner at the top of the main content if not already there
       let banner = document.getElementById('view-only-banner');
       if (!banner) {
         banner = document.createElement('div');
         banner.id = 'view-only-banner';
         banner.className = 'view-only-banner mb-4';
-        banner.innerHTML = `
-          <div class="flex flex-col sm:flex-row items-center gap-3">
-            <div class="flex-1 text-center sm:text-left">
-              <div class="font-medium">View Only Mode</div>
-              <div class="text-xs text-zinc-400 mt-0.5">Live states update automatically. All controls are locked.</div>
-            </div>
-            <div class="flex gap-2">
-              <button onclick="showRequestModal()" class="btn px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 min-h-[44px] unlock-btn">
-                Request temporary access
-              </button>
-              <button onclick="showUnlockModal()" class="btn px-4 py-2 text-sm border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/10 min-h-[44px] unlock-btn">
-                Unlock with token
-              </button>
-            </div>
-          </div>
-        `;
-        // Insert at the very top of dashboard-content or main
         const dash = document.getElementById('dashboard-content');
         if (dash && dash.parentNode) {
           dash.parentNode.insertBefore(banner, dash);
+        } else {
+          return;
         }
       }
+      banner.innerHTML = `
+        <div class="flex flex-col sm:flex-row items-center gap-3">
+          <div class="flex-1 text-center sm:text-left">
+            <div class="font-medium">View only</div>
+            <div class="text-xs text-zinc-400 mt-0.5">
+              Lights update live, but control is locked until the host opens
+              <strong class="text-zinc-300">Guest access</strong> or you unlock with the admin token.
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="showRequestModal()" class="btn px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 min-h-[44px] unlock-btn">
+              Request access
+            </button>
+            <button onclick="showUnlockModal()" class="btn px-4 py-2 text-sm border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/10 min-h-[44px] unlock-btn">
+              Unlock as admin
+            </button>
+          </div>
+        </div>
+      `;
     }
 
     // --- Instant bootstrap from persisted config (lighting_config.json embedded at render time) ---
@@ -1740,7 +1843,7 @@
 
       let html = '';
       if (!isUnlocked) {
-        html += `<div class="mb-3 p-2 text-xs rounded bg-zinc-900 border border-zinc-700 text-amber-300">View only mode. <button onclick="showUnlockModal(); closeLightDetail(); return false;" class="underline unlock-btn">Unlock with token</button></div>`;
+        html += `<div class="mb-3 p-2 text-xs rounded bg-zinc-900 border border-zinc-700 text-amber-300">View only — wait for the host to open Guest access, or <button onclick="showUnlockModal(); closeLightDetail(); return false;" class="underline unlock-btn">unlock as admin</button>.</div>`;
       }
       html += `
         <div class="flex items-center gap-3 mb-4">
@@ -2306,7 +2409,7 @@
     async function runMode(key) {
       const mode = HOUSE_MODES[key];
       if (!mode) return;
-      if (!isUnlocked) { showFeedback('Unlock controls to set a mode.', true); return; }
+      if (!isUnlocked) { showFeedback(lockedReasonMessage(), true); return; }
       const affected = [...new Set(mode.run().flatMap(([ids]) => ids || []))];
       if (!affected.length) { showFeedback('No lights found for this mode.', true); return; }
       lastSnapshot = captureSnapshot(affected);      // fearless: everything is undoable
@@ -2471,7 +2574,7 @@
       const input = document.getElementById('vibe-input');
       const text = (input && input.value || '').trim();
       if (!text) return;
-      if (!isUnlocked) { showFeedback('Unlock controls to command the house.', true); return; }
+      if (!isUnlocked) { showFeedback(lockedReasonMessage(), true); return; }
       const plan = parseVibe(text);
       logVibe(text, plan);   // log everything, especially the failures
       if (!plan) { showFeedback("Didn't catch that — try a color, mood, scene, or 'off' ('rainy', 'purple party', 'kitchen off'). Logged so it can be taught.", true); return; }
@@ -2526,7 +2629,7 @@
     refreshFxState();
 
     async function toggleOrchestrated(pattern, eid) {
-      if (!isUnlocked) { showFeedback('Unlock controls to run effects.', true); return; }
+      if (!isUnlocked) { showFeedback(lockedReasonMessage(), true); return; }
       const ids = getSyncGroupLights(eid);
       const isRunningHere = fxState.running && fxState.pattern === pattern && (fxState.entities || []).includes(eid);
       try {
@@ -2544,29 +2647,40 @@
     }
 
     // Admin-only: open/close guest light control ("show a friend the site").
-    // Server-enforced via require_light_control — guests cannot call this endpoint.
+    // Server-enforced with require_admin — guests cannot open/close the switch.
     async function toggleGuestAccess() {
-      if (!isAdminSession) return;
+      if (!isAdminSession) {
+        showFeedback('Only the admin can open or close guest access.', true);
+        return;
+      }
+      const opening = !guestAccess.enabled;
       try {
         const res = await adminFetch('/api/ha/guest-access', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: !guestAccess.enabled, hours: 12 })
+          body: JSON.stringify({ enabled: opening, hours: 12 })
         });
-        if (!res.ok) { showFeedback('Could not change guest access.', true); return; }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          showFeedback(err.detail || 'Could not change guest access.', true);
+          return;
+        }
         const data = await res.json();
-        guestAccess = { enabled: !!data.enabled, expires_at: data.expires_at || null };
-        // Admin stays unlocked either way; only guests rely on guestAccess for isUnlocked.
-        isUnlocked = isAdminSession || guestAccess.enabled;
-        showFeedback(guestAccess.enabled
-          ? 'House is open — anyone with the link can control lights (auto-locks in 12h)'
-          : 'Guest access closed — visitors are view-only again');
-        renderCurrentView();
-      } catch (e) { showFeedback('Could not change guest access.', true); }
+        const st = await fetchAuthStatus();
+        st.guest = !!data.enabled;
+        st.guest_expires = data.expires_at || null;
+        st.can_control = !!st.unlocked || !!st.guest;
+        applyAuthSnapshot(st, { silent: true, forceRender: true });
+        showFeedback(data.enabled
+          ? 'Guest access OPEN — text friends the link. They control lights with no password (auto-locks in 12h).'
+          : 'Guest access CLOSED — visitors are view-only. Your admin session still works.');
+      } catch (e) {
+        showFeedback('Could not change guest access.', true);
+      }
     }
 
     function guestBannerHTML() {
-      if (!isAdminSession) return '';
+      // Everyone sees when guest is open; only admin gets the toggle.
       if (guestAccess.enabled) {
         let left = '';
         try {
@@ -2575,14 +2689,17 @@
         } catch (e) {}
         return `
           <div class="mb-2 px-4 py-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between gap-2">
-            <span class="text-[11px] text-emerald-200"><i class="fa-solid fa-door-open mr-1.5"></i><b>Guest access is ON</b> — anyone can control the lights${left}</span>
-            <button onclick="toggleGuestAccess()" class="flex-none text-[11px] font-semibold px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100">Close it</button>
+            <span class="text-[11px] text-emerald-200"><i class="fa-solid fa-door-open mr-1.5"></i><b>Guest access is ON</b> — ${isAdminSession ? 'friends can control lights with no password' : 'you can control the lights'}${left}</span>
+            ${isAdminSession
+              ? `<button onclick="toggleGuestAccess()" class="flex-none text-[11px] font-semibold px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 unlock-btn">Close guest access</button>`
+              : ''}
           </div>`;
       }
+      if (!isAdminSession) return '';
       return `
         <div class="mb-2 px-4 py-2.5 rounded-2xl border border-zinc-700/70 bg-[#141518] flex items-center justify-between gap-2">
-          <span class="text-[11px] text-zinc-400"><i class="fa-solid fa-user-group mr-1.5"></i>Showing someone the site? Open guest control — no password needed, auto-locks in 12h</span>
-          <button onclick="toggleGuestAccess()" class="flex-none text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-zinc-600 text-zinc-200 hover:border-emerald-500/50">Open guest access</button>
+          <span class="text-[11px] text-zinc-400"><i class="fa-solid fa-user-group mr-1.5"></i>Showing someone the site? Open guest access — no password needed, auto-locks in 12h</span>
+          <button onclick="toggleGuestAccess()" class="flex-none text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-zinc-600 text-zinc-200 hover:border-emerald-500/50 unlock-btn">Open guest access</button>
         </div>`;
     }
 
@@ -3256,7 +3373,7 @@
     // Clear visual feedback: pulsing bezel (stronger for music), activating card state, temp badges, zone highlights.
     async function activateTVMode() {
       if (!isUnlocked) {
-        showFeedback('Unlock controls to activate TV Sync.', true);
+        showFeedback(lockedReasonMessage(), true);
         return;
       }
       const allFlat = [...Object.values(haData.lights_by_room || {}).flat(), ...(haData.unassigned_lights || [])];
@@ -3625,7 +3742,7 @@
 
     async function callLightService(eid, extra) {
       if (!isUnlocked) {
-        showFeedback('Unlock controls to make changes.', true);
+        showFeedback(lockedReasonMessage(), true);
         return false;
       }
       try {
@@ -3642,7 +3759,7 @@
     // General service caller (for select.* sync modes etc.)
     async function callHAService(domain, service, entity_id, extra = {}) {
       if (!isUnlocked) {
-        showFeedback('Unlock controls to make changes.', true);
+        showFeedback(lockedReasonMessage(), true);
         return false;
       }
       try {
@@ -3911,7 +4028,7 @@
 
     async function roomOrGroupMaster(id, action, isGroup) {
       if (!isUnlocked) {
-        showFeedback('Unlock to use master controls.', true);
+        showFeedback(lockedReasonMessage(), true);
         return;
       }
       const lights = isGroup 
@@ -4024,7 +4141,7 @@
       // Guard BEFORE the optimistic update: when locked, callLightService returns false
       // (no throw), so the .catch() never fired and the UI showed a toggle that never
       // happened. Never lie to the user.
-      if (!isUnlocked) { showFeedback('Unlock controls to make changes.', true); return; }
+      if (!isUnlocked) { showFeedback(lockedReasonMessage(), true); return; }
       const st = getLightState(eid);
       const currentlyOn = (st.state || 'off') === 'on';
       const newState = currentlyOn ? 'off' : 'on';
@@ -4168,7 +4285,9 @@
     async function initializeDashboard() {
       initTailwind();
 
+      // Auth first (INITIAL_AUTH is server-baked with live guest switch).
       await loadSavedToken();
+      updateAccessChrome();
 
       // Load TV Sync data from server (spatial whole-house). Only TV Sync code path.
       (async () => {
@@ -4189,54 +4308,29 @@
         } catch (e) {}
       })();
 
-      if (isUnlocked) {
-        removeViewOnlyState();
-      } else {
-        applyViewOnlyState();
-      }
-
       // 1. INSTANT: show persisted rooms + sync groups + skeleton states from lighting_config.json
       const bootstrapped = bootstrapFromInitial();
+      updateAccessChrome();
 
-      // Show locked banner early if needed (before live data)
-      if (!isUnlocked) {
-        setTimeout(() => {
-          const dash = document.getElementById('dashboard-content');
-          if (dash) renderLockedBannerIfNeeded(dash);
-        }, 10);
-      }
-
-      // 2. Always kick background live fetch from HA (hydrates names, real states, new unassigned lights, counts)
-      // Use setTimeout so the first paint is completely unblocked.
+      // 2. Background live fetch from HA
       setTimeout(() => {
         hydrateLiveStates(true).then(() => {
-          if (!isUnlocked) {
-            const dash = document.getElementById('dashboard-content');
-            if (dash) renderLockedBannerIfNeeded(dash);
-          }
+          updateAccessChrome();
         }).catch(() => {});
       }, bootstrapped ? 40 : 120);
 
-      // Live background refresh every 12s (visibility-gated) — keeps card colors,
-      // toggles and the header light-strip a true mirror of the house.
+      // Lights every 12s; auth every 3s so guest open/close feels instant on friends' phones.
       setInterval(() => {
         if (document.visibilityState === 'visible') {
           hydrateLiveStates(true);
-          refreshFxState();    // keep orchestrated-effect state honest too
-          refreshAuthLive();   // guest access granted/revoked -> page reacts by itself
+          refreshFxState();
         }
       }, 12000);
+      setInterval(() => {
+        if (document.visibilityState === 'visible') refreshAuthLive();
+      }, 3000);
 
-      // Make sure active buttons reflect default
       updateActiveViewButtons();
-
-      // If unlocked from storage, show the control indicator
-      if (isUnlocked) {
-        setTimeout(() => {
-          showControlIndicator();
-          renderAccessAdminSection();
-        }, 250);
-      }
 
       // Keyboard hint (desktop)
       document.addEventListener('keydown', (e) => {

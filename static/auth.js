@@ -25,14 +25,17 @@ async function getAuthStatus() {
     const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
     if (!res.ok) return { unlocked: false, guest: false, guest_expires: null, configured: false };
     const data = await res.json();
+    const unlocked = !!data.unlocked;
+    const guest = !!data.guest;
     return {
-      unlocked: !!data.unlocked,
-      guest: !!data.guest,
+      unlocked,
+      guest,
       guest_expires: data.guest_expires || null,
       configured: !!data.configured,
+      can_control: (data.can_control != null) ? !!data.can_control : (unlocked || guest),
     };
   } catch {
-    return { unlocked: false, guest: false, guest_expires: null, configured: false };
+    return { unlocked: false, guest: false, guest_expires: null, configured: false, can_control: false };
   }
 }
 

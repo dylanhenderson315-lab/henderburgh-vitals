@@ -132,12 +132,21 @@ async def auth_logout(request: Request):
 
 @app.get("/api/auth/status")
 async def auth_status(request: Request):
+    """Honest access picture for the lighting UI.
+
+    - unlocked: admin password session (cookie)
+    - guest: house-wide light control is open (no password)
+    - can_control: either of the above — this is what the UI should use for toggles
+    """
     guest = persistence.guest_access_status()
+    admin = is_admin_authenticated(request)
+    guest_on = bool(guest.get("enabled"))
     return {
-        "unlocked": is_admin_authenticated(request),
+        "unlocked": admin,
         "configured": bool(ADMIN_TOKEN),
-        "guest": guest["enabled"],
-        "guest_expires": guest["expires_at"],
+        "guest": guest_on,
+        "guest_expires": guest.get("expires_at"),
+        "can_control": admin or guest_on,
     }
 
 
@@ -369,6 +378,17 @@ async def ha_page(request: Request):
     snap_total = (state.last_ha_lights_snapshot.get("data") or {}).get("total") or 0
     display_count = len(states) or snap_total or (len(initial_lighting.get("rooms", [])) * 2)  # rough but never blocks
 
+    # Bake auth/guest into the first paint so Guest Mode is correct even before JS fetches status.
+    guest = persistence.guest_access_status() if HA_ENABLED else {"enabled": False, "expires_at": None}
+    admin = is_admin_authenticated(request) if HA_ENABLED else False
+    initial_auth = {
+        "unlocked": bool(admin),
+        "configured": bool(ADMIN_TOKEN),
+        "guest": bool(guest.get("enabled")),
+        "guest_expires": guest.get("expires_at"),
+        "can_control": bool(admin) or bool(guest.get("enabled")),
+    }
+
     return _render("home-assistant.html", {
         "request": request,
         "groups": ordered_groups,
@@ -378,6 +398,7 @@ async def ha_page(request: Request):
         "has_admin_token": bool(ADMIN_TOKEN),
         "site_name": SITE_NAME,
         "initial_lighting": initial_lighting,
+        "initial_auth": initial_auth,
         "display_name": DISPLAY_NAME,
     })
 
