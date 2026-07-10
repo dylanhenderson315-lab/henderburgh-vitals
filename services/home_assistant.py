@@ -35,6 +35,48 @@ async def get_ha_states():
     return states
 
 
+async def capture_light_snapshot():
+    """Compact snapshot of every light right now — for the ambient usage history.
+    Returns None when HA is unreachable (so we never log a fake "all off" reading).
+    Room labels are resolved from the lighting config so patterns read naturally.
+    """
+    states, ha_ok = await fetch_ha_states()
+    if not ha_ok:
+        return None
+
+    # entity_id -> room name, from the user's own config (source of truth)
+    room_of = {}
+    try:
+        for room in persistence.load_lighting_config().get("rooms", []):
+            for eid in room.get("light_ids", []):
+                room_of[eid] = room.get("name")
+    except Exception:
+        pass
+
+    lights = []
+    on_count = 0
+    for s in states:
+        eid = s.get("entity_id", "")
+        if not eid.startswith("light."):
+            continue
+        attrs = s.get("attributes", {}) or {}
+        on = s.get("state") == "on"
+        if on:
+            on_count += 1
+        lights.append({
+            "id": eid,
+            "room": room_of.get(eid),
+            "name": attrs.get("friendly_name"),
+            "on": on,
+            "brightness": attrs.get("brightness"),          # 0-255 or None
+            "rgb": attrs.get("rgb_color"),                   # [r,g,b] or None
+            "kelvin": attrs.get("color_temp_kelvin"),        # white temp or None
+            "effect": attrs.get("effect"),                   # WiZ scene or None
+        })
+
+    return {"lights": lights, "on_count": on_count, "total": len(lights)}
+
+
 async def get_ha_areas():
     """Fetch areas (rooms) from HA config."""
     if not HA_ENABLED:

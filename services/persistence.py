@@ -572,6 +572,25 @@ def load_vibe_log():
     return log if isinstance(log, list) else []
 
 
+# Ambient light-usage history — one snapshot of every light captured hourly
+# during waking hours, so patterns ("game room is always violet after 6pm")
+# can be learned later and used to make the house anticipate you.
+LIGHT_HISTORY_FILE = _seed("light_history.json") or (DATA_PATH / "light_history.json")
+
+
+def log_light_snapshot(entry: dict):
+    log = read_json(LIGHT_HISTORY_FILE, [])
+    if not isinstance(log, list):
+        log = []
+    log.insert(0, entry)
+    write_json(LIGHT_HISTORY_FILE, log[:2500])   # ~7 months of hourly waking-hour snapshots
+
+
+def load_light_history():
+    log = read_json(LIGHT_HISTORY_FILE, [])
+    return log if isinstance(log, list) else []
+
+
 # =============================================================================
 # Blog Message Board (threaded, server-persisted)
 # =============================================================================

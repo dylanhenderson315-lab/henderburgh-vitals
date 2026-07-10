@@ -46,12 +46,37 @@ templates = Jinja2Templates(directory="templates")
 
 
 @asynccontextmanager
+async def _light_history_loop():
+    """Once per hour during waking hours (10am–8pm ET), snapshot every light so
+    usage patterns can be learned later — same 'log now, mine later' idea as the
+    command log. Sleeps to the top of each hour; skips logging when HA is down."""
+    tz = ZoneInfo("America/New_York")
+    while True:
+        now = datetime.now(tz)
+        nxt = (now + timedelta(hours=1)).replace(minute=0, second=5, microsecond=0)
+        try:
+            await asyncio.sleep(max(30, (nxt - now).total_seconds()))
+        except asyncio.CancelledError:
+            raise
+        try:
+            hour = datetime.now(tz).hour
+            if 10 <= hour <= 20:
+                snap = await home_assistant.capture_light_snapshot()
+                if snap:
+                    snap["ts"] = datetime.now(tz).isoformat()
+                    persistence.log_light_snapshot(snap)
+        except Exception as e:
+            print(f"light history snapshot error: {e}")
+
+
 async def lifespan(app: FastAPI):
     if OURA_TOKEN:
         state.oura_client = OuraClient(OURA_TOKEN)
     elif PUBLIC_MODE:
         raise RuntimeError("PUBLIC_MODE requires OURA_TOKEN")
+    history_task = asyncio.create_task(_light_history_loop())
     yield
+    history_task.cancel()
     if state.oura_client:
         await state.oura_client.close()
         state.oura_client = None
@@ -1185,6 +1210,14 @@ async def get_vibe_log(request: Request):
     log = persistence.load_vibe_log()
     fails = [e for e in log if not e.get("understood")]
     return {"total": len(log), "failed": len(fails), "failures": fails[:100], "recent": log[:100]}
+
+
+@app.get("/api/ha/light-history")
+async def get_light_history(request: Request, limit: int = 300):
+    """Admin: the ambient hourly light-usage snapshots, for learning usage patterns."""
+    require_admin(request)
+    log = persistence.load_light_history()
+    return {"total": len(log), "snapshots": log[: max(1, min(limit, 1000))]}
 
 
 @app.get("/api/os-state")
