@@ -2281,64 +2281,121 @@
       { re: /lava/i,                     fx: 'lava-lamp',    label: 'Lava Lamp 🌋' },
     ];
     const VIBE_EFFECTS = [
-      { re: /(fireplace|campfire|cabin|fire)/i, effect: 'Fireplace' },
-      { re: /(ocean|sea|underwater|waves)/i,    effect: 'Ocean' },
-      { re: /(party|dance|club)/i,              effect: 'Party' },
-      { re: /(christmas|xmas)/i,                effect: 'Christmas' },
-      { re: /(halloween|spooky)/i,              effect: 'Halloween' },
-      { re: /(romantic|romance|date night)/i,   effect: 'Romance' },
-      { re: /candle/i,                          effect: 'Candlelight' },
-      { re: /(forest|jungle)/i,                 effect: 'Forest' },
-      { re: /sunset/i,                          effect: 'Sunset' },
-      { re: /(movie|film|tv time)/i,            effect: 'TV time' },
+      { re: /(fireplace|campfire|cabin|fire)/i,   effect: 'Fireplace' },
+      { re: /(ocean|sea|underwater|waves)/i,      effect: 'Ocean' },
+      { re: /(deep ?dive|dive)/i,                 effect: 'Deep dive' },
+      { re: /\bclub\b/i,                          effect: 'Club' },
+      { re: /(party|dance)/i,                     effect: 'Party' },
+      { re: /(christmas|xmas|holiday)/i,          effect: 'Christmas' },
+      { re: /(halloween|spooky)/i,                effect: 'Halloween' },
+      { re: /(romantic|romance|date night)/i,     effect: 'Romance' },
+      { re: /candle/i,                            effect: 'Candlelight' },
+      { re: /(forest|woods)/i,                    effect: 'Forest' },
+      { re: /(jungle|rainforest)/i,               effect: 'Jungle' },
+      { re: /(sunset|golden hour)/i,              effect: 'Sunset' },
+      { re: /(sunrise|wake ?up)/i,                effect: 'Wake-up' },
+      { re: /(movie|film|tv time)/i,              effect: 'TV time' },
+      { re: /(mojito|tropical|beach)/i,           effect: 'Mojito' },
+      { re: /pastel/i,                            effect: 'Pastel colors' },
+      { re: /(steampunk|vintage)/i,               effect: 'Steampunk' },
+      { re: /(pulse|heartbeat)/i,                 effect: 'Pulse' },
+      { re: /diwali/i,                            effect: 'Diwali' },
+      { re: /(plant|grow)/i,                      effect: 'Plantgrowth' },
+      { re: /spring/i,                            effect: 'Spring' },
+      { re: /summer/i,                            effect: 'Summer' },
+      { re: /(fall|autumn)/i,                     effect: 'Fall' },
     ];
     const VIBE_COLORS = [
-      { re: /(purple|violet)/i, rgb: [140, 60, 235], name: 'purple' },
-      { re: /\bred\b/i,         rgb: [255, 30, 30],  name: 'red' },
-      { re: /\bblue\b/i,        rgb: [40, 90, 255],  name: 'blue' },
-      { re: /\bgreen\b/i,       rgb: [30, 200, 90],  name: 'green' },
-      { re: /\bpink\b/i,        rgb: [255, 80, 180], name: 'pink' },
-      { re: /(orange|amber)/i,  rgb: [255, 140, 20], name: 'amber' },
-      { re: /(teal|cyan)/i,     rgb: [20, 200, 200], name: 'teal' },
-      { re: /(gold|yellow)/i,   rgb: [255, 200, 40], name: 'gold' },
+      { re: /(purple|violet)/i,      rgb: [140, 60, 235], name: 'purple' },
+      { re: /(lavender|lilac)/i,     rgb: [190, 150, 255], name: 'lavender' },
+      { re: /(crimson|blood)/i,      rgb: [180, 10, 40],  name: 'crimson' },
+      { re: /\bred\b/i,              rgb: [255, 30, 30],  name: 'red' },
+      { re: /(ice|icy) ?blue/i,      rgb: [160, 210, 255], name: 'ice blue' },
+      { re: /\bblue\b/i,             rgb: [40, 90, 255],  name: 'blue' },
+      { re: /(lime|neon green)/i,    rgb: [140, 255, 40], name: 'lime' },
+      { re: /\bgreen\b/i,            rgb: [30, 200, 90],  name: 'green' },
+      { re: /(magenta|fuchsia)/i,    rgb: [255, 30, 200], name: 'magenta' },
+      { re: /(rose|blush)/i,         rgb: [255, 120, 150], name: 'rose' },
+      { re: /\bpink\b/i,             rgb: [255, 80, 180], name: 'pink' },
+      { re: /(orange|amber)/i,       rgb: [255, 140, 20], name: 'amber' },
+      { re: /(teal|cyan|turquoise)/i, rgb: [20, 200, 200], name: 'teal' },
+      { re: /(gold|yellow)/i,        rgb: [255, 200, 40], name: 'gold' },
+      { re: /\bwhite\b/i,            kelvin: 4000,        name: 'white' },
     ];
     const VIBE_MOODS = [
-      { re: /(cozy|calm|chill|relax|warm)/i,        kelvin: 2700, bri: 35, name: 'warm & cozy' },
-      { re: /(bright|crisp|energi|awake|morning)/i, kelvin: 5000, bri: 85, name: 'bright & crisp' },
-      { re: /(meeting|neutral|steady white|work)/i, kelvin: 4200, bri: 75, name: 'steady white' },
-      { re: /(dim|dark|low|soft|moody)/i,           bri: 14,      name: 'dim' },
-      { re: /(sleep|bedtime|night)/i,               kelvin: 2200, bri: 10, name: 'night-low' },
+      { re: /(cozy|calm|chill|relax(ing)?|warm|hygge)/i,      kelvin: 2700, bri: 35, name: 'warm & cozy' },
+      { re: /(bright|crisp|energi[sz]e|awake|morning)/i,      kelvin: 5000, bri: 85, name: 'bright & crisp' },
+      { re: /(meeting|neutral|steady|no colors?|on camera)/i, kelvin: 4200, bri: 75, name: 'steady white' },
+      { re: /(focus|study|reading|concentrate)/i,             kelvin: 4600, bri: 80, name: 'focus' },
+      { re: /(dim|dark|low|soft|moody|gloomy)/i,              bri: 14,      name: 'dim' },
+      { re: /(sleep|bed ?time|night ?light|nighttime)/i,      kelvin: 2200, bri: 10, name: 'night-low' },
+    ];
+    const VIBE_LEVELS = [
+      { re: /(max|full|100)/i,      pct: 100 }, { re: /(half|medium)/i, pct: 50 },
+      { re: /(minimum|barely)/i,    pct: 5 },   { re: /quarter/i,       pct: 25 },
     ];
 
+    // Targets: ALL matching rooms are unioned ("kitchen and bedroom" hits both).
     function vibeRooms(text) {
       const t = text.toLowerCase();
-      if (/(desk|office)/.test(t)) return { ids: ['light.wiz_rgbw_tunable_ef497e', 'light.office_lamp'], label: 'Desk lights' };
+      const ids = new Set(); const labels = [];
+      if (/(desk|office)/.test(t)) { ['light.wiz_rgbw_tunable_ef497e', 'light.office_lamp'].forEach(i => ids.add(i)); labels.push('Desk lights'); }
+      if (/tv lights?|backlight/.test(t)) { ['light.t_v_lights', 'light.living_room_tv_lights'].forEach(i => ids.add(i)); labels.push('TV lights'); }
+      if (/nicole/.test(t)) { roomLightIds('3rd Bedroom').forEach(i => ids.add(i)); labels.push("3rd Bedroom"); }
       for (const room of (haData.rooms || [])) {
-        if (t.includes((room.name || '').toLowerCase())) return { ids: roomLightIds(room.name), label: room.name };
+        if (t.includes((room.name || '').toLowerCase())) { roomLightIds(room.name).forEach(i => ids.add(i)); labels.push(room.name); }
       }
-      return { ids: allLightIds(), label: 'Whole house' };
+      if (!ids.size) return { ids: allLightIds(), label: 'Whole house' };
+      return { ids: [...ids], label: labels.join(' + ') };
     }
 
     function parseVibe(text) {
       const where = vibeRooms(text);
       if (!where.ids.length) return null;
+
+      // on/off verbs first — the most common commands of all
+      if (/\b(off|out|kill|shut)\b/i.test(text) && !/off\s*white/i.test(text)) {
+        return { ids: where.ids, whereLabel: where.label, service: 'turn_off', label: 'off' };
+      }
       const fx = VIBE_FX.find(v => v.re.test(text));
       if (fx) return { ids: where.ids, whereLabel: where.label, fx: fx.fx, label: fx.label };
+
       const eff = VIBE_EFFECTS.find(v => v.re.test(text));
       const color = VIBE_COLORS.find(v => v.re.test(text));
       const mood = VIBE_MOODS.find(v => v.re.test(text));
       const pctMatch = text.match(/(\d{1,3})\s*%/);
+      const level = pctMatch ? null : VIBE_LEVELS.find(v => v.re.test(text));
       const payload = {};
       let parts = [];
       if (eff) { payload.effect = eff.effect; parts.push(eff.effect); }
-      else if (color) { payload.rgb_color = color.rgb; parts.push(color.name); }
+      else if (color && color.rgb) { payload.rgb_color = color.rgb; parts.push(color.name); }
+      else if (color && color.kelvin) { payload.color_temp_kelvin = color.kelvin; parts.push(color.name); }
       else if (mood && mood.kelvin) { payload.color_temp_kelvin = mood.kelvin; }
       if (mood) { if (!payload.effect && mood.kelvin && !color) parts.push(mood.name); if (mood.bri != null) payload.brightness_pct = mood.bri; }
       if (pctMatch) payload.brightness_pct = Math.max(1, Math.min(100, parseInt(pctMatch[1], 10)));
-      if (payload.brightness_pct != null && !parts.length) parts.push(`${payload.brightness_pct}%`);
-      else if (payload.brightness_pct != null && pctMatch) parts.push(`${payload.brightness_pct}%`);
+      else if (level) payload.brightness_pct = level.pct;
+      if (payload.brightness_pct != null && (pctMatch || level || !parts.length)) parts.push(`${payload.brightness_pct}%`);
+      // bare "turn on the kitchen" -> gentle warm on
+      if (!Object.keys(payload).length && /\bon\b/i.test(text)) {
+        return { ids: where.ids, whereLabel: where.label, payload: { color_temp_kelvin: 3200, brightness_pct: 60 }, label: 'on · warm' };
+      }
       if (!Object.keys(payload).length) return null;
       return { ids: where.ids, whereLabel: where.label, payload, label: parts.join(' · ') };
+    }
+
+    // Every command is logged server-side (understood or not) so failed phrases
+    // can be reviewed later and taught to the parser.
+    function logVibe(text, plan) {
+      try {
+        fetch('/api/ha/vibe-log', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            understood: !!plan,
+            interpretation: plan ? `${plan.whereLabel} → ${plan.label}` : '',
+          }),
+        }).catch(() => {});
+      } catch (e) {}
     }
 
     async function submitVibe() {
@@ -2347,7 +2404,8 @@
       if (!text) return;
       if (!isUnlocked) { showFeedback('Unlock controls to command the house.', true); return; }
       const plan = parseVibe(text);
-      if (!plan) { showFeedback("Didn't catch that — try a color, mood, or scene ('rainy', 'purple party', 'bright & crisp').", true); return; }
+      logVibe(text, plan);   // log everything, especially the failures
+      if (!plan) { showFeedback("Didn't catch that — try a color, mood, scene, or 'off' ('rainy', 'purple party', 'kitchen off'). Logged so it can be taught.", true); return; }
       lastSnapshot = captureSnapshot(plan.ids);
       lastSnapshotHadFx = !!plan.fx;
       let ok;
@@ -2360,6 +2418,8 @@
           ok = res.ok;
           if (res.ok) fxState = await res.json();
         } catch (e) { ok = false; }
+      } else if (plan.service === 'turn_off') {
+        ok = await callHAService('light', 'turn_off', plan.ids);
       } else {
         ok = await callLightService(plan.ids, plan.payload);
       }

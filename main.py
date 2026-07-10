@@ -1097,6 +1097,30 @@ async def post_orchestrate(request: Request, body: dict = Body(default={})):
     raise HTTPException(400, "action must be start or stop")
 
 
+@app.post("/api/ha/vibe-log")
+async def post_vibe_log(request: Request, body: dict = Body(default={})):
+    """Log every 'Tell the house' command (understood or not) for later review."""
+    text = str(body.get("text") or "")[:200].strip()
+    if not text:
+        raise HTTPException(400, "text required")
+    persistence.log_vibe({
+        "text": text,
+        "understood": bool(body.get("understood")),
+        "interpretation": str(body.get("interpretation") or "")[:200],
+        "ts": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"status": "logged"}
+
+
+@app.get("/api/ha/vibe-log")
+async def get_vibe_log(request: Request):
+    """Admin: review commands — failures first, so the parser can be taught."""
+    require_admin(request)
+    log = persistence.load_vibe_log()
+    fails = [e for e in log if not e.get("understood")]
+    return {"total": len(log), "failed": len(fails), "failures": fails[:100], "recent": log[:100]}
+
+
 @app.get("/api/os-state")
 async def api_os_state():
     """The vitals Operating State (one prioritized truthful headline) for other pages —

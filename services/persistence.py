@@ -514,6 +514,24 @@ def save_golf_rounds(rounds):
     write_json(GOLF_ROUNDS_FILE, rounds if isinstance(rounds, list) else [])
 
 
+# "Tell the house" command log — every vibe typed, understood or not, so failed
+# phrases can be reviewed later and taught to the parser.
+VIBE_LOG_FILE = _seed("vibe_log.json") or (DATA_PATH / "vibe_log.json")
+
+
+def log_vibe(entry: dict):
+    log = read_json(VIBE_LOG_FILE, [])
+    if not isinstance(log, list):
+        log = []
+    log.insert(0, entry)
+    write_json(VIBE_LOG_FILE, log[:500])   # keep the 500 most recent
+
+
+def load_vibe_log():
+    log = read_json(VIBE_LOG_FILE, [])
+    return log if isinstance(log, list) else []
+
+
 # =============================================================================
 # Blog Message Board (threaded, server-persisted)
 # =============================================================================
