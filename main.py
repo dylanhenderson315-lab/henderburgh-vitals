@@ -45,7 +45,6 @@ from services.xbox import fetch_xbox_status
 templates = Jinja2Templates(directory="templates")
 
 
-@asynccontextmanager
 async def _light_history_loop():
     """Once per hour during waking hours (10am–8pm ET), snapshot every light so
     usage patterns can be learned later — same 'log now, mine later' idea as the
@@ -69,6 +68,7 @@ async def _light_history_loop():
             print(f"light history snapshot error: {e}")
 
 
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     if OURA_TOKEN:
         state.oura_client = OuraClient(OURA_TOKEN)
