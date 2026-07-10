@@ -978,9 +978,29 @@
     let searchTerm = '';
     let isHydrated = false;      // true after first successful live data
 
+    // isUnlocked = "can control lights" (admin session OR guest access).
+    // isAdminSession = real password session (admin panels, guest toggle).
+    let isAdminSession = false;
+    let guestAccess = { enabled: false, expires_at: null };
+
     async function loadSavedToken() {
-      isUnlocked = await checkAdminUnlocked();
+      const st = await getAuthStatus();
+      isAdminSession = !!st.unlocked;
+      guestAccess = { enabled: !!st.guest, expires_at: st.guest_expires || null };
+      isUnlocked = isAdminSession || guestAccess.enabled;
       return isUnlocked;
+    }
+
+    // React live when the admin flips guest access: controls appear/disappear
+    // within one 12s pulse on every open device — no reload needed.
+    async function refreshAuthLive() {
+      const wasUnlocked = isUnlocked;
+      await loadSavedToken();
+      if (isUnlocked !== wasUnlocked) {
+        if (isUnlocked) { removeViewOnlyState(); showFeedback('Guest access opened — you can control the lights now'); }
+        else { applyViewOnlyState(); showFeedback('Access ended — the page is view-only again', true); }
+        renderCurrentView();
+      }
     }
 
     async function saveToken(remember) {
@@ -1029,6 +1049,7 @@
       try {
         await unlockAdmin(val);
         isUnlocked = true;
+        isAdminSession = true;
         closeUnlockModal();
         removeViewOnlyState();
         if (haData) {
@@ -1189,7 +1210,7 @@
 
     // --- Clean persistent admin section for access requests (only rendered + visible when unlocked) ---
     function renderAccessAdminSection() {
-      if (!isUnlocked) return;
+      if (!isAdminSession) return;   // admin-only panel — guests get light control, nothing more
       let section = document.getElementById('access-admin-section');
       if (!section) {
         section = document.createElement('div');
@@ -2495,10 +2516,50 @@
       } catch (e) { showFeedback('Effect call failed.', true); }
     }
 
+    // Admin-only: open/close guest light control ("show a friend the site").
+    async function toggleGuestAccess() {
+      if (!isAdminSession) return;
+      try {
+        const res = await fetch('/api/ha/guest-access', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !guestAccess.enabled, hours: 12 })
+        });
+        if (!res.ok) { showFeedback('Could not change guest access.', true); return; }
+        guestAccess = await res.json();
+        showFeedback(guestAccess.enabled
+          ? 'House is open — anyone with the link can control lights (auto-locks in 12h)'
+          : 'Guest access closed — visitors are view-only again');
+        renderCurrentView();
+      } catch (e) { showFeedback('Could not change guest access.', true); }
+    }
+
+    function guestBannerHTML() {
+      if (!isAdminSession) return '';
+      if (guestAccess.enabled) {
+        let left = '';
+        try {
+          const mins = Math.max(0, Math.round((new Date(guestAccess.expires_at) - new Date()) / 60000));
+          left = ` · auto-locks in ${Math.floor(mins / 60)}h ${mins % 60}m`;
+        } catch (e) {}
+        return `
+          <div class="mb-2 px-4 py-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between gap-2">
+            <span class="text-[11px] text-emerald-200"><i class="fa-solid fa-door-open mr-1.5"></i><b>Guest access is ON</b> — anyone can control the lights${left}</span>
+            <button onclick="toggleGuestAccess()" class="flex-none text-[11px] font-semibold px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100">Close it</button>
+          </div>`;
+      }
+      return `
+        <div class="mb-2 px-4 py-2.5 rounded-2xl border border-zinc-700/70 bg-[#141518] flex items-center justify-between gap-2">
+          <span class="text-[11px] text-zinc-400"><i class="fa-solid fa-user-group mr-1.5"></i>Showing someone the site? Open guest control — no password needed, auto-locks in 12h</span>
+          <button onclick="toggleGuestAccess()" class="flex-none text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-zinc-600 text-zinc-200 hover:border-emerald-500/50">Open guest access</button>
+        </div>`;
+    }
+
     function renderModesSection() {
       const sug = modeSuggestion();
       return `
         <div class="mb-5">
+          ${guestBannerHTML()}
           <div class="section-label mb-2">House Modes</div>
           ${sug ? `
           <button onclick="runMode('${sug.key}')" class="w-full text-left mb-2 px-4 py-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 active:scale-[0.99] transition">
@@ -4130,7 +4191,8 @@
       setInterval(() => {
         if (document.visibilityState === 'visible') {
           hydrateLiveStates(true);
-          refreshFxState();   // keep orchestrated-effect state honest too
+          refreshFxState();    // keep orchestrated-effect state honest too
+          refreshAuthLive();   // guest access granted/revoked -> page reacts by itself
         }
       }, 12000);
 

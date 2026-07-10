@@ -132,7 +132,38 @@ async def auth_logout(request: Request):
 
 @app.get("/api/auth/status")
 async def auth_status(request: Request):
-    return {"unlocked": is_admin_authenticated(request), "configured": bool(ADMIN_TOKEN)}
+    guest = persistence.guest_access_status()
+    return {
+        "unlocked": is_admin_authenticated(request),
+        "configured": bool(ADMIN_TOKEN),
+        "guest": guest["enabled"],
+        "guest_expires": guest["expires_at"],
+    }
+
+
+def require_light_control(request: Request) -> None:
+    """Light control = admin session OR guest access switched on by the admin.
+    Guest access grants ONLY this — never model editing, backups, or admin panels."""
+    if is_admin_authenticated(request):
+        return
+    if persistence.guest_access_status()["enabled"]:
+        return
+    raise HTTPException(status_code=403, detail="Controls are locked")
+
+
+@app.get("/api/ha/guest-access")
+async def get_guest_access():
+    """Public read: is the house currently open to guests? (UI needs the honest state.)"""
+    return persistence.guest_access_status()
+
+
+@app.post("/api/ha/guest-access")
+async def post_guest_access(request: Request, body: dict = Body(default={})):
+    """Admin only: open/close guest light control. Auto-expires (default 12h, max 72h)."""
+    require_admin(request)
+    enabled = bool(body.get("enabled"))
+    hours = float(body.get("hours") or 12)
+    return persistence.set_guest_access(enabled, hours)
 
 
 async def fetch_all_data(days: int = OURA_DAYS):
@@ -823,11 +854,11 @@ async def api_ha_service(request: Request,
         payload: dict = Body(default={}),
 ):
     """Generic service caller with rich payload support.
-    Requires ?token= matching ADMIN_TOKEN.
+    Light control gate: admin session OR guest access (admin-granted, auto-expiring).
     payload can include: entity_id, brightness (0-255), color_temp (mireds), rgb_color: [r,g,b], etc.
     Used by the professional lighting dashboard.
     """
-    require_admin(request)
+    require_light_control(request)
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(status_code=403, detail="Home Assistant controls are disabled in public mode")
 
@@ -1082,8 +1113,8 @@ async def get_orchestrate():
 
 @app.post("/api/ha/orchestrate")
 async def post_orchestrate(request: Request, body: dict = Body(default={})):
-    """Start/stop an orchestrated effect (admin). body: {action, pattern, entity_ids}."""
-    require_admin(request)
+    """Start/stop an orchestrated effect. Light-control gate (admin or guest access)."""
+    require_light_control(request)
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(403, "Home Assistant controls are disabled")
     action = (body.get("action") or "").strip()

@@ -514,6 +514,35 @@ def save_golf_rounds(rounds):
     write_json(GOLF_ROUNDS_FILE, rounds if isinstance(rounds, list) else [])
 
 
+# Guest access — a server-side switch that lets ANYONE control lights (no password)
+# until the admin turns it off or it auto-expires. Enforced at the API, not the UI.
+GUEST_ACCESS_FILE = _seed("guest_access.json") or (DATA_PATH / "guest_access.json")
+
+
+def set_guest_access(enabled: bool, hours: float = 12.0) -> dict:
+    from datetime import datetime, timedelta, timezone
+    data = {
+        "enabled": bool(enabled),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=max(0.1, min(72, hours)))).isoformat() if enabled else None,
+    }
+    write_json(GUEST_ACCESS_FILE, data)
+    return guest_access_status()
+
+
+def guest_access_status() -> dict:
+    from datetime import datetime, timezone
+    data = read_json(GUEST_ACCESS_FILE, {})
+    if not isinstance(data, dict) or not data.get("enabled"):
+        return {"enabled": False, "expires_at": None}
+    exp = data.get("expires_at")
+    try:
+        if exp and datetime.fromisoformat(exp) <= datetime.now(timezone.utc):
+            return {"enabled": False, "expires_at": None}   # auto-expired
+    except Exception:
+        return {"enabled": False, "expires_at": None}
+    return {"enabled": True, "expires_at": exp}
+
+
 # "Tell the house" command log — every vibe typed, understood or not, so failed
 # phrases can be reviewed later and taught to the parser.
 VIBE_LOG_FILE = _seed("vibe_log.json") or (DATA_PATH / "vibe_log.json")
