@@ -2486,6 +2486,18 @@
       { re: /(minimum|barely)/i,    pct: 5 },   { re: /quarter/i,       pct: 25 },
     ];
 
+    // House Mode names, so you can just TYPE a mode ("work mode", "movie time").
+    // Requires the word "mode"/distinct phrasing so it never steals plain moods
+    // like "steady white for work" — only "work mode" triggers the House Mode.
+    const MODE_ALIASES = [
+      { re: /\bwork\s*mode\b/i,                          key: 'work' },
+      { re: /\bmeeting\s*mode\b/i,                       key: 'meeting' },
+      { re: /\b(movie|film)\s*(time|mode|night)\b/i,     key: 'movie' },
+      { re: /\bgaming\s*mode\b/i,                        key: 'gaming' },
+      { re: /\bwind[\s-]?down\b/i,                       key: 'wind-down' },
+      { re: /\blights?\s*out\b/i,                        key: 'lights-out' },
+    ];
+
     // Target matcher: ALL matching rooms/groups are unioned ("kitchen and bedroom"
     // hits both). Returns empty when nothing matches (callers decide the default).
     function matchTargets(text) {
@@ -2501,6 +2513,12 @@
     }
 
     function parseVibe(text) {
+      // House Mode by name — "work mode", "movie time", "lights out" all route
+      // straight to the mode engine (which handles its own snapshot + undo).
+      const modeHit = MODE_ALIASES.find(m => m.re.test(text || ''));
+      if (modeHit && typeof HOUSE_MODES !== 'undefined' && HOUSE_MODES[modeHit.key]) {
+        return { mode: modeHit.key, whereLabel: 'Modes', label: HOUSE_MODES[modeHit.key].name };
+      }
       // Exclusion clause: "… except/but not/besides/excluding/other than/apart from X".
       // The action + targets are parsed from the MAIN clause only — otherwise
       // "turn off all lights except bedroom" would match Bedroom as the target
@@ -2575,29 +2593,53 @@
       const text = (input && input.value || '').trim();
       if (!text) return;
       if (!isUnlocked) { showFeedback(lockedReasonMessage(), true); return; }
+
+      // Compound: "turn all lights on and game room off" — two clauses joined by
+      // "and" that hit DIFFERENT lights. Descriptors like "warm and cozy" hit the
+      // same target set, so they fall through to the normal single-plan parse.
+      const andParts = text.split(/\s+and\s+/i);
+      if (andParts.length === 2) {
+        const pa = parseVibe(andParts[0]), pb = parseVibe(andParts[1]);
+        if (pa && pb && !pa.mode && !pb.mode && pa.ids && pb.ids &&
+            JSON.stringify([...pa.ids].sort()) !== JSON.stringify([...pb.ids].sort())) {
+          logVibe(text, { whereLabel: `${pa.whereLabel} & ${pb.whereLabel}`, label: `${pa.label} + ${pb.label}` });
+          lastSnapshot = captureSnapshot([...new Set([...pa.ids, ...pb.ids])]);
+          lastSnapshotHadFx = !!(pa.fx || pb.fx);
+          const okA = await execVibePlan(pa), okB = await execVibePlan(pb);
+          if (okA || okB) { showUndoToast(`${pa.whereLabel} → ${pa.label} · ${pb.whereLabel} → ${pb.label}`); input.value = ''; }
+          else showFeedback('The house didn’t respond — try again.', true);
+          setTimeout(() => refreshAllData(), 700);
+          return;
+        }
+      }
+
       const plan = parseVibe(text);
       logVibe(text, plan);   // log everything, especially the failures
       if (!plan) { showFeedback("Didn't catch that — try a color, mood, scene, or 'off' ('rainy', 'purple party', 'kitchen off'). Logged so it can be taught.", true); return; }
+      if (plan.mode) { input.value = ''; runMode(plan.mode); return; }
       lastSnapshot = captureSnapshot(plan.ids);
       lastSnapshotHadFx = !!plan.fx;
-      let ok;
+      const ok = await execVibePlan(plan);
+      if (ok) { showUndoToast(`${plan.whereLabel} → ${plan.label}`); input.value = ''; }
+      else showFeedback('The house didn’t respond — try again.', true);
+      setTimeout(() => refreshAllData(), 700);
+    }
+
+    // Executes a single parsed light plan (effect / off / payload). No snapshot or
+    // toast — callers own undo + feedback so compound runs share one snapshot.
+    async function execVibePlan(plan) {
       if (plan.fx) {
         try {
           const res = await fetch('/api/ha/orchestrate', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'start', pattern: plan.fx, entity_ids: plan.ids })
           });
-          ok = res.ok;
           if (res.ok) fxState = await res.json();
-        } catch (e) { ok = false; }
-      } else if (plan.service === 'turn_off') {
-        ok = await callHAService('light', 'turn_off', plan.ids);
-      } else {
-        ok = await callLightService(plan.ids, plan.payload);
+          return res.ok;
+        } catch (e) { return false; }
       }
-      if (ok) { showUndoToast(`${plan.whereLabel} → ${plan.label}`); input.value = ''; }
-      else showFeedback('The house didn’t respond — try again.', true);
-      setTimeout(() => refreshAllData(), 700);
+      if (plan.service === 'turn_off') return await callHAService('light', 'turn_off', plan.ids);
+      return await callLightService(plan.ids, plan.payload);
     }
 
     // Context-aware suggestion — truthful, gentle, optional. Amber vitals -> wind down;
@@ -2607,7 +2649,7 @@
       if (osState && osState.os_state && osState.os_state.tone === 'amber') {
         return { key: 'wind-down', why: `${osState.os_state.title.toLowerCase()} — a warmer, softer palette would feel right` };
       }
-      if (hour >= 21) return { key: 'house-calm', why: 'late evening — the house could wind down' };
+      if (hour >= 21) return { key: 'wind-down', why: 'late evening — the house could wind down' };
       if (hour >= 17) return { key: 'gaming', why: 'evening — rich game-room atmosphere time' };
       return null;
     }
