@@ -530,7 +530,7 @@
       </div>
     </div>
 
-    <!-- Game Clips -->
+    <!-- Game Clips — real files only (no placeholders) -->
     <div class="content-section">
       <div class="flex items-baseline justify-between mb-3">
         <div>
@@ -542,37 +542,39 @@
         </a>
       </div>
 
+      {% if recent_clips %}
       <div class="clips-scroll">
+        {% for clip in recent_clips %}
         <div class="clip-card">
-          <video controls preload="metadata">
-            <source src="clips/clutch-moment.mp4" type="video/mp4">
+          {% if clip.kind == 'image' %}
+          <a href="{{ clip.url }}" target="_blank" rel="noopener">
+            <img src="{{ clip.url }}" alt="{{ clip.title }}" style="width:100%;display:block;aspect-ratio:16/9;object-fit:cover;background:#000;">
+          </a>
+          {% else %}
+          <video controls preload="metadata" playsinline>
+            <source src="{{ clip.url }}">
           </video>
+          {% endif %}
           <div class="clip-meta">
-            <strong>Clutch 1v3</strong>
-            <span>2 days ago</span>
+            <strong>{{ clip.title }}</strong>
+            <span>{{ clip.date }}</span>
           </div>
         </div>
-
-        <div class="clip-card">
-          <video controls preload="metadata">
-            <source src="clips/team-win.mp4" type="video/mp4">
-          </video>
-          <div class="clip-meta">
-            <strong>Insane team play</strong>
-            <span>Last week</span>
-          </div>
-        </div>
-
-        <div class="clip-card">
-          <video controls preload="metadata">
-            <source src="clips/ace.mp4" type="video/mp4">
-          </video>
-          <div class="clip-meta">
-            <strong>Ace on Haven</strong>
-            <span>3 weeks ago</span>
-          </div>
-        </div>
+        {% endfor %}
       </div>
+      {% else %}
+      <a href="/clips" class="live-card block p-5 hover:border-zinc-600 transition">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-orange-900/25 flex items-center justify-center flex-none">
+            <i class="fa-solid fa-video text-orange-400"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="text-sm font-medium text-zinc-200">No clips yet</div>
+            <div class="text-xs text-zinc-500 mt-0.5">Upload from your phone on the Clips page →</div>
+          </div>
+        </div>
+      </a>
+      {% endif %}
     </div>
 
   </main>

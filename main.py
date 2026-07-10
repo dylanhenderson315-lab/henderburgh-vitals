@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import BackgroundTasks, Body, FastAPI, Form, Request, HTTPException
+from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Request, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -267,6 +267,9 @@ async def home(request: Request):
         recent_messages = []
         blog_unread_count = 0
 
+    # Real clips only — never placeholders (empty list hides dead players on home).
+    recent_clips = list_clips(limit=6)
+
     return _render("home.html", {
         "request": request,
         "public_mode": PUBLIC_MODE,
@@ -276,6 +279,7 @@ async def home(request: Request):
         "heart_rate": hr_ctx,
         "recent_messages": recent_messages,
         "blog_unread_count": blog_unread_count,
+        "recent_clips": recent_clips,
         "time_greeting": time_greeting_now(),
     })
 
@@ -1227,37 +1231,161 @@ async def golf_page(request: Request):
 async def clips_page(request: Request):
     return _render("clips.html", {
         "request": request,
+        "has_admin_token": bool(ADMIN_TOKEN),
+        "is_admin": is_admin_authenticated(request),
     })
 
 
-# Real clips: video files live in DATA_DIR/clips on the persistent volume (survive
-# deploys). The page previously shipped 8 hardcoded fake clips that all 404'd.
-_CLIP_EXTS = (".mp4", ".mov", ".webm", ".m4v")
+# Real clips live in DATA_DIR/clips on the persistent volume (survive deploys).
+# Upload from phone/desktop via admin; served at /media/clips/{name}.
+_CLIP_VIDEO_EXTS = (".mp4", ".mov", ".webm", ".m4v")
+_CLIP_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+_CLIP_EXTS = _CLIP_VIDEO_EXTS + _CLIP_IMAGE_EXTS
+_CLIP_MAX_BYTES = 200 * 1024 * 1024  # 200 MB — comfortable for phone game clips
+
+
+def _clips_dir() -> Path:
+    d = persistence.DATA_PATH / "clips"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _safe_clip_stem(name: str) -> str:
+    """Filename-safe stem from a title or original filename."""
+    import re
+    base = Path(name).stem if name else "clip"
+    base = re.sub(r"[^\w\s\-]+", "", base, flags=re.UNICODE).strip()
+    base = re.sub(r"[\s_]+", "-", base).strip("-").lower()
+    return (base[:80] or "clip")
+
+
+def list_clips(limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    """List real clip files on the volume, newest first."""
+    out: List[Dict[str, Any]] = []
+    d = _clips_dir()
+    for p in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+        if not p.is_file():
+            continue
+        ext = p.suffix.lower()
+        if ext not in _CLIP_EXTS:
+            continue
+        st = p.stat()
+        kind = "image" if ext in _CLIP_IMAGE_EXTS else "video"
+        out.append({
+            "name": p.name,
+            "title": p.stem.replace("-", " ").replace("_", " ").title(),
+            "size_mb": round(st.st_size / 1048576, 1),
+            "date": datetime.fromtimestamp(st.st_mtime).strftime("%b %d, %Y"),
+            "kind": kind,
+            "url": f"/media/clips/{p.name}",
+        })
+        if limit is not None and len(out) >= limit:
+            break
+    return out
 
 
 @app.get("/api/clips")
 async def api_clips():
     """List real clip files, newest first."""
-    out = []
-    d = persistence.DATA_PATH / "clips"
-    if d.exists():
-        for p in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-            if p.is_file() and p.suffix.lower() in _CLIP_EXTS:
-                st = p.stat()
-                out.append({
-                    "name": p.name,
-                    "title": p.stem.replace("-", " ").replace("_", " ").title(),
-                    "size_mb": round(st.st_size / 1048576, 1),
-                    "date": datetime.fromtimestamp(st.st_mtime).strftime("%b %d, %Y"),
-                })
-    return {"clips": out}
+    return {"clips": list_clips()}
+
+
+@app.post("/api/clips/upload")
+async def upload_clip(
+    request: Request,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+):
+    """Admin-only upload. Saves into DATA_DIR/clips (same store the page already reads)."""
+    require_admin(request)
+    if not file or not file.filename:
+        raise HTTPException(400, "No file provided")
+
+    orig = Path(file.filename).name
+    ext = Path(orig).suffix.lower()
+    if ext not in _CLIP_EXTS:
+        raise HTTPException(
+            400,
+            f"Unsupported type {ext or '(none)'}. Use mp4, mov, webm, m4v, jpg, png, webp, or gif.",
+        )
+
+    # Stream to disk with size guard (phones can send large clips).
+    stem = _safe_clip_stem(title.strip() or orig)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    dest_name = f"{stem}-{stamp}{ext}"
+    dest = _clips_dir() / dest_name
+
+    size = 0
+    try:
+        with dest.open("wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > _CLIP_MAX_BYTES:
+                    out.close()
+                    try:
+                        dest.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    raise HTTPException(413, "File too large (max 200 MB)")
+                out.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            dest.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(500, f"Upload failed: {e}") from e
+    finally:
+        await file.close()
+
+    if size == 0:
+        try:
+            dest.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(400, "Empty file")
+
+    st = dest.stat()
+    kind = "image" if ext in _CLIP_IMAGE_EXTS else "video"
+    return {
+        "status": "ok",
+        "clip": {
+            "name": dest.name,
+            "title": dest.stem.replace("-", " ").replace("_", " ").title(),
+            "size_mb": round(st.st_size / 1048576, 1),
+            "date": datetime.fromtimestamp(st.st_mtime).strftime("%b %d, %Y"),
+            "kind": kind,
+            "url": f"/media/clips/{dest.name}",
+        },
+    }
+
+
+@app.delete("/api/clips/{name}")
+async def delete_clip(request: Request, name: str):
+    """Admin-only: remove a clip file from the volume."""
+    require_admin(request)
+    safe = Path(name).name
+    if safe != name or ".." in name or "/" in name or "\\" in name:
+        raise HTTPException(400, "Invalid name")
+    p = _clips_dir() / safe
+    if not p.is_file() or p.suffix.lower() not in _CLIP_EXTS:
+        raise HTTPException(404, "Clip not found")
+    try:
+        p.unlink()
+    except Exception as e:
+        raise HTTPException(500, f"Could not delete: {e}") from e
+    return {"status": "deleted", "name": safe}
 
 
 @app.get("/media/clips/{name}")
 async def media_clip(name: str):
     """Serve a clip file from the volume (path-traversal safe)."""
     safe = Path(name).name
-    p = persistence.DATA_PATH / "clips" / safe
+    p = _clips_dir() / safe
     if not p.is_file() or p.suffix.lower() not in _CLIP_EXTS:
         raise HTTPException(404, "Clip not found")
     return FileResponse(p)

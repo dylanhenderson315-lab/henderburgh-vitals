@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Clips • HENDERBURGH</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <meta property="og:title" content="HENDERBURGH • Clips">
@@ -35,39 +35,27 @@
       font-weight: 600;
     }
 
-    .nav-link {
-      color: #a1a1aa;
-      transition: color 0.15s ease;
-      font-weight: 500;
-      font-size: 14px;
-    }
-    .nav-link:hover {
-      color: #f4f4f5;
-    }
-    .nav-link.active {
-      color: #fff;
-      font-weight: 600;
-    }
-
     .clip-card {
       background: #18181b;
       border: 1px solid #3f3f46;
-      border-radius: 14px;
+      border-radius: 1.5rem;
       overflow: hidden;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
     }
 
     .clip-card:hover {
       border-color: #52525b;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
     }
-    .clip-card { border-radius: 1.5rem; padding: 0; overflow: hidden; } /* rounded-3xl */
 
-    .clip-card video {
+    .clip-card video, .clip-card img.clip-media {
       width: 100%;
       display: block;
       background: #000;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
     }
 
     .clip-meta {
@@ -87,42 +75,93 @@
       color: #a1a1aa;
     }
 
-    .tag {
-      font-size: 10px;
-      padding: 1px 8px;
-      border-radius: 9999px;
-      background: #27272a;
-      color: #a1a1aa;
-      font-weight: 500;
+    .upload-zone {
+      border: 1px dashed #3f3f46;
+      border-radius: 1.5rem;
+      background: linear-gradient(180deg, #141518 0%, #101114 100%);
+      transition: border-color .2s, background .2s;
+    }
+    .upload-zone.dragover {
+      border-color: rgba(74, 222, 128, .55);
+      background: rgba(16, 185, 129, .06);
+    }
+    .upload-zone.uploading {
+      border-color: rgba(74, 222, 128, .35);
     }
 
-    .filter-btn {
-      font-size: 13px;
-      padding: 6px 14px;
+    .btn-primary {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #a7f3d0;
+      font-weight: 600;
       border-radius: 9999px;
-      border: 1px solid #3f3f46;
+      padding: 12px 18px;
+      font-size: 14px;
+      min-height: 48px;
+      transition: all .15s;
+    }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: .5; pointer-events: none; }
+
+    .btn-ghost {
       background: #18181b;
+      border: 1px solid #3f3f46;
       color: #d4d4d8;
-      transition: all 0.15s;
+      font-weight: 500;
+      border-radius: 9999px;
+      padding: 10px 16px;
+      font-size: 13px;
+      min-height: 44px;
     }
 
-    .filter-btn.active,
-    .filter-btn:hover {
+    .progress-bar {
+      height: 4px;
+      border-radius: 9999px;
       background: #27272a;
-      color: #fff;
-      border-color: #52525b;
+      overflow: hidden;
     }
-    /* Neon + Aurora (full system) */
-    .neon-drift{display:inline-flex;gap:6px}.neon-drift .dot{width:6px;height:6px;background:#4ade80;border-radius:9999px;box-shadow:0 0 8px #4ade80;animation:neon-drift 1.2s infinite ease-in-out}
-    .neon-drift .dot:nth-child(2){animation-delay:.2s}.neon-drift .dot:nth-child(3){animation-delay:.4s}
-    @keyframes neon-drift{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1.1);opacity:1}}
-    .aurora-bg{position:absolute;inset:-20%;background:radial-gradient(circle at 30% 20%,rgba(74,222,128,.08) 0%,transparent 50%),radial-gradient(circle at 70% 80%,rgba(96,165,250,.06) 0%,transparent 60%);pointer-events:none;z-index:0;opacity:.55;animation:aurora-drift 18s ease-in-out infinite}
-    @keyframes aurora-drift{0%,100%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(2%,-3%) rotate(1deg)}}
+    .progress-bar > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #059669, #4ade80);
+      transition: width .2s ease;
+    }
+
+    .clip-delete {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 36px;
+      height: 36px;
+      border-radius: 9999px;
+      background: rgba(0,0,0,.65);
+      border: 1px solid rgba(255,255,255,.12);
+      color: #fda4af;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+    body.admin-mode .clip-delete { display: flex; }
+
+    .admin-chip {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #a7f3d0;
+    }
+
+    /* Mobile: keep content above bottom nav */
+    main { padding-bottom: 6rem; }
+    @media (min-width: 768px) { main { padding-bottom: 4rem; } }
   </style>
   <script defer src="/static/os-command.js"></script>
+  <script src="/static/auth.js?v=20260710-guest2"></script>
 </head>
 <body class="bg-[#0a0a0b] text-zinc-200 antialiased">
-  <!-- Header -->
   <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
     <div class="max-w-[1080px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
@@ -151,7 +190,6 @@
     </div>
   </header>
 
-  <!-- Mobile bottom navigation (premium app-like, consistent site-wide) -->
   <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
     <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
       <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
@@ -165,29 +203,61 @@
     </div>
   </nav>
 
-  <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
-    <!-- Header -->
-    <div class="mb-10">
-      <div class="flex items-center gap-x-3 mb-2">
-        <div class="w-9 h-9 rounded-2xl bg-orange-900/30 flex items-center justify-center">
-          <i class="fa-solid fa-video text-orange-400 text-xl"></i>
+  <main class="max-w-[1080px] mx-auto px-6 pt-10">
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-x-3 mb-2">
+          <div class="w-9 h-9 rounded-2xl bg-orange-900/30 flex items-center justify-center">
+            <i class="fa-solid fa-video text-orange-400 text-xl"></i>
+          </div>
+          <h1 class="text-4xl font-semibold tracking-tighter">Game Clips</h1>
         </div>
-        <h1 class="text-4xl font-semibold tracking-tighter">Game Clips</h1>
+        <p class="text-lg text-zinc-400 max-w-md">Highlights from my sessions — upload straight from your phone.</p>
       </div>
-      <p class="text-lg text-zinc-400 max-w-md">Highlights from my recent sessions.</p>
+      <div class="flex items-center gap-2 flex-wrap">
+        <span id="admin-chip" class="admin-chip hidden"><i class="fa-solid fa-unlock text-[10px] mr-1"></i>Admin</span>
+        <button id="admin-btn" onclick="toggleAdmin()" class="btn-ghost">
+          <i class="fa-solid fa-user-shield mr-1.5"></i><span id="admin-btn-label">Admin</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Filters -->
-    <div class="mb-8 flex flex-wrap gap-2" id="filter-buttons">
-      <button onclick="filterClips('all')" class="filter-btn active" data-filter="all">All</button>
-      <button onclick="filterClips('Clutch')" class="filter-btn" data-filter="Clutch">Clutch</button>
-      <button onclick="filterClips('Ace')" class="filter-btn" data-filter="Ace">Ace</button>
-      <button onclick="filterClips('Team Play')" class="filter-btn" data-filter="Team Play">Team Play</button>
-      <button onclick="filterClips('Execute')" class="filter-btn" data-filter="Execute">Execute</button>
-      <button onclick="filterClips('Post-plant')" class="filter-btn" data-filter="Post-plant">Post-plant</button>
+    <!-- Upload card (always visible; unlocks when admin) -->
+    <div id="upload-zone" class="upload-zone p-5 sm:p-6 mb-8">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold text-zinc-100 mb-1">
+            <i class="fa-solid fa-cloud-arrow-up text-emerald-400 mr-1.5"></i>
+            Upload a clip
+          </div>
+          <div class="text-xs text-zinc-500 leading-relaxed" id="upload-hint">
+            Unlock as admin, then pick a video or photo from your camera roll. Saved to the same permanent clips folder as before.
+          </div>
+          <div class="mt-3 hidden" id="title-row">
+            <input id="clip-title" type="text" placeholder="Optional title (e.g. Clutch 1v3)"
+                   class="w-full sm:max-w-md bg-[#0f1115] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50"
+                   autocomplete="off">
+          </div>
+          <div class="mt-3 hidden" id="progress-wrap">
+            <div class="flex justify-between text-[11px] text-zinc-400 mb-1">
+              <span id="progress-label">Uploading…</span>
+              <span id="progress-pct">0%</span>
+            </div>
+            <div class="progress-bar"><span id="progress-fill"></span></div>
+          </div>
+          <div id="upload-status" class="text-xs mt-2 hidden"></div>
+        </div>
+        <div class="flex flex-col gap-2 sm:items-end flex-none w-full sm:w-auto">
+          <label id="pick-btn" class="btn-primary inline-flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto opacity-50 pointer-events-none">
+            <i class="fa-solid fa-photo-film"></i>
+            <span>Choose from phone</span>
+            <input id="file-input" type="file" accept="video/*,image/*,.mp4,.mov,.webm,.m4v,.jpg,.jpeg,.png,.webp,.gif" class="hidden" disabled>
+          </label>
+          <div class="text-[10px] text-zinc-600 text-center sm:text-right">mp4 · mov · webm · photos · max 200&nbsp;MB</div>
+        </div>
+      </div>
     </div>
 
-    <!-- Clips Grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="clips-grid">
       <!-- Populated by JavaScript -->
     </div>
@@ -199,7 +269,6 @@
     </div>
   </main>
 
-  <!-- Footer -->
   <footer class="max-w-[1080px] mx-auto px-6 pb-10">
     <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-500 text-center">
       Personal game highlights • HENDERBURGH
@@ -207,9 +276,64 @@
   </footer>
 
   <script>
-    // Real clips only — loaded from /api/clips (files on the server volume).
-    // The old version shipped 8 hardcoded fake clips that all 404'd into dead players.
     let clips = [];
+    let isAdmin = {{ 'true' if is_admin else 'false' }};
+
+    function setStatus(msg, isError) {
+      const el = document.getElementById('upload-status');
+      if (!el) return;
+      if (!msg) { el.classList.add('hidden'); el.textContent = ''; return; }
+      el.classList.remove('hidden');
+      el.className = 'text-xs mt-2 ' + (isError ? 'text-rose-300' : 'text-emerald-300');
+      el.textContent = msg;
+    }
+
+    function applyAdminUI() {
+      const chip = document.getElementById('admin-chip');
+      const label = document.getElementById('admin-btn-label');
+      const hint = document.getElementById('upload-hint');
+      const titleRow = document.getElementById('title-row');
+      const pick = document.getElementById('pick-btn');
+      const input = document.getElementById('file-input');
+      if (isAdmin) {
+        document.body.classList.add('admin-mode');
+        chip?.classList.remove('hidden');
+        if (label) label.textContent = 'Lock admin';
+        if (hint) hint.textContent = 'Tap the button to pick a video or photo from your camera roll. Title is optional — defaults to the file name.';
+        titleRow?.classList.remove('hidden');
+        pick?.classList.remove('opacity-50', 'pointer-events-none');
+        if (input) input.disabled = false;
+      } else {
+        document.body.classList.remove('admin-mode');
+        chip?.classList.add('hidden');
+        if (label) label.textContent = 'Admin';
+        if (hint) hint.textContent = 'Unlock as admin, then pick a video or photo from your camera roll. Saved to the same permanent clips folder as before.';
+        titleRow?.classList.add('hidden');
+        pick?.classList.add('opacity-50', 'pointer-events-none');
+        if (input) input.disabled = true;
+      }
+      renderClips();
+    }
+
+    async function toggleAdmin() {
+      if (isAdmin) {
+        try { await logoutAdmin(); } catch (e) {}
+        isAdmin = false;
+        applyAdminUI();
+        setStatus('');
+        return;
+      }
+      const token = prompt('Enter admin token to upload / delete clips:');
+      if (!token) return;
+      try {
+        await unlockAdmin(token.trim());
+        isAdmin = true;
+        applyAdminUI();
+        setStatus('Admin unlocked — you can upload from your phone.');
+      } catch (e) {
+        alert(e.message || 'Invalid admin token');
+      }
+    }
 
     async function loadClips() {
       try {
@@ -219,109 +343,208 @@
       renderClips();
     }
 
-    function renderClips(filteredClips) {
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function renderClips() {
       const grid = document.getElementById('clips-grid');
+      if (!grid) return;
       grid.innerHTML = '';
 
-      const toRender = filteredClips || clips;
-
-      if (!toRender.length) {
-        // Honest, clean empty state — never a wall of broken video players.
-        const filters = document.getElementById('filter-buttons');
-        if (filters) filters.style.display = 'none';
+      if (!clips.length) {
         grid.innerHTML = `
           <div class="col-span-full">
-            <div class="border border-dashed border-zinc-700 rounded-3xl p-14 text-center">
+            <div class="border border-dashed border-zinc-700 rounded-3xl p-12 text-center">
               <i class="fa-solid fa-clapperboard text-3xl text-zinc-600 mb-4"></i>
               <div class="text-lg font-medium text-zinc-300 mb-1">No clips yet</div>
               <div class="text-sm text-zinc-500 max-w-md mx-auto">
-                Drop video files (.mp4 / .mov / .webm) into <span class="font-mono text-zinc-400">/data/clips</span> on the server
-                and they appear here automatically — newest first, named from the filename.
+                Unlock as admin and upload a video or photo from your phone.
+                Files stay on the server volume and show here newest-first.
               </div>
             </div>
           </div>`;
         return;
       }
 
-      toRender.forEach(clip => {
+      clips.forEach(clip => {
         const card = document.createElement('div');
         card.className = 'clip-card';
+        const media = clip.kind === 'image'
+          ? `<a href="${esc(clip.url)}" target="_blank" rel="noopener"><img class="clip-media" src="${esc(clip.url)}" alt="${esc(clip.title)}" loading="lazy"></a>`
+          : `<video controls preload="metadata" playsinline class="w-full">
+               <source src="${esc(clip.url)}">
+               Your browser does not support the video tag.
+             </video>`;
         card.innerHTML = `
-          <video controls preload="metadata" playsinline class="w-full">
-            <source src="/media/clips/${encodeURIComponent(clip.name)}">
-            Your browser does not support the video tag.
-          </video>
+          <button type="button" class="clip-delete" title="Delete clip" aria-label="Delete"
+                  onclick="deleteClip('${esc(clip.name).replace(/'/g, "\\'")}')">
+            <i class="fa-solid fa-trash text-xs"></i>
+          </button>
+          ${media}
           <div class="clip-meta">
-            <div class="title">${clip.title}</div>
-            <div class="date">${clip.date} · ${clip.size_mb} MB</div>
+            <div class="title">${esc(clip.title)}</div>
+            <div class="date">${esc(clip.date)} · ${esc(clip.size_mb)} MB${clip.kind === 'image' ? ' · photo' : ''}</div>
           </div>
         `;
         grid.appendChild(card);
       });
     }
 
-    let currentFilter = 'all';
-
-    function filterClips(filter) {
-      currentFilter = filter;
-
-      // Update button states
-      document.querySelectorAll('#filter-buttons button').forEach(btn => {
-        btn.classList.remove('active');
-        if (filter === 'all' && btn.dataset.filter === 'all') {
-          btn.classList.add('active');
-        } else if (btn.dataset.filter === filter) {
-          btn.classList.add('active');
+    async function deleteClip(name) {
+      if (!isAdmin) { alert('Unlock as admin to delete.'); return; }
+      if (!confirm('Delete this clip permanently?')) return;
+      try {
+        const res = await adminFetch('/api/clips/' + encodeURIComponent(name), { method: 'DELETE' });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.detail || 'Delete failed');
+          if (res.status === 403) { isAdmin = false; applyAdminUI(); }
+          return;
         }
-      });
+        clips = clips.filter(c => c.name !== name);
+        renderClips();
+        setStatus('Clip deleted.');
+      } catch (e) {
+        alert('Delete failed');
+      }
+    }
 
-      const grid = document.getElementById('clips-grid');
-      const cards = grid.querySelectorAll('.clip-card');
+    function setProgress(pct, label) {
+      const wrap = document.getElementById('progress-wrap');
+      const fill = document.getElementById('progress-fill');
+      const pctEl = document.getElementById('progress-pct');
+      const lab = document.getElementById('progress-label');
+      if (!wrap) return;
+      wrap.classList.remove('hidden');
+      if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+      if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+      if (lab && label) lab.textContent = label;
+    }
 
-      cards.forEach(card => {
-        const tags = (card.dataset.tags || '').split(',');
+    function hideProgress() {
+      document.getElementById('progress-wrap')?.classList.add('hidden');
+      const fill = document.getElementById('progress-fill');
+      if (fill) fill.style.width = '0%';
+    }
 
-        if (filter === 'all') {
-          card.style.display = '';
+    function uploadFile(file) {
+      if (!isAdmin) {
+        alert('Unlock as admin first, then upload.');
+        return;
+      }
+      if (!file) return;
+
+      const max = 200 * 1024 * 1024;
+      if (file.size > max) {
+        setStatus('File too large (max 200 MB).', true);
+        return;
+      }
+
+      const title = (document.getElementById('clip-title')?.value || '').trim();
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('title', title);
+
+      const zone = document.getElementById('upload-zone');
+      zone?.classList.add('uploading');
+      setStatus('');
+      setProgress(0, 'Uploading ' + file.name + '…');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/clips/upload');
+      xhr.withCredentials = true;
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = (e.loaded / e.total) * 100;
+          setProgress(pct, 'Uploading…');
         } else {
-          if (tags.includes(filter)) {
-            card.style.display = '';
+          setProgress(15, 'Uploading…');
+        }
+      };
+
+      xhr.onload = () => {
+        zone?.classList.remove('uploading');
+        hideProgress();
+        let data = {};
+        try { data = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
+        if (xhr.status >= 200 && xhr.status < 300) {
+          if (data.clip) {
+            clips = [data.clip, ...clips.filter(c => c.name !== data.clip.name)];
+            renderClips();
           } else {
-            card.style.display = 'none';
+            loadClips();
+          }
+          const titleEl = document.getElementById('clip-title');
+          if (titleEl) titleEl.value = '';
+          setStatus('Uploaded — ' + (data.clip?.title || file.name));
+        } else {
+          if (xhr.status === 403) {
+            isAdmin = false;
+            applyAdminUI();
+            setStatus('Admin session expired. Unlock again.', true);
+          } else {
+            setStatus(data.detail || ('Upload failed (HTTP ' + xhr.status + ')'), true);
           }
         }
+      };
+
+      xhr.onerror = () => {
+        zone?.classList.remove('uploading');
+        hideProgress();
+        setStatus('Network error during upload.', true);
+      };
+
+      xhr.send(fd);
+    }
+
+    function wireUpload() {
+      const input = document.getElementById('file-input');
+      input?.addEventListener('change', () => {
+        const f = input.files && input.files[0];
+        if (f) uploadFile(f);
+        input.value = '';
+      });
+
+      const zone = document.getElementById('upload-zone');
+      if (!zone) return;
+      ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => {
+        e.preventDefault(); e.stopPropagation();
+        if (isAdmin) zone.classList.add('dragover');
+      }));
+      ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => {
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.remove('dragover');
+      }));
+      zone.addEventListener('drop', e => {
+        if (!isAdmin) return;
+        const f = e.dataTransfer?.files?.[0];
+        if (f) uploadFile(f);
       });
     }
 
-    // Initialize
-    function initClipsPage() {
-      loadClips();
-
-      // Make sure "All" button starts active
-      const allBtn = document.querySelector('#filter-buttons button[data-filter="all"]');
-      if (allBtn) allBtn.classList.add('active');
-
-      // Optional: keyboard support
-      document.addEventListener('keydown', function(e) {
-        if (e.key === '/' && document.activeElement.tagName === 'BODY') {
-          e.preventDefault();
-          const search = prompt('Filter by tag (Clutch, Ace, etc):');
-          if (search) {
-            filterClips(search.trim());
-          }
+    async function init() {
+      // If cookie session still valid, stay unlocked without retyping.
+      try {
+        if (!isAdmin && typeof checkAdminUnlocked === 'function') {
+          isAdmin = await checkAdminUnlocked();
         }
-      });
+      } catch (e) {}
+      applyAdminUI();
+      wireUpload();
+      await loadClips();
     }
 
-    document.addEventListener('DOMContentLoaded', initClipsPage);
+    document.addEventListener('DOMContentLoaded', init);
 
-    // Premium Anime micro for cards (calm lift/scale)
     if (typeof anime !== 'undefined') {
-      document.addEventListener('pointerdown', e => { const c = e.target.closest('.clip-card'); if(c){anime.remove(c);anime({targets:c,scale:.985,translateY:'1px',duration:70,easing:'easeOutQuad'});} }, {passive:true});
-      const rel = c => {if(c){anime.remove(c);anime({targets:c,scale:1,translateY:0,duration:380,easing:'easeOutElastic(1,.6)'});}};
-      document.addEventListener('pointerup', e=>rel(e.target.closest('.clip-card')),{passive:true});
-      document.addEventListener('mouseenter', e=>{const c=e.target.closest('.clip-card');if(c){anime.remove(c);anime({targets:c,translateY:-2,scale:1.003,duration:160,easing:'easeOutQuad'});}},true);
-      document.addEventListener('mouseleave', e=>{const c=e.target.closest('.clip-card');if(c){anime.remove(c);anime({targets:c,translateY:0,scale:1,duration:200,easing:'easeOutQuad'});}},true);
+      document.addEventListener('pointerdown', e => {
+        const c = e.target.closest('.clip-card');
+        if (c) { anime.remove(c); anime({ targets: c, scale: .985, translateY: '1px', duration: 70, easing: 'easeOutQuad' }); }
+      }, { passive: true });
+      const rel = c => { if (c) { anime.remove(c); anime({ targets: c, scale: 1, translateY: 0, duration: 380, easing: 'easeOutElastic(1,.6)' }); } };
+      document.addEventListener('pointerup', e => rel(e.target.closest('.clip-card')), { passive: true });
     }
   </script>
 </body>

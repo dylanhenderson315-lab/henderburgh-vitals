@@ -172,6 +172,54 @@ def test_synth_lights_keeps_structure_when_ha_down():
     assert out["rooms"][0]["light_count"] == 2
 
 
+def test_clips_upload_and_list(tmp_path, monkeypatch):
+    """Phone upload saves into DATA_DIR/clips; list + delete work for admin only."""
+    import io
+    import main
+    from services import persistence
+
+    data_path = tmp_path / "data"
+    data_path.mkdir()
+    monkeypatch.setattr(persistence, "DATA_PATH", data_path)
+
+    client = TestClient(main.app)
+
+    # Anonymous cannot upload
+    res = client.post(
+        "/api/clips/upload",
+        files={"file": ("test.mp4", io.BytesIO(b"fake-video-bytes"), "video/mp4")},
+        data={"title": "Clutch"},
+    )
+    assert res.status_code == 403
+
+    unlock = client.post("/api/auth/unlock", json={"token": "test-admin-secret"})
+    assert unlock.status_code == 200
+
+    res = client.post(
+        "/api/clips/upload",
+        files={"file": ("clutch-1v3.mp4", io.BytesIO(b"fake-video-bytes-123"), "video/mp4")},
+        data={"title": "Clutch 1v3"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["status"] == "ok"
+    name = body["clip"]["name"]
+    assert name.endswith(".mp4")
+    assert (data_path / "clips" / name).is_file()
+
+    listed = client.get("/api/clips").json()["clips"]
+    assert any(c["name"] == name for c in listed)
+
+    # Media serves
+    media = client.get(f"/media/clips/{name}")
+    assert media.status_code == 200
+
+    # Delete
+    res = client.delete(f"/api/clips/{name}")
+    assert res.status_code == 200
+    assert not (data_path / "clips" / name).exists()
+
+
 def test_blog_delete_requires_admin_and_works(tmp_path, monkeypatch):
     """Blog delete was broken: handler called require_admin(request) without injecting Request."""
     import main
