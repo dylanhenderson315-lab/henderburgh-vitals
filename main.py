@@ -1293,10 +1293,13 @@ def _safe_clip_stem(name: str) -> str:
 
 
 def list_clips(limit: Optional[int] = None) -> List[Dict[str, Any]]:
-    """List real clip files on the volume, newest first."""
-    out: List[Dict[str, Any]] = []
+    """All clips newest-first: small files on the volume + big videos hosted on
+    R2 (referenced by URL). Both render identically; R2 items carry external=True
+    and a null size_mb (the server doesn't hold the file, so it can't weigh it)."""
+    items: List[tuple] = []  # (sort_ts, dict)
+
     d = _clips_dir()
-    for p in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+    for p in d.iterdir():
         if not p.is_file():
             continue
         ext = p.suffix.lower()
@@ -1304,17 +1307,33 @@ def list_clips(limit: Optional[int] = None) -> List[Dict[str, Any]]:
             continue
         st = p.stat()
         kind = "image" if ext in _CLIP_IMAGE_EXTS else "video"
-        out.append({
+        items.append((st.st_mtime, {
             "name": p.name,
             "title": p.stem.replace("-", " ").replace("_", " ").title(),
             "size_mb": round(st.st_size / 1048576, 1),
             "date": datetime.fromtimestamp(st.st_mtime).strftime("%b %d, %Y"),
             "kind": kind,
             "url": f"/media/clips/{p.name}",
-        })
-        if limit is not None and len(out) >= limit:
-            break
-    return out
+            "external": False,
+        }))
+
+    for c in persistence.load_external_clips():
+        ts = c.get("added_ts") or 0
+        items.append((ts, {
+            "name": c.get("id"),
+            "title": c.get("title") or "Video",
+            "size_mb": None,
+            "date": c.get("date") or (
+                datetime.fromtimestamp(ts).strftime("%b %d, %Y") if ts else ""
+            ),
+            "kind": c.get("kind") or "video",
+            "url": c.get("url"),
+            "external": True,
+        }))
+
+    items.sort(key=lambda t: t[0], reverse=True)
+    out = [d for _ts, d in items]
+    return out[:limit] if limit is not None else out
 
 
 @app.get("/api/clips")
@@ -1397,10 +1416,54 @@ async def upload_clip(
     }
 
 
+@app.post("/api/clips/link")
+async def add_clip_link(request: Request, body: dict = Body(default={})):
+    """Admin-only: register a big video hosted on R2 (or any https URL) by link.
+    The file is NOT uploaded here — the server just remembers the URL, so R2 keeps
+    serving it with free egress and no credentials touch this box."""
+    require_admin(request)
+    url = (body.get("url") or "").strip()
+    title = (body.get("title") or "").strip()
+    kind = (body.get("kind") or "video").strip().lower()
+    if not url.startswith("https://"):
+        raise HTTPException(400, "URL must start with https://")
+    if kind not in ("video", "image"):
+        kind = "video"
+    if not title:
+        # Derive a title from the filename in the URL if none given.
+        stem = Path(url.split("?")[0]).stem
+        title = stem.replace("-", " ").replace("_", " ").title() or "Video"
+
+    items = persistence.load_external_clips()
+    entry = {
+        "id": f"r2-{uuid.uuid4().hex[:12]}",
+        "title": title,
+        "url": url,
+        "kind": kind,
+        "date": datetime.now().strftime("%b %d, %Y"),
+        "added_ts": time.time(),
+    }
+    items.insert(0, entry)
+    persistence.save_external_clips(items)
+    return {"status": "ok", "clip": {
+        "name": entry["id"], "title": entry["title"], "url": entry["url"],
+        "kind": entry["kind"], "date": entry["date"], "size_mb": None, "external": True,
+    }}
+
+
 @app.delete("/api/clips/{name}")
 async def delete_clip(request: Request, name: str):
-    """Admin-only: remove a clip file from the volume."""
+    """Admin-only: remove a clip — an R2 link (just forgets the URL) or a file on the volume."""
     require_admin(request)
+
+    # R2/external link? Forget it (the R2 object itself is untouched — delete that
+    # in the Cloudflare dashboard if you want the file gone too).
+    ext = persistence.load_external_clips()
+    remaining = [c for c in ext if c.get("id") != name]
+    if len(remaining) != len(ext):
+        persistence.save_external_clips(remaining)
+        return {"status": "deleted", "name": name, "external": True}
+
     safe = Path(name).name
     if safe != name or ".." in name or "/" in name or "\\" in name:
         raise HTTPException(400, "Invalid name")

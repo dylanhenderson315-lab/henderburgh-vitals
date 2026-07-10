@@ -591,6 +591,21 @@ def load_light_history():
     return log if isinstance(log, list) else []
 
 
+# Externally-hosted clips (big videos on Cloudflare R2, referenced by URL). The
+# server never stores or streams these — it only remembers the link, so R2 keeps
+# its free-egress advantage and no R2 credentials ever live on this box.
+EXTERNAL_CLIPS_FILE = _seed("clips_external.json") or (DATA_PATH / "clips_external.json")
+
+
+def load_external_clips():
+    items = read_json(EXTERNAL_CLIPS_FILE, [])
+    return items if isinstance(items, list) else []
+
+
+def save_external_clips(items):
+    write_json(EXTERNAL_CLIPS_FILE, items if isinstance(items, list) else [])
+
+
 # =============================================================================
 # Blog Message Board (threaded, server-persisted)
 # =============================================================================

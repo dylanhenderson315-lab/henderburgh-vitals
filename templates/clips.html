@@ -144,6 +144,7 @@
       z-index: 5;
     }
     body.admin-mode .clip-delete { display: flex; }
+    body.admin-mode #link-zone { display: block !important; }
 
     .admin-chip {
       font-size: 11px;
@@ -254,6 +255,35 @@
             <input id="file-input" type="file" accept="video/*,image/*,.mp4,.mov,.webm,.m4v,.jpg,.jpeg,.png,.webp,.gif" class="hidden" disabled>
           </label>
           <div class="text-[10px] text-zinc-600 text-center sm:text-right">mp4 · mov · webm · photos · max 200&nbsp;MB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add a big video hosted on Cloudflare R2 (admin only). No upload here —
+         the file lives on R2 (free storage + free streaming); we just save the link. -->
+    <div id="link-zone" class="upload-zone p-5 sm:p-6 mb-8" style="display:none;">
+      <div class="flex flex-col sm:flex-row sm:items-end gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold text-zinc-100 mb-1">
+            <i class="fa-solid fa-cloud text-sky-400 mr-1.5"></i>
+            Add a large video (R2 link)
+          </div>
+          <div class="text-xs text-zinc-500 leading-relaxed mb-3">
+            For big files (like the wedding video). Upload it to your R2 bucket, then paste its
+            <span class="text-zinc-400">media.henderburgh.com</span> link here. Streams free, no size limit.
+          </div>
+          <input id="link-url" type="url" inputmode="url" placeholder="https://media.henderburgh.com/wedding.mp4"
+                 class="w-full bg-[#0f1115] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50 mb-2"
+                 autocomplete="off">
+          <input id="link-title" type="text" placeholder="Optional title (e.g. Our Wedding)"
+                 class="w-full sm:max-w-md bg-[#0f1115] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
+                 autocomplete="off">
+          <div id="link-status" class="text-xs mt-2 hidden"></div>
+        </div>
+        <div class="flex-none w-full sm:w-auto">
+          <button id="link-add-btn" type="button" class="btn-primary inline-flex items-center justify-center gap-2 w-full sm:w-auto">
+            <i class="fa-solid fa-plus"></i><span>Add video</span>
+          </button>
         </div>
       </div>
     </div>
@@ -384,7 +414,10 @@
           ${media}
           <div class="clip-meta">
             <div class="title">${esc(clip.title)}</div>
-            <div class="date">${esc(clip.date)} · ${esc(clip.size_mb)} MB${clip.kind === 'image' ? ' · photo' : ''}</div>
+            <div class="date">${esc(clip.date)}${
+              clip.external ? ' · <i class="fa-solid fa-cloud text-[10px]"></i> R2'
+              : (clip.size_mb != null ? ' · ' + esc(clip.size_mb) + ' MB' : '')
+            }${clip.kind === 'image' ? ' · photo' : ''}</div>
           </div>
         `;
         grid.appendChild(card);
@@ -409,6 +442,45 @@
         alert('Delete failed');
       }
     }
+
+    // Register a big video that lives on R2 (or any https URL) — no upload, just the link.
+    async function addClipLink() {
+      if (!isAdmin) { alert('Unlock as admin to add a video link.'); return; }
+      const urlEl = document.getElementById('link-url');
+      const titleEl = document.getElementById('link-title');
+      const statusEl = document.getElementById('link-status');
+      const btn = document.getElementById('link-add-btn');
+      const url = (urlEl.value || '').trim();
+      const showStatus = (msg, bad) => {
+        statusEl.textContent = msg;
+        statusEl.className = 'text-xs mt-2 ' + (bad ? 'text-rose-400' : 'text-emerald-400');
+        statusEl.classList.remove('hidden');
+      };
+      if (!/^https:\/\//i.test(url)) { showStatus('Enter a full https:// link.', true); return; }
+      btn.disabled = true;
+      try {
+        const res = await adminFetch('/api/clips/link', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, title: (titleEl.value || '').trim(), kind: 'video' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 403) { isAdmin = false; applyAdminUI(); }
+          showStatus(data.detail || 'Could not add video.', true);
+          return;
+        }
+        clips = [data.clip, ...clips];
+        renderClips();
+        urlEl.value = ''; titleEl.value = '';
+        showStatus('Added — streaming from R2.', false);
+        setTimeout(() => statusEl.classList.add('hidden'), 4000);
+      } catch (e) {
+        showStatus('Could not add video.', true);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    document.getElementById('link-add-btn')?.addEventListener('click', addClipLink);
 
     function setProgress(pct, label) {
       const wrap = document.getElementById('progress-wrap');
