@@ -865,7 +865,7 @@
       </div>
 
       <!-- Full-day heart-rate curve (data was already fetched, now shown) -->
-      {% if hr_curve and hr_curve.values and hr_curve.values|length > 3 %}
+      {% if hr_curve and hr_curve.bpm and hr_curve.bpm|length > 3 %}
       <div class="card-bg rounded-3xl p-6 border border-zinc-800 mb-10">
         <div class="flex items-center justify-between mb-5">
           <div>
@@ -1191,8 +1191,8 @@
 
       // Full-day heart-rate curve
       const hrCurveCtx = document.getElementById('hrCurveChart');
-      const hrCurveLabels = {{ hr_curve.labels | tojson if hr_curve else '[]' }};
-      const hrCurveValues = {{ hr_curve.values | tojson if hr_curve else '[]' }};
+      const hrCurveLabels = {{ hr_curve.times | tojson if hr_curve else '[]' }};
+      const hrCurveValues = {{ hr_curve.bpm | tojson if hr_curve else '[]' }};
       if (hrCurveCtx && hrCurveValues.length > 3) {
         if (hrCurveChartInstance) { hrCurveChartInstance.destroy(); }
         hrCurveChartInstance = new Chart(hrCurveCtx, {

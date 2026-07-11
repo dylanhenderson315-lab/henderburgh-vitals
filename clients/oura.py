@@ -777,8 +777,9 @@ def process_dashboard_data(
         "bedtime_end": bedtime_end,
         "restless_periods": restless_periods,
 
-        # Full-day heart-rate curve
-        "hr_curve": {"labels": hr_curve_labels, "values": hr_curve_values},
+        # Full-day heart-rate curve. NOTE: keys are 'times'/'bpm' — NOT 'values',
+        # which in Jinja collides with dict.values() and resolves to the method.
+        "hr_curve": {"times": hr_curve_labels, "bpm": hr_curve_values},
 
         # Trends
         "readiness_trend": readiness_trend,
