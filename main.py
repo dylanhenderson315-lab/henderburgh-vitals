@@ -458,7 +458,9 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     hero_game = xbox_display.get("game", "")
     if not xbox.is_real_game(hero_game):
         hero_game = insights.get("stats", {}).get("favorite", "")
-    playing_now = xbox.is_real_game(xbox_display.get("game", ""))
+    # Live only — the backend's playing_now is derived from actual device
+    # activity, never from lastSeen history.
+    playing_now = bool(xbox_display.get("playing_now"))
     # The currently-playing game is, by definition, the most recently played
     # library entry — so use its cover directly when live (reliable, no name
     # matching). Otherwise fuzzy-match the favorite to its box art.

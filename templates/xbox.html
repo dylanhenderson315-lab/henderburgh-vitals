@@ -268,7 +268,9 @@
             </div>
             <div id="current-game" class="hero-game">{{ hero.game or 'No active game' }}</div>
             <div id="current-device" class="text-sm mt-2 text-white/70">
-              {% if hero.playing_now and xbox.device %}on {{ xbox.device }}{% elif hero.playing_now %}playing now{% else %}your most-launched game{% endif %}
+              {% if hero.playing_now and xbox.device %}on {{ xbox.device }}{% elif hero.playing_now %}playing now
+              {% elif xbox.last_seen_game %}last seen: {{ xbox.last_seen_game }}{% if xbox.last_seen_ago %} · {{ xbox.last_seen_ago }}{% endif %}
+              {% else %}your most-played game{% endif %}
             </div>
           </div>
         </div>

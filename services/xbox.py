@@ -103,10 +103,12 @@ async def fetch_xbox_status():
             # mid-game. We override it below using real device activity.
             raw_state = data.get("state", "Unknown")
 
-            # Step 3: Extract current game/app name - try multiple paths for robustness
+            # Step 3: TWO separate truths, never conflated:
+            #   game      = what's on a device RIGHT NOW (live devices[].titles only)
+            #   last_seen = what you played LAST and when (historical — from lastSeen)
+            # The old code fell back to lastSeen for `game`, which made a console
+            # that's been off all day look Online and 'playing' its last title.
             game = "—"
-
-            # Path 1: devices[0].titles (most common for current activity)
             devices = data.get("devices") or []
             if isinstance(devices, list) and len(devices) > 0:
                 for device in devices:
@@ -114,12 +116,10 @@ async def fetch_xbox_status():
                         continue
                     titles = device.get("titles") or []
                     if isinstance(titles, list) and len(titles) > 0:
-                        # Prefer Full placement active title (the main game), then any Active
                         for title in titles:
-                            if isinstance(title, dict):
-                                if title.get("placement") == "Full" and (title.get("state") == "Active" or title.get("placement") == "Full"):
-                                    game = title.get("name") or title.get("titleName") or "—"
-                                    break
+                            if isinstance(title, dict) and title.get("placement") == "Full":
+                                game = title.get("name") or title.get("titleName") or "—"
+                                break
                         if game == "—":
                             for title in titles:
                                 if isinstance(title, dict):
@@ -127,7 +127,6 @@ async def fetch_xbox_status():
                                         game = title.get("name") or title.get("titleName") or "—"
                                         break
                         if game == "—":
-                            # fallback to first title
                             first_title = titles[0]
                             if isinstance(first_title, dict):
                                 game = first_title.get("name") or first_title.get("titleName") or "—"
@@ -140,39 +139,33 @@ async def fetch_xbox_status():
                 if isinstance(d0, dict):
                     primary_device = d0.get("type", "")
 
-            # Path 2: direct lastSeenTitle (some response formats)
-            if game == "—" and "lastSeenTitle" in data:
-                game = data.get("lastSeenTitle") or "—"
-
-            # Path 3: lastSeen.titleName
-            if game == "—":
-                last_seen = data.get("lastSeen") or {}
-                if isinstance(last_seen, dict):
-                    game = last_seen.get("titleName") or last_seen.get("name") or "—"
-
-            # Path 4: other possible top-level fields (handle different formats)
-            if game == "—":
-                game = (
-                    data.get("titleName")
-                    or data.get("name")
-                    or (data.get("title") or {}).get("name") if isinstance(data.get("title"), dict) else data.get("title")
-                    or "—"
-                )
-
-            # Handle empty / falsy game
             if not game or str(game).strip() == "":
                 game = "—"
 
-            # Truthful presence: an active title on a device means you ARE online,
-            # regardless of the social-presence `state`. Only trust the raw state
-            # when there's no device activity at all.
-            device_active = any(
-                isinstance(d, dict) and d.get("titles") for d in devices
-            )
-            if game != "—" or device_active:
-                presence_state = "Online"
-            else:
-                presence_state = raw_state
+            # Historical: last game + when (shown as 'Last seen', never as live).
+            last_seen_game = ""
+            last_seen_ago = ""
+            ls = data.get("lastSeen") or {}
+            if isinstance(ls, dict) and (ls.get("titleName") or ls.get("name")):
+                last_seen_game = ls.get("titleName") or ls.get("name") or ""
+                try:
+                    ts_raw = (ls.get("timestamp") or "").split(".")[0]
+                    ls_dt = datetime.fromisoformat(ts_raw)
+                    mins = max(0, int((datetime.utcnow() - ls_dt).total_seconds() / 60))
+                    if mins < 60:
+                        last_seen_ago = f"{mins}m ago"
+                    elif mins < 48 * 60:
+                        last_seen_ago = f"{mins // 60}h ago"
+                    else:
+                        last_seen_ago = f"{mins // 1440}d ago"
+                except Exception:
+                    last_seen_ago = ""
+
+            # Truthful presence: Online ONLY when a device is actually active.
+            # (Social `state` under-reports; lastSeen must never over-report.)
+            device_active = any(isinstance(d, dict) and d.get("titles") for d in devices)
+            presence_state = "Online" if device_active else (raw_state or "Offline")
+            playing_now = device_active and game != "—" and is_real_game(game)
 
             # Profile from player/summary — the /account endpoint returns empty
             # settings for this account, but player/summary/{xuid} has the real
@@ -202,8 +195,9 @@ async def fetch_xbox_status():
             except Exception as e:
                 print(f"Xbox player summary fetch error: {e}")
 
-            # Log meaningful game changes (only when game actually changes and is valid)
-            if game and game != "—":
+            # Log meaningful game changes — LIVE device activity only (lastSeen is
+            # history and must never masquerade as a launch).
+            if playing_now and game and game != "—":
                 try:
                     log = persistence.load_xbox_log()
                     last_entry = log[0] if log else None
@@ -226,6 +220,10 @@ async def fetch_xbox_status():
                 "status": "ok",
                 "state": presence_state,
                 "game": game,
+                "playing_now": playing_now,
+                "device": _pretty_device(primary_device),
+                "last_seen_game": _clean_title(last_seen_game) if last_seen_game else "",
+                "last_seen_ago": last_seen_ago,
                 "gamertag": gamertag,
                 "gamerpic": gamerpic,
                 "gamerscore": gamerscore,
