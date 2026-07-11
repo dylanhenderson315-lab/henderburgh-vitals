@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import time
 from collections import Counter, deque
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 
@@ -398,6 +398,192 @@ def compute_progress(history: list, library: list, gamerscore: int) -> dict:
 
     out["trend"] = [{"day": h["day"], "gs": int(h.get("total_gamerscore") or 0)}
                     for h in hist if h.get("total_gamerscore")]
+    return out
+
+
+# ── The Story engine ─────────────────────────────────────────────────────────
+# Cross-references the logs the site already keeps (true play sessions, daily
+# vitals, daily gamerscore, the games library) into personal narration:
+# Body × Controller, gaming eras & comebacks, and a Week in Review. Everything
+# is computed from observed data and degrades honestly while logs are young.
+
+def _parse_sessions(sessions: list) -> list:
+    out = []
+    for s in sessions or []:
+        if not is_real_game(s.get("game", "")):
+            continue
+        try:
+            start = datetime.fromisoformat(s["start"])
+            end = datetime.fromisoformat(s["end"])
+        except Exception:
+            continue
+        dur = max(300.0, (end - start).total_seconds())
+        out.append({"game": _clean_title(s["game"]), "start": start, "end": end, "dur": dur})
+    return out
+
+
+def compute_body_controller(sessions: list, vitals_history: list) -> list:
+    """Cross the session log with the daily vitals log. Only speaks when both
+    sides have enough samples — never invents a correlation."""
+    sess = _parse_sessions(sessions)
+    vh = {v.get("day"): v for v in (vitals_history or []) if v.get("day")}
+    lines = []
+    if not sess or len(vh) < 4:
+        return lines
+
+    # A late session (starting 22:00–04:00) affects the sleep score recorded the
+    # NEXT calendar morning; a session before 22:00 affects that same night too.
+    late_nights = set()
+    gaming_days = set()
+    for s in sess:
+        gaming_days.add(s["start"].date().isoformat())
+        h = s["start"].hour
+        if h >= 22:
+            late_nights.add((s["start"].date() + timedelta(days=1)).isoformat())
+        elif h < 4:
+            late_nights.add(s["start"].date().isoformat())
+
+    def avg(vals):
+        vals = [v for v in vals if isinstance(v, (int, float))]
+        return sum(vals) / len(vals) if vals else None
+
+    late_sleep = avg([vh[d].get("sleep") for d in late_nights if d in vh])
+    other_sleep = avg([v.get("sleep") for d, v in vh.items() if d not in late_nights])
+    n_late = len([d for d in late_nights if d in vh and vh[d].get("sleep") is not None])
+    if late_sleep is not None and other_sleep is not None and n_late >= 3:
+        diff = round(late_sleep - other_sleep)
+        if diff <= -3:
+            lines.append(f"Late-night sessions cost you sleep — you score **{abs(diff)} points lower** the morning after ({n_late} nights measured).")
+        elif diff >= 3:
+            lines.append(f"Oddly, you sleep **{diff} points better** after late sessions ({n_late} nights measured). Whatever works.")
+        else:
+            lines.append(f"Late-night gaming barely moves your sleep — within {abs(diff)} points across {n_late} measured nights.")
+
+    game_ready = avg([v.get("readiness") for d, v in vh.items() if d in gaming_days])
+    rest_ready = avg([v.get("readiness") for d, v in vh.items() if d not in gaming_days])
+    n_game = len([d for d in gaming_days if d in vh and vh[d].get("readiness") is not None])
+    n_rest = len([d for d, v in vh.items() if d not in gaming_days and v.get("readiness") is not None])
+    if game_ready is not None and rest_ready is not None and n_game >= 3 and n_rest >= 3:
+        diff = round(game_ready - rest_ready)
+        if diff >= 3:
+            lines.append(f"Gaming days run **{diff} readiness points higher** than off days — the controller might be recovery for you.")
+        elif diff <= -3:
+            lines.append(f"Gaming days run **{abs(diff)} readiness points lower** than off days — worth watching.")
+
+    return lines
+
+
+def compute_eras(sessions: list, legacy_log: list, library: list) -> list:
+    """Narrate your gaming phases: the current era, the one it replaced, and
+    comebacks (returning to a game untouched for 30+ days)."""
+    from datetime import date as _date
+    lines = []
+    today = _date.today()
+
+    # Day -> dominant game, from true sessions first, else the launch log.
+    day_game: dict = {}
+    for s in _parse_sessions(sessions):
+        d = s["start"].date().isoformat()
+        day_game.setdefault(d, {})
+        day_game[d][s["game"]] = day_game[d].get(s["game"], 0) + s["dur"]
+    for e in legacy_log or []:
+        name = e.get("game", "")
+        if not is_real_game(name):
+            continue
+        try:
+            d = datetime.fromisoformat((e.get("timestamp") or "").replace("Z", "+00:00")).date().isoformat()
+        except Exception:
+            continue
+        day_game.setdefault(d, {})
+        day_game[d][_clean_title(name)] = day_game[d].get(_clean_title(name), 0) + 1
+
+    if len(day_game) < 4:
+        return lines
+    days = sorted(day_game)
+    dominant = {d: max(day_game[d], key=day_game[d].get) for d in days}
+
+    # Current era: most-dominant game across the last 14 active days.
+    recent = [dominant[d] for d in days[-14:]]
+    cur = Counter(recent).most_common(1)[0][0]
+    era_days = [d for d in days if dominant[d] == cur]
+    first_day = min(era_days)
+    try:
+        span = (today - _date.fromisoformat(first_day)).days + 1
+    except Exception:
+        span = len(era_days)
+    prior = [dominant[d] for d in days if d < first_day]
+    if prior:
+        prev = Counter(prior).most_common(1)[0][0]
+        if prev != cur:
+            lines.append(f"You're in your **{cur} era** — {span} days and counting. It dethroned {prev}.")
+        else:
+            lines.append(f"The **{cur} era** is {span} days old and unchallenged.")
+    else:
+        lines.append(f"You're in your **{cur} era** — {span} days and counting.")
+
+    # Comebacks: a session for a game whose library last-played gap was 30+ days.
+    lib_last = {}
+    for g in library or []:
+        lp = g.get("last_played") or ""
+        try:
+            lib_last[g["name"]] = datetime.fromisoformat(lp.replace("Z", "+00:00")).date()
+        except Exception:
+            continue
+    seen_days = {}
+    for d in days:
+        for gm in day_game[d]:
+            seen_days.setdefault(gm, []).append(d)
+    for gm, ds in seen_days.items():
+        ds = sorted(ds)
+        for i in range(1, len(ds)):
+            try:
+                gap = (_date.fromisoformat(ds[i]) - _date.fromisoformat(ds[i - 1])).days
+            except Exception:
+                continue
+            if gap >= 30 and ds[i] >= days[-7]:
+                lines.append(f"**{gm}** just made a comeback — first session in {gap} days.")
+                break
+
+    return lines[:3]
+
+
+def compute_week_review(sessions: list, history: list) -> dict:
+    """The last 7 days as one honest, auto-written paragraph."""
+    from datetime import date as _date, timedelta as _td
+    today = _date.today()
+    week_start = today - _td(days=6)
+    sess = [s for s in _parse_sessions(sessions) if s["start"].date() >= week_start]
+    out = {"has_data": bool(sess), "text": "", "stats": {}}
+    if not sess:
+        return out
+
+    total = sum(s["dur"] for s in sess)
+    by_game: dict = {}
+    for s in sess:
+        by_game[s["game"]] = by_game.get(s["game"], 0) + s["dur"]
+    top_game, top_secs = max(by_game.items(), key=lambda kv: kv[1])
+    days_played = len({s["start"].date() for s in sess})
+    marathon = max(sess, key=lambda s: s["dur"])
+    latest = max(sess, key=lambda s: (s["start"].hour + 24) % 28)   # 22:00–04:00 ranks latest
+
+    gs_delta = None
+    hist = sorted([h for h in (history or []) if h.get("day")], key=lambda h: h["day"])
+    base = [h for h in hist if h["day"] <= week_start.isoformat()]
+    if base and hist and hist[-1].get("total_gamerscore") and base[-1].get("total_gamerscore"):
+        gs_delta = int(hist[-1]["total_gamerscore"]) - int(base[-1]["total_gamerscore"])
+
+    bits = [
+        f"**{_fmt_hours(total)}** across {len(sess)} sessions on {days_played} of the last 7 days.",
+        f"**{top_game}** owned the week with {_fmt_hours(top_secs)}.",
+        f"Longest sitting: **{_fmt_duration(marathon['dur'])}** ({marathon['game']}).",
+    ]
+    lh = latest["start"].hour
+    if lh >= 22 or lh < 4:
+        bits.append(f"Latest start: **{latest['start'].strftime('%-I:%M %p').lower()}** — night shift.")
+    if gs_delta and gs_delta > 0:
+        bits.append(f"Gamerscore up **+{gs_delta:,} G**.")
+    out["text"] = " ".join(bits)
+    out["stats"] = {"hours": _fmt_hours(total), "sessions": len(sess), "top_game": top_game, "gs_delta": gs_delta}
     return out
 
 

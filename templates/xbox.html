@@ -277,6 +277,40 @@
       </div>
     </div>
 
+    <!-- The Story — cross-referenced narration: week in review, eras, body × controller -->
+    {% if story and (story.week_html or story.eras_html or story.body_html) %}
+    <div class="mb-12">
+      <div class="section-label mb-4">The Story</div>
+      <div class="space-y-3">
+        {% if story.week_html %}
+        <div class="card p-5">
+          <div class="flex items-center gap-2 text-xs text-emerald-400/90 mb-2">
+            <i class="fa-solid fa-calendar-week"></i><span class="font-semibold tracking-wide">YOUR WEEK</span>
+          </div>
+          <p class="text-[14px] text-zinc-300 leading-relaxed">{{ story.week_html | safe }}</p>
+        </div>
+        {% endif %}
+        {% for line in story.eras_html %}
+        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
+          <i class="fa-solid fa-timeline text-sky-400/80 text-xs mt-1 flex-shrink-0"></i>
+          <span>{{ line | safe }}</span>
+        </div>
+        {% endfor %}
+        {% for line in story.body_html %}
+        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
+          <i class="fa-solid fa-heart-pulse text-rose-400/80 text-xs mt-1 flex-shrink-0"></i>
+          <span>{{ line | safe }}</span>
+        </div>
+        {% endfor %}
+        {% if not story.body_html %}
+        <div class="text-[11px] text-zinc-600 px-1">
+          Body × Controller unlocks as the vitals and session logs overlap — a few more days of data.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Gamerscore progress — real momentum from the daily history log -->
     {% if progress and progress.total_gamerscore %}
     <div class="mb-12">

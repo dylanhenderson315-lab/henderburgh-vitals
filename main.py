@@ -451,9 +451,18 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     # Log today's gamerscore + per-game progress, then compute momentum from the
     # accumulated history (earned this week, which games are climbing).
     xbox.record_xbox_snapshot(xbox_display.get("gamerscore") or 0, library)
-    progress = xbox.compute_progress(
-        persistence.load_xbox_history(), library, xbox_display.get("gamerscore") or 0
-    )
+    xbox_hist = persistence.load_xbox_history()
+    progress = xbox.compute_progress(xbox_hist, library, xbox_display.get("gamerscore") or 0)
+
+    # The Story: cross-referenced personal narration from the logs we keep.
+    story = {
+        "body": xbox.compute_body_controller(true_sessions, persistence.load_vitals_history()),
+        "eras": xbox.compute_eras(true_sessions, raw_log, library),
+        "week": xbox.compute_week_review(true_sessions, xbox_hist),
+    }
+    story["body_html"] = [_md_bold(x) for x in story["body"]]
+    story["eras_html"] = [_md_bold(x) for x in story["eras"]]
+    story["week_html"] = _md_bold(story["week"]["text"]) if story["week"].get("text") else ""
 
     hero_game = xbox_display.get("game", "")
     if not xbox.is_real_game(hero_game):
@@ -484,6 +493,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "hero": hero,
         "games": games,
         "progress": progress,
+        "story": story,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
