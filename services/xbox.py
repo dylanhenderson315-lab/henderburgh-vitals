@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime
 
 import httpx
@@ -18,6 +18,25 @@ from config import (
     XBOX_CACHE_TTL_SECONDS,
 )
 from services import persistence, state
+
+# ── API budget accounting ────────────────────────────────────────────────────
+# xbl.io free tier = 150 requests/hour. EVERY real call to xbl.io (the observer's
+# presence poll AND the page's status fetch) is stamped here so the adaptive
+# scheduler can spend the budget aggressively while playing yet never exceed it.
+API_BUDGET_PER_HOUR = 140          # hard ceiling; leaves headroom under 150
+_api_call_times: deque = deque(maxlen=300)
+
+
+def note_api_call():
+    _api_call_times.append(time.time())
+
+
+def api_calls_last_hour() -> int:
+    cutoff = time.time() - 3600
+    while _api_call_times and _api_call_times[0] < cutoff:
+        _api_call_times.popleft()
+    return len(_api_call_times)
+
 
 async def fetch_xbox_status():
     
@@ -66,6 +85,7 @@ async def fetch_xbox_status():
 
             # Step 2: Get presence using XUID (either from resolution or direct XBL_XUID)
             presence_url = f"https://xbl.io/api/v2/{xuid}/presence"
+            note_api_call()
             presence_res = await client.get(presence_url, headers=headers, timeout=10)
 
             if presence_res.status_code != 200:
@@ -148,6 +168,7 @@ async def fetch_xbox_status():
             real_name = ""
             account_tier = "Gold"
             try:
+                note_api_call()
                 account_res = await client.get("https://xbl.io/api/v2/account", headers=headers, timeout=10)
                 if account_res.status_code == 200:
                     acc = account_res.json() or {}
@@ -233,9 +254,10 @@ SESSION_GAP_SECONDS = 20 * 60
 
 async def poll_presence_sample():
     """Lightweight presence-only check (1 API call — no account fetch) for the
-    background observer. Returns (game, device): game is the real game name or ''
-    when idle/off. Returns None when the API is unreachable (so we never log a
-    false 'stopped')."""
+    background observer. Returns (game, device, presence_state):
+      - game: real game name, or '' when idle / on the dashboard / off
+      - presence_state: raw 'Online' / 'Away' / 'Offline' (drives the cadence)
+    Returns None when the API is unreachable (so we never log a false 'stopped')."""
     if not XBL_API_KEY or XBL_API_KEY in XBL_PLACEHOLDER_KEYS:
         return None
     xuid = XBL_XUID
@@ -244,11 +266,13 @@ async def poll_presence_sample():
     headers = {"X-Authorization": XBL_API_KEY, "Accept": "application/json"}
     try:
         async with httpx.AsyncClient() as client:
+            note_api_call()
             res = await client.get(f"https://xbl.io/api/v2/{xuid}/presence", headers=headers, timeout=10)
             if res.status_code != 200:
                 return None
             data = res.json() or {}
             data = data.get("content") or data
+            presence_state = data.get("state", "Offline") or "Offline"
             game = ""
             device_type = ""
             for device in (data.get("devices") or []):
@@ -261,7 +285,7 @@ async def poll_presence_sample():
                         break
                 if game:
                     break
-            return (game if is_real_game(game) else "", device_type)
+            return (game if is_real_game(game) else "", device_type, presence_state)
     except Exception as e:
         print(f"Xbox presence poll error: {e}")
         return None
@@ -285,14 +309,26 @@ def record_presence_sample(game: str, device: str = ""):
         except Exception:
             last_end = now
         gap = (now - last_end).total_seconds()
-        if game and open_s.get("game") == game and gap <= SESSION_GAP_SECONDS:
+        same_game = bool(game) and open_s.get("game") == game
+
+        if same_game and gap <= SESSION_GAP_SECONDS:
             open_s["end"] = now.isoformat()                       # still playing — extend
             open_s["samples"] = open_s.get("samples", 1) + 1
             if device and not open_s.get("device"):
                 open_s["device"] = device
-        else:
-            open_s["closed"] = True                               # stopped / switched / gap
-            open_s = None
+            persistence.save_xbox_sessions(sessions[:400])
+            return
+
+        if not game and gap <= SESSION_GAP_SECONDS:
+            # Brief dashboard/idle detour — leave the session open but DON'T extend
+            # its end. If you return to the same game within the gap window it
+            # resumes as one session; if you stay idle past it, it closes with the
+            # end pinned to your last real in-game moment.
+            persistence.save_xbox_sessions(sessions[:400])
+            return
+
+        open_s["closed"] = True                                   # stopped / switched / long gap
+        open_s = None
 
     if game and not open_s:
         sessions.insert(0, {

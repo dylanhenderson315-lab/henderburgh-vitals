@@ -70,21 +70,43 @@ async def _light_history_loop():
 
 
 async def _xbox_observer_loop():
-    """Every 5 minutes, one presence-only API call (12/h — far under xbl.io's
-    150/h free tier) feeds the true-session tracker. This is what makes playtime,
-    streaks, and session lengths REAL instead of 'whatever a browser saw'."""
+    """Adaptive presence observer — spends the xbl.io 150/h budget where it matters.
+
+    Cadence follows what you're doing:
+      • playing a game → every 60s  (~60/h — near-real-time session lengths)
+      • online, no game → every 3m  (~20/h — you're around, might launch something)
+      • offline / away  → every 12m (~5/h — barely sips the budget)
+      • API error       → back off 5m (don't hammer a down endpoint)
+    A hard budget guard (API_BUDGET_PER_HOUR, shared with the page's status fetch)
+    forces the slow cadence if we ever approach the ceiling, so 150/h is never hit."""
+    INTERVALS = {"playing": 60, "online": 180, "offline": 720, "error": 300}
+    await asyncio.sleep(10)   # let the app settle before the first sample
     while True:
         try:
-            await asyncio.sleep(300)
+            if xbox.api_calls_last_hour() >= xbox.API_BUDGET_PER_HOUR:
+                delay = INTERVALS["offline"]                       # budget guard
+            else:
+                sample = await xbox.poll_presence_sample()
+                if sample is None:
+                    delay = INTERVALS["error"]                     # API down — log nothing
+                else:
+                    game, device, pstate = sample
+                    xbox.record_presence_sample(game, device)
+                    if game:
+                        delay = INTERVALS["playing"]
+                    elif str(pstate).lower() == "online":
+                        delay = INTERVALS["online"]
+                    else:
+                        delay = INTERVALS["offline"]
         except asyncio.CancelledError:
             raise
-        try:
-            sample = await xbox.poll_presence_sample()
-            if sample is not None:        # None = API unreachable; log nothing
-                game, device = sample
-                xbox.record_presence_sample(game, device)
         except Exception as e:
             print(f"xbox observer error: {e}")
+            delay = INTERVALS["error"]
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            raise
 
 
 @asynccontextmanager
