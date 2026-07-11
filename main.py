@@ -1325,6 +1325,15 @@ async def get_light_history(request: Request, limit: int = 300):
     return {"total": len(log), "snapshots": log[: max(1, min(limit, 1000))]}
 
 
+@app.get("/api/vitals/history")
+async def get_vitals_history(request: Request, limit: int = 400):
+    """Admin: the longitudinal daily vitals log — one snapshot per day, so trends
+    can be mined beyond Oura's rolling window."""
+    require_admin(request)
+    hist = persistence.load_vitals_history()
+    return {"total": len(hist), "days": hist[-max(1, min(limit, 800)):]}
+
+
 @app.get("/api/os-state")
 async def api_os_state():
     """The vitals Operating State (one prioritized truthful headline) for other pages —
