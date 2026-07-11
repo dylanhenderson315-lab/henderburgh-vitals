@@ -275,6 +275,58 @@
       </div>
     </div>
 
+    <!-- Gamerscore progress — real momentum from the daily history log -->
+    {% if progress and progress.total_gamerscore %}
+    <div class="mb-12">
+      <div class="section-label mb-4">Gamerscore Progress</div>
+      <div class="card p-6">
+        <div class="flex flex-wrap items-end gap-x-8 gap-y-4">
+          <div>
+            <div class="text-xs text-zinc-500">Total Gamerscore</div>
+            <div class="text-4xl font-semibold tabular-nums mt-1">{{ "{:,}".format(progress.total_gamerscore) }}</div>
+          </div>
+          {% if progress.delta_7d is not none and progress.delta_7d > 0 %}
+          <div>
+            <div class="text-xs text-zinc-500">This week</div>
+            <div class="text-2xl font-semibold tabular-nums mt-1 text-emerald-400">+{{ "{:,}".format(progress.delta_7d) }} G</div>
+          </div>
+          {% endif %}
+          {% if progress.delta_30d is not none and progress.delta_30d > 0 %}
+          <div>
+            <div class="text-xs text-zinc-500">This month</div>
+            <div class="text-2xl font-semibold tabular-nums mt-1 text-emerald-300">+{{ "{:,}".format(progress.delta_30d) }} G</div>
+          </div>
+          {% endif %}
+          {% if progress.trend and progress.trend|length > 2 %}
+          <div class="flex-1 min-w-[160px] h-[52px]">
+            <canvas id="gsTrendChart"></canvas>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if progress.earning_lately %}
+        <div class="mt-6 pt-5 border-t border-zinc-800/70">
+          <div class="text-xs text-zinc-500 mb-3">Earning lately</div>
+          <div class="space-y-2.5">
+            {% for g in progress.earning_lately %}
+            <div class="flex items-center gap-3">
+              {% if g.image %}<img src="{{ g.image }}" alt="" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">{% endif %}
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-medium text-zinc-100 truncate">{{ g.name }}</div>
+                <div class="text-[11px] text-zinc-500">{{ g.gamerscore }}/{{ g.total_gamerscore }} G · {{ g.progress }}%</div>
+              </div>
+              <div class="text-sm font-semibold text-emerald-400 tabular-nums flex-shrink-0">+{{ g.gain }} G</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% elif not progress.has_history %}
+        <div class="mt-4 text-[11px] text-zinc-600">Tracking started today — weekly &amp; monthly gains build from here as you earn achievements.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if insights.has_data %}
     <!-- Gaming Insights — truthful, statistics-based, mined from your session log -->
     <div class="mb-12">
@@ -547,6 +599,36 @@
       }
       setInterval(tick, 30000);
       setTimeout(tick, 5000);
+    })();
+  </script>
+
+  <!-- Gamerscore trend sparkline (tiny, dependency-free canvas) -->
+  <script>
+    (function () {
+      const trend = {{ progress.trend | tojson if progress else '[]' }};
+      const cv = document.getElementById('gsTrendChart');
+      if (!cv || !trend || trend.length < 3) return;
+      const vals = trend.map(t => t.gs);
+      const dpr = window.devicePixelRatio || 1;
+      const w = cv.clientWidth || 200, h = cv.clientHeight || 52;
+      cv.width = w * dpr; cv.height = h * dpr;
+      const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+      const min = Math.min(...vals), max = Math.max(...vals), range = (max - min) || 1;
+      const pad = 4, x = i => pad + i * (w - 2 * pad) / (vals.length - 1);
+      const y = v => h - pad - (v - min) / range * (h - 2 * pad);
+      // area fill
+      ctx.beginPath(); ctx.moveTo(x(0), h);
+      vals.forEach((v, i) => ctx.lineTo(x(i), y(v)));
+      ctx.lineTo(x(vals.length - 1), h); ctx.closePath();
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(74,222,128,0.25)'); grad.addColorStop(1, 'rgba(74,222,128,0)');
+      ctx.fillStyle = grad; ctx.fill();
+      // line
+      ctx.beginPath();
+      vals.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+      ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+      // last point
+      ctx.beginPath(); ctx.arc(x(vals.length - 1), y(vals[vals.length - 1]), 2.5, 0, 7); ctx.fillStyle = '#4ade80'; ctx.fill();
     })();
   </script>
 </body>

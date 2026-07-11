@@ -613,6 +613,27 @@ def upsert_vitals_snapshot(entry: dict):
     write_json(VITALS_HISTORY_FILE, hist[-800:])   # ~2+ years of daily snapshots
 
 
+# Daily Xbox progress history — one snapshot per calendar day of total gamerscore
+# and per-game scores, so we can show real momentum (gamerscore earned this week,
+# which games you're actually making progress in) instead of a static library.
+XBOX_HISTORY_FILE = _seed("xbox_history.json") or (DATA_PATH / "xbox_history.json")
+
+
+def load_xbox_history():
+    items = read_json(XBOX_HISTORY_FILE, [])
+    return items if isinstance(items, list) else []
+
+
+def upsert_xbox_snapshot(entry: dict):
+    day = entry.get("day")
+    if not day:
+        return
+    hist = [h for h in load_xbox_history() if h.get("day") != day]
+    hist.append(entry)
+    hist.sort(key=lambda h: h.get("day", ""))
+    write_json(XBOX_HISTORY_FILE, hist[-800:])
+
+
 # True Xbox play sessions from the server-side observer (start/end/duration) —
 # unlike the page-triggered change log, these are real continuous observations.
 XBOX_SESSIONS_FILE = _seed("xbox_sessions.json") or (DATA_PATH / "xbox_sessions.json")

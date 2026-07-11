@@ -317,6 +317,77 @@ def find_cover(games: list, name: str) -> str:
     return best_img if best_score >= 1 else ""
 
 
+def record_xbox_snapshot(gamerscore: int, library: list) -> None:
+    """Capture today's gamerscore + per-game scores into the daily history
+    (idempotent per calendar day). This is what turns the static library into a
+    real progress record we can compute momentum from."""
+    try:
+        scores = {g["name"]: int(g.get("gamerscore") or 0) for g in library if g.get("name")}
+        if not gamerscore and not scores:
+            return
+        from datetime import date as _date
+        entry = {
+            "day": _date.today().isoformat(),
+            "recorded_at": datetime.now().isoformat(),
+            "total_gamerscore": int(gamerscore or 0),
+            "games_tracked": len(library),
+            "total_achievements": sum(int(g.get("achievements") or 0) for g in library),
+            "scores": scores,
+        }
+        persistence.upsert_xbox_snapshot(entry)
+    except Exception as e:
+        print(f"xbox snapshot record error: {e}")
+
+
+def compute_progress(history: list, library: list, gamerscore: int) -> dict:
+    """Momentum from the daily history: gamerscore change over 7/30 days, which
+    games you're actively earning in, and a trend series for a sparkline."""
+    from datetime import date as _date, timedelta as _td
+    out = {
+        "has_history": False, "total_gamerscore": int(gamerscore or 0),
+        "delta_7d": None, "delta_30d": None, "earning_lately": [], "trend": [],
+    }
+    hist = sorted([h for h in (history or []) if h.get("day")], key=lambda h: h["day"])
+    if not hist:
+        return out
+    out["has_history"] = len(hist) >= 2
+    today = _date.today()
+
+    def total_on_or_before(cutoff_iso):
+        prior = [h for h in hist if h["day"] <= cutoff_iso]
+        return prior[-1] if prior else (hist[0] if hist else None)
+
+    base7 = total_on_or_before((today - _td(days=7)).isoformat())
+    base30 = total_on_or_before((today - _td(days=30)).isoformat())
+    cur = int(gamerscore or 0)
+    if base7 and base7.get("total_gamerscore"):
+        out["delta_7d"] = cur - int(base7["total_gamerscore"])
+    if base30 and base30.get("total_gamerscore"):
+        out["delta_30d"] = cur - int(base30["total_gamerscore"])
+
+    # Per-game gains vs the oldest snapshot within ~30 days (or the very first).
+    baseline = base30 or hist[0]
+    past_scores = baseline.get("scores") or {}
+    img_by_name = {g["name"]: g for g in library}
+    gains = []
+    for g in library:
+        nm = g.get("name")
+        now_gs = int(g.get("gamerscore") or 0)
+        was = int(past_scores.get(nm, now_gs))
+        if now_gs > was:
+            gains.append({
+                "name": nm, "gain": now_gs - was, "image": g.get("image", ""),
+                "progress": g.get("progress", 0), "gamerscore": now_gs,
+                "total_gamerscore": g.get("total_gamerscore", 0),
+            })
+    gains.sort(key=lambda x: x["gain"], reverse=True)
+    out["earning_lately"] = gains[:5]
+
+    out["trend"] = [{"day": h["day"], "gs": int(h.get("total_gamerscore") or 0)}
+                    for h in hist if h.get("total_gamerscore")]
+    return out
+
+
 def recent_games_display(games: list, limit: int = 12) -> list:
     """Recently-played library rows for the page: cover, progress, gamerscore, when."""
     out = []

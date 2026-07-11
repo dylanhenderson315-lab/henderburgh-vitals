@@ -448,6 +448,13 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     library = await xbox.get_title_history()
     games = xbox.recent_games_display(library, limit=12)
 
+    # Log today's gamerscore + per-game progress, then compute momentum from the
+    # accumulated history (earned this week, which games are climbing).
+    xbox.record_xbox_snapshot(xbox_display.get("gamerscore") or 0, library)
+    progress = xbox.compute_progress(
+        persistence.load_xbox_history(), library, xbox_display.get("gamerscore") or 0
+    )
+
     hero_game = xbox_display.get("game", "")
     if not xbox.is_real_game(hero_game):
         hero_game = insights.get("stats", {}).get("favorite", "")
@@ -474,6 +481,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "insights": insights,
         "hero": hero,
         "games": games,
+        "progress": progress,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
@@ -1338,6 +1346,16 @@ async def get_light_history(request: Request, limit: int = 300):
     require_admin(request)
     log = persistence.load_light_history()
     return {"total": len(log), "snapshots": log[: max(1, min(limit, 1000))]}
+
+
+@app.get("/api/xbox/history")
+async def get_xbox_history(request: Request, limit: int = 400):
+    """Admin: the daily Xbox gamerscore/progress log, for reviewing momentum."""
+    require_admin(request)
+    hist = persistence.load_xbox_history()
+    # Trim the heavy per-game 'scores' map from the listing for readability.
+    slim = [{k: v for k, v in h.items() if k != "scores"} for h in hist]
+    return {"total": len(hist), "days": slim[-max(1, min(limit, 800)):]}
 
 
 @app.get("/api/vitals/history")
