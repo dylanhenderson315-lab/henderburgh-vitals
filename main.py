@@ -79,9 +79,10 @@ async def _xbox_observer_loop():
         except asyncio.CancelledError:
             raise
         try:
-            game = await xbox.poll_presence_sample()
-            if game is not None:          # None = API unreachable; log nothing
-                xbox.record_presence_sample(game)
+            sample = await xbox.poll_presence_sample()
+            if sample is not None:        # None = API unreachable; log nothing
+                game, device = sample
+                xbox.record_presence_sample(game, device)
         except Exception as e:
             print(f"xbox observer error: {e}")
 
@@ -385,6 +386,11 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     true_sessions = persistence.load_xbox_sessions()
     insights = xbox.compute_gaming_insights(raw_log, xbox_display.get("game", ""), true_sessions)
 
+    # The Recently-Played timeline is now real play sessions (start / length /
+    # device) when the observer has any — otherwise fall back to the legacy
+    # launch log so the section is never empty during the transition.
+    session_log = xbox.sessions_for_display(true_sessions)
+
     # Render **bold** in insight lines to safe HTML (escape first, then emphasize).
     from html import escape as _esc
     def _md_bold(s: str) -> str:
@@ -406,6 +412,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "request": request,
         "xbox": xbox_display,
         "log": formatted_log,
+        "session_log": session_log,
         "insights": insights,
         "hero": hero,
         "public_mode": PUBLIC_MODE,

@@ -233,8 +233,9 @@ SESSION_GAP_SECONDS = 20 * 60
 
 async def poll_presence_sample():
     """Lightweight presence-only check (1 API call — no account fetch) for the
-    background observer. Returns the current real game name or '' when idle/off.
-    Returns None when the API is unreachable (so we never log a false 'stopped')."""
+    background observer. Returns (game, device): game is the real game name or ''
+    when idle/off. Returns None when the API is unreachable (so we never log a
+    false 'stopped')."""
     if not XBL_API_KEY or XBL_API_KEY in XBL_PLACEHOLDER_KEYS:
         return None
     xuid = XBL_XUID
@@ -249,30 +250,34 @@ async def poll_presence_sample():
             data = res.json() or {}
             data = data.get("content") or data
             game = ""
+            device_type = ""
             for device in (data.get("devices") or []):
                 if not isinstance(device, dict):
                     continue
                 for title in (device.get("titles") or []):
                     if isinstance(title, dict) and title.get("placement") == "Full":
                         game = title.get("name") or ""
+                        device_type = device.get("type", "") or ""
                         break
                 if game:
                     break
-            return game if is_real_game(game) else ""
+            return (game if is_real_game(game) else "", device_type)
     except Exception as e:
         print(f"Xbox presence poll error: {e}")
         return None
 
 
-def record_presence_sample(game: str):
-    """Fold one observation into the session store. Sessions carry real
-    start/end timestamps; `end` extends while the same game keeps appearing."""
+def record_presence_sample(game: str, device: str = ""):
+    """Fold one observation into the session store — the single source of truth.
+
+    A session is one continuous stretch of playing ONE game. Each 5-min poll that
+    still sees the same game extends its `end`; a different game, going idle, or a
+    gap longer than SESSION_GAP_SECONDS closes it and (if a game) opens a new one.
+    `samples` counts observations so we can tell a real sitting from a one-poll blip.
+    """
     now = datetime.now()
     sessions = persistence.load_xbox_sessions()
     open_s = sessions[0] if sessions and not sessions[0].get("closed") else None
-
-    def close(s):
-        s["closed"] = True
 
     if open_s:
         try:
@@ -281,14 +286,18 @@ def record_presence_sample(game: str):
             last_end = now
         gap = (now - last_end).total_seconds()
         if game and open_s.get("game") == game and gap <= SESSION_GAP_SECONDS:
-            open_s["end"] = now.isoformat()          # still playing — extend
+            open_s["end"] = now.isoformat()                       # still playing — extend
+            open_s["samples"] = open_s.get("samples", 1) + 1
+            if device and not open_s.get("device"):
+                open_s["device"] = device
         else:
-            close(open_s)                            # stopped / switched / long gap
+            open_s["closed"] = True                               # stopped / switched / gap
             open_s = None
 
     if game and not open_s:
         sessions.insert(0, {
-            "game": game, "start": now.isoformat(), "end": now.isoformat(), "closed": False,
+            "game": game, "start": now.isoformat(), "end": now.isoformat(),
+            "closed": False, "device": device, "samples": 1,
         })
 
     persistence.save_xbox_sessions(sessions[:400])
@@ -349,6 +358,62 @@ def _fmt_hours(seconds: float) -> str:
     if h >= 1:
         return f"{h:.1f} hours"
     return f"{max(1, round(seconds / 60))} min"
+
+
+def _fmt_duration(seconds: float) -> str:
+    """Compact play-length for the timeline: '2h 18m', '45m'."""
+    mins = int(round(seconds / 60))
+    if mins < 1:
+        return "<1m"
+    h, m = divmod(mins, 60)
+    if h and m:
+        return f"{h}h {m}m"
+    if h:
+        return f"{h}h"
+    return f"{m}m"
+
+
+_DEVICE_LABELS = {
+    "XboxSeriesX": "Xbox Series X", "XboxSeriesS": "Xbox Series S",
+    "Scarlett": "Xbox Series X|S", "XboxOne": "Xbox One", "Xbox360": "Xbox 360",
+    "Win32": "PC", "WindowsOneCore": "PC", "PC": "PC", "Android": "Mobile",
+    "iOS": "Mobile", "Nintendo": "Cloud", "Cloud": "Cloud Gaming",
+}
+
+
+def _pretty_device(t: str) -> str:
+    return _DEVICE_LABELS.get(t, t or "")
+
+
+def sessions_for_display(sessions: list, limit: int = 40) -> list:
+    """Format real play sessions into a readable timeline (newest first):
+    game, when it started, how long, device, and whether it's live right now."""
+    out = []
+    for s in sessions or []:
+        if not is_real_game(s.get("game", "")):
+            continue
+        try:
+            start = datetime.fromisoformat(s["start"])
+            end = datetime.fromisoformat(s["end"])
+        except Exception:
+            continue
+        dur = max(0.0, (end - start).total_seconds())
+        live = not s.get("closed")
+        # A single-sample session is a brief blip — show "~5 min" not a fake 0.
+        if s.get("samples", 1) <= 1 and dur < 60:
+            length = "just started" if live else "~5m"
+        else:
+            length = _fmt_duration(dur) + (" · live" if live else "")
+        out.append({
+            "game": _clean_title(s["game"]),
+            "started": start.strftime("%b %-d • %-I:%M %p"),
+            "length": length,
+            "device": _pretty_device(s.get("device", "")),
+            "live": live,
+        })
+        if len(out) >= limit:
+            break
+    return out
 
 
 def compute_gaming_insights(raw_log: list, current_game: str = "", sessions: list | None = None) -> dict:
