@@ -591,6 +591,28 @@ def load_light_history():
     return log if isinstance(log, list) else []
 
 
+# Daily vitals history — one compact snapshot per calendar day, so we build a
+# longitudinal record beyond Oura's rolling window and can mine our own trends.
+VITALS_HISTORY_FILE = _seed("vitals_history.json") or (DATA_PATH / "vitals_history.json")
+
+
+def load_vitals_history():
+    items = read_json(VITALS_HISTORY_FILE, [])
+    return items if isinstance(items, list) else []
+
+
+def upsert_vitals_snapshot(entry: dict):
+    """Insert or replace the snapshot for entry['day'] (idempotent per day)."""
+    day = entry.get("day")
+    if not day:
+        return
+    hist = load_vitals_history()
+    hist = [h for h in hist if h.get("day") != day]
+    hist.append(entry)
+    hist.sort(key=lambda h: h.get("day", ""))
+    write_json(VITALS_HISTORY_FILE, hist[-800:])   # ~2+ years of daily snapshots
+
+
 # True Xbox play sessions from the server-side observer (start/end/duration) —
 # unlike the page-triggered change log, these are real continuous observations.
 XBOX_SESSIONS_FILE = _seed("xbox_sessions.json") or (DATA_PATH / "xbox_sessions.json")

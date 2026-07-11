@@ -123,6 +123,22 @@ class OuraClient:
         except Exception:
             return []
 
+    async def get_vo2_max(self, start: str, end: str) -> List[Dict]:
+        """Cardio fitness (VO2 max). Not present on every account — fail soft."""
+        try:
+            data = await self._get("/usercollection/vO2_max", {"start_date": start, "end_date": end})
+            return data.get("data", [])
+        except Exception:
+            return []
+
+    async def get_sleep_time(self, start: str, end: str) -> List[Dict]:
+        """Oura's recommended ideal bedtime window. Fail soft when unavailable."""
+        try:
+            data = await self._get("/usercollection/sleep_time", {"start_date": start, "end_date": end})
+            return data.get("data", [])
+        except Exception:
+            return []
+
 
 
 def _parse_date(d: str) -> date:
@@ -202,6 +218,45 @@ def _avg(vals):
     return sum(nums) / len(nums) if nums else None
 
 
+# Friendly labels for Oura's score contributors (the "why" behind each score).
+_CONTRIB_LABELS = {
+    "activity_balance": "Activity balance", "body_temperature": "Body temperature",
+    "hrv_balance": "HRV balance", "previous_day_activity": "Previous day activity",
+    "previous_night": "Previous night", "recovery_index": "Recovery index",
+    "resting_heart_rate": "Resting heart rate", "sleep_balance": "Sleep balance",
+    "deep_sleep": "Deep sleep", "efficiency": "Efficiency", "latency": "Latency",
+    "rem_sleep": "REM sleep", "restfulness": "Restfulness", "timing": "Timing",
+    "total_sleep": "Total sleep", "sleep_recovery": "Sleep recovery",
+    "daytime_recovery": "Daytime recovery", "stress": "Stress",
+    "meet_daily_targets": "Meeting targets", "move_every_hour": "Move every hour",
+    "recovery_time": "Recovery time", "stay_active": "Staying active",
+    "training_frequency": "Training frequency", "training_volume": "Training volume",
+}
+
+
+def _fmt_contributors(d):
+    """List of {key,label,score}, weakest first — so the UI can show what held a score back."""
+    if not isinstance(d, dict):
+        return []
+    out = [
+        {"key": k, "label": _CONTRIB_LABELS.get(k, k.replace("_", " ").capitalize()), "score": v}
+        for k, v in d.items() if isinstance(v, (int, float)) and v is not None
+    ]
+    out.sort(key=lambda x: x["score"])
+    return out
+
+
+def _secs_to_hm(seconds):
+    """Seconds -> '2h 15m' / '45m'. None-safe."""
+    if not seconds:
+        return None
+    m = int(round(seconds / 60))
+    h, m = divmod(m, 60)
+    if h and m:
+        return f"{h}h {m}m"
+    return f"{h}h" if h else f"{m}m"
+
+
 def _band(value, bands, fallback="—"):
     """bands: list of (max_inclusive, text); first match wins. None value -> fallback."""
     if value is None:
@@ -270,6 +325,33 @@ def compute_insights(ctx: Dict[str, Any]) -> Dict[str, str]:
     if ac:
         ins["active_calories"] = f"≈ {round(ac / 10)} min of jogging, or {round(ac / 285, 1)} pizza slices earned back."
 
+    # Heart age vs real age — the quirky headline from the cardiovascular-age endpoint.
+    cd = g("cardio_delta")
+    va, ra = g("vascular_age"), g("real_age")
+    if cd is not None and va is not None:
+        if cd <= -1:
+            ins["cardio_age"] = f"Heart age {va} vs your actual {ra} — {abs(round(cd))} years younger than the calendar."
+        elif cd >= 1:
+            ins["cardio_age"] = f"Heart age {va} vs your actual {ra} — {round(cd)} years ahead of the calendar. Cardio moves this."
+        else:
+            ins["cardio_age"] = f"Heart age {va} — dead on your actual age of {ra}."
+
+    rl = g("resilience_level")
+    if rl:
+        ins["resilience"] = f"Resilience: {str(rl).replace('_',' ')}. Oura's ladder: limited · adequate · solid · strong · exceptional."
+
+    vo2 = g("vo2_max")
+    if vo2:
+        ins["vo2_max"] = f"VO₂ max {round(vo2)} ml/kg/min — the single best lab predictor of longevity. Elite endurance sits 60–85."
+
+    sh, rh = g("stress_high_min"), g("recovery_high_min")
+    if sh is not None and rh is not None:
+        ins["stress"] = f"{round(rh/60,1)}h recovery vs {round(sh/60,1)}h high-stress today — a {round(rh/max(sh,1),1)}:1 balance."
+
+    rw = g("readiness_weakest")
+    if rw and rw.get("score") is not None and rw["score"] < 70:
+        ins["readiness_why"] = f"Weakest link today: {rw['label'].lower()} at {round(rw['score'])}/100."
+
     # --- Operating State: ONE prioritized headline, worst signal wins. Factual, no fluff. ---
     r, s, h = g("readiness_score"), g("sleep_score"), g("hrv")
     if td is not None and td >= 0.5:
@@ -304,9 +386,19 @@ def process_dashboard_data(
     heartrate: List[Dict],
     workouts: List[Dict],
     days: int,
+    cardio_age: Optional[List[Dict]] = None,
+    resilience: Optional[List[Dict]] = None,
+    vo2_max: Optional[List[Dict]] = None,
+    sleep_time: Optional[List[Dict]] = None,
 ) -> Dict[str, Any]:
     """Turn raw API responses into a clean dashboard context dict."""
     today = date.today().isoformat()
+    local_tz = ZoneInfo("America/New_York")   # was referenced but never defined —
+                                              # silently broke Recent Activity + local times
+    cardio_age = cardio_age or []
+    resilience = resilience or []
+    vo2_max = vo2_max or []
+    sleep_time = sleep_time or []
 
     # --- Latest values (most recent day with data) ---
     latest_readiness = next((r for r in reversed(readiness) if r.get("score") is not None), None)
@@ -516,6 +608,87 @@ def process_dashboard_data(
         except Exception:
             recent_activities = []
 
+    # ── Newly surfaced data (previously fetched-and-dropped, or never fetched) ──
+
+    # Score contributors — the "why" behind readiness & sleep.
+    readiness_contributors = _fmt_contributors(_safe_get(latest_readiness, "contributors"))
+    sleep_contributors = _fmt_contributors(_safe_get(latest_daily_sleep, "contributors"))
+    readiness_weakest = readiness_contributors[0] if readiness_contributors else None
+    sleep_weakest = sleep_contributors[0] if sleep_contributors else None
+
+    # Cardiovascular age vs real age ("your heart is 31 vs your actual 34").
+    personal_age = personal.get("age") if isinstance(personal, dict) else None
+    latest_cardio = next((c for c in reversed(cardio_age) if c.get("vascular_age") is not None), None)
+    vascular_age = _safe_get(latest_cardio, "vascular_age")
+    cardio_delta = (vascular_age - personal_age) if (vascular_age is not None and personal_age is not None) else None
+
+    # Resilience — a state (limited/adequate/solid/strong/exceptional) + contributors.
+    latest_res = next((r for r in reversed(resilience) if r.get("level")), None)
+    resilience_level = _safe_get(latest_res, "level")
+    resilience_contributors = _fmt_contributors(_safe_get(latest_res, "contributors"))
+
+    # VO2 max (cardio fitness).
+    latest_vo2 = next((v for v in reversed(vo2_max) if v.get("vo2_max") is not None), None)
+    vo2 = _safe_get(latest_vo2, "vo2_max")
+
+    # Stress vs recovery — in real minutes, not one word.
+    stress_high_sec = _safe_get(latest_stress, "stress_high")
+    recovery_high_sec = _safe_get(latest_stress, "recovery_high")
+    stress_high_str = _secs_to_hm(stress_high_sec)
+    recovery_high_str = _secs_to_hm(recovery_high_sec)
+
+    # Movement composition — where the day's time actually went.
+    comp = []
+    for key, label in (("high_activity_time", "High"), ("medium_activity_time", "Medium"),
+                       ("low_activity_time", "Low"), ("sedentary_time", "Sedentary"),
+                       ("resting_time", "Resting")):
+        secs = _safe_get(latest_activity, key)
+        if secs:
+            comp.append({"label": label, "seconds": secs, "text": _secs_to_hm(secs)})
+    total_calories = _safe_get(latest_activity, "total_calories")
+    walk_equiv_m = _safe_get(latest_activity, "equivalent_walking_distance")
+    walk_equiv_mi = round(walk_equiv_m / 1609.34, 1) if walk_equiv_m else None
+
+    # SpO2 breathing disturbance (sleep-breathing signal).
+    breathing_index = _safe_get(latest_spo2, "breathing_disturbance_index")
+
+    # When you actually slept (bedtime start/end -> local clock).
+    def _iso_to_local_clock(iso):
+        if not iso:
+            return None
+        try:
+            dt = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(local_tz)
+            return dt.strftime("%I:%M %p").lstrip("0")
+        except Exception:
+            return None
+    bedtime_start = _iso_to_local_clock(_safe_get(latest_detailed, "bedtime_start"))
+    bedtime_end = _iso_to_local_clock(_safe_get(latest_detailed, "bedtime_end"))
+    restless_periods = _safe_get(latest_detailed, "restless_periods")
+
+    # Full-day heart-rate curve (last ~24h of 5-min samples, downsampled for a chart).
+    hr_curve_labels: List[str] = []
+    hr_curve_values: List[Optional[int]] = []
+    if heartrate:
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            pts = []
+            for e in heartrate:
+                if not isinstance(e, dict) or e.get("bpm") is None:
+                    continue
+                ts = e.get("timestamp")
+                if not ts:
+                    continue
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if dt >= cutoff:
+                    pts.append((dt, e["bpm"]))
+            pts.sort(key=lambda p: p[0])
+            step = max(1, len(pts) // 60)   # cap ~60 points
+            for dt, bpm in pts[::step]:
+                hr_curve_labels.append(dt.astimezone(local_tz).strftime("%-I:%M %p"))
+                hr_curve_values.append(bpm)
+        except Exception:
+            hr_curve_labels, hr_curve_values = [], []
+
     now = datetime.now(ZoneInfo("UTC"))
 
     _ctx_for_insights = {
@@ -529,6 +702,13 @@ def process_dashboard_data(
         "total_sleep_hours": (total_sleep / 3600) if total_sleep else None,
         "hrv": hrv, "rhr": rhr, "respiratory_rate": resp_rate, "spo2": spo2_val,
         "temp_deviation": temp_dev, "latest_hr": latest_hr, "active_calories": active_cal,
+        # newly available signals for richer narration
+        "cardio_delta": cardio_delta, "vascular_age": vascular_age, "real_age": personal_age,
+        "resilience_level": resilience_level, "vo2_max": vo2,
+        "stress_high_min": (stress_high_sec / 60) if stress_high_sec else None,
+        "recovery_high_min": (recovery_high_sec / 60) if recovery_high_sec else None,
+        "readiness_weakest": readiness_weakest, "sleep_weakest": sleep_weakest,
+        "breathing_index": breathing_index,
     }
     insights = compute_insights(_ctx_for_insights)
 
@@ -568,9 +748,37 @@ def process_dashboard_data(
         # Activity
         "steps": steps,
         "active_calories": active_cal,
+        "total_calories": total_calories,
+        "walk_equiv_mi": walk_equiv_mi,
+        "activity_composition": comp,
 
         # Recent detailed sessions (new "Recent Activity" section)
         "recent_activities": recent_activities,
+
+        # Heart age, resilience, fitness (previously unused endpoints)
+        "vascular_age": vascular_age,
+        "real_age": personal_age,
+        "cardio_delta": cardio_delta,
+        "resilience_level": resilience_level,
+        "resilience_contributors": resilience_contributors,
+        "vo2_max": vo2,
+
+        # Score contributors — the "why" behind each score
+        "readiness_contributors": readiness_contributors,
+        "sleep_contributors": sleep_contributors,
+        "readiness_weakest": readiness_weakest,
+        "sleep_weakest": sleep_weakest,
+
+        # Stress in real minutes + sleep-breathing signal + bedtimes
+        "stress_high_str": stress_high_str,
+        "recovery_high_str": recovery_high_str,
+        "breathing_index": breathing_index,
+        "bedtime_start": bedtime_start,
+        "bedtime_end": bedtime_end,
+        "restless_periods": restless_periods,
+
+        # Full-day heart-rate curve
+        "hr_curve": {"labels": hr_curve_labels, "values": hr_curve_values},
 
         # Trends
         "readiness_trend": readiness_trend,

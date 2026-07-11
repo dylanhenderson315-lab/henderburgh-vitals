@@ -11,7 +11,7 @@ from fastapi import HTTPException
 
 from clients.oura import OuraClient, _safe_get, get_date_range, process_dashboard_data
 from config import OURA_DAYS, OURA_TOKEN, PUBLIC_MODE, VITALS_SNAPSHOT_TTL
-from services import state
+from services import persistence, state
 
 
 async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
@@ -21,7 +21,8 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
     start, end = get_date_range(days)
     client: OuraClient = state.oura_client
 
-    personal, readiness, daily_sleep, detailed_sleep, activity, spo2, stress, heartrate, workouts = await asyncio.gather(
+    (personal, readiness, daily_sleep, detailed_sleep, activity, spo2, stress,
+     heartrate, workouts, cardio_age, resilience, vo2_max, sleep_time) = await asyncio.gather(
         client.get_personal_info(),
         client.get_daily_readiness(start, end),
         client.get_daily_sleep(start, end),
@@ -31,6 +32,10 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
         client.get_daily_stress(start, end),
         client.get_heartrate(start, end, bypass_cache=False),
         client.get_workouts(start, end),
+        client.get_daily_cardiovascular_age(start, end),
+        client.get_daily_resilience(start, end),
+        client.get_vo2_max(start, end),
+        client.get_sleep_time(start, end),
         return_exceptions=True,
     )
 
@@ -47,22 +52,57 @@ async def fetch_all_data(days: int = OURA_DAYS) -> Dict[str, Any]:
         "stress": safe(stress, []),
         "heartrate": safe(heartrate, []),
         "workouts": safe(workouts, []),
+        "cardio_age": safe(cardio_age, []),
+        "resilience": safe(resilience, []),
+        "vo2_max": safe(vo2_max, []),
+        "sleep_time": safe(sleep_time, []),
     }
 
     processed = process_dashboard_data(
-        raw["personal"],
-        raw["readiness"],
-        raw["daily_sleep"],
-        raw["detailed_sleep"],
-        raw["activity"],
-        raw["spo2"],
-        raw["stress"],
-        raw.get("heartrate", []),
-        raw.get("workouts", []),
-        days,
+        raw["personal"], raw["readiness"], raw["daily_sleep"], raw["detailed_sleep"],
+        raw["activity"], raw["spo2"], raw["stress"], raw["heartrate"], raw["workouts"],
+        days, raw["cardio_age"], raw["resilience"], raw["vo2_max"], raw["sleep_time"],
     )
     state.last_vitals_snapshot = {"data": processed, "ts": time.time()}
     return raw
+
+
+def record_daily_snapshot(ctx: Dict[str, Any]) -> None:
+    """Distill a processed vitals ctx into one compact daily record and upsert it
+    into the longitudinal history (idempotent per calendar day). This is our own
+    log — it survives beyond Oura's rolling window and powers future trend mining."""
+    try:
+        entry = {
+            "day": ctx.get("today") or date.today().isoformat(),
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "readiness": ctx.get("readiness_score"),
+            "sleep": ctx.get("sleep_score"),
+            "activity": ctx.get("activity_score"),
+            "hrv": ctx.get("hrv"),
+            "rhr": ctx.get("rhr"),
+            "respiratory_rate": ctx.get("respiratory_rate"),
+            "spo2": ctx.get("spo2"),
+            "temp_deviation": ctx.get("temp_deviation"),
+            "resilience": ctx.get("resilience_level"),
+            "vascular_age": ctx.get("vascular_age"),
+            "cardio_delta": ctx.get("cardio_delta"),
+            "vo2_max": ctx.get("vo2_max"),
+            "stress_high": ctx.get("stress_high_str"),
+            "recovery_high": ctx.get("recovery_high_str"),
+            "breathing_index": ctx.get("breathing_index"),
+            "steps": ctx.get("steps"),
+            "active_calories": ctx.get("active_calories"),
+            "total_calories": ctx.get("total_calories"),
+            "readiness_weakest": (ctx.get("readiness_weakest") or {}).get("key"),
+            "bedtime_start": ctx.get("bedtime_start"),
+            "bedtime_end": ctx.get("bedtime_end"),
+        }
+        # Only log a day that actually has core data (avoid empty pre-sync days).
+        if entry["readiness"] is None and entry["sleep"] is None and entry["hrv"] is None:
+            return
+        persistence.upsert_vitals_snapshot(entry)
+    except Exception as e:
+        print(f"vitals snapshot record error: {e}")
 
 
 async def get_processed_vitals(days: int = OURA_DAYS, use_cache: bool = False) -> Dict[str, Any]:
@@ -73,16 +113,11 @@ async def get_processed_vitals(days: int = OURA_DAYS, use_cache: bool = False) -
 
     raw = await fetch_all_data(days)
     return process_dashboard_data(
-        raw["personal"],
-        raw["readiness"],
-        raw["daily_sleep"],
-        raw["detailed_sleep"],
-        raw["activity"],
-        raw["spo2"],
-        raw["stress"],
-        raw.get("heartrate", []),
-        raw.get("workouts", []),
-        days,
+        raw["personal"], raw["readiness"], raw["daily_sleep"], raw["detailed_sleep"],
+        raw["activity"], raw["spo2"], raw["stress"], raw.get("heartrate", []),
+        raw.get("workouts", []), days,
+        raw.get("cardio_age", []), raw.get("resilience", []),
+        raw.get("vo2_max", []), raw.get("sleep_time", []),
     )
 
 

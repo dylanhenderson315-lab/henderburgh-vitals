@@ -109,6 +109,26 @@ async def _xbox_observer_loop():
             raise
 
 
+async def _vitals_history_loop():
+    """Every ~3 hours, distill the day's vitals into one compact snapshot and
+    upsert it into our longitudinal history (idempotent per calendar day). Uses
+    the cached vitals so it never burns Oura quota, and only logs days with real
+    data. This is what lets us mine long-term trends beyond Oura's window."""
+    if not OURA_TOKEN:
+        return
+    await asyncio.sleep(30)   # let the app settle
+    while True:
+        try:
+            ctx = await vitals.get_processed_vitals(days=OURA_DAYS, use_cache=True)
+            vitals.record_daily_snapshot(ctx)
+        except Exception as e:
+            print(f"vitals history loop error: {e}")
+        try:
+            await asyncio.sleep(3 * 3600)
+        except asyncio.CancelledError:
+            raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if OURA_TOKEN:
@@ -117,9 +137,11 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("PUBLIC_MODE requires OURA_TOKEN")
     history_task = asyncio.create_task(_light_history_loop())
     xbox_task = asyncio.create_task(_xbox_observer_loop())
+    vitals_task = asyncio.create_task(_vitals_history_loop())
     yield
     history_task.cancel()
     xbox_task.cancel()
+    vitals_task.cancel()
     if state.oura_client:
         await state.oura_client.close()
         state.oura_client = None
@@ -557,6 +579,7 @@ async def vitals_dashboard(request: Request, days: int = OURA_DAYS):
 
     try:
         ctx = await vitals.get_processed_vitals(days, use_cache=False)
+        vitals.record_daily_snapshot(ctx)   # log today's vitals into the longitudinal history
 
         ctx.update({
             "request": request,

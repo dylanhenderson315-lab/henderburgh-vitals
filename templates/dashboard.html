@@ -721,15 +721,106 @@
                 <span class="metric-label">Stress</span>
               </div>
               <div class="mt-3">
-                <span class="metric-value text-4xl font-semibold tabular-nums">{{ stress_summary }}</span>
+                <span class="metric-value text-4xl font-semibold tabular-nums capitalize">{{ stress_summary }}</span>
               </div>
+              {% if recovery_high_str or stress_high_str %}
+              <div class="mt-3 flex items-center gap-x-3 text-xs">
+                {% if recovery_high_str %}<span class="text-emerald-400"><i class="fa-solid fa-leaf"></i> {{ recovery_high_str }} recovery</span>{% endif %}
+                {% if stress_high_str %}<span class="text-amber-400"><i class="fa-solid fa-bolt"></i> {{ stress_high_str }} stress</span>{% endif %}
+              </div>
+              {% endif %}
             </div>
           </div>
-          <div class="text-[11px] text-zinc-500 mt-5">Daily stress summary</div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.stress if insights and insights.stress else "Daily stress vs recovery" }}</div>
         </div>
         {% endif %}
 
       </div>
+
+      <!-- ===== Longevity & Fitness (heart age, resilience, VO2 max) ===== -->
+      {% if vascular_age or resilience_level or vo2_max %}
+      <div class="mb-4 flex items-center justify-between">
+        <div class="section-title text-emerald-400">Longevity &amp; Fitness</div>
+        <div class="text-xs text-zinc-500">The long-game signals</div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+        {% if vascular_age %}
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+          <div class="flex items-center gap-x-2 text-sm">
+            <i class="fa-solid fa-heart-circle-check text-rose-400"></i>
+            <span class="metric-label">Heart Age</span>
+          </div>
+          <div class="mt-3 flex items-baseline gap-x-2">
+            <span class="metric-value text-4xl font-semibold tabular-nums">{{ vascular_age }}</span>
+            {% if cardio_delta is not none and cardio_delta != 0 %}
+            <span class="text-sm font-semibold {% if cardio_delta < 0 %}text-emerald-400{% else %}text-amber-400{% endif %}">
+              {{ cardio_delta|abs }}y {% if cardio_delta < 0 %}younger{% else %}older{% endif %}
+            </span>
+            {% endif %}
+          </div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.cardio_age if insights and insights.cardio_age else "Cardiovascular age vs your real age" }}</div>
+        </div>
+        {% endif %}
+        {% if resilience_level %}
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+          <div class="flex items-center gap-x-2 text-sm">
+            <i class="fa-solid fa-shield-heart text-emerald-400"></i>
+            <span class="metric-label">Resilience</span>
+          </div>
+          <div class="mt-3">
+            <span class="metric-value text-4xl font-semibold capitalize">{{ resilience_level|replace('_',' ') }}</span>
+          </div>
+          {% if resilience_contributors %}
+          <div class="mt-3 flex flex-wrap gap-1.5">
+            {% for c in resilience_contributors %}
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">{{ c.label }} {{ c.score|round|int }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if vo2_max %}
+        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+          <div class="flex items-center gap-x-2 text-sm">
+            <i class="fa-solid fa-lungs text-sky-400"></i>
+            <span class="metric-label">VO₂ Max</span>
+          </div>
+          <div class="mt-3 flex items-baseline gap-x-1">
+            <span class="metric-value text-4xl font-semibold tabular-nums">{{ vo2_max|round(1) }}</span>
+            <span class="text-sm text-zinc-500 font-medium">ml/kg/min</span>
+          </div>
+          <div class="text-[11px] text-zinc-400 mt-4 leading-snug">{{ insights.vo2_max if insights and insights.vo2_max else "Cardio fitness" }}</div>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- ===== Today's Movement composition ===== -->
+      {% if activity_composition %}
+      <div class="mb-4 flex items-center justify-between">
+        <div class="section-title text-emerald-400">Where Today Went</div>
+        {% if walk_equiv_mi %}<div class="text-xs text-zinc-500">≈ {{ walk_equiv_mi }} mi walking-equivalent</div>{% endif %}
+      </div>
+      <div class="card-bg rounded-3xl p-6 border border-zinc-800 mb-10">
+        {% set order = {'High':'#f43f5e','Medium':'#f59e0b','Low':'#4ade80','Sedentary':'#71717a','Resting':'#3f3f46'} %}
+        <div class="flex h-3 rounded-full overflow-hidden mb-5">
+          {% set total_secs = activity_composition|sum(attribute='seconds') %}
+          {% for c in activity_composition %}
+          <div style="width: {{ (100 * c.seconds / total_secs)|round(1) }}%; background: {{ order[c.label] or '#52525b' }};" title="{{ c.label }} {{ c.text }}"></div>
+          {% endfor %}
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          {% for c in activity_composition %}
+          <div>
+            <div class="flex items-center gap-x-1.5 text-[11px] text-zinc-500">
+              <span class="w-2 h-2 rounded-full" style="background: {{ order[c.label] or '#52525b' }};"></span>{{ c.label }}
+            </div>
+            <div class="text-sm font-semibold tabular-nums mt-0.5">{{ c.text }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
 
       <!-- Charts -->
       <div class="mb-4 flex items-center justify-between">
@@ -772,6 +863,24 @@
           </div>
         </div>
       </div>
+
+      <!-- Full-day heart-rate curve (data was already fetched, now shown) -->
+      {% if hr_curve and hr_curve.values and hr_curve.values|length > 3 %}
+      <div class="card-bg rounded-3xl p-6 border border-zinc-800 mb-10">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <div class="font-semibold flex items-center gap-x-2">
+              <i class="fa-solid fa-wave-square text-rose-400"></i> Heart Rate · Last 24h
+            </div>
+            <div class="text-xs text-zinc-500">Every reading from your ring today</div>
+          </div>
+          {% if latest_hr %}<div class="text-2xl font-semibold tabular-nums text-right">{{ latest_hr }}<span class="text-sm text-zinc-500 font-normal ml-0.5">bpm</span></div>{% endif %}
+        </div>
+        <div class="chart-container h-[200px]">
+          <canvas id="hrCurveChart"></canvas>
+        </div>
+      </div>
+      {% endif %}
 
       <!-- Sleep Breakdown + More Details (hidden if no core sleep data for calm, trustworthy feel) -->
       {% if total_sleep or deep_sleep or rem_sleep or light_sleep or readiness_score or rhr or hrv %}
@@ -848,17 +957,36 @@
       </div>
       {% endif %}
 
-      <!-- Intelligence / Insights (groundwork for leverage - calm, non-intrusive suggestions based on data) -->
-      {% if hrv or rhr or readiness_score %}
-      <div class="mt-8 p-5 rounded-3xl border border-zinc-800 bg-white/5">
-        <div class="flex items-center gap-x-2 text-emerald-400 text-sm font-medium mb-2">
-          <i class="fa-solid fa-lightbulb"></i>
-          <span>System Insight</span>
+      <!-- Why your scores are what they are — real Oura contributor breakdown -->
+      {% if readiness_contributors or sleep_contributors %}
+      <div class="mb-4 flex items-center justify-between mt-2">
+        <div class="section-title text-emerald-400">Why Today Looks Like This</div>
+        <div class="text-xs text-zinc-500">What lifted &amp; dragged each score</div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {% for pair in [('Readiness', readiness_score, readiness_contributors), ('Sleep', sleep_score, sleep_contributors)] %}
+        {% if pair[2] %}
+        <div class="card-bg rounded-3xl p-6 border border-zinc-800">
+          <div class="flex items-baseline justify-between mb-4">
+            <div class="font-semibold">{{ pair[0] }}</div>
+            {% if pair[1] is not none %}<div class="text-2xl font-semibold tabular-nums">{{ pair[1] }}</div>{% endif %}
+          </div>
+          <div class="space-y-2.5">
+            {% for c in pair[2] %}
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="{% if c.score < 70 %}text-amber-400{% else %}text-zinc-400{% endif %}">{{ c.label }}{% if loop.first and c.score < 70 %} · weakest{% endif %}</span>
+                <span class="tabular-nums text-zinc-500">{{ c.score|round|int }}</span>
+              </div>
+              <div class="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                <span class="block h-full rounded-full {% if c.score < 70 %}bg-amber-400{% elif c.score < 85 %}bg-emerald-500{% else %}bg-emerald-400{% endif %}" style="width: {{ c.score|round|int }}%;"></span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
         </div>
-        <p class="text-sm text-zinc-300">
-          {% if hrv and hrv > 60 %}Strong HRV suggests excellent recovery.{% elif hrv %}HRV is moderate — prioritize rest tonight.{% else %}Track a few more nights for personalized recovery insights.{% endif %}
-          {% if readiness_score and readiness_score > 80 %} Readiness is high — great window for focused work or training.{% endif %}
-        </p>
+        {% endif %}
+        {% endfor %}
       </div>
       {% endif %}
 
@@ -946,6 +1074,7 @@
     // Chart.js instances
     let hrvChartInstance = null;
     let sleepChartInstance = null;
+    let hrCurveChartInstance = null;
 
     function createCharts() {
       // Destroy existing charts if re-rendering fragment
@@ -1055,6 +1184,38 @@
                 beginAtZero: true,
                 suggestedMax: 10
               }
+            }
+          }
+        });
+      }
+
+      // Full-day heart-rate curve
+      const hrCurveCtx = document.getElementById('hrCurveChart');
+      const hrCurveLabels = {{ hr_curve.labels | tojson if hr_curve else '[]' }};
+      const hrCurveValues = {{ hr_curve.values | tojson if hr_curve else '[]' }};
+      if (hrCurveCtx && hrCurveValues.length > 3) {
+        if (hrCurveChartInstance) { hrCurveChartInstance.destroy(); }
+        hrCurveChartInstance = new Chart(hrCurveCtx, {
+          type: 'line',
+          data: {
+            labels: hrCurveLabels,
+            datasets: [{
+              label: 'BPM', data: hrCurveValues,
+              borderColor: '#fb7185',
+              backgroundColor: 'rgba(251, 113, 133, 0.10)',
+              borderWidth: 2, tension: 0.35, fill: true,
+              pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: '#fb7185',
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { backgroundColor: '#18181b', callbacks: { label: (ctx) => ctx.raw ? ctx.raw + ' bpm' : '—' } }
+            },
+            scales: {
+              x: { grid: { color: 'rgba(255,255,255,0.06)', lineWidth: 0.5 }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, maxTicksLimit: 6 } },
+              y: { grid: { color: 'rgba(255,255,255,0.06)', lineWidth: 0.5 }, ticks: { color: '#52525b', font: { size: 10 } } }
             }
           }
         });
