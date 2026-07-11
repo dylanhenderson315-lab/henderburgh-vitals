@@ -443,13 +443,27 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
             parts[i] = f'<strong class="text-white font-semibold">{parts[i]}</strong>'
         return "".join(parts)
     insights["insights_html"] = [_md_bold(x) for x in insights.get("insights", [])]
+
+    # Real games library (cover art + achievements + last-played) from Xbox.
+    library = await xbox.get_title_history()
+    games = xbox.recent_games_display(library, limit=12)
+
     hero_game = xbox_display.get("game", "")
     if not xbox.is_real_game(hero_game):
         hero_game = insights.get("stats", {}).get("favorite", "")
+    playing_now = xbox.is_real_game(xbox_display.get("game", ""))
+    # The currently-playing game is, by definition, the most recently played
+    # library entry — so use its cover directly when live (reliable, no name
+    # matching). Otherwise fuzzy-match the favorite to its box art.
+    if playing_now and library:
+        hero_cover = library[0].get("image", "") or xbox.find_cover(library, hero_game)
+    else:
+        hero_cover = xbox.find_cover(library, hero_game)
     hero = {
         "game": xbox._clean_title(hero_game) if hero_game else "",
         "signature": xbox.game_signature(hero_game or "xbox"),
-        "playing_now": xbox.is_real_game(xbox_display.get("game", "")),
+        "playing_now": playing_now,
+        "cover": hero_cover,
     }
 
     return _render("xbox.html", {
@@ -459,6 +473,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "session_log": session_log,
         "insights": insights,
         "hero": hero,
+        "games": games,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,

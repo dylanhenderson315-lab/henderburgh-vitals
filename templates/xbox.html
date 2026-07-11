@@ -84,6 +84,16 @@
       background: radial-gradient(120% 120% at 85% 0%, rgba(255,255,255,0.14), transparent 55%);
       pointer-events: none;
     }
+    .hero-cover {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0.55;
+    }
+    .hero-cover-scrim {
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.15) 100%);
+    }
     .hero-art {
       position: absolute;
       top: -18px; right: 10px;
@@ -118,6 +128,22 @@
       70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
       100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
     }
+    .game-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color .2s ease, transform .2s ease;
+    }
+    .game-card:hover { border-color: #3f3f46; transform: translateY(-2px); }
+    .game-cover {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      display: block;
+      background: #0a0a0b;
+    }
+    .game-info { padding: 12px 14px 14px; }
     .rank-bar {
       height: 6px;
       border-radius: 9999px;
@@ -211,6 +237,11 @@
             {% if xbox.real_name %}
             <div class="text-lg text-zinc-400 mt-0.5">{{ xbox.real_name }}</div>
             {% endif %}
+            {% if xbox.reputation %}
+            <div class="mt-2 inline-flex items-center gap-1.5 text-xs text-emerald-400/90">
+              <i class="fa-solid fa-star"></i>{{ xbox.reputation|replace('Player',' player')|replace('Good','Good')|title }}
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -220,7 +251,12 @@
     <div class="mb-12">
       <div class="section-label mb-4">{% if hero.playing_now %}Now Playing{% else %}Most Played{% endif %}</div>
       <div class="hero-card" style="background: linear-gradient(135deg, {{ hero.signature.c1 }} 0%, {{ hero.signature.c2 }} 100%);">
+        {% if hero.cover %}
+        <img src="{{ hero.cover }}" alt="" class="hero-cover" aria-hidden="true">
+        <div class="hero-cover-scrim"></div>
+        {% else %}
         <div class="hero-art">{{ hero.signature.initials }}</div>
+        {% endif %}
         <div class="relative w-full flex items-end justify-between gap-4">
           <div class="min-w-0">
             <div id="hero-state-row" class="flex items-center gap-2 mb-2">
@@ -302,6 +338,32 @@
           <div class="text-3xl font-semibold mt-1 tabular-nums">{{ insights.stats.distinct_games }}</div>
         </div>
         {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Games & Achievements library — real cover art, completion, gamerscore -->
+    {% if games %}
+    <div class="mb-12">
+      <div class="flex items-baseline justify-between mb-4">
+        <div class="section-label">Games &amp; Achievements</div>
+        <span class="text-xs text-zinc-500">Recently played · real progress</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for g in games %}
+        <div class="game-card">
+          {% if g.image %}<img src="{{ g.image }}" alt="{{ g.name }}" class="game-cover" loading="lazy">{% endif %}
+          <div class="game-info">
+            <div class="text-sm font-semibold text-zinc-100 truncate">{{ g.name }}</div>
+            <div class="text-[11px] text-zinc-500 mt-0.5">
+              {{ g.gamerscore }}/{{ g.total_gamerscore }} G · {{ g.achievements }}/{{ g.total_achievements }} ach{% if g.when %} · {{ g.when }}{% endif %}
+            </div>
+            <div class="mt-2 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+              <span class="block h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400" style="width: {{ g.progress }}%;"></span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
       </div>
     </div>
     {% endif %}

@@ -174,48 +174,33 @@ async def fetch_xbox_status():
             else:
                 presence_state = raw_state
 
-            # Fetch account profile for gamerpic, gamerscore, tenure (static profile info)
+            # Profile from player/summary — the /account endpoint returns empty
+            # settings for this account, but player/summary/{xuid} has the real
+            # gamerscore, gamerpic, reputation, and gamertag.
             gamerpic = ""
             gamerscore = 0
             tenure = 0
             gamertag = XBL_GAMERTAG
             real_name = ""
-            account_tier = "Gold"
+            account_tier = ""
+            reputation = ""
             try:
                 note_api_call()
-                account_res = await client.get("https://xbl.io/api/v2/account", headers=headers, timeout=10)
-                if account_res.status_code == 200:
-                    acc = account_res.json() or {}
-                    acc_content = acc.get("content") or acc
-                    pus = acc_content.get("profileUsers") or []
-                    if pus:
-                        pu = pus[0]
-                        settings_list = pu.get("settings") or []
-                        settings = {s.get("id"): s.get("value") for s in settings_list if isinstance(s, dict)}
-                        gamertag = settings.get("Gamertag") or settings.get("ModernGamertag") or gamertag
-                        gamerpic = settings.get("GameDisplayPicRaw", "")
+                sum_res = await client.get(f"https://xbl.io/api/v2/player/summary/{xuid}", headers=headers, timeout=10)
+                if sum_res.status_code == 200:
+                    people = ((sum_res.json() or {}).get("content") or {}).get("people") or []
+                    if people:
+                        pp = people[0]
+                        gamertag = pp.get("gamertag") or gamertag
+                        gamerpic = pp.get("displayPicRaw") or ""
+                        real_name = pp.get("realName") or ""
+                        reputation = pp.get("xboxOneRep") or ""
                         try:
-                            gamerscore = int(settings.get("Gamerscore", 0))
-                        except:
+                            gamerscore = int(pp.get("gamerScore") or 0)
+                        except Exception:
                             gamerscore = 0
-                        try:
-                            tenure = int(settings.get("TenureLevel", 0))
-                        except:
-                            tenure = 0
-                        # Real name (may not be present on all accounts / privacy settings)
-                        real_name = (
-                            settings.get("RealName")
-                            or settings.get("FirstName")
-                            or ""
-                        )
-                        if not real_name:
-                            fn = settings.get("FirstName", "") or ""
-                            ln = settings.get("LastName", "") or ""
-                            real_name = (fn + " " + ln).strip()
-                        # Account tier (often Gold / Game Pass etc.)
-                        account_tier = settings.get("AccountTier") or settings.get("Tier") or "Gold"
             except Exception as e:
-                print(f"Xbox account fetch error: {e}")
+                print(f"Xbox player summary fetch error: {e}")
 
             # Log meaningful game changes (only when game actually changes and is valid)
             if game and game != "—":
@@ -247,6 +232,7 @@ async def fetch_xbox_status():
                 "tenure": tenure,
                 "real_name": real_name,
                 "account_tier": account_tier,
+                "reputation": reputation,
                 "xuid": xuid or XBL_XUID,
                 "last_updated": fetch_time
             }
@@ -256,6 +242,95 @@ async def fetch_xbox_status():
         except Exception as e:
             print(f"Xbox API error: {e}")
             return state.last_xbox_data
+
+
+# ── Games library (real cover art + achievements + last-played) ──────────────
+# achievements/player/{xuid} returns the full title history with real box art,
+# achievement completion, gamerscore per game, and last-played timestamps —
+# richer and more truthful than sniffing presence. Cached (changes slowly).
+_title_history_cache = {"data": [], "ts": 0.0}
+TITLE_HISTORY_TTL = 1800   # 30 min
+
+
+async def get_title_history():
+    if not XBL_API_KEY or XBL_API_KEY in XBL_PLACEHOLDER_KEYS or not XBL_XUID:
+        return _title_history_cache["data"]
+    now = time.time()
+    if _title_history_cache["data"] and now - _title_history_cache["ts"] < TITLE_HISTORY_TTL:
+        return _title_history_cache["data"]
+    headers = {"X-Authorization": XBL_API_KEY, "Accept": "application/json"}
+    try:
+        async with httpx.AsyncClient() as client:
+            note_api_call()
+            res = await client.get(f"https://xbl.io/api/v2/achievements/player/{XBL_XUID}", headers=headers, timeout=12)
+            if res.status_code != 200:
+                return _title_history_cache["data"]
+            titles = ((res.json() or {}).get("content") or {}).get("titles") or []
+            games = []
+            for t in titles:
+                if not isinstance(t, dict) or t.get("type") != "Game":
+                    continue
+                if not is_real_game(t.get("name", "")):
+                    continue
+                a = t.get("achievement") or {}
+                th = t.get("titleHistory") or {}
+                games.append({
+                    "name": _clean_title(t.get("name", "")),
+                    "image": t.get("displayImage") or "",
+                    "gamerscore": a.get("currentGamerscore") or 0,
+                    "total_gamerscore": a.get("totalGamerscore") or 0,
+                    "achievements": a.get("currentAchievements") or 0,
+                    "total_achievements": a.get("totalAchievements") or 0,
+                    "progress": a.get("progressPercentage") or 0,
+                    "last_played": th.get("lastTimePlayed") or "",
+                })
+            games.sort(key=lambda gm: gm.get("last_played") or "", reverse=True)
+            _title_history_cache.update({"data": games, "ts": now})
+    except Exception as e:
+        print(f"Xbox title history error: {e}")
+    return _title_history_cache["data"]
+
+
+def _name_tokens(name: str) -> set:
+    n = _clean_title(name).lower()
+    for ch in "()[]|:.,":
+        n = n.replace(ch, " ")
+    # drop generic platform/edition words that bloat matches
+    stop = {"xbox", "series", "x", "s", "game", "preview", "edition", "the", "one"}
+    return {t for t in n.split() if t and t not in stop}
+
+
+def find_cover(games: list, name: str) -> str:
+    """Best-effort match of a game name to its real cover image. Presence names
+    ('EA FC 26 (XSX)') and library names ('EA SPORTS FC 26 Xbox Series X|S')
+    differ, so match by shared meaningful tokens, best overlap wins."""
+    if not name or not games:
+        return ""
+    target = _name_tokens(name)
+    if not target:
+        return ""
+    best_img, best_score = "", 0
+    for gm in games:
+        overlap = len(target & _name_tokens(gm.get("name", "")))
+        if overlap > best_score:
+            best_score, best_img = overlap, gm.get("image", "")
+    return best_img if best_score >= 1 else ""
+
+
+def recent_games_display(games: list, limit: int = 12) -> list:
+    """Recently-played library rows for the page: cover, progress, gamerscore, when."""
+    out = []
+    for gm in games[:limit]:
+        lp = gm.get("last_played") or ""
+        when = ""
+        if lp:
+            try:
+                dt = datetime.fromisoformat(lp.replace("Z", "+00:00"))
+                when = dt.strftime("%b %-d, %Y")
+            except Exception:
+                when = lp[:10]
+        out.append({**gm, "when": when})
+    return out
 
 
 # ── Session observer ─────────────────────────────────────────────────────────
