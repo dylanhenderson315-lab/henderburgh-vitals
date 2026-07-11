@@ -98,7 +98,10 @@ async def fetch_xbox_status():
             # The xbl.io /presence (and /account) responses wrap the actual data under "content"
             data = presence.get("content") or presence
 
-            presence_state = data.get("state", "Unknown")
+            # NOTE: the top-level `state` is Xbox's SOCIAL/messaging presence, which
+            # privacy settings routinely report as "Offline" even while you're
+            # mid-game. We override it below using real device activity.
+            raw_state = data.get("state", "Unknown")
 
             # Step 3: Extract current game/app name - try multiple paths for robustness
             game = "—"
@@ -159,6 +162,17 @@ async def fetch_xbox_status():
             # Handle empty / falsy game
             if not game or str(game).strip() == "":
                 game = "—"
+
+            # Truthful presence: an active title on a device means you ARE online,
+            # regardless of the social-presence `state`. Only trust the raw state
+            # when there's no device activity at all.
+            device_active = any(
+                isinstance(d, dict) and d.get("titles") for d in devices
+            )
+            if game != "—" or device_active:
+                presence_state = "Online"
+            else:
+                presence_state = raw_state
 
             # Fetch account profile for gamerpic, gamerscore, tenure (static profile info)
             gamerpic = ""
@@ -272,10 +286,11 @@ async def poll_presence_sample():
                 return None
             data = res.json() or {}
             data = data.get("content") or data
-            presence_state = data.get("state", "Offline") or "Offline"
+            raw_state = data.get("state", "Offline") or "Offline"
+            devices = data.get("devices") or []
             game = ""
             device_type = ""
-            for device in (data.get("devices") or []):
+            for device in devices:
                 if not isinstance(device, dict):
                     continue
                 for title in (device.get("titles") or []):
@@ -285,6 +300,9 @@ async def poll_presence_sample():
                         break
                 if game:
                     break
+            # Device activity beats the misleading social-presence state.
+            device_active = any(isinstance(d, dict) and d.get("titles") for d in devices)
+            presence_state = "Online" if device_active else raw_state
             return (game if is_real_game(game) else "", device_type, presence_state)
     except Exception as e:
         print(f"Xbox presence poll error: {e}")
