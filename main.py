@@ -69,7 +69,6 @@ async def _light_history_loop():
             print(f"light history snapshot error: {e}")
 
 
-@asynccontextmanager
 async def _xbox_observer_loop():
     """Every 5 minutes, one presence-only API call (12/h — far under xbl.io's
     150/h free tier) feeds the true-session tracker. This is what makes playtime,
@@ -87,6 +86,7 @@ async def _xbox_observer_loop():
             print(f"xbox observer error: {e}")
 
 
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     if OURA_TOKEN:
         state.oura_client = OuraClient(OURA_TOKEN)
