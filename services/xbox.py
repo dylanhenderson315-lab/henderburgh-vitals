@@ -317,12 +317,26 @@ def find_cover(games: list, name: str) -> str:
     return best_img if best_score >= 1 else ""
 
 
+def _scores_by_name(library: list) -> dict:
+    """Highest gamerscore per game name — collapses duplicate library entries
+    (same title listed under multiple platforms) so deltas can't go phantom."""
+    best = {}
+    for g in library or []:
+        nm = g.get("name")
+        if not nm:
+            continue
+        gs = int(g.get("gamerscore") or 0)
+        if nm not in best or gs > best[nm]:
+            best[nm] = gs
+    return best
+
+
 def record_xbox_snapshot(gamerscore: int, library: list) -> None:
     """Capture today's gamerscore + per-game scores into the daily history
     (idempotent per calendar day). This is what turns the static library into a
     real progress record we can compute momentum from."""
     try:
-        scores = {g["name"]: int(g.get("gamerscore") or 0) for g in library if g.get("name")}
+        scores = _scores_by_name(library)
         if not gamerscore and not scores:
             return
         from datetime import date as _date
@@ -366,22 +380,23 @@ def compute_progress(history: list, library: list, gamerscore: int) -> dict:
         out["delta_30d"] = cur - int(base30["total_gamerscore"])
 
     # Per-game gains vs the oldest snapshot within ~30 days (or the very first).
+    # A baseline recorded TODAY has no elapsed time, so there can be no real gains.
     baseline = base30 or hist[0]
-    past_scores = baseline.get("scores") or {}
-    img_by_name = {g["name"]: g for g in library}
-    gains = []
-    for g in library:
-        nm = g.get("name")
-        now_gs = int(g.get("gamerscore") or 0)
-        was = int(past_scores.get(nm, now_gs))
-        if now_gs > was:
-            gains.append({
-                "name": nm, "gain": now_gs - was, "image": g.get("image", ""),
-                "progress": g.get("progress", 0), "gamerscore": now_gs,
-                "total_gamerscore": g.get("total_gamerscore", 0),
-            })
-    gains.sort(key=lambda x: x["gain"], reverse=True)
-    out["earning_lately"] = gains[:5]
+    if baseline.get("day") and baseline["day"] < today.isoformat():
+        past_scores = baseline.get("scores") or {}
+        meta_by_name = {g["name"]: g for g in library if g.get("name")}
+        gains = []
+        for nm, now_gs in _scores_by_name(library).items():
+            was = int(past_scores.get(nm, now_gs))
+            if now_gs > was:
+                g = meta_by_name.get(nm, {})
+                gains.append({
+                    "name": nm, "gain": now_gs - was, "image": g.get("image", ""),
+                    "progress": g.get("progress", 0), "gamerscore": now_gs,
+                    "total_gamerscore": g.get("total_gamerscore", 0),
+                })
+        gains.sort(key=lambda x: x["gain"], reverse=True)
+        out["earning_lately"] = gains[:5]
 
     out["trend"] = [{"day": h["day"], "gs": int(h.get("total_gamerscore") or 0)}
                     for h in hist if h.get("total_gamerscore")]
