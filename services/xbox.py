@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
+from collections import Counter
 from datetime import datetime
 
 import httpx
@@ -219,5 +221,152 @@ async def fetch_xbox_status():
         except Exception as e:
             print(f"Xbox API error: {e}")
             return state.last_xbox_data
+
+
+# ── Gaming intelligence ──────────────────────────────────────────────────────
+# The presence log records EVERY foreground title, including dashboard/app states.
+# For a *gaming* page we only count real games — this set is the noise to drop.
+NON_GAME_TITLES = {
+    "home", "xbox app", "xbox", "settings", "microsoft store", "store",
+    "my games & apps", "media player", "movies & tv", "guide", "—",
+    "xbox game bar", "start", "系统", "dashboard",
+}
+
+
+def is_real_game(name: str) -> bool:
+    if not name:
+        return False
+    return name.strip().lower() not in NON_GAME_TITLES
+
+
+def _clean_title(name: str) -> str:
+    """Human-friendly game name: strip ™ ® and platform tags like (XSX)."""
+    n = (name or "").replace("™", "").replace("®", "").strip()
+    for tag in (" (XSX)", " (Xbox Series X|S)", " (PC)", " (Xbox One)"):
+        if n.endswith(tag):
+            n = n[: -len(tag)]
+    return n.strip()
+
+
+def game_signature(name: str) -> dict:
+    """Deterministic 'cover art' for a title — a stable color signature derived from
+    the name, so every game gets its own cinematic look with no external images."""
+    seed = (name or "xbox").strip().lower()
+    h = int(hashlib.md5(seed.encode()).hexdigest(), 16)
+    hue = h % 360
+    hue2 = (hue + 45) % 360
+    words = [w for w in _clean_title(name).split() if w]
+    initials = "".join(w[0] for w in words[:2]).upper() or "XB"
+    return {
+        "c1": f"hsl({hue}, 62%, 20%)",
+        "c2": f"hsl({hue2}, 68%, 9%)",
+        "accent": f"hsl({hue}, 85%, 62%)",
+        "initials": initials,
+    }
+
+
+def compute_gaming_insights(raw_log: list, current_game: str = "") -> dict:
+    """Turn the raw presence log into truthful, quirky, statistics-based narration —
+    the vitals insight engine, aimed at gaming. Only real games count."""
+    entries = []
+    for e in raw_log or []:
+        name = e.get("game", "")
+        if not is_real_game(name):
+            continue
+        try:
+            dt = datetime.fromisoformat((e.get("timestamp") or "").replace("Z", "+00:00"))
+        except Exception:
+            dt = None
+        entries.append({"game": _clean_title(name), "dt": dt})
+
+    total = len(entries)
+    out = {"has_data": total >= 3, "sessions": total, "insights": [], "top_games": [], "stats": {}}
+    if total == 0:
+        return out
+
+    counts = Counter(e["game"] for e in entries)
+    distinct = len(counts)
+    ranked = counts.most_common()
+    fav, fav_n = ranked[0]
+
+    top_games = [{"name": g, "count": c, "pct": round(100 * c / total)} for g, c in ranked[:5]]
+    out["top_games"] = top_games
+
+    dated = [e for e in entries if e["dt"]]
+    night_n = sum(1 for e in dated if (e["dt"].hour >= 21 or e["dt"].hour < 4))
+    weekend_n = sum(1 for e in dated if e["dt"].weekday() >= 5)
+    weekday_n = len(dated) - weekend_n
+
+    # Longest streak of consecutive calendar days with a real-game session.
+    days = sorted({e["dt"].date() for e in dated})
+    longest = cur = 1 if days else 0
+    for i in range(1, len(days)):
+        if (days[i] - days[i - 1]).days == 1:
+            cur += 1
+            longest = max(longest, cur)
+        else:
+            cur = 1
+
+    weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    busiest_day = None
+    if dated:
+        day_counts = Counter(e["dt"].weekday() for e in dated)
+        busiest_day = weekday_names[day_counts.most_common(1)[0][0]]
+
+    span_days = (days[-1] - days[0]).days + 1 if len(days) >= 2 else 0
+
+    out["stats"] = {
+        "distinct_games": distinct,
+        "favorite": fav,
+        "favorite_pct": round(100 * fav_n / total),
+        "night_pct": round(100 * night_n / len(dated)) if dated else 0,
+        "longest_streak": longest,
+        "busiest_day": busiest_day,
+        "span_days": span_days,
+    }
+
+    ins = out["insights"]
+    # Favorite / obsession
+    recent10 = [e["game"] for e in entries[:10]]
+    recent_fav = recent10.count(fav)
+    if recent_fav >= 6:
+        ins.append(f"**{fav}** is your obsession right now — {recent_fav} of your last {len(recent10)} sessions.")
+    elif out["stats"]["favorite_pct"] >= 40:
+        ins.append(f"**{fav}** is your main game — {out['stats']['favorite_pct']}% of everything you've launched.")
+    else:
+        ins.append(f"You spread your time around — **{distinct} different games**, led by {fav}.")
+
+    # Night owl vs daytime
+    if dated:
+        np = out["stats"]["night_pct"]
+        if np >= 55:
+            ins.append(f"Certified night owl — **{np}%** of your sessions start after 9pm.")
+        elif np <= 20:
+            ins.append(f"Daytime gamer — only {np}% of your sessions are late-night.")
+
+    # Streak
+    if longest >= 3:
+        ins.append(f"Your longest run was **{longest} days straight** with a controller in hand.")
+
+    # Weekend skew
+    if weekday_n > 0 and weekend_n > 0:
+        # normalize: 2 weekend days vs 5 weekday days
+        we_rate = weekend_n / 2
+        wd_rate = weekday_n / 5
+        if we_rate >= wd_rate * 1.8:
+            ins.append(f"Weekends are your arena — you game **{we_rate / wd_rate:.1f}× more** per day than on weekdays.")
+
+    # Busiest day + breadth
+    if busiest_day and total >= 8:
+        ins.append(f"**{busiest_day}** is your most-played day of the week.")
+    if span_days >= 14:
+        ins.append(f"{total} game sessions logged across the last **{span_days} days**.")
+
+    # Current game context (truthful, only if actually playing something)
+    cg = _clean_title(current_game)
+    if cg and is_real_game(current_game) and cg != fav and counts.get(cg):
+        ins.append(f"Right now: **{cg}** — you've been back to it {counts[cg]}× recently.")
+
+    return out
 
 

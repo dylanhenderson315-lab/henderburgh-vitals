@@ -64,6 +64,67 @@
       font-weight: 600;
       letter-spacing: 0.5px;
     }
+
+    /* Cinematic now-playing hero — signature gradient art derived from the game name. */
+    .hero-card {
+      position: relative;
+      border-radius: 22px;
+      padding: 28px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      min-height: 200px;
+      display: flex;
+      align-items: flex-end;
+      box-shadow: 0 24px 60px -20px rgba(0,0,0,0.7);
+    }
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(120% 120% at 85% 0%, rgba(255,255,255,0.14), transparent 55%);
+      pointer-events: none;
+    }
+    .hero-art {
+      position: absolute;
+      top: -18px; right: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 150px;
+      font-weight: 600;
+      line-height: 1;
+      color: rgba(255,255,255,0.09);
+      letter-spacing: -6px;
+      user-select: none;
+      pointer-events: none;
+    }
+    .hero-game {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 34px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      color: #fff;
+      position: relative;
+    }
+    .live-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 9999px;
+      background: #4ade80;
+      box-shadow: 0 0 0 0 rgba(74,222,128,0.6);
+      animation: livePulse 2s infinite;
+    }
+    @keyframes livePulse {
+      0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+      70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+      100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+    }
+    .rank-bar {
+      height: 6px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .rank-bar > span { display:block; height:100%; border-radius:9999px; }
   </style>
   <script defer src="/static/os-command.js"></script>
 </head>
@@ -155,49 +216,88 @@
       </div>
     </div>
 
-    <!-- Stats -->
+    <!-- Now Playing / Most Played hero -->
     <div class="mb-12">
-      <div class="section-label mb-4">Stats</div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="card p-5">
-          <div class="text-xs text-zinc-500">Gamerscore</div>
-          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ xbox.gamerscore_display or (xbox.gamerscore or 0) }}</div>
-        </div>
-        <div class="card p-5">
-          <div class="text-xs text-zinc-500">Tenure</div>
-          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ xbox.tenure or 0 }} years</div>
-        </div>
-        <div class="card p-5">
-          <div class="text-xs text-zinc-500">Account Tier</div>
-          <div class="text-3xl font-semibold mt-1">{{ xbox.account_tier or 'Gold' }}</div>
-        </div>
-        <div class="card p-5">
-          <div class="text-xs text-zinc-500">XUID</div>
-          <div class="text-sm font-mono mt-1 text-zinc-400 truncate">{{ xbox.xuid or '—' }}</div>
+      <div class="section-label mb-4">{% if hero.playing_now %}Now Playing{% else %}Most Played{% endif %}</div>
+      <div class="hero-card" style="background: linear-gradient(135deg, {{ hero.signature.c1 }} 0%, {{ hero.signature.c2 }} 100%);">
+        <div class="hero-art">{{ hero.signature.initials }}</div>
+        <div class="relative w-full flex items-end justify-between gap-4">
+          <div class="min-w-0">
+            <div id="hero-state-row" class="flex items-center gap-2 mb-2">
+              {% if hero.playing_now %}<span class="live-dot"></span>{% endif %}
+              <span id="current-state" class="status-pill px-2.5 py-1 rounded-full
+                {% if (xbox.state or '')|lower == 'online' %}bg-black/30 text-emerald-300 border border-emerald-400/30{% else %}bg-black/30 text-zinc-300 border border-white/15{% endif %}">
+                {{ xbox.state or 'Unknown' }}
+              </span>
+            </div>
+            <div id="current-game" class="hero-game">{{ hero.game or 'No active game' }}</div>
+            <div id="current-device" class="text-sm mt-2 text-white/70">
+              {% if hero.playing_now and xbox.device %}on {{ xbox.device }}{% elif hero.playing_now %}playing now{% else %}your most-launched game{% endif %}
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Current Activity -->
+    {% if insights.has_data %}
+    <!-- Gaming Insights — truthful, statistics-based, mined from your session log -->
     <div class="mb-12">
-      <div class="section-label mb-4">Current Activity</div>
-      <div id="current-activity" class="card p-6">
-        <div class="flex items-start justify-between gap-4">
-          <div class="min-w-0">
-            <div id="current-game" class="text-2xl font-semibold tracking-tight">{{ xbox.game or 'No active game' }}</div>
-            <div id="current-device" class="text-sm mt-1 {% if xbox.device %}text-emerald-400{% else %}text-zinc-500{% endif %}">
-              {% if xbox.device %}on {{ xbox.device }}{% else %}—{% endif %}
-            </div>
-          </div>
-          <span id="current-state"
-                class="status-pill px-3 py-1 text-sm font-semibold rounded-full whitespace-nowrap
-                  {% if (xbox.state or '')|lower == 'online' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% else %}bg-zinc-700/60 text-zinc-400 border border-zinc-600/40{% endif %}">
-            {{ xbox.state or 'Unknown' }}
-          </span>
+      <div class="section-label mb-4">Gaming Insights</div>
+      <div class="grid sm:grid-cols-2 gap-3">
+        {% for line in insights.insights_html %}
+        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
+          <i class="fa-solid fa-wand-magic-sparkles text-emerald-400/80 text-xs mt-1 flex-shrink-0"></i>
+          <span>{{ line | safe }}</span>
         </div>
-        <div class="mt-4 text-xs text-zinc-500">Live from OpenXBL • updates when your presence changes</div>
+        {% endfor %}
       </div>
     </div>
+
+    <!-- Top games ranked from the log -->
+    {% if insights.top_games %}
+    <div class="mb-12">
+      <div class="section-label mb-4">Most Played · Last {{ insights.sessions }} Sessions</div>
+      <div class="card p-6 space-y-4">
+        {% for g in insights.top_games %}
+        <div>
+          <div class="flex items-baseline justify-between mb-1.5">
+            <span class="text-sm font-medium text-zinc-200 truncate pr-3">{{ g.name }}</span>
+            <span class="text-xs text-zinc-500 tabular-nums flex-shrink-0">{{ g.count }}× · {{ g.pct }}%</span>
+          </div>
+          <div class="rank-bar"><span style="width: {{ g.pct }}%; background: linear-gradient(90deg, #059669, #4ade80);"></span></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Truthful profile numbers (only shown when the API actually returns them) -->
+    {% if xbox.has_gamerscore or xbox.has_tenure %}
+    <div class="mb-12">
+      <div class="section-label mb-4">Profile Stats</div>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {% if xbox.has_gamerscore %}
+        <div class="card p-5">
+          <div class="text-xs text-zinc-500">Gamerscore</div>
+          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ xbox.gamerscore_display }}</div>
+        </div>
+        {% endif %}
+        {% if xbox.has_tenure %}
+        <div class="card p-5">
+          <div class="text-xs text-zinc-500">Tenure</div>
+          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ xbox.tenure }} years</div>
+        </div>
+        {% endif %}
+        {% if insights.stats.distinct_games %}
+        <div class="card p-5">
+          <div class="text-xs text-zinc-500">Games tracked</div>
+          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ insights.stats.distinct_games }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Game Log -->
     <div>
@@ -271,6 +371,10 @@
   </footer>
 
   <script>
+    // Titles that are dashboard/app states, not games — never let them hijack the hero.
+    const NON_GAMES = new Set(['home','xbox app','xbox','settings','microsoft store','store','my games & apps','media player','movies & tv','guide','—','']);
+    const isRealGame = n => n && !NON_GAMES.has(String(n).trim().toLowerCase());
+
     // Live refresh of profile header + current activity every 5 minutes.
     // The heavy lifting is done by server-side caching; this is just to keep the dedicated page view reasonably fresh
     // without contributing to rate-limit pressure.
@@ -291,19 +395,14 @@
               : 'bg-zinc-700/60 text-zinc-400 border border-zinc-600/40');
         }
 
-        // Current activity card
+        // Hero game — only update when a REAL game is running (else keep most-played).
         const gameEl = document.getElementById('current-game');
-        if (gameEl) gameEl.textContent = d.game || 'No active game';
+        if (gameEl && isRealGame(d.game)) gameEl.textContent = d.game;
 
         const deviceEl = document.getElementById('current-device');
-        if (deviceEl) {
-          if (d.device) {
-            deviceEl.textContent = 'on ' + d.device;
-            deviceEl.className = 'text-sm mt-1 text-emerald-400';
-          } else {
-            deviceEl.textContent = '—';
-            deviceEl.className = 'text-sm mt-1 text-zinc-500';
-          }
+        if (deviceEl && isRealGame(d.game)) {
+          deviceEl.textContent = d.device ? ('on ' + d.device) : 'playing now';
+          deviceEl.className = 'text-sm mt-2 text-white/70';
         }
 
         const stateEl = document.getElementById('current-state');
@@ -348,7 +447,7 @@
           if (d.status !== 'ok') return;
           const online = /online/i.test(d.state || '');
           const g = document.getElementById('current-game');
-          if (g && d.game) g.textContent = d.game === '—' ? 'No active game' : d.game;
+          if (g && isRealGame(d.game)) g.textContent = d.game;
           ['profile-state', 'current-state'].forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.textContent = d.state || 'Unknown'; el.className = online ? PILL_ON : PILL_OFF; }

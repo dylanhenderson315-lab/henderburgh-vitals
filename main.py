@@ -325,37 +325,67 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         xbox_data = await fetch_xbox_status()
     raw_log = persistence.load_xbox_log()
 
-    # Enrich log for clean, professional display (formatted dates, safe fields)
+    # Recently-played, cleaned to REAL games only (drop Home / Xbox App / dashboard
+    # noise) and prettified names — this feeds both the table and the insights.
     formatted_log = []
     for entry in raw_log:
+        name = entry.get("game", "—")
+        if not xbox.is_real_game(name):
+            continue
         ts = entry.get("timestamp", "")
         played = ts
         try:
-            # Support both naive ISO and Z-suffixed
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-            # e.g. "Feb 3, 2026 • 2:14 PM"
             played = dt.strftime("%b %-d, %Y • %-I:%M %p")
         except Exception:
             pass
         formatted_log.append({
-            "game": entry.get("game", "—"),
+            "game": xbox._clean_title(name),
             "timestamp": ts,
             "played": played,
             "device": entry.get("device", "") or "",
         })
 
-    # Add a few display helpers to xbox data for the template (no mutation of cache)
     xbox_display = dict(xbox_data) if xbox_data else {}
-    try:
-        gs = int(xbox_display.get("gamerscore") or 0)
-        xbox_display["gamerscore_display"] = f"{gs:,}"
-    except Exception:
-        xbox_display["gamerscore_display"] = xbox_display.get("gamerscore") or "0"
+
+    # Truthful profile stats only — surface a number when the API actually returned
+    # one, otherwise the template simply omits it (no fake zeros, no stale "Gold").
+    def _real(v):
+        try:
+            return int(v) > 0
+        except Exception:
+            return bool(v)
+    xbox_display["has_gamerscore"] = _real(xbox_display.get("gamerscore"))
+    if xbox_display["has_gamerscore"]:
+        xbox_display["gamerscore_display"] = f"{int(xbox_display['gamerscore']):,}"
+    xbox_display["has_tenure"] = _real(xbox_display.get("tenure"))
+
+    # Gaming intelligence + signature "cover art" for the now-playing hero.
+    insights = xbox.compute_gaming_insights(raw_log, xbox_display.get("game", ""))
+
+    # Render **bold** in insight lines to safe HTML (escape first, then emphasize).
+    from html import escape as _esc
+    def _md_bold(s: str) -> str:
+        parts = _esc(s).split("**")
+        for i in range(1, len(parts), 2):
+            parts[i] = f'<strong class="text-white font-semibold">{parts[i]}</strong>'
+        return "".join(parts)
+    insights["insights_html"] = [_md_bold(x) for x in insights.get("insights", [])]
+    hero_game = xbox_display.get("game", "")
+    if not xbox.is_real_game(hero_game):
+        hero_game = insights.get("stats", {}).get("favorite", "")
+    hero = {
+        "game": xbox._clean_title(hero_game) if hero_game else "",
+        "signature": xbox.game_signature(hero_game or "xbox"),
+        "playing_now": xbox.is_real_game(xbox_display.get("game", "")),
+    }
 
     return _render("xbox.html", {
         "request": request,
         "xbox": xbox_display,
         "log": formatted_log,
+        "insights": insights,
+        "hero": hero,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
