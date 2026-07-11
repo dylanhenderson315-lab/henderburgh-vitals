@@ -227,9 +227,15 @@ async def fetch_xbox_status():
 # The presence log records EVERY foreground title, including dashboard/app states.
 # For a *gaming* page we only count real games — this set is the noise to drop.
 NON_GAME_TITLES = {
+    # Dashboard / system
     "home", "xbox app", "xbox", "settings", "microsoft store", "store",
     "my games & apps", "media player", "movies & tv", "guide", "—",
-    "xbox game bar", "start", "系统", "dashboard",
+    "xbox game bar", "start", "系统", "dashboard", "microsoft edge", "edge",
+    # Streaming / media apps (not games)
+    "netflix", "youtube", "youtube tv", "hulu", "disney+", "disney plus",
+    "max", "hbo max", "prime video", "amazon prime video", "spotify", "twitch",
+    "peacocktv", "peacock", "apple tv", "plex", "pandora", "sling tv", "espn",
+    "paramount+", "paramount plus", "crunchyroll", "fubotv", "tubi", "pluto tv",
 }
 
 

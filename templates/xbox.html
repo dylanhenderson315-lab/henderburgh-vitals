@@ -372,7 +372,7 @@
 
   <script>
     // Titles that are dashboard/app states, not games — never let them hijack the hero.
-    const NON_GAMES = new Set(['home','xbox app','xbox','settings','microsoft store','store','my games & apps','media player','movies & tv','guide','—','']);
+    const NON_GAMES = new Set(['home','xbox app','xbox','settings','microsoft store','store','my games & apps','media player','movies & tv','guide','—','','netflix','youtube','hulu','disney+','max','prime video','spotify','twitch','peacocktv','peacock','apple tv','plex','espn','paramount+','crunchyroll']);
     const isRealGame = n => n && !NON_GAMES.has(String(n).trim().toLowerCase());
 
     // Live refresh of profile header + current activity every 5 minutes.
