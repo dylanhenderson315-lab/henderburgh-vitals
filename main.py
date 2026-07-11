@@ -70,14 +70,33 @@ async def _light_history_loop():
 
 
 @asynccontextmanager
+async def _xbox_observer_loop():
+    """Every 5 minutes, one presence-only API call (12/h — far under xbl.io's
+    150/h free tier) feeds the true-session tracker. This is what makes playtime,
+    streaks, and session lengths REAL instead of 'whatever a browser saw'."""
+    while True:
+        try:
+            await asyncio.sleep(300)
+        except asyncio.CancelledError:
+            raise
+        try:
+            game = await xbox.poll_presence_sample()
+            if game is not None:          # None = API unreachable; log nothing
+                xbox.record_presence_sample(game)
+        except Exception as e:
+            print(f"xbox observer error: {e}")
+
+
 async def lifespan(app: FastAPI):
     if OURA_TOKEN:
         state.oura_client = OuraClient(OURA_TOKEN)
     elif PUBLIC_MODE:
         raise RuntimeError("PUBLIC_MODE requires OURA_TOKEN")
     history_task = asyncio.create_task(_light_history_loop())
+    xbox_task = asyncio.create_task(_xbox_observer_loop())
     yield
     history_task.cancel()
+    xbox_task.cancel()
     if state.oura_client:
         await state.oura_client.close()
         state.oura_client = None
@@ -361,7 +380,10 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     xbox_display["has_tenure"] = _real(xbox_display.get("tenure"))
 
     # Gaming intelligence + signature "cover art" for the now-playing hero.
-    insights = xbox.compute_gaming_insights(raw_log, xbox_display.get("game", ""))
+    # True sessions (server-side observer) power hours/streaks; the legacy
+    # change log only contributes launch counts.
+    true_sessions = persistence.load_xbox_sessions()
+    insights = xbox.compute_gaming_insights(raw_log, xbox_display.get("game", ""), true_sessions)
 
     # Render **bold** in insight lines to safe HTML (escape first, then emphasize).
     from html import escape as _esc

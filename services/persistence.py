@@ -591,6 +591,20 @@ def load_light_history():
     return log if isinstance(log, list) else []
 
 
+# True Xbox play sessions from the server-side observer (start/end/duration) —
+# unlike the page-triggered change log, these are real continuous observations.
+XBOX_SESSIONS_FILE = _seed("xbox_sessions.json") or (DATA_PATH / "xbox_sessions.json")
+
+
+def load_xbox_sessions():
+    items = read_json(XBOX_SESSIONS_FILE, [])
+    return items if isinstance(items, list) else []
+
+
+def save_xbox_sessions(items):
+    write_json(XBOX_SESSIONS_FILE, items if isinstance(items, list) else [])
+
+
 # Externally-hosted clips (big videos on Cloudflare R2, referenced by URL). The
 # server never stores or streams these — it only remembers the link, so R2 keeps
 # its free-egress advantage and no R2 credentials ever live on this box.

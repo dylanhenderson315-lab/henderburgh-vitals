@@ -256,17 +256,24 @@
     <!-- Top games ranked from the log -->
     {% if insights.top_games %}
     <div class="mb-12">
-      <div class="section-label mb-4">Most Played · Last {{ insights.sessions }} Sessions</div>
+      <div class="section-label mb-4">
+        {% if insights.true_sessions >= 2 %}Most Played · By Real Hours{% else %}Most Launched{% endif %}
+      </div>
       <div class="card p-6 space-y-4">
         {% for g in insights.top_games %}
         <div>
           <div class="flex items-baseline justify-between mb-1.5">
             <span class="text-sm font-medium text-zinc-200 truncate pr-3">{{ g.name }}</span>
-            <span class="text-xs text-zinc-500 tabular-nums flex-shrink-0">{{ g.count }}× · {{ g.pct }}%</span>
+            <span class="text-xs text-zinc-500 tabular-nums flex-shrink-0">{% if g.time %}{{ g.time }} · {% endif %}{{ g.pct }}%</span>
           </div>
           <div class="rank-bar"><span style="width: {{ g.pct }}%; background: linear-gradient(90deg, #059669, #4ade80);"></span></div>
         </div>
         {% endfor %}
+        {% if insights.true_sessions < 2 %}
+        <div class="text-[11px] text-zinc-600 pt-1">
+          Ranked by launches for now — the session tracker started watching today, so real hour-counts build from here.
+        </div>
+        {% endif %}
       </div>
     </div>
     {% endif %}

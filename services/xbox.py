@@ -223,6 +223,77 @@ async def fetch_xbox_status():
             return state.last_xbox_data
 
 
+# ── Session observer ─────────────────────────────────────────────────────────
+# The page-triggered log only records what was on screen when a browser happened
+# to be watching — it can't know durations or real streaks. This observer runs
+# server-side every few minutes and maintains TRUE sessions (start/end/duration).
+# A gap larger than SESSION_GAP_SECONDS between sightings closes the session.
+SESSION_GAP_SECONDS = 20 * 60
+
+
+async def poll_presence_sample():
+    """Lightweight presence-only check (1 API call — no account fetch) for the
+    background observer. Returns the current real game name or '' when idle/off.
+    Returns None when the API is unreachable (so we never log a false 'stopped')."""
+    if not XBL_API_KEY or XBL_API_KEY in XBL_PLACEHOLDER_KEYS:
+        return None
+    xuid = XBL_XUID
+    if not xuid:
+        return None
+    headers = {"X-Authorization": XBL_API_KEY, "Accept": "application/json"}
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(f"https://xbl.io/api/v2/{xuid}/presence", headers=headers, timeout=10)
+            if res.status_code != 200:
+                return None
+            data = res.json() or {}
+            data = data.get("content") or data
+            game = ""
+            for device in (data.get("devices") or []):
+                if not isinstance(device, dict):
+                    continue
+                for title in (device.get("titles") or []):
+                    if isinstance(title, dict) and title.get("placement") == "Full":
+                        game = title.get("name") or ""
+                        break
+                if game:
+                    break
+            return game if is_real_game(game) else ""
+    except Exception as e:
+        print(f"Xbox presence poll error: {e}")
+        return None
+
+
+def record_presence_sample(game: str):
+    """Fold one observation into the session store. Sessions carry real
+    start/end timestamps; `end` extends while the same game keeps appearing."""
+    now = datetime.now()
+    sessions = persistence.load_xbox_sessions()
+    open_s = sessions[0] if sessions and not sessions[0].get("closed") else None
+
+    def close(s):
+        s["closed"] = True
+
+    if open_s:
+        try:
+            last_end = datetime.fromisoformat(open_s["end"])
+        except Exception:
+            last_end = now
+        gap = (now - last_end).total_seconds()
+        if game and open_s.get("game") == game and gap <= SESSION_GAP_SECONDS:
+            open_s["end"] = now.isoformat()          # still playing — extend
+        else:
+            close(open_s)                            # stopped / switched / long gap
+            open_s = None
+
+    if game and not open_s:
+        sessions.insert(0, {
+            "game": game, "start": now.isoformat(), "end": now.isoformat(), "closed": False,
+        })
+
+    persistence.save_xbox_sessions(sessions[:400])
+
+
 # ── Gaming intelligence ──────────────────────────────────────────────────────
 # The presence log records EVERY foreground title, including dashboard/app states.
 # For a *gaming* page we only count real games — this set is the noise to drop.
@@ -271,9 +342,24 @@ def game_signature(name: str) -> dict:
     }
 
 
-def compute_gaming_insights(raw_log: list, current_game: str = "") -> dict:
-    """Turn the raw presence log into truthful, quirky, statistics-based narration —
-    the vitals insight engine, aimed at gaming. Only real games count."""
+def _fmt_hours(seconds: float) -> str:
+    h = seconds / 3600
+    if h >= 10:
+        return f"{h:.0f} hours"
+    if h >= 1:
+        return f"{h:.1f} hours"
+    return f"{max(1, round(seconds / 60))} min"
+
+
+def compute_gaming_insights(raw_log: list, current_game: str = "", sessions: list | None = None) -> dict:
+    """Truthful, quirky, statistics-based narration for gaming.
+
+    Two data sources, used honestly for what each can actually prove:
+    - TRUE sessions from the server-side observer → durations, playtime, real
+      day-streaks ("played every day"). Wording may claim time.
+    - The legacy page-triggered change log → only launch *counts*; it can't see
+      durations, so no line built from it ever claims time or continuity.
+    """
     entries = []
     for e in raw_log or []:
         name = e.get("game", "")
@@ -285,29 +371,73 @@ def compute_gaming_insights(raw_log: list, current_game: str = "") -> dict:
             dt = None
         entries.append({"game": _clean_title(name), "dt": dt})
 
+    # Parse true sessions (observer data) — each has start/end → duration.
+    sess = []
+    for s in sessions or []:
+        if not is_real_game(s.get("game", "")):
+            continue
+        try:
+            start = datetime.fromisoformat(s["start"])
+            end = datetime.fromisoformat(s["end"])
+        except Exception:
+            continue
+        dur = max(0.0, (end - start).total_seconds())
+        # An open session observed only once has ~0 duration; count it as one
+        # poll interval so live play registers immediately without inflating.
+        if dur == 0:
+            dur = 300.0
+        sess.append({"game": _clean_title(s["game"]), "start": start, "end": end, "dur": dur})
+
     total = len(entries)
-    out = {"has_data": total >= 3, "sessions": total, "insights": [], "top_games": [], "stats": {}}
-    if total == 0:
+    out = {
+        "has_data": total >= 3 or len(sess) >= 2,
+        "sessions": total,
+        "true_sessions": len(sess),
+        "insights": [], "top_games": [], "stats": {},
+    }
+    if total == 0 and not sess:
         return out
 
     counts = Counter(e["game"] for e in entries)
-    distinct = len(counts)
     ranked = counts.most_common()
-    fav, fav_n = ranked[0]
+    distinct = len(counts)
 
-    top_games = [{"name": g, "count": c, "pct": round(100 * c / total)} for g, c in ranked[:5]]
-    out["top_games"] = top_games
+    # Playtime by game (true sessions only — the only honest source of hours).
+    time_by_game: dict = {}
+    for s in sess:
+        time_by_game[s["game"]] = time_by_game.get(s["game"], 0.0) + s["dur"]
+    total_play = sum(time_by_game.values())
+
+    # Top games: ranked by real hours when we have them, else by launch count.
+    if total_play > 0:
+        ranked_time = sorted(time_by_game.items(), key=lambda kv: kv[1], reverse=True)
+        out["top_games"] = [
+            {"name": g, "count": counts.get(g, 0), "pct": round(100 * t / total_play),
+             "time": _fmt_hours(t)}
+            for g, t in ranked_time[:5]
+        ]
+        fav, fav_share = ranked_time[0][0], round(100 * ranked_time[0][1] / total_play)
+        fav_basis = "time"
+    elif ranked:
+        out["top_games"] = [
+            {"name": g, "count": c, "pct": round(100 * c / total), "time": None}
+            for g, c in ranked[:5]
+        ]
+        fav, fav_share = ranked[0][0], round(100 * ranked[0][1] / total)
+        fav_basis = "count"
+    else:
+        return out
 
     dated = [e for e in entries if e["dt"]]
-    night_n = sum(1 for e in dated if (e["dt"].hour >= 21 or e["dt"].hour < 4))
-    weekend_n = sum(1 for e in dated if e["dt"].weekday() >= 5)
-    weekday_n = len(dated) - weekend_n
+    night_events = [s["start"] for s in sess] or [e["dt"] for e in dated]
+    night_n = sum(1 for t in night_events if (t.hour >= 21 or t.hour < 4))
 
-    # Longest streak of consecutive calendar days with a real-game session.
-    days = sorted({e["dt"].date() for e in dated})
-    longest = cur = 1 if days else 0
-    for i in range(1, len(days)):
-        if (days[i] - days[i - 1]).days == 1:
+    # True day-streak: only from observer sessions (continuous watching), never
+    # from the page log (which only records days someone happened to look).
+    sess_days = sorted({s["start"].date() for s in sess})
+    longest = cur = 1 if sess_days else 0
+    for i in range(1, len(sess_days)):
+        if (sess_days[i] - sess_days[i - 1]).days == 1:
             cur += 1
             longest = max(longest, cur)
         else:
@@ -315,63 +445,73 @@ def compute_gaming_insights(raw_log: list, current_game: str = "") -> dict:
 
     weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     busiest_day = None
-    if dated:
-        day_counts = Counter(e["dt"].weekday() for e in dated)
+    day_source = [s["start"] for s in sess] or [e["dt"] for e in dated]
+    if day_source:
+        day_counts = Counter(t.weekday() for t in day_source)
         busiest_day = weekday_names[day_counts.most_common(1)[0][0]]
 
-    span_days = (days[-1] - days[0]).days + 1 if len(days) >= 2 else 0
+    all_days = sorted({t.date() for t in day_source})
+    span_days = (all_days[-1] - all_days[0]).days + 1 if len(all_days) >= 2 else 0
 
     out["stats"] = {
-        "distinct_games": distinct,
+        "distinct_games": distinct or len(time_by_game),
         "favorite": fav,
-        "favorite_pct": round(100 * fav_n / total),
-        "night_pct": round(100 * night_n / len(dated)) if dated else 0,
+        "favorite_pct": fav_share,
+        "night_pct": round(100 * night_n / len(night_events)) if night_events else 0,
         "longest_streak": longest,
         "busiest_day": busiest_day,
         "span_days": span_days,
+        "total_play": _fmt_hours(total_play) if total_play else None,
     }
 
     ins = out["insights"]
-    # Favorite / obsession
-    recent10 = [e["game"] for e in entries[:10]]
-    recent_fav = recent10.count(fav)
-    if recent_fav >= 6:
-        ins.append(f"**{fav}** is your obsession right now — {recent_fav} of your last {len(recent10)} sessions.")
-    elif out["stats"]["favorite_pct"] >= 40:
-        ins.append(f"**{fav}** is your main game — {out['stats']['favorite_pct']}% of everything you've launched.")
+
+    # Favorite — wording matches what the data can actually prove.
+    if fav_basis == "time":
+        ins.append(f"**{fav}** owns your playtime — {fav_share}% of your tracked hours.")
+    elif fav_share >= 40:
+        ins.append(f"**{fav}** is your main game — {fav_share}% of everything you've launched.")
     else:
         ins.append(f"You spread your time around — **{distinct} different games**, led by {fav}.")
 
-    # Night owl vs daytime
-    if dated:
+    # Real hours (observer only).
+    if total_play >= 3600:
+        avg = total_play / len(sess)
+        ins.append(f"**{_fmt_hours(total_play)}** of real tracked playtime — sessions average {_fmt_hours(avg)}.")
+        marathon = max(sess, key=lambda s: s["dur"])
+        if marathon["dur"] >= 2.5 * 3600:
+            ins.append(f"Longest single sitting: **{_fmt_hours(marathon['dur'])}** of {marathon['game']}.")
+
+    # Night owl.
+    if night_events:
         np = out["stats"]["night_pct"]
         if np >= 55:
-            ins.append(f"Certified night owl — **{np}%** of your sessions start after 9pm.")
-        elif np <= 20:
-            ins.append(f"Daytime gamer — only {np}% of your sessions are late-night.")
+            ins.append(f"Certified night owl — **{np}%** of your play starts after 9pm.")
+        elif np <= 20 and len(night_events) >= 8:
+            ins.append(f"Daytime gamer — only {np}% of your play is late-night.")
 
-    # Streak
+    # Streak — only claimed from continuous observation.
     if longest >= 3:
-        ins.append(f"Your longest run was **{longest} days straight** with a controller in hand.")
+        ins.append(f"**{longest} days in a row** with a controller in hand — verified by the session tracker.")
 
-    # Weekend skew
-    if weekday_n > 0 and weekend_n > 0:
-        # normalize: 2 weekend days vs 5 weekday days
-        we_rate = weekend_n / 2
-        wd_rate = weekday_n / 5
-        if we_rate >= wd_rate * 1.8:
-            ins.append(f"Weekends are your arena — you game **{we_rate / wd_rate:.1f}× more** per day than on weekdays.")
-
-    # Busiest day + breadth
-    if busiest_day and total >= 8:
+    if busiest_day and len(day_source) >= 8:
         ins.append(f"**{busiest_day}** is your most-played day of the week.")
-    if span_days >= 14:
-        ins.append(f"{total} game sessions logged across the last **{span_days} days**.")
 
-    # Current game context (truthful, only if actually playing something)
+    # Breadth — honest label per source.
+    if span_days >= 14:
+        if sess:
+            ins.append(f"{len(sess)} true play sessions tracked across **{span_days} days**.")
+        else:
+            ins.append(f"{total} game launches seen across **{span_days} days**.")
+
+    # Current game context.
     cg = _clean_title(current_game)
-    if cg and is_real_game(current_game) and cg != fav and counts.get(cg):
-        ins.append(f"Right now: **{cg}** — you've been back to it {counts[cg]}× recently.")
+    if cg and is_real_game(current_game) and cg != fav:
+        t = time_by_game.get(cg)
+        if t and t >= 1800:
+            ins.append(f"Right now: **{cg}** — {_fmt_hours(t)} logged in it so far.")
+        elif counts.get(cg):
+            ins.append(f"Right now: **{cg}** — you've been back to it {counts[cg]}× recently.")
 
     return out
 
