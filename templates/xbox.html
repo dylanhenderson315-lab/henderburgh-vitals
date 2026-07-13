@@ -278,6 +278,36 @@
       </div>
     </div>
 
+    <!-- The Replay — THE story chart: yesterday's heart with games, sleep,
+         workouts and achievement unlocks on the exact minutes they happened.
+         This is the page's centerpiece; everything below is supporting detail. -->
+    {% if replay and replay.has_data %}
+    <div class="mb-12">
+      <div class="flex items-baseline justify-between mb-4">
+        <div>
+          <div class="section-label">The Replay · {{ replay.day }}</div>
+          <p class="text-xs text-zinc-500 mt-1">Yesterday through your heart — every reading, with games, sleep and unlocks on the exact minutes they happened.</p>
+        </div>
+      </div>
+      <div class="card p-5 sm:p-6">
+        {% if replay.narration %}
+        <p class="text-[13.5px] text-zinc-300 leading-relaxed mb-4 pb-4 border-b border-zinc-800/70">{{ replay.narration_html | safe }}</p>
+        {% endif %}
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px]">
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><i class="fa-solid fa-trophy text-amber-400 text-[10px]"></i>achievement</span>
+          <span class="ml-auto text-zinc-500 hidden sm:inline">{{ replay.facts }}</span>
+        </div>
+        <div class="h-[240px]"><canvas id="replayChart"></canvas></div>
+        {% if replay.games_count == 0 %}
+        <div class="text-[11px] text-zinc-600 mt-3">No game sessions landed on this day — the green bands appear on days you played.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     <!-- The Story — cross-referenced narration: week in review, eras, body × controller -->
     {% if story and (story.week_html or story.eras_html or story.body_html) %}
     <div class="mb-12">
@@ -303,6 +333,14 @@
           <span>{{ line | safe }}</span>
         </div>
         {% endfor %}
+        {% if insights.has_data %}
+        {% for line in insights.insights_html %}
+        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
+          <i class="fa-solid fa-wand-magic-sparkles text-emerald-400/80 text-xs mt-1 flex-shrink-0"></i>
+          <span>{{ line | safe }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
         {% if not story.body_html %}
         <div class="text-[11px] text-zinc-600 px-1">
           Body × Controller unlocks as the vitals and session logs overlap — a few more days of data.
@@ -328,57 +366,25 @@
             <div class="text-2xl font-semibold tabular-nums mt-1 text-emerald-400">+{{ "{:,}".format(progress.delta_7d) }} G</div>
           </div>
           {% endif %}
-          {% if progress.delta_30d is not none and progress.delta_30d > 0 %}
+          {% if progress.delta_30d is not none and progress.delta_30d > (progress.delta_7d or 0) %}
           <div>
             <div class="text-xs text-zinc-500">This month</div>
             <div class="text-2xl font-semibold tabular-nums mt-1 text-emerald-300">+{{ "{:,}".format(progress.delta_30d) }} G</div>
           </div>
           {% endif %}
-          {% if progress.trend and progress.trend|length > 2 %}
-          <div class="flex-1 min-w-[160px] h-[52px]">
-            <canvas id="gsTrendChart"></canvas>
-          </div>
-          {% endif %}
         </div>
 
-        {% if progress.earning_lately %}
-        <div class="mt-6 pt-5 border-t border-zinc-800/70">
-          <div class="text-xs text-zinc-500 mb-3">Earning lately</div>
-          <div class="space-y-2.5">
-            {% for g in progress.earning_lately %}
-            <div class="flex items-center gap-3">
-              {% if g.image %}<img src="{{ g.image }}" alt="" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">{% endif %}
-              <div class="min-w-0 flex-1">
-                <div class="text-sm font-medium text-zinc-100 truncate">{{ g.name }}</div>
-                <div class="text-[11px] text-zinc-500">{{ g.gamerscore }}/{{ g.total_gamerscore }} G · {{ g.progress }}%</div>
-              </div>
-              <div class="text-sm font-semibold text-emerald-400 tabular-nums flex-shrink-0">+{{ g.gain }} G</div>
-            </div>
-            {% endfor %}
-          </div>
-        </div>
+        {% if progress.trend and progress.trend|length > 1 %}
+        <div class="mt-5 h-[130px]"><canvas id="gsTrendChart"></canvas></div>
         {% elif not progress.has_history %}
-        <div class="mt-4 text-[11px] text-zinc-600">Tracking started today — weekly &amp; monthly gains build from here as you earn achievements.</div>
+        <div class="mt-4 text-[11px] text-zinc-600">Tracking started today — the climb builds from here as you earn achievements.</div>
         {% endif %}
       </div>
     </div>
     {% endif %}
 
     {% if insights.has_data %}
-    <!-- Gaming Insights — truthful, statistics-based, mined from your session log -->
-    <div class="mb-12">
-      <div class="section-label mb-4">Gaming Insights</div>
-      <div class="grid sm:grid-cols-2 gap-3">
-        {% for line in insights.insights_html %}
-        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
-          <i class="fa-solid fa-wand-magic-sparkles text-emerald-400/80 text-xs mt-1 flex-shrink-0"></i>
-          <span>{{ line | safe }}</span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- Top games ranked from the log -->
+    <!-- Top games ranked from the log (insight lines merged into The Story) -->
     {% if insights.top_games %}
     <div class="mb-12">
       <div class="section-label mb-4">
@@ -404,34 +410,9 @@
     {% endif %}
     {% endif %}
 
-    <!-- Truthful profile numbers (only shown when the API actually returns them) -->
-    {% if xbox.has_gamerscore or xbox.has_tenure %}
-    <div class="mb-12">
-      <div class="section-label mb-4">Profile Stats</div>
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {% if xbox.has_gamerscore %}
-        <div class="card p-5">
-          <div class="text-xs text-zinc-500">Gamerscore</div>
-          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ xbox.gamerscore_display }}</div>
-        </div>
-        {% endif %}
-        {% if xbox.has_tenure %}
-        <div class="card p-5">
-          <div class="text-xs text-zinc-500">Tenure</div>
-          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ xbox.tenure }} years</div>
-        </div>
-        {% endif %}
-        {% if insights.stats.distinct_games %}
-        <div class="card p-5">
-          <div class="text-xs text-zinc-500">Games tracked</div>
-          <div class="text-3xl font-semibold mt-1 tabular-nums">{{ insights.stats.distinct_games }}</div>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- Games & Achievements library — real cover art, completion, gamerscore -->
+    <!-- Games & Achievements library — real cover art, completion, gamerscore.
+         (The old 'Profile Stats' section was cut: total gamerscore already
+         leads Gamerscore Progress; a stat shown twice is a stat trusted less.) -->
     {% if games %}
     <div class="mb-12">
       <div class="flex items-baseline justify-between mb-4">
@@ -559,34 +540,6 @@
         <div class="text-[11px] text-zinc-600 mt-3">
           Heart-rate dots appear as the tracker stamps each session with Oura data for its exact play window.
         </div>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- The Replay — yesterday's full heart-rate curve with your day drawn on it -->
-    {% if replay and replay.has_data %}
-    <div class="mt-12">
-      <div class="flex items-baseline justify-between mb-4">
-        <div>
-          <div class="section-label">The Replay · {{ replay.day }}</div>
-          <p class="text-xs text-zinc-500 mt-1">Yesterday through your heart — every reading, with games, sleep and workouts on the exact minutes they happened.</p>
-        </div>
-      </div>
-      <div class="card p-5 sm:p-6">
-        {% if replay.narration %}
-        <p class="text-[13.5px] text-zinc-300 leading-relaxed mb-4 pb-4 border-b border-zinc-800/70">{{ replay.narration_html | safe }}</p>
-        {% endif %}
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px]">
-          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
-          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
-          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
-          <span class="inline-flex items-center gap-1.5 text-zinc-400"><i class="fa-solid fa-trophy text-amber-400 text-[10px]"></i>achievement</span>
-          <span class="ml-auto text-zinc-500">{{ replay.facts }}</span>
-        </div>
-        <div class="h-[240px]"><canvas id="replayChart"></canvas></div>
-        {% if replay.games_count == 0 %}
-        <div class="text-[11px] text-zinc-600 mt-3">No game sessions landed on this day — the green bands appear on days you played.</div>
         {% endif %}
       </div>
     </div>
@@ -856,33 +809,42 @@
     })();
   </script>
 
-  <!-- Gamerscore trend sparkline (tiny, dependency-free canvas) -->
+  <!-- Gamerscore climb: proper contained Chart.js line (the hand-rolled canvas
+       overflowed its box and painted across the page on mobile) -->
   <script>
     (function () {
       const trend = {{ progress.trend | tojson if progress else '[]' }};
       const cv = document.getElementById('gsTrendChart');
-      if (!cv || !trend || trend.length < 3) return;
-      const vals = trend.map(t => t.gs);
-      const dpr = window.devicePixelRatio || 1;
-      const w = cv.clientWidth || 200, h = cv.clientHeight || 52;
-      cv.width = w * dpr; cv.height = h * dpr;
-      const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
-      const min = Math.min(...vals), max = Math.max(...vals), range = (max - min) || 1;
-      const pad = 4, x = i => pad + i * (w - 2 * pad) / (vals.length - 1);
-      const y = v => h - pad - (v - min) / range * (h - 2 * pad);
-      // area fill
-      ctx.beginPath(); ctx.moveTo(x(0), h);
-      vals.forEach((v, i) => ctx.lineTo(x(i), y(v)));
-      ctx.lineTo(x(vals.length - 1), h); ctx.closePath();
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, 'rgba(74,222,128,0.25)'); grad.addColorStop(1, 'rgba(74,222,128,0)');
-      ctx.fillStyle = grad; ctx.fill();
-      // line
-      ctx.beginPath();
-      vals.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
-      ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
-      // last point
-      ctx.beginPath(); ctx.arc(x(vals.length - 1), y(vals[vals.length - 1]), 2.5, 0, 7); ctx.fillStyle = '#4ade80'; ctx.fill();
+      if (!cv || typeof Chart === 'undefined' || !trend || trend.length < 2) return;
+      new Chart(cv, {
+        type: 'line',
+        data: {
+          labels: trend.map(t => {
+            const d = new Date(t.day + 'T12:00:00');
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }),
+          datasets: [{
+            label: 'Gamerscore', data: trend.map(t => t.gs),
+            borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.10)',
+            borderWidth: 2, tension: 0.3, fill: true,
+            pointRadius: 3, pointBackgroundColor: '#4ade80', pointHoverRadius: 5,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
+              callbacks: { label: (c) => ' ' + c.raw.toLocaleString() + ' G' }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, maxTicksLimit: 7 } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, callback: v => v.toLocaleString() } },
+          }
+        }
+      });
     })();
   </script>
 </body>
