@@ -97,6 +97,20 @@ class OuraClient:
         except Exception:
             return []
 
+    async def get_heartrate_range(self, start_iso: str, end_iso: str, bypass_cache: bool = False) -> List[Dict]:
+        """Heart rate for an EXACT datetime window. The heartrate endpoint ignores
+        start_date/end_date and returns only a recent slice — it needs
+        start_datetime/end_datetime. This is the correct way to get a full day."""
+        try:
+            data = await self._get(
+                "/usercollection/heartrate",
+                {"start_datetime": start_iso, "end_datetime": end_iso},
+                bypass_cache=bypass_cache, custom_ttl=HEARTRATE_CACHE_TTL,
+            )
+            return data.get("data", [])
+        except Exception:
+            return []
+
     async def get_daily_stress(self, start: str, end: str) -> List[Dict]:
         data = await self._get("/usercollection/daily_stress", {"start_date": start, "end_date": end})
         return data.get("data", [])

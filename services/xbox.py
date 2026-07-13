@@ -717,8 +717,9 @@ async def sweep_session_hr(force: bool = False):
         return
 
     try:
-        start_d = (date.today() - timedelta(days=13)).isoformat()
-        raw = await state.oura_client.get_heartrate(start_d, date.today().isoformat())
+        start_dt = (_now_et() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%S-04:00")
+        end_dt = _now_et().strftime("%Y-%m-%dT%H:%M:%S-04:00")
+        raw = await state.oura_client.get_heartrate_range(start_dt, end_dt)
     except Exception as e:
         print(f"pulse sweep HR fetch error: {e}")
         return
@@ -819,18 +820,27 @@ def compute_pulse_chart(sessions: list, history: list, days: int = 14) -> dict:
 # day later. So we replay it: the complete curve for yesterday with game
 # sessions, sleep, and workouts shaded onto the exact minutes they happened.
 
-async def compute_day_replay(achievements=None):
+async def compute_day_replay(achievements=None, day_offset=1):
+    """A day rendered on a true minutes-since-midnight axis: the full HR curve
+    plus game/media/workout/sleep bands and achievement markers at their exact
+    times. The frontend defaults its view to the ACTIVE window (when you were
+    actually doing something) and lets you scroll/zoom out to the whole day."""
     if not state.oura_client:
         return {"has_data": False}
     migrate_sessions_et()
-    day = _now_et().date() - timedelta(days=1)
+    day = _now_et().date() - timedelta(days=day_offset)
     day_start = datetime.combine(day, datetime.min.time())
     day_end = day_start + timedelta(days=1)
 
-    # Full HR curve for the ET day (fetch generously, filter locally).
+    def mins(dt):
+        return max(0.0, min(1440.0, (dt - day_start).total_seconds() / 60))
+
+    # Full-day HR curve — MUST use the datetime endpoint (date params return only
+    # a recent slice, which is what made the old chart show ~3 evening hours).
     try:
-        raw = await state.oura_client.get_heartrate(
-            (day - timedelta(days=1)).isoformat(), (day + timedelta(days=1)).isoformat())
+        raw = await state.oura_client.get_heartrate_range(
+            day_start.strftime("%Y-%m-%dT%H:%M:%S-04:00"),
+            day_end.strftime("%Y-%m-%dT%H:%M:%S-04:00"))
     except Exception:
         raw = []
     pts = []
@@ -846,30 +856,35 @@ async def compute_day_replay(achievements=None):
     pts.sort()
     if len(pts) < 12:
         return {"has_data": False, "day": day.strftime("%A, %b %-d")}
-    step = max(1, len(pts) // 200)
+    step = max(1, len(pts) // 288)
     pts = pts[::step]
-    times = [t for t, _ in pts]
-    labels = [t.strftime("%-I:%M %p") for t in times]
+    points = [{"x": round(mins(t), 1), "y": b} for t, b in pts]
     bpm = [b for _, b in pts]
+    tmins = [mins(t) for t, _ in pts]
 
-    def idx_of(dt):
-        """Nearest sample index for a timestamp (clipped to the day)."""
-        dt = max(day_start, min(dt, day_end))
-        lo, hi = 0, len(times) - 1
-        while lo < hi:
-            mid = (lo + hi) // 2
-            if times[mid] < dt:
-                lo = mid + 1
-            else:
-                hi = mid
-        return lo
+    def hr_at(m):
+        """Nearest bpm reading to a given minute."""
+        best_i, best_d = 0, 1e9
+        for i, tm in enumerate(tmins):
+            d = abs(tm - m)
+            if d < best_d:
+                best_d, best_i = d, i
+        return bpm[best_i]
+
+    def clk(m):
+        h, mm = divmod(int(m), 60)
+        ap = "AM" if h < 12 else "PM"
+        hh = h % 12 or 12
+        return f"{hh}:{mm:02d} {ap}"
 
     bands = []
     game_facts = []
+    activity_spans = []   # (start_min, end_min) for computing the active window
 
-    # Game sessions overlapping the day (clipped), with their stamped HR.
+    # Game + media sessions overlapping the day, classified from the stored title.
     for s in persistence.load_xbox_sessions():
-        if not is_real_game(s.get("game", "")):
+        kind = classify_title(s.get("game", ""))
+        if not kind:
             continue
         try:
             st = datetime.fromisoformat(s["start"])
@@ -879,21 +894,20 @@ async def compute_day_replay(achievements=None):
         if en <= day_start or st >= day_end:
             continue
         name = _clean_title(s["game"])
-        label = name
-        if s.get("hr_avg"):
-            label += f" · ♥{s['hr_avg']}"
-        bands.append({"kind": "game", "label": label, "s": idx_of(st), "e": idx_of(en)})
-        game_facts.append({"name": name, "dur": (min(en, day_end) - max(st, day_start)).total_seconds(),
-                           "hr": s.get("hr_avg"), "start": max(st, day_start)})
+        label = name + (f" · ♥{s['hr_avg']}" if s.get("hr_avg") else "")
+        x0, x1 = mins(max(st, day_start)), mins(min(en, day_end))
+        bands.append({"kind": kind, "label": label, "x0": round(x0, 1), "x1": round(x1, 1)})
+        activity_spans.append((x0, x1))
+        if kind == "game":
+            game_facts.append({"name": name, "dur": (min(en, day_end) - max(st, day_start)).total_seconds(),
+                               "hr": s.get("hr_avg"), "start": max(st, day_start)})
 
-    # Sleep periods (bedtime → wake) overlapping the day.
+    # Sleep (longest = 'asleep', others 'nap').
     try:
         sleeps = await state.oura_client.get_sleep(
             (day - timedelta(days=1)).isoformat(), (day + timedelta(days=1)).isoformat())
     except Exception:
         sleeps = []
-    # Collect sleep periods, then label the longest 'asleep' and the rest 'nap'
-    # so the timeline reads cleanly instead of several ambiguous blue blocks.
     sleep_periods = []
     for sl in sleeps or []:
         try:
@@ -903,21 +917,19 @@ async def compute_day_replay(achievements=None):
             continue
         if be <= day_start or bs >= day_end:
             continue
-        sleep_periods.append({"bs": bs, "be": be, "dur": sl.get("total_sleep_duration") or 0,
-                              "type": (sl.get("type") or "")})
+        sleep_periods.append({"bs": bs, "be": be, "dur": sl.get("total_sleep_duration") or 0})
     main_sleep = None
     if sleep_periods:
         longest = max(sleep_periods, key=lambda p: p["dur"])
-        main_sleep = {"dur": longest["dur"], "wake": longest["be"], "bed": longest["bs"]}
+        main_sleep = {"dur": longest["dur"], "wake": longest["be"]}
         for p in sleep_periods:
             is_main = p is longest
-            # Ignore tiny non-main blips (<20 min) — they clutter without meaning.
             if not is_main and (p["be"] - p["bs"]).total_seconds() < 1200:
                 continue
             bands.append({"kind": "sleep", "label": "asleep" if is_main else "nap",
-                          "s": idx_of(p["bs"]), "e": idx_of(p["be"])})
+                          "x0": round(mins(p["bs"]), 1), "x1": round(mins(p["be"]), 1)})
 
-    # Workouts (walks, runs, gym) for extra context.
+    # Workouts.
     try:
         workouts = await state.oura_client.get_workouts(day.isoformat(), (day + timedelta(days=1)).isoformat())
     except Exception:
@@ -931,39 +943,55 @@ async def compute_day_replay(achievements=None):
         if we <= day_start or ws >= day_end or (we - ws).total_seconds() < 300:
             continue
         act = (w.get("activity") or "workout").replace("_", " ")
-        bands.append({"kind": "workout", "label": act, "s": idx_of(ws), "e": idx_of(we)})
+        x0, x1 = mins(ws), mins(we)
+        bands.append({"kind": "workout", "label": act, "x0": round(x0, 1), "x1": round(x1, 1)})
+        activity_spans.append((x0, x1))
 
-    # Achievement unlocks that landed on this day → the real in-game moments,
-    # pinned to the exact minute they happened (trophy markers on the curve).
-    moments = []
-    day_unlocks = []
+    # Achievement markers at their exact minute.
+    moments, day_unlocks = [], []
     for a in achievements or []:
         if day_start <= a["dt"] < day_end:
             day_unlocks.append(a)
-            moments.append({"i": idx_of(a["dt"]), "label": f"🏆 {a['name']} (+{a['gs']}G · {a['game']})",
-                            "hr": bpm[idx_of(a["dt"])]})
+            m = mins(a["dt"])
+            moments.append({"x": round(m, 1), "label": f"🏆 {a['name']} (+{a['gs']}G · {a['game']})", "hr": hr_at(m)})
+            # Note: markers do NOT widen the active window — a lone 2am unlock
+            # shouldn't stretch the view across the whole day. The window keys off
+            # continuous activity (sessions/workouts); markers ride along and are
+            # reachable by zooming out.
     day_unlocks.sort(key=lambda a: a["dt"])
-    moments = moments[:12]
+    moments = moments[:14]
 
-    # Headline facts: peak + calmest waking moment.
+    # Active window: the stretch worth looking at. Pad 30m, snap to the hour,
+    # min 3h wide. Falls back to waking window (post-wake → last reading).
+    if activity_spans:
+        lo = min(s for s, _ in activity_spans) - 30
+        hi = max(e for _, e in activity_spans) + 30
+    elif main_sleep:
+        lo = mins(main_sleep["wake"]) - 15
+        hi = tmins[-1] + 15
+    else:
+        lo, hi = tmins[0], tmins[-1]
+    lo = max(0, (int(lo) // 60) * 60)
+    hi = min(1440, -(-int(hi) // 60) * 60)
+    if hi - lo < 180:
+        hi = min(1440, lo + 180)
+    view = {"start": lo, "end": hi}
+
+    # Facts — computed from the SAME stored session HR the bands show (no more
+    # 89-vs-65 contradiction from recomputing over a partial curve).
     peak_i = max(range(len(bpm)), key=lambda i: bpm[i])
-    sleep_idx = set()
-    for b in bands:
-        if b["kind"] == "sleep":
-            sleep_idx.update(range(b["s"], b["e"] + 1))
-    waking = [i for i in range(len(bpm)) if i not in sleep_idx]
-    low_i = min(waking, key=lambda i: bpm[i]) if waking else min(range(len(bpm)), key=lambda i: bpm[i])
-    facts = [f"peak {bpm[peak_i]} bpm at {labels[peak_i]}"]
-    game_bands = [b for b in bands if b["kind"] == "game"]
-    if game_bands:
-        in_game = [bpm[i] for b in game_bands for i in range(b["s"], b["e"] + 1)]
-        if in_game:
-            facts.append(f"in-game avg {round(sum(in_game)/len(in_game))} bpm")
-    facts.append(f"calmest waking {bpm[low_i]} bpm at {labels[low_i]}")
+    sleep_ranges = [(b["x0"], b["x1"]) for b in bands if b["kind"] == "sleep"]
+    def is_sleep(m):
+        return any(a <= m <= b for a, b in sleep_ranges)
+    waking = [(tmins[i], bpm[i]) for i in range(len(bpm)) if not is_sleep(tmins[i])] or [(tmins[i], bpm[i]) for i in range(len(bpm))]
+    low_m, low_v = min(waking, key=lambda p: p[1])
+    facts = [f"peak {bpm[peak_i]} bpm at {clk(tmins[peak_i])}"]
+    game_hrs = [g["hr"] for g in game_facts if g.get("hr")]
+    if game_hrs:
+        facts.append(f"in-game avg {round(sum(game_hrs)/len(game_hrs))} bpm")
+    facts.append(f"calmest waking {low_v} bpm at {clk(low_m)}")
 
-    # The morning narration: the day written back as a short honest paragraph,
-    # assembled only from what the logs can prove. This is the whole doctrine
-    # in one artifact — observe, log, learn, narrate.
+    # Narration.
     bits = []
     if main_sleep and main_sleep["dur"]:
         bits.append(f"Slept **{_fmt_duration(main_sleep['dur'])}**, up at {main_sleep['wake'].strftime('%-I:%M %p').lower()}.")
@@ -976,21 +1004,25 @@ async def compute_day_replay(achievements=None):
                 p += f", ♥{g['hr']}"
             parts.append(p + ")")
         bits.append("Played " + ", then ".join(parts) + ".")
+    media_bands = [b for b in bands if b["kind"] == "media"]
+    if media_bands:
+        bits.append(f"Also watching **{media_bands[0]['label'].split(' · ')[0]}**.")
     if day_unlocks:
         total_g = sum(a["gs"] for a in day_unlocks)
         lead = day_unlocks[0]
         extra = f" and {len(day_unlocks) - 1} more" if len(day_unlocks) > 1 else ""
         bits.append(f"Unlocked **{lead['name']}**{extra} (**+{total_g} G**).")
-    bits.append(f"Heart peaked at **{bpm[peak_i]} bpm** ({labels[peak_i]}); calmest waking {bpm[low_i]}.")
+    bits.append(f"Heart peaked at **{bpm[peak_i]} bpm** ({clk(tmins[peak_i])}); calmest waking {low_v}.")
     narration = " ".join(bits)
 
     return {
         "has_data": True,
         "day": day.strftime("%A, %b %-d"),
-        "labels": labels, "bpm": bpm, "bands": bands, "moments": moments,
+        "points": points, "bands": bands, "moments": moments, "view": view,
         "facts": " · ".join(facts),
         "narration": narration,
-        "games_count": len(game_bands),
+        "games_count": len([b for b in bands if b["kind"] == "game"]),
+        "media_count": len(media_bands),
         "unlocks_count": len(day_unlocks),
     }
 
@@ -1066,7 +1098,10 @@ async def poll_presence_sample():
             # Device activity beats the misleading social-presence state.
             device_active = any(isinstance(d, dict) and d.get("titles") for d in devices)
             presence_state = "Online" if device_active else raw_state
-            return (game if is_real_game(game) else "", device_type, presence_state)
+            # Track games AND media (watching sports/streaming) — both get a heart
+            # rate; dashboard/system titles return '' and close the session.
+            tracked = game if (is_real_game(game) or is_media_title(game)) else ""
+            return (tracked, device_type, presence_state)
     except Exception as e:
         print(f"Xbox presence poll error: {e}")
         return None
@@ -1116,6 +1151,7 @@ def record_presence_sample(game: str, device: str = ""):
         sessions.insert(0, {
             "game": game, "start": now.isoformat(), "end": now.isoformat(),
             "closed": False, "device": device, "samples": 1, "tz": "et",
+            "kind": classify_title(game),
         })
 
     persistence.save_xbox_sessions(sessions[:400])
@@ -1154,6 +1190,30 @@ def is_real_game(name: str) -> bool:
     if n in NON_GAME_TITLES:
         return False
     return not any(n.startswith(p) for p in _NON_GAME_PREFIXES)
+
+
+# Streaming/sports apps — watching, not playing. Tracked as their own session
+# kind so the Replay can show heart rate while you watch a game (ESPN, etc.).
+_MEDIA_PREFIXES = _NON_GAME_PREFIXES + ("dazn", "nfl", "nba", "mlb", "wwe", "ufc.tv", "fubo")
+
+
+def is_media_title(name: str) -> bool:
+    if not name:
+        return False
+    n = name.strip().lower()
+    if n in ("home", "xbox app", "xbox", "settings", "microsoft store", "store",
+             "my games & apps", "media player", "guide", "—", "microsoft edge", "edge", "start"):
+        return False
+    return any(n.startswith(p) for p in _MEDIA_PREFIXES)
+
+
+def classify_title(name: str) -> str:
+    """'game' | 'media' | '' (dashboard/system → ignore)."""
+    if is_real_game(name):
+        return "game"
+    if is_media_title(name):
+        return "media"
+    return ""
 
 
 def _clean_title(name: str) -> str:

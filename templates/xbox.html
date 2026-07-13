@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
@@ -286,7 +288,7 @@
       <div class="flex items-baseline justify-between mb-4">
         <div>
           <div class="section-label">The Replay · {{ replay.day }}</div>
-          <p class="text-xs text-zinc-500 mt-1">Yesterday through your heart — every reading, with games, sleep and unlocks on the exact minutes they happened.</p>
+          <p class="text-xs text-zinc-500 mt-1">Your day through your heart — focused on when you were active. Drag or scroll the chart to zoom, double-click to reset.</p>
         </div>
       </div>
       <div class="card p-5 sm:p-6">
@@ -295,14 +297,15 @@
         {% endif %}
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px]">
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(167,139,250,.3);border:1px solid rgba(167,139,250,.6)"></span>watching</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><i class="fa-solid fa-trophy text-amber-400 text-[10px]"></i>achievement</span>
           <span class="ml-auto text-zinc-500 hidden sm:inline">{{ replay.facts }}</span>
         </div>
-        <div class="h-[240px]"><canvas id="replayChart"></canvas></div>
-        {% if replay.games_count == 0 %}
-        <div class="text-[11px] text-zinc-600 mt-3">No game sessions landed on this day — the green bands appear on days you played.</div>
+        <div class="h-[260px]"><canvas id="replayChart"></canvas></div>
+        {% if replay.games_count == 0 and replay.media_count == 0 %}
+        <div class="text-[11px] text-zinc-600 mt-3">No games or watching landed on this day — activity bands appear on days you played or watched.</div>
         {% endif %}
       </div>
     </div>
@@ -716,54 +719,55 @@
     })();
   </script>
 
-  <!-- The Replay: yesterday's HR curve with shaded activity bands -->
+  <!-- The Replay: a true minutes-of-day axis. Defaults to the ACTIVE window;
+       drag/scroll/pinch to zoom, double-click to reset. Bands sit at real times. -->
   <script>
     (function () {
       const cv = document.getElementById('replayChart');
       if (!cv || typeof Chart === 'undefined') return;
       const R = {{ replay | tojson if replay else '{}' }};
-      if (!R.has_data || !R.labels) return;
+      if (!R.has_data || !R.points || !R.points.length) return;
       const BAND = {
         game:    { fill: 'rgba(74,222,128,0.16)',  edge: 'rgba(74,222,128,0.55)',  text: '#86efac' },
+        media:   { fill: 'rgba(167,139,250,0.16)', edge: 'rgba(167,139,250,0.55)', text: '#c4b5fd' },
         sleep:   { fill: 'rgba(96,165,250,0.10)',  edge: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
         workout: { fill: 'rgba(245,158,11,0.14)',  edge: 'rgba(245,158,11,0.45)',  text: '#fcd34d' },
-        lights:  { fill: 'rgba(167,139,250,0.10)', edge: 'rgba(167,139,250,0.35)', text: '#c4b5fd' },
       };
+      const clk = (m) => { let h = Math.floor(m / 60), mm = Math.round(m % 60); const ap = h < 12 ? 'AM' : 'PM'; h = (h % 12) || 12; return h + (mm ? ':' + String(mm).padStart(2,'0') : '') + ap; };
       const bandPlugin = {
         id: 'dayBands',
         beforeDatasetsDraw(chart) {
           const { ctx, chartArea, scales: { x } } = chart;
           if (!chartArea) return;
+          const clip = (v) => Math.max(chartArea.left, Math.min(chartArea.right, v));
           let lane = 0;
           (R.bands || []).forEach(b => {
             const c = BAND[b.kind] || BAND.game;
-            const x1 = x.getPixelForValue(b.s), x2 = Math.max(x.getPixelForValue(b.e), x.getPixelForValue(b.s) + 3);
+            let x1 = clip(x.getPixelForValue(b.x0)), x2 = clip(x.getPixelForValue(b.x1));
+            if (x2 - x1 < 1) return;
             ctx.save();
             ctx.fillStyle = c.fill;
             ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
             ctx.strokeStyle = c.edge; ctx.lineWidth = 1;
             ctx.strokeRect(x1 + 0.5, chartArea.top + 0.5, x2 - x1 - 1, chartArea.bottom - chartArea.top - 1);
-            if (b.kind !== 'sleep' || (x2 - x1) > 40) {
+            if ((b.kind !== 'sleep' || (x2 - x1) > 40) && (x2 - x1) > 26) {
               ctx.fillStyle = c.text;
               ctx.font = '10px Inter, sans-serif';
-              const ty = (b.kind === 'lights')
-                ? chartArea.bottom - 6
-                : chartArea.top + 12 + (lane % 3) * 12;
-              ctx.fillText(b.label, x1 + 4, ty);
-              if (b.kind !== 'lights') lane++;
+              ctx.fillText(b.label, x1 + 4, chartArea.top + 12 + (lane % 3) * 12);
+              lane++;
             }
             ctx.restore();
           });
           (R.moments || []).forEach(m => {
-            const px = x.getPixelForValue(m.i);
+            const px = x.getPixelForValue(m.x);
+            if (px < chartArea.left || px > chartArea.right) return;
             ctx.save();
             ctx.fillStyle = '#fbbf24';
             ctx.beginPath();
-            ctx.moveTo(px, chartArea.top + 8);
-            ctx.lineTo(px - 4, chartArea.top);
-            ctx.lineTo(px + 4, chartArea.top);
-            ctx.closePath();
-            ctx.fill();
+            ctx.moveTo(px, chartArea.top + 9);
+            ctx.lineTo(px - 4.5, chartArea.top);
+            ctx.lineTo(px + 4.5, chartArea.top);
+            ctx.closePath(); ctx.fill();
             ctx.restore();
           });
         }
@@ -771,9 +775,8 @@
       new Chart(cv, {
         type: 'line',
         data: {
-          labels: R.labels,
           datasets: [{
-            label: 'BPM', data: R.bpm,
+            label: 'BPM', data: R.points, parsing: false,
             borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.08)',
             borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 4,
             pointHoverBackgroundColor: '#fb7185', fill: true, tension: 0.3,
@@ -781,26 +784,37 @@
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
+          interaction: { mode: 'nearest', axis: 'x', intersect: false },
           plugins: {
             legend: { display: false },
             tooltip: {
               backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
               callbacks: {
-                label: (ctx) => ' ' + ctx.raw + ' bpm',
+                title: (items) => items.length ? clk(items[0].parsed.x) : '',
+                label: (ctx) => ' ' + ctx.parsed.y + ' bpm',
                 afterLabel: (ctx) => {
-                  const out = [];
-                  const hit = (R.bands || []).find(b => ctx.dataIndex >= b.s && ctx.dataIndex <= b.e);
+                  const mx = ctx.parsed.x, out = [];
+                  const hit = (R.bands || []).find(b => mx >= b.x0 && mx <= b.x1 && b.kind !== 'sleep');
                   if (hit) out.push(hit.label);
-                  const mm = (R.moments || []).find(m => Math.abs(m.i - ctx.dataIndex) <= 1);
+                  const mm = (R.moments || []).find(m => Math.abs(m.x - mx) <= 6);
                   if (mm) out.push(mm.label);
                   return out.join('\n');
                 }
               }
+            },
+            zoom: {
+              zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(251,113,133,0.12)' }, mode: 'x' },
+              pan: { enabled: true, mode: 'x' },
+              limits: { x: { min: 0, max: 1440, minRange: 30 } }
             }
           },
           scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+            x: {
+              type: 'linear', min: R.view.start, max: R.view.end,
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
+                       stepSize: 60, callback: (v) => clk(v) },
+            },
             y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, callback: v => v + ' bpm' } },
           }
         },
