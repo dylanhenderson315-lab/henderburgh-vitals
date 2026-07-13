@@ -542,6 +542,30 @@
     </div>
     {% endif %}
 
+    <!-- The Replay — yesterday's full heart-rate curve with your day drawn on it -->
+    {% if replay and replay.has_data %}
+    <div class="mt-12">
+      <div class="flex items-baseline justify-between mb-4">
+        <div>
+          <div class="section-label">The Replay · {{ replay.day }}</div>
+          <p class="text-xs text-zinc-500 mt-1">Yesterday through your heart — every reading, with games, sleep and workouts on the exact minutes they happened.</p>
+        </div>
+      </div>
+      <div class="card p-5 sm:p-6">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px]">
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
+          <span class="ml-auto text-zinc-500">{{ replay.facts }}</span>
+        </div>
+        <div class="h-[240px]"><canvas id="replayChart"></canvas></div>
+        {% if replay.games_count == 0 %}
+        <div class="text-[11px] text-zinc-600 mt-3">No game sessions landed on this day — the green bands appear on days you played.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     <div class="mt-12 text-center">
       <a href="/" class="inline-flex items-center text-sm text-zinc-400 hover:text-white transition">
         ← Back to home
@@ -709,6 +733,80 @@
             y2: { position: 'right', grid: { display: false }, ticks: { color: '#fb7185', font: { size: 10 }, callback: v => v + ' bpm' }, suggestedMin: 50, suggestedMax: 120 },
           }
         }
+      });
+    })();
+  </script>
+
+  <!-- The Replay: yesterday's HR curve with shaded activity bands -->
+  <script>
+    (function () {
+      const cv = document.getElementById('replayChart');
+      if (!cv || typeof Chart === 'undefined') return;
+      const R = {{ replay | tojson if replay else '{}' }};
+      if (!R.has_data || !R.labels) return;
+      const BAND = {
+        game:    { fill: 'rgba(74,222,128,0.16)',  edge: 'rgba(74,222,128,0.55)',  text: '#86efac' },
+        sleep:   { fill: 'rgba(96,165,250,0.10)',  edge: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
+        workout: { fill: 'rgba(245,158,11,0.14)',  edge: 'rgba(245,158,11,0.45)',  text: '#fcd34d' },
+      };
+      const bandPlugin = {
+        id: 'dayBands',
+        beforeDatasetsDraw(chart) {
+          const { ctx, chartArea, scales: { x } } = chart;
+          if (!chartArea) return;
+          let lane = 0;
+          (R.bands || []).forEach(b => {
+            const c = BAND[b.kind] || BAND.game;
+            const x1 = x.getPixelForValue(b.s), x2 = Math.max(x.getPixelForValue(b.e), x.getPixelForValue(b.s) + 3);
+            ctx.save();
+            ctx.fillStyle = c.fill;
+            ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
+            ctx.strokeStyle = c.edge; ctx.lineWidth = 1;
+            ctx.strokeRect(x1 + 0.5, chartArea.top + 0.5, x2 - x1 - 1, chartArea.bottom - chartArea.top - 1);
+            if (b.kind !== 'sleep' || (x2 - x1) > 40) {
+              ctx.fillStyle = c.text;
+              ctx.font = '10px Inter, sans-serif';
+              const ty = chartArea.top + 12 + (lane % 3) * 12;
+              ctx.fillText(b.label, x1 + 4, ty);
+              lane++;
+            }
+            ctx.restore();
+          });
+        }
+      };
+      new Chart(cv, {
+        type: 'line',
+        data: {
+          labels: R.labels,
+          datasets: [{
+            label: 'BPM', data: R.bpm,
+            borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.08)',
+            borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 4,
+            pointHoverBackgroundColor: '#fb7185', fill: true, tension: 0.3,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
+              callbacks: {
+                label: (ctx) => ' ' + ctx.raw + ' bpm',
+                afterLabel: (ctx) => {
+                  const hit = (R.bands || []).find(b => ctx.dataIndex >= b.s && ctx.dataIndex <= b.e);
+                  return hit ? hit.label : '';
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, callback: v => v + ' bpm' } },
+          }
+        },
+        plugins: [bandPlugin]
       });
     })();
   </script>

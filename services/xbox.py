@@ -721,6 +721,130 @@ def compute_pulse_chart(sessions: list, history: list, days: int = 14) -> dict:
     }
 
 
+# ── The Replay: yesterday's full HR curve annotated with your day ────────────
+# Oura is a historian, not a live wire — its detailed heart-rate curve lands a
+# day later. So we replay it: the complete curve for yesterday with game
+# sessions, sleep, and workouts shaded onto the exact minutes they happened.
+
+async def compute_day_replay():
+    if not state.oura_client:
+        return {"has_data": False}
+    day = _now_et().date() - timedelta(days=1)
+    day_start = datetime.combine(day, datetime.min.time())
+    day_end = day_start + timedelta(days=1)
+
+    # Full HR curve for the ET day (fetch generously, filter locally).
+    try:
+        raw = await state.oura_client.get_heartrate(
+            (day - timedelta(days=1)).isoformat(), (day + timedelta(days=1)).isoformat())
+    except Exception:
+        raw = []
+    pts = []
+    for e in raw or []:
+        if not isinstance(e, dict) or e.get("bpm") is None or not e.get("timestamp"):
+            continue
+        try:
+            t = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
+        except Exception:
+            continue
+        if day_start <= t < day_end:
+            pts.append((t, e["bpm"]))
+    pts.sort()
+    if len(pts) < 12:
+        return {"has_data": False, "day": day.strftime("%A, %b %-d")}
+    step = max(1, len(pts) // 200)
+    pts = pts[::step]
+    times = [t for t, _ in pts]
+    labels = [t.strftime("%-I:%M %p") for t in times]
+    bpm = [b for _, b in pts]
+
+    def idx_of(dt):
+        """Nearest sample index for a timestamp (clipped to the day)."""
+        dt = max(day_start, min(dt, day_end))
+        lo, hi = 0, len(times) - 1
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if times[mid] < dt:
+                lo = mid + 1
+            else:
+                hi = mid
+        return lo
+
+    bands = []
+
+    # Game sessions overlapping the day (clipped), with their stamped HR.
+    for s in persistence.load_xbox_sessions():
+        if not is_real_game(s.get("game", "")):
+            continue
+        try:
+            st = datetime.fromisoformat(s["start"])
+            en = datetime.fromisoformat(s["end"])
+        except Exception:
+            continue
+        if en <= day_start or st >= day_end:
+            continue
+        label = _clean_title(s["game"])
+        if s.get("hr_avg"):
+            label += f" · ♥{s['hr_avg']}"
+        bands.append({"kind": "game", "label": label, "s": idx_of(st), "e": idx_of(en)})
+
+    # Sleep periods (bedtime → wake) overlapping the day.
+    try:
+        sleeps = await state.oura_client.get_sleep(
+            (day - timedelta(days=1)).isoformat(), (day + timedelta(days=1)).isoformat())
+    except Exception:
+        sleeps = []
+    for sl in sleeps or []:
+        try:
+            bs = datetime.fromisoformat(sl["bedtime_start"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
+            be = datetime.fromisoformat(sl["bedtime_end"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
+        except Exception:
+            continue
+        if be <= day_start or bs >= day_end:
+            continue
+        bands.append({"kind": "sleep", "label": "asleep", "s": idx_of(bs), "e": idx_of(be)})
+
+    # Workouts (walks, runs, gym) for extra context.
+    try:
+        workouts = await state.oura_client.get_workouts(day.isoformat(), (day + timedelta(days=1)).isoformat())
+    except Exception:
+        workouts = []
+    for w in workouts or []:
+        try:
+            ws = datetime.fromisoformat(w["start_time"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
+            we = datetime.fromisoformat(w["end_time"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
+        except Exception:
+            continue
+        if we <= day_start or ws >= day_end or (we - ws).total_seconds() < 300:
+            continue
+        act = (w.get("activity") or "workout").replace("_", " ")
+        bands.append({"kind": "workout", "label": act, "s": idx_of(ws), "e": idx_of(we)})
+
+    # Headline facts: peak + calmest waking moment.
+    peak_i = max(range(len(bpm)), key=lambda i: bpm[i])
+    sleep_idx = set()
+    for b in bands:
+        if b["kind"] == "sleep":
+            sleep_idx.update(range(b["s"], b["e"] + 1))
+    waking = [i for i in range(len(bpm)) if i not in sleep_idx]
+    low_i = min(waking, key=lambda i: bpm[i]) if waking else min(range(len(bpm)), key=lambda i: bpm[i])
+    facts = [f"peak {bpm[peak_i]} bpm at {labels[peak_i]}"]
+    game_bands = [b for b in bands if b["kind"] == "game"]
+    if game_bands:
+        in_game = [bpm[i] for b in game_bands for i in range(b["s"], b["e"] + 1)]
+        if in_game:
+            facts.append(f"in-game avg {round(sum(in_game)/len(in_game))} bpm")
+    facts.append(f"calmest waking {bpm[low_i]} bpm at {labels[low_i]}")
+
+    return {
+        "has_data": True,
+        "day": day.strftime("%A, %b %-d"),
+        "labels": labels, "bpm": bpm, "bands": bands,
+        "facts": " · ".join(facts),
+        "games_count": len(game_bands),
+    }
+
+
 def recent_games_display(games: list, limit: int = 12) -> list:
     """Recently-played library rows for the page: cover, progress, gamerscore, when."""
     out = []

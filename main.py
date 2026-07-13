@@ -471,6 +471,13 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     # The Pulse chart: daily play hours + session heart rate on one timeline.
     pulse = xbox.compute_pulse_chart(true_sessions, xbox_hist)
 
+    # The Replay: yesterday's full HR curve annotated with sessions/sleep/workouts.
+    try:
+        replay = await xbox.compute_day_replay()
+    except Exception as e:
+        print(f"day replay error: {e}")
+        replay = {"has_data": False}
+
     hero_game = xbox_display.get("game", "")
     if not xbox.is_real_game(hero_game):
         hero_game = insights.get("stats", {}).get("favorite", "")
@@ -502,6 +509,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "progress": progress,
         "story": story,
         "pulse": pulse,
+        "replay": replay,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
