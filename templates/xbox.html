@@ -457,6 +457,28 @@
     </div>
     {% endif %}
 
+    <!-- Recent Unlocks — real achievements with exact times & gamerscore -->
+    {% if unlocks %}
+    <div class="mb-12">
+      <div class="flex items-baseline justify-between mb-4">
+        <div class="section-label">Recent Unlocks</div>
+        <span class="text-xs text-zinc-500">achievement · when · reward</span>
+      </div>
+      <div class="card divide-y divide-zinc-800/70">
+        {% for u in unlocks %}
+        <div class="flex items-center gap-3 px-5 py-3">
+          {% if u.image %}<img src="{{ u.image }}" alt="" class="w-9 h-9 rounded-lg object-cover flex-shrink-0">{% endif %}
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium text-zinc-100 truncate"><i class="fa-solid fa-trophy text-amber-400 text-[11px] mr-1.5"></i>{{ u.name }}</div>
+            <div class="text-[11px] text-zinc-500 mt-0.5">{{ u.game }} · {{ u.when }}{% if u.rare_txt %} · <span class="text-violet-400/90">{{ u.rare_txt }}</span>{% endif %}</div>
+          </div>
+          <div class="text-sm font-semibold text-emerald-400 tabular-nums flex-shrink-0">+{{ u.gs }} G</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Play sessions — the real timeline (start · length · device) -->
     {% if session_log %}
     <div>
@@ -559,7 +581,7 @@
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
-          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(167,139,250,.22);border:1px solid rgba(167,139,250,.5)"></span>house lights</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><i class="fa-solid fa-trophy text-amber-400 text-[10px]"></i>achievement</span>
           <span class="ml-auto text-zinc-500">{{ replay.facts }}</span>
         </div>
         <div class="h-[240px]"><canvas id="replayChart"></canvas></div>
@@ -814,8 +836,12 @@
               callbacks: {
                 label: (ctx) => ' ' + ctx.raw + ' bpm',
                 afterLabel: (ctx) => {
+                  const out = [];
                   const hit = (R.bands || []).find(b => ctx.dataIndex >= b.s && ctx.dataIndex <= b.e);
-                  return hit ? hit.label : '';
+                  if (hit) out.push(hit.label);
+                  const mm = (R.moments || []).find(m => Math.abs(m.i - ctx.dataIndex) <= 1);
+                  if (mm) out.push(mm.label);
+                  return out.join('\n');
                 }
               }
             }

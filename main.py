@@ -367,7 +367,9 @@ async def home(request: Request):
     # house lights + spoken commands) promoted to the OS level, with the
     # morning narration. This is the site's thesis in one artifact.
     try:
-        replay = await xbox.compute_day_replay()
+        _lib = await xbox.get_title_history()
+        _ach = await xbox.get_recent_achievements(_lib)
+        replay = await xbox.compute_day_replay(_ach)
     except Exception as e:
         print(f"home replay error: {e}")
         replay = {"has_data": False}
@@ -487,9 +489,14 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     # The Pulse chart: daily play hours + session heart rate on one timeline.
     pulse = xbox.compute_pulse_chart(true_sessions, xbox_hist)
 
-    # The Replay: yesterday's full HR curve annotated with sessions/sleep/workouts.
+    # Achievements: real in-game moments (unlock times + gamerscore).
+    achievements = await xbox.get_recent_achievements(library)
+    unlocks = xbox.recent_unlocks_display(achievements, limit=8)
+
+    # The Replay: yesterday's full HR curve annotated with sessions, sleep,
+    # workouts, and achievement unlocks pinned to the exact minute.
     try:
-        replay = await xbox.compute_day_replay()
+        replay = await xbox.compute_day_replay(achievements)
     except Exception as e:
         print(f"day replay error: {e}")
         replay = {"has_data": False}
@@ -528,6 +535,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "story": story,
         "pulse": pulse,
         "replay": replay,
+        "unlocks": unlocks,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,

@@ -275,6 +275,7 @@ async def get_title_history():
                 th = t.get("titleHistory") or {}
                 games.append({
                     "name": _clean_title(t.get("name", "")),
+                    "titleId": str(t.get("titleId") or ""),
                     "image": t.get("displayImage") or "",
                     "gamerscore": a.get("currentGamerscore") or 0,
                     "total_gamerscore": a.get("totalGamerscore") or 0,
@@ -297,6 +298,98 @@ def _name_tokens(name: str) -> set:
     # drop generic platform/edition words that bloat matches
     stop = {"xbox", "series", "x", "s", "game", "preview", "edition", "the", "one"}
     return {t for t in n.split() if t and t not in stop}
+
+
+def migrate_sessions_et():
+    """One-time repair: sessions recorded before the Eastern-time fix were stamped
+    in UTC (Railway's clock), so their start/end read 4-5h off — which made the
+    day's story illogical. Convert any un-tagged session from UTC to ET and tag
+    it; brand-new sessions are already ET and just get tagged. Idempotent."""
+    sessions = persistence.load_xbox_sessions()
+    if not sessions or all(s.get("tz") == "et" for s in sessions):
+        return
+    changed = False
+    for s in sessions:
+        if s.get("tz") == "et":
+            continue
+        for k in ("start", "end"):
+            try:
+                dt = datetime.fromisoformat(s[k]).replace(tzinfo=ZoneInfo("UTC")).astimezone(_ET).replace(tzinfo=None)
+                s[k] = dt.isoformat()
+            except Exception:
+                pass
+        s["tz"] = "et"
+        changed = True
+    if changed:
+        persistence.save_xbox_sessions(sessions)
+
+
+# ── Achievements: real in-game moments with exact unlock times ───────────────
+# Xbox exposes no live game state (no FIFA scores), but per-title achievements
+# carry an exact unlock timestamp + gamerscore — the truest 'something happened
+# in-game at this minute' signal available. Pinned onto the day's HR curve.
+_ach_cache = {"data": [], "ts": 0.0}
+ACH_TTL = 1800
+
+
+async def get_recent_achievements(library: list, days: int = 4, cap_titles: int = 6):
+    now_ts = time.time()
+    if _ach_cache["data"] and now_ts - _ach_cache["ts"] < ACH_TTL:
+        return _ach_cache["data"]
+    if not XBL_API_KEY or XBL_API_KEY in XBL_PLACEHOLDER_KEYS or not XBL_XUID:
+        return _ach_cache["data"]
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    recent_titles = [g for g in (library or [])
+                     if g.get("titleId") and (g.get("last_played") or "")[:10] >= cutoff][:cap_titles]
+    headers = {"X-Authorization": XBL_API_KEY, "Accept": "application/json"}
+    out = []
+    try:
+        async with httpx.AsyncClient() as client:
+            for g in recent_titles:
+                if api_calls_last_hour() >= API_BUDGET_PER_HOUR:
+                    break
+                note_api_call()
+                try:
+                    res = await client.get(
+                        f"https://xbl.io/api/v2/achievements/player/{XBL_XUID}/{g['titleId']}",
+                        headers=headers, timeout=12)
+                    if res.status_code != 200:
+                        continue
+                    ach = ((res.json() or {}).get("content") or {}).get("achievements") or []
+                except Exception:
+                    continue
+                for a in ach:
+                    if a.get("progressState") != "Achieved":
+                        continue
+                    tu = (a.get("progression") or {}).get("timeUnlocked") or ""
+                    if not tu or tu[:4] < "2020":
+                        continue
+                    try:
+                        dt = datetime.fromisoformat(tu.replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
+                    except Exception:
+                        continue
+                    gs = next((r.get("value") for r in (a.get("rewards") or [])
+                               if r.get("type") == "Gamerscore"), 0)
+                    rare = (a.get("rarity") or {}).get("currentPercentage")
+                    out.append({
+                        "game": g["name"], "image": g.get("image", ""),
+                        "name": a.get("name") or "Achievement",
+                        "gs": int(gs or 0), "dt": dt, "ts": dt.isoformat(),
+                        "rare": float(rare) if rare is not None else None,
+                    })
+        out.sort(key=lambda x: x["dt"], reverse=True)
+        _ach_cache.update({"data": out, "ts": now_ts})
+    except Exception as e:
+        print(f"achievements fetch error: {e}")
+    return _ach_cache["data"]
+
+
+def recent_unlocks_display(achievements: list, limit: int = 8) -> list:
+    out = []
+    for a in achievements[:limit]:
+        out.append({**a, "when": a["dt"].strftime("%b %-d · %-I:%M %p").replace(" 0", " "),
+                    "rare_txt": (f"{a['rare']:.0f}% have this" if a.get("rare") and a["rare"] <= 20 else "")})
+    return out
 
 
 def find_cover(games: list, name: str) -> str:
@@ -726,9 +819,10 @@ def compute_pulse_chart(sessions: list, history: list, days: int = 14) -> dict:
 # day later. So we replay it: the complete curve for yesterday with game
 # sessions, sleep, and workouts shaded onto the exact minutes they happened.
 
-async def compute_day_replay():
+async def compute_day_replay(achievements=None):
     if not state.oura_client:
         return {"has_data": False}
+    migrate_sessions_et()
     day = _now_et().date() - timedelta(days=1)
     day_start = datetime.combine(day, datetime.min.time())
     day_end = day_start + timedelta(days=1)
@@ -798,7 +892,9 @@ async def compute_day_replay():
             (day - timedelta(days=1)).isoformat(), (day + timedelta(days=1)).isoformat())
     except Exception:
         sleeps = []
-    main_sleep = None
+    # Collect sleep periods, then label the longest 'asleep' and the rest 'nap'
+    # so the timeline reads cleanly instead of several ambiguous blue blocks.
+    sleep_periods = []
     for sl in sleeps or []:
         try:
             bs = datetime.fromisoformat(sl["bedtime_start"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
@@ -807,10 +903,19 @@ async def compute_day_replay():
             continue
         if be <= day_start or bs >= day_end:
             continue
-        bands.append({"kind": "sleep", "label": "asleep", "s": idx_of(bs), "e": idx_of(be)})
-        dur = sl.get("total_sleep_duration") or 0
-        if not main_sleep or dur > main_sleep["dur"]:
-            main_sleep = {"dur": dur, "wake": be}
+        sleep_periods.append({"bs": bs, "be": be, "dur": sl.get("total_sleep_duration") or 0,
+                              "type": (sl.get("type") or "")})
+    main_sleep = None
+    if sleep_periods:
+        longest = max(sleep_periods, key=lambda p: p["dur"])
+        main_sleep = {"dur": longest["dur"], "wake": longest["be"], "bed": longest["bs"]}
+        for p in sleep_periods:
+            is_main = p is longest
+            # Ignore tiny non-main blips (<20 min) — they clutter without meaning.
+            if not is_main and (p["be"] - p["bs"]).total_seconds() < 1200:
+                continue
+            bands.append({"kind": "sleep", "label": "asleep" if is_main else "nap",
+                          "s": idx_of(p["bs"]), "e": idx_of(p["be"])})
 
     # Workouts (walks, runs, gym) for extra context.
     try:
@@ -828,58 +933,17 @@ async def compute_day_replay():
         act = (w.get("activity") or "workout").replace("_", " ")
         bands.append({"kind": "workout", "label": act, "s": idx_of(ws), "e": idx_of(we)})
 
-    # House mood: hourly light snapshots → bands where a room ran an effect
-    # ("Game Room · Party"). The house's state joins the body's on one timeline.
-    try:
-        snaps = persistence.load_light_history()
-    except Exception:
-        snaps = []
-    seq = []
-    for sn in snaps or []:
-        try:
-            t = datetime.fromisoformat(sn.get("ts", ""))
-            if t.tzinfo:
-                t = t.astimezone(_ET).replace(tzinfo=None)
-        except Exception:
-            continue
-        if not (day_start <= t < day_end):
-            continue
-        eff = None
-        for l in sn.get("lights") or []:
-            if l.get("on") and l.get("effect"):
-                eff = f"{l.get('room') or 'house'} · {l['effect']}"
-                if l.get("room") == "Game Room":
-                    break
-        seq.append((t, eff))
-    seq.sort()
-    run = None
-    def _flush_lights(r):
-        if r:
-            bands.append({"kind": "lights", "label": r["label"],
-                          "s": idx_of(r["a"]), "e": idx_of(r["b"] + timedelta(minutes=45))})
-    for t, eff in seq:
-        if eff and run and run["label"] == eff and (t - run["b"]).total_seconds() <= 2 * 3600:
-            run["b"] = t
-        else:
-            _flush_lights(run)
-            run = {"label": eff, "a": t, "b": t} if eff else None
-    _flush_lights(run)
-
-    # Spoken commands: each 'tell the house' order as a moment on the timeline.
+    # Achievement unlocks that landed on this day → the real in-game moments,
+    # pinned to the exact minute they happened (trophy markers on the curve).
     moments = []
-    try:
-        for v in persistence.load_vibe_log():
-            try:
-                t = datetime.fromisoformat(v.get("ts", ""))
-                if t.tzinfo:
-                    t = t.astimezone(_ET).replace(tzinfo=None)
-            except Exception:
-                continue
-            if day_start <= t < day_end and v.get("understood"):
-                moments.append({"i": idx_of(t), "label": f"“{v.get('text','')[:40]}”"})
-    except Exception:
-        pass
-    moments = moments[:8]
+    day_unlocks = []
+    for a in achievements or []:
+        if day_start <= a["dt"] < day_end:
+            day_unlocks.append(a)
+            moments.append({"i": idx_of(a["dt"]), "label": f"🏆 {a['name']} (+{a['gs']}G · {a['game']})",
+                            "hr": bpm[idx_of(a["dt"])]})
+    day_unlocks.sort(key=lambda a: a["dt"])
+    moments = moments[:12]
 
     # Headline facts: peak + calmest waking moment.
     peak_i = max(range(len(bpm)), key=lambda i: bpm[i])
@@ -912,11 +976,11 @@ async def compute_day_replay():
                 p += f", ♥{g['hr']}"
             parts.append(p + ")")
         bits.append("Played " + ", then ".join(parts) + ".")
-    lights_bands = [b for b in bands if b["kind"] == "lights"]
-    if lights_bands:
-        bits.append(f"The house ran **{lights_bands[0]['label']}** while you did.")
-    if moments:
-        bits.append(f"You told the house {len(moments)} thing{'s' if len(moments) != 1 else ''}.")
+    if day_unlocks:
+        total_g = sum(a["gs"] for a in day_unlocks)
+        lead = day_unlocks[0]
+        extra = f" and {len(day_unlocks) - 1} more" if len(day_unlocks) > 1 else ""
+        bits.append(f"Unlocked **{lead['name']}**{extra} (**+{total_g} G**).")
     bits.append(f"Heart peaked at **{bpm[peak_i]} bpm** ({labels[peak_i]}); calmest waking {bpm[low_i]}.")
     narration = " ".join(bits)
 
@@ -927,6 +991,7 @@ async def compute_day_replay():
         "facts": " · ".join(facts),
         "narration": narration,
         "games_count": len(game_bands),
+        "unlocks_count": len(day_unlocks),
     }
 
 
@@ -1015,6 +1080,7 @@ def record_presence_sample(game: str, device: str = ""):
     gap longer than SESSION_GAP_SECONDS closes it and (if a game) opens a new one.
     `samples` counts observations so we can tell a real sitting from a one-poll blip.
     """
+    migrate_sessions_et()
     now = _now_et()
     sessions = persistence.load_xbox_sessions()
     open_s = sessions[0] if sessions and not sessions[0].get("closed") else None
@@ -1049,7 +1115,7 @@ def record_presence_sample(game: str, device: str = ""):
     if game and not open_s:
         sessions.insert(0, {
             "game": game, "start": now.isoformat(), "end": now.isoformat(),
-            "closed": False, "device": device, "samples": 1,
+            "closed": False, "device": device, "samples": 1, "tz": "et",
         })
 
     persistence.save_xbox_sessions(sessions[:400])
