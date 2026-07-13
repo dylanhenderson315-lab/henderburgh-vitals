@@ -986,10 +986,23 @@ NON_GAME_TITLES = {
 }
 
 
+# Streaming/media brands whose Xbox app names vary ("HBO Max: TV & Movies",
+# "Netflix — watch TV shows", …) — prefix-match these, not exact-match.
+_NON_GAME_PREFIXES = (
+    "netflix", "youtube", "hulu", "disney", "hbo", "max:", "prime video",
+    "amazon prime", "spotify", "twitch", "peacock", "apple tv", "plex",
+    "paramount", "crunchyroll", "sling", "espn", "fubo", "tubi", "pluto",
+    "pandora", "vudu", "movies anywhere",
+)
+
+
 def is_real_game(name: str) -> bool:
     if not name:
         return False
-    return name.strip().lower() not in NON_GAME_TITLES
+    n = name.strip().lower()
+    if n in NON_GAME_TITLES:
+        return False
+    return not any(n.startswith(p) for p in _NON_GAME_PREFIXES)
 
 
 def _clean_title(name: str) -> str:
