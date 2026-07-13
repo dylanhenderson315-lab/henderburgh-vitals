@@ -873,6 +873,7 @@ async def compute_day_replay(achievements=None, day_offset=1):
 
     def clk(m):
         h, mm = divmod(int(m), 60)
+        h %= 24
         ap = "AM" if h < 12 else "PM"
         hh = h % 12 or 12
         return f"{hh}:{mm:02d} {ap}"

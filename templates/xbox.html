@@ -733,7 +733,7 @@
         sleep:   { fill: 'rgba(96,165,250,0.10)',  edge: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
         workout: { fill: 'rgba(245,158,11,0.14)',  edge: 'rgba(245,158,11,0.45)',  text: '#fcd34d' },
       };
-      const clk = (m) => { let h = Math.floor(m / 60), mm = Math.round(m % 60); const ap = h < 12 ? 'AM' : 'PM'; h = (h % 12) || 12; return h + (mm ? ':' + String(mm).padStart(2,'0') : '') + ap; };
+      const clk = (m) => { let h = Math.floor(m / 60) % 24, mm = Math.round(m % 60); const ap = h < 12 ? 'AM' : 'PM'; h = (h % 12) || 12; return h + (mm ? ':' + String(mm).padStart(2,'0') : '') + ap; };
       const bandPlugin = {
         id: 'dayBands',
         beforeDatasetsDraw(chart) {
