@@ -11,6 +11,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
@@ -472,7 +473,7 @@
           <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 {% if s.live %}live-dot{% else %}bg-zinc-600{% endif %}"></div>
           <div class="min-w-0 flex-1">
             <div class="text-sm font-medium text-zinc-100 truncate">{{ s.game }}</div>
-            <div class="text-xs text-zinc-500 mt-0.5">{{ s.started }}{% if s.device %} · {{ s.device }}{% endif %}</div>
+            <div class="text-xs text-zinc-500 mt-0.5">{{ s.started }}{% if s.device %} · {{ s.device }}{% endif %}{% if s.hr %} · <span class="text-rose-400/90"><i class="fa-solid fa-heart-pulse text-[10px]"></i> {{ s.hr }}</span>{% endif %}</div>
           </div>
           <div class="text-xs tabular-nums flex-shrink-0 {% if s.live %}text-emerald-400 font-semibold{% else %}text-zinc-400{% endif %}">{{ s.length }}</div>
         </div>
@@ -517,6 +518,27 @@
         <p class="text-zinc-500 text-xs mt-1">Play something on Xbox and sessions will appear here automatically.</p>
       </div>
       {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- The Pulse — play hours and in-game heart rate on one timeline -->
+    {% if pulse and pulse.has_play %}
+    <div class="mt-12">
+      <div class="flex items-baseline justify-between mb-4">
+        <div>
+          <div class="section-label">The Pulse</div>
+          <p class="text-xs text-zinc-500 mt-1">Daily play hours with your real in-game heart rate — body and controller on one chart.</p>
+        </div>
+        <span class="text-xs text-zinc-500">last 14 days</span>
+      </div>
+      <div class="card p-5 sm:p-6">
+        <div class="h-[220px]"><canvas id="pulseChart"></canvas></div>
+        {% if not pulse.has_hr %}
+        <div class="text-[11px] text-zinc-600 mt-3">
+          Heart-rate dots appear as the tracker stamps each session with Oura data for its exact play window.
+        </div>
+        {% endif %}
+      </div>
     </div>
     {% endif %}
 
@@ -635,6 +657,59 @@
       }
       setInterval(tick, 30000);
       setTimeout(tick, 5000);
+    })();
+  </script>
+
+  <!-- The Pulse chart: play-hour bars + in-game HR line, two honest axes -->
+  <script>
+    (function () {
+      const cv = document.getElementById('pulseChart');
+      if (!cv || typeof Chart === 'undefined') return;
+      const P = {{ pulse | tojson if pulse else '{}' }};
+      if (!P.labels || !P.has_play) return;
+      new Chart(cv, {
+        data: {
+          labels: P.labels,
+          datasets: [
+            {
+              type: 'bar', label: 'Hours played', data: P.hours, yAxisID: 'y',
+              backgroundColor: 'rgba(74, 222, 128, 0.35)',
+              borderColor: 'rgba(74, 222, 128, 0.8)', borderWidth: 1,
+              borderRadius: 4, maxBarThickness: 26,
+            },
+            {
+              type: 'line', label: 'Avg in-game HR', data: P.hr, yAxisID: 'y2',
+              borderColor: '#fb7185', backgroundColor: '#fb7185',
+              pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
+              spanGaps: true, tension: 0.3,
+            },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: '#a1a1aa', boxWidth: 10, font: { size: 11 } } },
+            tooltip: {
+              backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
+              callbacks: {
+                afterTitle: (items) => {
+                  const g = P.top_game[items[0].dataIndex];
+                  return g ? 'top: ' + g : '';
+                },
+                label: (ctx) => ctx.dataset.yAxisID === 'y2'
+                  ? (ctx.raw == null ? null : ' ' + ctx.raw + ' bpm in-game')
+                  : ' ' + ctx.raw + ' h played',
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, autoSkip: true } },
+            y: { position: 'left', beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#4ade80', font: { size: 10 }, callback: v => v + 'h' } },
+            y2: { position: 'right', grid: { display: false }, ticks: { color: '#fb7185', font: { size: 10 }, callback: v => v + ' bpm' }, suggestedMin: 50, suggestedMax: 120 },
+          }
+        }
+      });
     })();
   </script>
 

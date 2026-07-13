@@ -92,6 +92,9 @@ async def _xbox_observer_loop():
                 else:
                     game, device, pstate = sample
                     xbox.record_presence_sample(game, device)
+                    # Permanently stamp closed sessions with Oura HR for their
+                    # window (rate-limited internally; Oura call is cached).
+                    await xbox.sweep_session_hr()
                     if game:
                         delay = INTERVALS["playing"]
                     elif str(pstate).lower() == "online":
@@ -460,9 +463,13 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "eras": xbox.compute_eras(true_sessions, raw_log, library),
         "week": xbox.compute_week_review(true_sessions, xbox_hist),
     }
+    story["body"] = story["body"] + xbox.compute_pulse_story(true_sessions)
     story["body_html"] = [_md_bold(x) for x in story["body"]]
     story["eras_html"] = [_md_bold(x) for x in story["eras"]]
     story["week_html"] = _md_bold(story["week"]["text"]) if story["week"].get("text") else ""
+
+    # The Pulse chart: daily play hours + session heart rate on one timeline.
+    pulse = xbox.compute_pulse_chart(true_sessions, xbox_hist)
 
     hero_game = xbox_display.get("game", "")
     if not xbox.is_real_game(hero_game):
@@ -494,6 +501,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "games": games,
         "progress": progress,
         "story": story,
+        "pulse": pulse,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,

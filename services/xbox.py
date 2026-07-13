@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 import time
 from collections import Counter, deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -204,7 +205,7 @@ async def fetch_xbox_status():
                     if not last_entry or last_entry.get("game") != game:
                         entry = {
                             "game": game,
-                            "timestamp": datetime.now().isoformat(),
+                            "timestamp": _now_et().isoformat(),
                             "device": primary_device or "",
                         }
                         log.insert(0, entry)
@@ -587,6 +588,139 @@ def compute_week_review(sessions: list, history: list) -> dict:
     return out
 
 
+# ── The Pulse: heart rate joined to play sessions ────────────────────────────
+# On a periodic sweep, closed sessions get Oura heart-rate stats for their exact
+# window written PERMANENTLY into the session record (hr_avg/hr_peak/hr_n).
+# Oura's API only reaches back ~2 weeks — computing this at page-load would let
+# older sessions lose their pulse forever. Log first, chart second.
+HR_MIN_SAMPLES = 4          # never claim a session HR from fewer readings
+HR_SWEEP_INTERVAL = 900     # sweep at most every 15 min (client caches the call)
+_hr_sweep_last = 0.0
+
+
+async def sweep_session_hr(force: bool = False):
+    global _hr_sweep_last
+    now_ts = time.time()
+    if not force and now_ts - _hr_sweep_last < HR_SWEEP_INTERVAL:
+        return
+    _hr_sweep_last = now_ts
+    if not state.oura_client:
+        return
+    sessions = persistence.load_xbox_sessions()
+    now = _now_et()
+    pending = []
+    for s in sessions:
+        if not s.get("closed") or s.get("hr_done"):
+            continue
+        try:
+            end = datetime.fromisoformat(s["end"])
+        except Exception:
+            s["hr_done"] = True
+            continue
+        if (now - end).total_seconds() < 1800:
+            continue                        # let Oura sync before judging
+        pending.append(s)
+    if not pending:
+        return
+
+    try:
+        start_d = (date.today() - timedelta(days=13)).isoformat()
+        raw = await state.oura_client.get_heartrate(start_d, date.today().isoformat())
+    except Exception as e:
+        print(f"pulse sweep HR fetch error: {e}")
+        return
+    pts = []
+    for e in raw or []:
+        if not isinstance(e, dict) or e.get("bpm") is None or not e.get("timestamp"):
+            continue
+        try:
+            t = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00"))
+            pts.append((t.astimezone(_ET).replace(tzinfo=None), e["bpm"]))
+        except Exception:
+            continue
+    pts.sort()
+
+    oldest_reach = datetime.combine(date.today() - timedelta(days=13), datetime.min.time())
+    changed = False
+    for s in pending:
+        try:
+            st = datetime.fromisoformat(s["start"])
+            en = datetime.fromisoformat(s["end"])
+        except Exception:
+            s["hr_done"] = True
+            changed = True
+            continue
+        window = [b for t, b in pts if st <= t <= en]
+        if len(window) >= HR_MIN_SAMPLES:
+            s["hr_avg"] = round(sum(window) / len(window))
+            s["hr_peak"] = max(window)
+            s["hr_n"] = len(window)
+            s["hr_done"] = True
+            changed = True
+        elif (now - en).total_seconds() > 24 * 3600 or st < oldest_reach:
+            s["hr_done"] = True             # window has passed — no honest HR exists
+            changed = True
+    if changed:
+        persistence.save_xbox_sessions(sessions)
+
+
+def compute_pulse_story(sessions: list) -> list:
+    """Per-game heart-rate narration — only from sessions with real HR stats."""
+    by_game: dict = {}
+    for s in sessions or []:
+        if s.get("hr_avg") and is_real_game(s.get("game", "")):
+            by_game.setdefault(_clean_title(s["game"]), []).append(s["hr_avg"])
+    lines = []
+    means = {g: sum(v) / len(v) for g, v in by_game.items() if len(v) >= 3}
+    if len(means) >= 2:
+        hot = max(means, key=means.get)
+        cool = min(means, key=means.get)
+        gap = round(means[hot] - means[cool])
+        if gap >= 5:
+            lines.append(f"**{hot}** runs your heart **{gap} bpm hotter** than {cool} ({round(means[hot])} vs {round(means[cool])} avg).")
+    if means:
+        cool = min(means, key=means.get)
+        if len(means) == 1 or not lines:
+            lines.append(f"Calmest gaming: **{cool}** at {round(means[cool])} bpm average.")
+    peak_s = max((s for s in sessions or [] if s.get("hr_peak")), key=lambda s: s["hr_peak"], default=None)
+    if peak_s:
+        lines.append(f"Peak recorded mid-game: **{peak_s['hr_peak']} bpm** during {_clean_title(peak_s['game'])}.")
+    return lines[:3]
+
+
+def compute_pulse_chart(sessions: list, history: list, days: int = 14) -> dict:
+    """Data for The Pulse chart: daily play hours (bars), daily avg session HR
+    (line, honest gaps), and the day's top game for tooltips."""
+    today = date.today()
+    day_list = [(today - timedelta(days=i)).isoformat() for i in range(days - 1, -1, -1)]
+    hours = {d: 0.0 for d in day_list}
+    hr_vals: dict = {d: [] for d in day_list}
+    top: dict = {d: {} for d in day_list}
+    for s in _parse_sessions(sessions):
+        d = s["start"].date().isoformat()
+        if d not in hours:
+            continue
+        hours[d] += s["dur"] / 3600
+        top[d][s["game"]] = top[d].get(s["game"], 0) + s["dur"]
+    for s in sessions or []:
+        if not s.get("hr_avg"):
+            continue
+        try:
+            d = datetime.fromisoformat(s["start"]).date().isoformat()
+        except Exception:
+            continue
+        if d in hr_vals:
+            hr_vals[d].append(s["hr_avg"])
+    return {
+        "labels": [datetime.fromisoformat(d).strftime("%b %-d") for d in day_list],
+        "hours": [round(hours[d], 2) if hours[d] else 0 for d in day_list],
+        "hr": [round(sum(v) / len(v)) if (v := hr_vals[d]) else None for d in day_list],
+        "top_game": [max(top[d], key=top[d].get) if top[d] else "" for d in day_list],
+        "has_hr": any(hr_vals[d] for d in day_list),
+        "has_play": any(hours[d] for d in day_list),
+    }
+
+
 def recent_games_display(games: list, limit: int = 12) -> list:
     """Recently-played library rows for the page: cover, progress, gamerscore, when."""
     out = []
@@ -601,6 +735,16 @@ def recent_games_display(games: list, limit: int = 12) -> list:
                 when = lp[:10]
         out.append({**gm, "when": when})
     return out
+
+
+_ET = ZoneInfo("America/New_York")
+
+
+def _now_et() -> datetime:
+    """Naive Eastern time — the user's clock. Railway containers run UTC, so a
+    bare datetime.now() there stamped sessions 4-5h off and skewed every
+    night-owl / streak stat. All session timestamps use this."""
+    return datetime.now(_ET).replace(tzinfo=None)
 
 
 # ── Session observer ─────────────────────────────────────────────────────────
@@ -662,7 +806,7 @@ def record_presence_sample(game: str, device: str = ""):
     gap longer than SESSION_GAP_SECONDS closes it and (if a game) opens a new one.
     `samples` counts observations so we can tell a real sitting from a one-poll blip.
     """
-    now = datetime.now()
+    now = _now_et()
     sessions = persistence.load_xbox_sessions()
     open_s = sessions[0] if sessions and not sessions[0].get("closed") else None
 
@@ -809,6 +953,7 @@ def sessions_for_display(sessions: list, limit: int = 40) -> list:
             "length": length,
             "device": _pretty_device(s.get("device", "")),
             "live": live,
+            "hr": f"{s['hr_avg']} avg · {s['hr_peak']} peak" if s.get("hr_avg") else "",
         })
         if len(out) >= limit:
             break
