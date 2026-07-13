@@ -12,6 +12,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
@@ -490,6 +491,35 @@
       </div>
     </div>
 
+    <!-- Yesterday, replayed — the whole OS on one timeline: heart, games, sleep,
+         house lights, spoken commands. Auto-written narration from real logs. -->
+    {% if replay and replay.has_data %}
+    <div class="content-section">
+      <div class="flex items-baseline justify-between mb-3">
+        <div>
+          <div class="section-label">Yesterday · {{ replay.day }}</div>
+          <p style="margin-top: 4px; color: #525252; font-size: 0.95rem;">Your previous day, written and drawn by the house from its own records.</p>
+        </div>
+        <a href="/xbox" class="text-sm text-zinc-400 hover:text-white transition flex items-center gap-x-1 mt-1">
+          Full story <span class="text-xs">→</span>
+        </a>
+      </div>
+      <div class="live-card !p-5">
+        {% if replay.narration_html %}
+        <p class="text-[13.5px] text-zinc-300 leading-relaxed mb-4 pb-4 border-b border-zinc-800/70">{{ replay.narration_html | safe }}</p>
+        {% endif %}
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[11px]">
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(167,139,250,.22);border:1px solid rgba(167,139,250,.5)"></span>house lights</span>
+          <span class="ml-auto text-zinc-500 hidden sm:inline">{{ replay.facts }}</span>
+        </div>
+        <div class="h-[210px]"><canvas id="homeReplayChart"></canvas></div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Blog posts directly on the main screen — last 3 top-level messages, neat & scannable like the rest of the OS -->
     <div class="content-section">
       <div class="flex items-baseline justify-between mb-3">
@@ -521,14 +551,6 @@
       {% endif %}
     </div>
 
-    <!-- OS Intelligence / Insights (calm groundwork - first principles leverage over time) -->
-    <div class="content-section">
-      <div class="section-label mb-3">System Insights</div>
-      <div class="live-card p-4 text-sm">
-        <p class="text-zinc-300">Recent trends show strong recovery windows in the morning. Consider scheduling focused sessions then. Data compounds — more nights logged = smarter suggestions ahead.</p>
-        <div class="text-[10px] text-zinc-500 mt-2">Powered by your vitals • evolves with use</div>
-      </div>
-    </div>
 
     <!-- Game Clips — real files only (no placeholders) -->
     <div class="content-section">
@@ -1190,6 +1212,97 @@
       window.__synthesizeLive = synthesize;  // last.fm hook re-synthesizes on now-playing changes
       tick();
       setInterval(tick, 12000);
+    })();
+  </script>
+
+  <!-- Yesterday replay: HR curve with activity bands + command moments -->
+  <script>
+    (function () {
+      const cv = document.getElementById('homeReplayChart');
+      if (!cv || typeof Chart === 'undefined') return;
+      const R = {{ replay | tojson if replay else '{}' }};
+      if (!R.has_data || !R.labels) return;
+      const BAND = {
+        game:    { fill: 'rgba(74,222,128,0.16)',  edge: 'rgba(74,222,128,0.55)',  text: '#86efac' },
+        sleep:   { fill: 'rgba(96,165,250,0.10)',  edge: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
+        workout: { fill: 'rgba(245,158,11,0.14)',  edge: 'rgba(245,158,11,0.45)',  text: '#fcd34d' },
+        lights:  { fill: 'rgba(167,139,250,0.10)', edge: 'rgba(167,139,250,0.35)', text: '#c4b5fd' },
+      };
+      const bandPlugin = {
+        id: 'homeDayBands',
+        beforeDatasetsDraw(chart) {
+          const { ctx, chartArea, scales: { x } } = chart;
+          if (!chartArea) return;
+          let lane = 0;
+          (R.bands || []).forEach(b => {
+            const c = BAND[b.kind] || BAND.game;
+            const x1 = x.getPixelForValue(b.s), x2 = Math.max(x.getPixelForValue(b.e), x.getPixelForValue(b.s) + 3);
+            ctx.save();
+            ctx.fillStyle = c.fill;
+            ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
+            ctx.strokeStyle = c.edge; ctx.lineWidth = 1;
+            ctx.strokeRect(x1 + 0.5, chartArea.top + 0.5, x2 - x1 - 1, chartArea.bottom - chartArea.top - 1);
+            if (b.kind !== 'sleep' || (x2 - x1) > 40) {
+              ctx.fillStyle = c.text;
+              ctx.font = '10px Inter, sans-serif';
+              const ty = (b.kind === 'lights') ? chartArea.bottom - 6 : chartArea.top + 12 + (lane % 3) * 12;
+              ctx.fillText(b.label, x1 + 4, ty);
+              if (b.kind !== 'lights') lane++;
+            }
+            ctx.restore();
+          });
+          (R.moments || []).forEach(m => {
+            const px = x.getPixelForValue(m.i);
+            ctx.save();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.moveTo(px, chartArea.top + 8);
+            ctx.lineTo(px - 4, chartArea.top);
+            ctx.lineTo(px + 4, chartArea.top);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          });
+        }
+      };
+      new Chart(cv, {
+        type: 'line',
+        data: {
+          labels: R.labels,
+          datasets: [{
+            label: 'BPM', data: R.bpm,
+            borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.08)',
+            borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 4,
+            pointHoverBackgroundColor: '#fb7185', fill: true, tension: 0.3,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
+              callbacks: {
+                label: (ctx) => ' ' + ctx.raw + ' bpm',
+                afterLabel: (ctx) => {
+                  const out = [];
+                  const hit = (R.bands || []).find(b => ctx.dataIndex >= b.s && ctx.dataIndex <= b.e);
+                  if (hit) out.push(hit.label);
+                  const mm = (R.moments || []).find(m => Math.abs(m.i - ctx.dataIndex) <= 1);
+                  if (mm) out.push(mm.label);
+                  return out.join('\n');
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, callback: v => v + ' bpm' } },
+          }
+        },
+        plugins: [bandPlugin]
+      });
     })();
   </script>
 </body>

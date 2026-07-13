@@ -363,6 +363,21 @@ async def home(request: Request):
     # Real clips only — never placeholders (empty list hides dead players on home).
     recent_clips = list_clips(limit=6)
 
+    # Yesterday, replayed: the cross-domain timeline (heart + games + sleep +
+    # house lights + spoken commands) promoted to the OS level, with the
+    # morning narration. This is the site's thesis in one artifact.
+    try:
+        replay = await xbox.compute_day_replay()
+    except Exception as e:
+        print(f"home replay error: {e}")
+        replay = {"has_data": False}
+    if replay.get("narration"):
+        from html import escape as _esc
+        parts = _esc(replay["narration"]).split("**")
+        for i in range(1, len(parts), 2):
+            parts[i] = f'<strong class="text-white font-semibold">{parts[i]}</strong>'
+        replay["narration_html"] = "".join(parts)
+
     return _render("home.html", {
         "request": request,
         "public_mode": PUBLIC_MODE,
@@ -373,6 +388,7 @@ async def home(request: Request):
         "recent_messages": recent_messages,
         "blog_unread_count": blog_unread_count,
         "recent_clips": recent_clips,
+        "replay": replay,
         "time_greeting": time_greeting_now(),
     })
 
@@ -477,6 +493,8 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     except Exception as e:
         print(f"day replay error: {e}")
         replay = {"has_data": False}
+    if replay.get("narration"):
+        replay["narration_html"] = _md_bold(replay["narration"])
 
     hero_game = xbox_display.get("game", "")
     if not xbox.is_real_game(hero_game):

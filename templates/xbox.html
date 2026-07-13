@@ -552,10 +552,14 @@
         </div>
       </div>
       <div class="card p-5 sm:p-6">
+        {% if replay.narration %}
+        <p class="text-[13.5px] text-zinc-300 leading-relaxed mb-4 pb-4 border-b border-zinc-800/70">{{ replay.narration_html | safe }}</p>
+        {% endif %}
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px]">
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(167,139,250,.22);border:1px solid rgba(167,139,250,.5)"></span>house lights</span>
           <span class="ml-auto text-zinc-500">{{ replay.facts }}</span>
         </div>
         <div class="h-[240px]"><canvas id="replayChart"></canvas></div>
@@ -748,6 +752,7 @@
         game:    { fill: 'rgba(74,222,128,0.16)',  edge: 'rgba(74,222,128,0.55)',  text: '#86efac' },
         sleep:   { fill: 'rgba(96,165,250,0.10)',  edge: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
         workout: { fill: 'rgba(245,158,11,0.14)',  edge: 'rgba(245,158,11,0.45)',  text: '#fcd34d' },
+        lights:  { fill: 'rgba(167,139,250,0.10)', edge: 'rgba(167,139,250,0.35)', text: '#c4b5fd' },
       };
       const bandPlugin = {
         id: 'dayBands',
@@ -766,10 +771,24 @@
             if (b.kind !== 'sleep' || (x2 - x1) > 40) {
               ctx.fillStyle = c.text;
               ctx.font = '10px Inter, sans-serif';
-              const ty = chartArea.top + 12 + (lane % 3) * 12;
+              const ty = (b.kind === 'lights')
+                ? chartArea.bottom - 6
+                : chartArea.top + 12 + (lane % 3) * 12;
               ctx.fillText(b.label, x1 + 4, ty);
-              lane++;
+              if (b.kind !== 'lights') lane++;
             }
+            ctx.restore();
+          });
+          (R.moments || []).forEach(m => {
+            const px = x.getPixelForValue(m.i);
+            ctx.save();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.moveTo(px, chartArea.top + 8);
+            ctx.lineTo(px - 4, chartArea.top);
+            ctx.lineTo(px + 4, chartArea.top);
+            ctx.closePath();
+            ctx.fill();
             ctx.restore();
           });
         }

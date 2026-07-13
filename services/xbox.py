@@ -771,6 +771,7 @@ async def compute_day_replay():
         return lo
 
     bands = []
+    game_facts = []
 
     # Game sessions overlapping the day (clipped), with their stamped HR.
     for s in persistence.load_xbox_sessions():
@@ -783,10 +784,13 @@ async def compute_day_replay():
             continue
         if en <= day_start or st >= day_end:
             continue
-        label = _clean_title(s["game"])
+        name = _clean_title(s["game"])
+        label = name
         if s.get("hr_avg"):
             label += f" · ♥{s['hr_avg']}"
         bands.append({"kind": "game", "label": label, "s": idx_of(st), "e": idx_of(en)})
+        game_facts.append({"name": name, "dur": (min(en, day_end) - max(st, day_start)).total_seconds(),
+                           "hr": s.get("hr_avg"), "start": max(st, day_start)})
 
     # Sleep periods (bedtime → wake) overlapping the day.
     try:
@@ -794,6 +798,7 @@ async def compute_day_replay():
             (day - timedelta(days=1)).isoformat(), (day + timedelta(days=1)).isoformat())
     except Exception:
         sleeps = []
+    main_sleep = None
     for sl in sleeps or []:
         try:
             bs = datetime.fromisoformat(sl["bedtime_start"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
@@ -803,6 +808,9 @@ async def compute_day_replay():
         if be <= day_start or bs >= day_end:
             continue
         bands.append({"kind": "sleep", "label": "asleep", "s": idx_of(bs), "e": idx_of(be)})
+        dur = sl.get("total_sleep_duration") or 0
+        if not main_sleep or dur > main_sleep["dur"]:
+            main_sleep = {"dur": dur, "wake": be}
 
     # Workouts (walks, runs, gym) for extra context.
     try:
@@ -820,6 +828,59 @@ async def compute_day_replay():
         act = (w.get("activity") or "workout").replace("_", " ")
         bands.append({"kind": "workout", "label": act, "s": idx_of(ws), "e": idx_of(we)})
 
+    # House mood: hourly light snapshots → bands where a room ran an effect
+    # ("Game Room · Party"). The house's state joins the body's on one timeline.
+    try:
+        snaps = persistence.load_light_history()
+    except Exception:
+        snaps = []
+    seq = []
+    for sn in snaps or []:
+        try:
+            t = datetime.fromisoformat(sn.get("ts", ""))
+            if t.tzinfo:
+                t = t.astimezone(_ET).replace(tzinfo=None)
+        except Exception:
+            continue
+        if not (day_start <= t < day_end):
+            continue
+        eff = None
+        for l in sn.get("lights") or []:
+            if l.get("on") and l.get("effect"):
+                eff = f"{l.get('room') or 'house'} · {l['effect']}"
+                if l.get("room") == "Game Room":
+                    break
+        seq.append((t, eff))
+    seq.sort()
+    run = None
+    def _flush_lights(r):
+        if r:
+            bands.append({"kind": "lights", "label": r["label"],
+                          "s": idx_of(r["a"]), "e": idx_of(r["b"] + timedelta(minutes=45))})
+    for t, eff in seq:
+        if eff and run and run["label"] == eff and (t - run["b"]).total_seconds() <= 2 * 3600:
+            run["b"] = t
+        else:
+            _flush_lights(run)
+            run = {"label": eff, "a": t, "b": t} if eff else None
+    _flush_lights(run)
+
+    # Spoken commands: each 'tell the house' order as a moment on the timeline.
+    moments = []
+    try:
+        for v in persistence.load_vibe_log():
+            try:
+                t = datetime.fromisoformat(v.get("ts", ""))
+                if t.tzinfo:
+                    t = t.astimezone(_ET).replace(tzinfo=None)
+            except Exception:
+                continue
+            if day_start <= t < day_end and v.get("understood"):
+                moments.append({"i": idx_of(t), "label": f"“{v.get('text','')[:40]}”"})
+    except Exception:
+        pass
+    moments = moments[:8]
+
     # Headline facts: peak + calmest waking moment.
     peak_i = max(range(len(bpm)), key=lambda i: bpm[i])
     sleep_idx = set()
@@ -836,11 +897,35 @@ async def compute_day_replay():
             facts.append(f"in-game avg {round(sum(in_game)/len(in_game))} bpm")
     facts.append(f"calmest waking {bpm[low_i]} bpm at {labels[low_i]}")
 
+    # The morning narration: the day written back as a short honest paragraph,
+    # assembled only from what the logs can prove. This is the whole doctrine
+    # in one artifact — observe, log, learn, narrate.
+    bits = []
+    if main_sleep and main_sleep["dur"]:
+        bits.append(f"Slept **{_fmt_duration(main_sleep['dur'])}**, up at {main_sleep['wake'].strftime('%-I:%M %p').lower()}.")
+    if game_facts:
+        game_facts.sort(key=lambda g: g["start"])
+        parts = []
+        for g in game_facts[:3]:
+            p = f"**{g['name']}** {g['start'].strftime('%-I:%M %p').lower()} ({_fmt_duration(g['dur'])}"
+            if g.get("hr"):
+                p += f", ♥{g['hr']}"
+            parts.append(p + ")")
+        bits.append("Played " + ", then ".join(parts) + ".")
+    lights_bands = [b for b in bands if b["kind"] == "lights"]
+    if lights_bands:
+        bits.append(f"The house ran **{lights_bands[0]['label']}** while you did.")
+    if moments:
+        bits.append(f"You told the house {len(moments)} thing{'s' if len(moments) != 1 else ''}.")
+    bits.append(f"Heart peaked at **{bpm[peak_i]} bpm** ({labels[peak_i]}); calmest waking {bpm[low_i]}.")
+    narration = " ".join(bits)
+
     return {
         "has_data": True,
         "day": day.strftime("%A, %b %-d"),
-        "labels": labels, "bpm": bpm, "bands": bands,
+        "labels": labels, "bpm": bpm, "bands": bands, "moments": moments,
         "facts": " · ".join(facts),
+        "narration": narration,
         "games_count": len(game_bands),
     }
 
