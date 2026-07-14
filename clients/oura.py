@@ -97,19 +97,31 @@ class OuraClient:
         except Exception:
             return []
 
-    async def get_heartrate_range(self, start_iso: str, end_iso: str, bypass_cache: bool = False) -> List[Dict]:
-        """Heart rate for an EXACT datetime window. The heartrate endpoint ignores
-        start_date/end_date and returns only a recent slice — it needs
-        start_datetime/end_datetime. This is the correct way to get a full day."""
-        try:
-            data = await self._get(
-                "/usercollection/heartrate",
-                {"start_datetime": start_iso, "end_datetime": end_iso},
-                bypass_cache=bypass_cache, custom_ttl=HEARTRATE_CACHE_TTL,
-            )
-            return data.get("data", [])
-        except Exception:
-            return []
+    async def get_heartrate_range(self, start_iso: str, end_iso: str, bypass_cache: bool = False,
+                                  max_pages: int = 8) -> List[Dict]:
+        """Heart rate for an EXACT datetime window, fully paginated.
+
+        Two traps this handles:
+          1. The endpoint ignores start_date/end_date — it needs start_datetime/
+             end_datetime (date params return only a recent slice).
+          2. Each page caps at ~1000 readings and returns the EARLIEST first with a
+             next_token. Without following it, a multi-day (or dense single-day)
+             window silently returns only its beginning."""
+        out: List[Dict] = []
+        params = {"start_datetime": start_iso, "end_datetime": end_iso}
+        for _ in range(max_pages):
+            try:
+                data = await self._get("/usercollection/heartrate", params,
+                                       bypass_cache=bypass_cache, custom_ttl=HEARTRATE_CACHE_TTL)
+            except Exception:
+                break
+            rows = data.get("data", [])
+            out.extend(rows)
+            token = data.get("next_token")
+            if not token or not rows:
+                break
+            params = {"start_datetime": start_iso, "end_datetime": end_iso, "next_token": token}
+        return out
 
     async def get_daily_stress(self, start: str, end: str) -> List[Dict]:
         data = await self._get("/usercollection/daily_stress", {"start_date": start, "end_date": end})

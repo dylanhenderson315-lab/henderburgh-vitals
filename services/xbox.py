@@ -701,6 +701,19 @@ async def sweep_session_hr(force: bool = False):
         return
     sessions = persistence.load_xbox_sessions()
     now = _now_et()
+
+    # One-time recovery: sessions swept before the datetime-fetch fix were marked
+    # done with NO heart rate (the old fetch returned the wrong window). Oura still
+    # holds ~14 days, so re-open those for a single retry under the fixed fetch.
+    reach = now - timedelta(days=13, hours=12)
+    for s in sessions:
+        if s.get("closed") and not s.get("hr_avg") and not s.get("hr_v2"):
+            try:
+                if datetime.fromisoformat(s["end"]) >= reach:
+                    s["hr_done"] = False        # try again with the correct fetch
+            except Exception:
+                pass
+
     pending = []
     for s in sessions:
         if not s.get("closed") or s.get("hr_done"):
@@ -714,6 +727,7 @@ async def sweep_session_hr(force: bool = False):
             continue                        # let Oura sync before judging
         pending.append(s)
     if not pending:
+        persistence.save_xbox_sessions(sessions)
         return
 
     try:
@@ -750,9 +764,11 @@ async def sweep_session_hr(force: bool = False):
             s["hr_peak"] = max(window)
             s["hr_n"] = len(window)
             s["hr_done"] = True
+            s["hr_v2"] = True
             changed = True
         elif (now - en).total_seconds() > 24 * 3600 or st < oldest_reach:
             s["hr_done"] = True             # window has passed — no honest HR exists
+            s["hr_v2"] = True               # retried under the fixed fetch; don't loop
             changed = True
     if changed:
         persistence.save_xbox_sessions(sessions)
@@ -1286,11 +1302,13 @@ def _pretty_device(t: str) -> str:
 
 
 def sessions_for_display(sessions: list, limit: int = 40) -> list:
-    """Format real play sessions into a readable timeline (newest first):
-    game, when it started, how long, device, and whether it's live right now."""
+    """Format sessions into a readable timeline (newest first): games AND media
+    (watching), when it started, how long, device, heart rate, and whether it's
+    live. Media rows are tagged so 'peaked at 110 during a movie' reads clearly."""
     out = []
     for s in sessions or []:
-        if not is_real_game(s.get("game", "")):
+        kind = classify_title(s.get("game", ""))
+        if not kind:
             continue
         try:
             start = datetime.fromisoformat(s["start"])
@@ -1306,6 +1324,7 @@ def sessions_for_display(sessions: list, limit: int = 40) -> list:
             length = _fmt_duration(dur) + (" · live" if live else "")
         out.append({
             "game": _clean_title(s["game"]),
+            "kind": kind,
             "started": start.strftime("%b %-d • %-I:%M %p"),
             "length": length,
             "device": _pretty_device(s.get("device", "")),

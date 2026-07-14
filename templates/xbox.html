@@ -473,17 +473,19 @@
     <div>
       <div class="flex items-baseline justify-between mb-4">
         <div>
-          <div class="section-label">Play Sessions</div>
-          <p class="text-xs text-zinc-500 mt-1">Real sittings tracked continuously — when you started and how long you played.</p>
+          <div class="section-label">Sessions</div>
+          <p class="text-xs text-zinc-500 mt-1">Every sitting tracked continuously — playing and watching — with your heart rate for the exact window.</p>
         </div>
         <span class="text-xs text-zinc-500">{{ session_log|length }} sessions</span>
       </div>
       <div class="card divide-y divide-zinc-800/70">
         {% for s in session_log %}
         <div class="flex items-center gap-4 px-5 py-3.5">
-          <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 {% if s.live %}live-dot{% else %}bg-zinc-600{% endif %}"></div>
+          <div class="w-6 flex-shrink-0 text-center">
+            {% if s.kind == 'media' %}<i class="fa-solid fa-film text-violet-400/80 text-xs"></i>{% else %}<i class="fa-solid fa-gamepad text-emerald-400/80 text-xs"></i>{% endif %}
+          </div>
           <div class="min-w-0 flex-1">
-            <div class="text-sm font-medium text-zinc-100 truncate">{{ s.game }}</div>
+            <div class="text-sm font-medium text-zinc-100 truncate">{{ s.game }}{% if s.kind == 'media' %} <span class="text-[10px] text-violet-400/80 font-normal">· watching</span>{% endif %}{% if s.live %} <span class="live-dot inline-block align-middle ml-1"></span>{% endif %}</div>
             <div class="text-xs text-zinc-500 mt-0.5">{{ s.started }}{% if s.device %} · {{ s.device }}{% endif %}{% if s.hr %} · <span class="text-rose-400/90"><i class="fa-solid fa-heart-pulse text-[10px]"></i> {{ s.hr }}</span>{% endif %}</div>
           </div>
           <div class="text-xs tabular-nums flex-shrink-0 {% if s.live %}text-emerald-400 font-semibold{% else %}text-zinc-400{% endif %}">{{ s.length }}</div>
