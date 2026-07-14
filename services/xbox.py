@@ -1184,11 +1184,19 @@ _NON_GAME_PREFIXES = (
 )
 
 
+# System/dashboard app name PREFIXES — exact-match alone let variants like
+# 'Microsoft Store — ...' be narrated as games.
+_SYSTEM_PREFIXES = ("microsoft store", "xbox app", "media player", "my games",
+                    "microsoft edge", "settings", "game bar")
+
+
 def is_real_game(name: str) -> bool:
     if not name:
         return False
     n = name.strip().lower()
     if n in NON_GAME_TITLES:
+        return False
+    if any(n.startswith(p) for p in _SYSTEM_PREFIXES):
         return False
     return not any(n.startswith(p) for p in _NON_GAME_PREFIXES)
 
