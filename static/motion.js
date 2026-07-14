@@ -73,9 +73,51 @@
     }, { passive: true });
   }
 
+  /* Count-up: hero numbers roll from 0 to their value once, on reveal.
+     Opt-in via [data-count]. Integers only; commas/format preserved; the exact
+     original text is restored at the end so nothing is ever misrepresented. */
+  function countUp(el) {
+    var raw = el.textContent.trim();
+    if (/\d[.]\d/.test(raw)) return;                 /* leave decimals exact */
+    var target = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+    if (!isFinite(target) || target <= 0) return;
+    var hadComma = raw.indexOf(',') !== -1;
+    var fmt = function (n) { return hadComma ? n.toLocaleString() : String(n); };
+    var dur = Math.min(1300, 450 + target * 0.03);
+    var t0 = performance.now();
+    el.textContent = fmt(0);
+    (function tick(now) {
+      var p = Math.min(1, (now - t0) / dur);
+      var e = 1 - Math.pow(1 - p, 3);                /* easeOutCubic */
+      el.textContent = fmt(Math.round(target * e));
+      if (p < 1) requestAnimationFrame(tick);
+      else el.textContent = raw;                     /* restore exact original */
+    })(t0);
+  }
+
+  function initCounts() {
+    var nums = document.querySelectorAll('[data-count]');
+    if (!nums.length) return;
+    var vh = window.innerHeight || 800;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        io.unobserve(en.target);
+        countUp(en.target);
+      });
+    }, { threshold: 0.6 });
+    nums.forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      if (r.top < vh && r.bottom > 0) countUp(el);   /* visible now */
+      else io.observe(el);
+    });
+  }
+
+  function boot() { init(); initCounts(); }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    init();
+    boot();
   }
 })();

@@ -202,7 +202,7 @@
     }
   </style>
   <script defer src="/static/os-command.js"></script>
-  <script defer src="/static/motion.js?v=1"></script>
+  <script defer src="/static/motion.js?v=2"></script>
 </head>
 <body class="bg-[#0f1115] text-[#e2e8f0] min-h-screen">
   {% if setup_mode %}
@@ -376,7 +376,7 @@
             {% endif %}
           </div>
           <div class="flex items-baseline gap-x-1 mt-auto">
-            <div class="big-stat {% if readiness_score and readiness_score >= 85 %}value-good{% elif readiness_score and readiness_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
+            <div data-count class="big-stat {% if readiness_score and readiness_score >= 85 %}value-good{% elif readiness_score and readiness_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
               {{ readiness_score or "—" }}
             </div>
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
@@ -399,7 +399,7 @@
             {% endif %}
           </div>
           <div class="flex items-baseline gap-x-1 mt-auto">
-            <div class="big-stat {% if sleep_score and sleep_score >= 85 %}value-good{% elif sleep_score and sleep_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
+            <div data-count class="big-stat {% if sleep_score and sleep_score >= 85 %}value-good{% elif sleep_score and sleep_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
               {{ sleep_score or "—" }}
             </div>
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
@@ -418,7 +418,7 @@
             </div>
           </div>
           <div class="flex items-baseline gap-x-1 mt-auto">
-            <div class="big-stat {% if activity_score and activity_score >= 85 %}value-good{% elif activity_score and activity_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
+            <div data-count class="big-stat {% if activity_score and activity_score >= 85 %}value-good{% elif activity_score and activity_score >= 70 %}value-warn{% else %}value-bad{% endif %}">
               {{ activity_score or "—" }}
             </div>
             <div class="text-xl text-zinc-400 font-medium pb-1">/ 100</div>
