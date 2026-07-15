@@ -890,11 +890,19 @@
         <!-- Sleep Stages -->
         {% if total_sleep or deep_sleep or rem_sleep or light_sleep %}
         <div class="lg:col-span-3 card-bg rounded-3xl p-6 border border-zinc-800">
-          <div class="font-semibold mb-4 flex items-center gap-x-2">
+          <div class="font-semibold mb-1 flex items-center gap-x-2">
             <i class="fa-solid fa-bed text-sky-400"></i>
-            Last Night's Sleep Breakdown
+            {{ sleep_label or "Last night" }} · Sleep Breakdown
           </div>
-          
+          {% if sleep_syncing %}
+          <div class="text-[11px] text-amber-400/90 mb-3 flex items-center gap-1.5">
+            <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+            Last night's detail is still syncing from your ring — open the Oura app to sync, then refresh.
+          </div>
+          {% else %}
+          <div class="mb-4"></div>
+          {% endif %}
+
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <div class="text-xs text-zinc-500">TOTAL SLEEP</div>

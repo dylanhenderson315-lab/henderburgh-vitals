@@ -428,13 +428,59 @@ def process_dashboard_data(
 
     # --- Latest values (most recent day with data) ---
     latest_readiness = next((r for r in reversed(readiness) if r.get("score") is not None), None)
-    latest_daily_sleep = next((s for s in reversed(daily_sleep) if s.get("score") is not None), None)
 
-    # Find matching detailed sleep for the same day
-    latest_detailed = None
-    if latest_daily_sleep:
-        day = latest_daily_sleep.get("day")
-        latest_detailed = next((s for s in reversed(detailed_sleep) if s.get("day") == day), None)
+    # Sleep, done right. Oura labels a sleep period by the WAKE day. Two traps:
+    #   1. Detailed sleep (stages/HRV/bedtimes) often syncs LATER than the daily
+    #      score, so pairing them by "the latest scored day" leaves the whole
+    #      breakdown empty for last night.
+    #   2. A day can have a nap AND the main sleep — naive selection grabs the nap.
+    # Fix: index the MAIN nightly sleep per day, drive off the most recent night
+    # that actually has detail, pair the score to THAT night, and flag when last
+    # night's detail is still on its way.
+    def _main_sleep_per_day(items):
+        best = {}
+        for s in items or []:
+            d = s.get("day")
+            if not d or not s.get("total_sleep_duration"):
+                continue
+            cur = best.get(d)
+            s_main = s.get("type") == "long_sleep"
+            if cur is None:
+                best[d] = s
+            elif s_main and cur.get("type") != "long_sleep":
+                best[d] = s
+            elif s_main == (cur.get("type") == "long_sleep") and \
+                    (s.get("total_sleep_duration") or 0) > (cur.get("total_sleep_duration") or 0):
+                best[d] = s
+        return best
+
+    main_sleeps = _main_sleep_per_day(detailed_sleep)
+    latest_detail_day = max(main_sleeps) if main_sleeps else None
+    latest_detailed = main_sleeps.get(latest_detail_day) if latest_detail_day else None
+
+    # Score for the SAME night as the detail shown (fall back to newest scored).
+    latest_daily_sleep = None
+    if latest_detail_day:
+        latest_daily_sleep = next(
+            (s for s in daily_sleep if s.get("day") == latest_detail_day and s.get("score") is not None), None)
+    if latest_daily_sleep is None:
+        latest_daily_sleep = next((s for s in reversed(daily_sleep) if s.get("score") is not None), None)
+
+    # Freshness: is there a newer scored night whose detailed data hasn't landed?
+    newest_scored = next((s for s in reversed(daily_sleep) if s.get("score") is not None), None)
+    sleep_syncing = bool(
+        latest_detail_day and newest_scored and newest_scored.get("day")
+        and newest_scored["day"] > latest_detail_day)
+
+    # Honest label for which night the breakdown is actually from.
+    sleep_label = "Last night"
+    if latest_detail_day and latest_detail_day != today:
+        try:
+            gap = (date.today() - date.fromisoformat(latest_detail_day)).days
+            sleep_label = "Last night" if gap <= 0 else (
+                "Night of " + date.fromisoformat(latest_detail_day).strftime("%a, %b %-d"))
+        except Exception:
+            sleep_label = latest_detail_day
 
     latest_activity = next((a for a in reversed(activity) if a.get("score") is not None), None)
     latest_spo2 = next((s for s in reversed(spo2) if s.get("spo2_percentage") is not None), None)
@@ -770,6 +816,8 @@ def process_dashboard_data(
         "rem_sleep": _fmt_duration(rem),
         "light_sleep": _fmt_duration(light),
         "sleep_efficiency": sleep_efficiency,
+        "sleep_label": sleep_label,
+        "sleep_syncing": sleep_syncing,
 
         # Activity
         "steps": steps,
