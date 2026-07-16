@@ -452,6 +452,8 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     # from the public view (coworkers). Only the admin, with reveal toggled on
     # (cookie), sees their own full day.
     reveal_private = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+    if not reveal_private:
+        xbox_display = xbox.redact_status_for_public(xbox_display)
 
     # Truthful profile stats only — surface a number when the API actually returned
     # one, otherwise the template simply omits it (no fake zeros, no stale "Gold").
@@ -933,8 +935,13 @@ async def api_heart_rate():
 
 
 @app.get("/api/xbox/status")
-async def api_xbox_status():
-    return await fetch_xbox_status()
+async def api_xbox_status(request: Request):
+    """Live status. During weekday work hours the public copy is redacted (no
+    current game / device / fresh last-seen) — this feeds the home page's Live
+    Now, so 'gaming at 2pm' can never surface to coworkers."""
+    d = await fetch_xbox_status()
+    reveal = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+    return d if reveal else xbox.redact_status_for_public(d)
 
 
 @app.get("/api/ha/summary")

@@ -232,6 +232,7 @@ async def fetch_xbox_status():
                 "real_name": real_name,
                 "account_tier": account_tier,
                 "reputation": reputation,
+                "social_state": raw_state,
                 "xuid": xuid or XBL_XUID,
                 "last_updated": fetch_time
             }
@@ -948,8 +949,11 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
             is_main = p is longest
             if not is_main and (p["be"] - p["bs"]).total_seconds() < 1200:
                 continue
-            if not is_main and not reveal and in_work_hours(p["bs"]):
-                hidden_count += 1           # a work-hours nap stays private
+            # Sleep is private, full stop: no asleep/nap bands in the public view.
+            # (A workday wake time or an afternoon nap is nobody's business —
+            # sleep lives on the vitals page; the owner sees it when revealed.)
+            if not reveal:
+                hidden_count += 1
                 continue
             bands.append({"kind": "sleep", "label": "asleep" if is_main else "nap",
                           "x0": round(mins(p["bs"]), 1), "x1": round(mins(p["be"]), 1)})
@@ -1021,7 +1025,7 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
 
     # Narration.
     bits = []
-    if main_sleep and main_sleep["dur"]:
+    if reveal and main_sleep and main_sleep["dur"]:
         bits.append(f"Slept **{_fmt_duration(main_sleep['dur'])}**, up at {main_sleep['wake'].strftime('%-I:%M %p').lower()}.")
     if game_facts:
         game_facts.sort(key=lambda g: g["start"])
@@ -1086,6 +1090,28 @@ def in_work_hours(dt) -> bool:
     if dt is None or dt.weekday() >= 5:
         return False
     return WORK_START_MIN <= (dt.hour * 60 + dt.minute) < WORK_END_MIN
+
+
+def redact_status_for_public(d: dict) -> dict:
+    """Public-safe copy of the live status during work hours: no current game,
+    no device, no fresh last-seen. `state` falls back to Xbox's OWN social
+    presence (what Xbox itself reports — typically Offline under the user's
+    privacy settings), so we omit our device-derived override rather than
+    invent anything."""
+    if not isinstance(d, dict) or d.get("status") != "ok":
+        return d
+    if not d.get("playing_now") and not d.get("last_seen_game"):
+        return d
+    if not in_work_hours(_now_et()):
+        return d
+    out = dict(d)
+    out["game"] = "—"
+    out["playing_now"] = False
+    out["device"] = ""
+    out["state"] = d.get("social_state") or "Offline"
+    out["last_seen_game"] = ""
+    out["last_seen_ago"] = ""
+    return out
 
 
 def _now_et() -> datetime:

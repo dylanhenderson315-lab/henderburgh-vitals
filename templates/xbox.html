@@ -318,7 +318,7 @@
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px]">
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(167,139,250,.3);border:1px solid rgba(167,139,250,.6)"></span>watching</span>
-          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
+          {% if reveal_private %}<span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>{% endif %}
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><i class="fa-solid fa-trophy text-amber-400 text-[10px]"></i>achievement</span>
           <span class="ml-auto text-zinc-500 hidden sm:inline">{{ replay.facts }}</span>
