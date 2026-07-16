@@ -822,6 +822,8 @@ async def api_latest_hr(fresh: bool = False):
                     latest_hr_timestamp = entry.get("timestamp")
                     break
 
+        source = "live" if latest_hr is not None else "none"
+
         if latest_hr is None:
             # Fallback
             recent_start = (now - timedelta(days=1)).date().isoformat()
@@ -829,6 +831,8 @@ async def api_latest_hr(fresh: bool = False):
             if detailed:
                 latest_detailed = detailed[-1] if detailed else None
                 latest_hr = _safe_get(latest_detailed, "average_heart_rate") or _safe_get(latest_detailed, "lowest_heart_rate")
+                if latest_hr is not None:
+                    source = "resting"
 
         # Compute age for the response
         age_minutes = None
@@ -842,10 +846,11 @@ async def api_latest_hr(fresh: bool = False):
         return JSONResponse({
             "bpm": int(latest_hr) if latest_hr is not None else None,
             "timestamp": latest_hr_timestamp,
-            "age_minutes": age_minutes
+            "age_minutes": age_minutes,
+            "source": source
         })
     except Exception:
-        return JSONResponse({"bpm": None, "timestamp": None})
+        return JSONResponse({"bpm": None, "timestamp": None, "source": "none"})
 
 
 
@@ -1311,12 +1316,13 @@ async def post_message(request: Request, message: dict, background_tasks: Backgr
     text = (message.get("text") or "").strip()
     if not text or len(text) > 2000:
         raise HTTPException(status_code=400, detail="Invalid message")
+    name = str(message.get("name") or "").strip()[:80] or "Anonymous"
     messages = persistence.load_messages()
     now = datetime.now(timezone.utc)
     new_message = {
         "id": str(now.timestamp()),
-        "name": message.get("name", "Anonymous"),
-        "text": message.get("text", ""),
+        "name": name,
+        "text": text,
         "parent_id": message.get("parent_id"),  # None for top-level messages
         "timestamp": now.isoformat()
     }
@@ -1601,7 +1607,7 @@ async def upload_clip(
 
     # Stream to disk with size guard (phones can send large clips).
     stem = _safe_clip_stem(title.strip() or orig)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d-%H%M%S")
     dest_name = f"{stem}-{stamp}{ext}"
     dest = _clips_dir() / dest_name
 
@@ -1681,7 +1687,7 @@ async def add_clip_link(request: Request, body: dict = Body(default={})):
         "title": title,
         "url": url,
         "kind": kind,
-        "date": datetime.now().strftime("%b %d, %Y"),
+        "date": datetime.now(ZoneInfo("America/New_York")).strftime("%b %d, %Y"),
         "added_ts": time.time(),
     }
     items.insert(0, entry)

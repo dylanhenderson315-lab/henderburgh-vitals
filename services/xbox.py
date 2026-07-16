@@ -443,7 +443,7 @@ def record_xbox_snapshot(gamerscore: int, library: list) -> None:
         from datetime import date as _date
         entry = {
             "day": _date.today().isoformat(),
-            "recorded_at": datetime.now().isoformat(),
+            "recorded_at": _now_et().isoformat(),
             "total_gamerscore": int(gamerscore or 0),
             "games_tracked": len(library),
             "total_achievements": sum(int(g.get("achievements") or 0) for g in library),

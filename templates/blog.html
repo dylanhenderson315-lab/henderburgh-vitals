@@ -196,6 +196,10 @@
       renderMessages(messages);
     }
 
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
     function renderMessages(messages) {
       const container = document.getElementById('messages');
       container.innerHTML = '';
@@ -217,7 +221,7 @@
       const time = new Date(msg.timestamp).toLocaleString();
 
       let html = `
-        <strong>${msg.name}</strong> 
+        <strong>${esc(msg.name)}</strong>
         <span style="color:#71717a; font-size:0.8rem; margin-left: 8px;">${time}</span>
       `;
 
@@ -231,7 +235,7 @@
       }
 
       html += `
-        <p style="margin: 10px 0; white-space: pre-wrap; color:#d4d4d8;">${msg.text}</p>
+        <p style="margin: 10px 0; white-space: pre-wrap; color:#d4d4d8;">${esc(msg.text)}</p>
         <button onclick="showReplyForm('${msg.id}', this)" 
                 style="font-size: 0.8rem; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0;">
           Reply

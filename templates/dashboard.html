@@ -1465,10 +1465,16 @@
                 valueEl.textContent = data.bpm;
               }
 
-              if (timeEl && data.timestamp) {
-                const rel = formatRelativeTime(data.timestamp);
-                timeEl.textContent = rel ? `updated ${rel}` : 'updated recently';
-                timeEl.dataset.timestamp = data.timestamp;
+              if (timeEl) {
+                if (data.bpm != null && data.source && data.source !== 'live') {
+                  // Fallback value (e.g. sleep resting HR), not a live reading — label it truthfully.
+                  timeEl.textContent = 'resting (last known)';
+                  timeEl.dataset.timestamp = '';
+                } else if (data.timestamp) {
+                  const rel = formatRelativeTime(data.timestamp);
+                  timeEl.textContent = rel ? `updated ${rel}` : 'updated recently';
+                  timeEl.dataset.timestamp = data.timestamp;
+                }
               }
             })
             .catch(() => {});
