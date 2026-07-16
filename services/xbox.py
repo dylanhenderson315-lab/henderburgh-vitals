@@ -146,12 +146,18 @@ async def fetch_xbox_status():
             # Historical: last game + when (shown as 'Last seen', never as live).
             last_seen_game = ""
             last_seen_ago = ""
+            last_seen_private = False   # was the last-seen MOMENT itself in work hours?
             ls = data.get("lastSeen") or {}
             if isinstance(ls, dict) and (ls.get("titleName") or ls.get("name")):
                 last_seen_game = ls.get("titleName") or ls.get("name") or ""
                 try:
                     ts_raw = (ls.get("timestamp") or "").split(".")[0]
-                    ls_dt = datetime.fromisoformat(ts_raw)
+                    ls_dt = datetime.fromisoformat(ts_raw)     # UTC-naive
+                    # Convert the UTC-naive last-seen moment to naive ET, then decide
+                    # if it fell inside work hours — this is a property of the MOMENT,
+                    # not of the current time, so redaction survives past 5pm.
+                    ls_dt_et = ls_dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(_ET).replace(tzinfo=None)
+                    last_seen_private = in_work_hours(ls_dt_et)
                     mins = max(0, int((datetime.utcnow() - ls_dt).total_seconds() / 60))
                     if mins < 60:
                         last_seen_ago = f"{mins}m ago"
@@ -225,6 +231,7 @@ async def fetch_xbox_status():
                 "device": _pretty_device(primary_device),
                 "last_seen_game": _clean_title(last_seen_game) if last_seen_game else "",
                 "last_seen_ago": last_seen_ago,
+                "last_seen_private": last_seen_private,
                 "gamertag": gamertag,
                 "gamerpic": gamerpic,
                 "gamerscore": gamerscore,
@@ -899,7 +906,8 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
     bands = []
     game_facts = []
     activity_spans = []   # (start_min, end_min) for computing the active window
-    hidden_count = 0      # work-hours items withheld from the public view
+    hidden_count = 0      # work-hours game/media/unlock items withheld from the public view
+    sleep_hidden_count = 0  # sleep periods hidden from public (always private, not work-hours)
 
     # Game + media sessions overlapping the day, classified from the stored title.
     for s in persistence.load_xbox_sessions():
@@ -953,7 +961,7 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
             # (A workday wake time or an afternoon nap is nobody's business —
             # sleep lives on the vitals page; the owner sees it when revealed.)
             if not reveal:
-                hidden_count += 1
+                sleep_hidden_count += 1
                 continue
             bands.append({"kind": "sleep", "label": "asleep" if is_main else "nap",
                           "x0": round(mins(p["bs"]), 1), "x1": round(mins(p["be"]), 1)})
@@ -1057,6 +1065,7 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
         "media_count": len(media_bands),
         "unlocks_count": len(day_unlocks),
         "hidden_count": hidden_count,
+        "sleep_hidden_count": sleep_hidden_count,
         "revealed": reveal,
     }
 
@@ -1100,17 +1109,27 @@ def redact_status_for_public(d: dict) -> dict:
     invent anything."""
     if not isinstance(d, dict) or d.get("status") != "ok":
         return d
-    if not d.get("playing_now") and not d.get("last_seen_game"):
+
+    now_work = in_work_hours(_now_et())
+    # (a) live activity is hidden only while we're currently in work hours;
+    # (b) the last-seen moment is hidden based on WHEN it happened, independent
+    #     of the current time — so a 2:30pm session doesn't leak at 5:30pm, and
+    #     a non-work-hours last-seen survives even during work hours.
+    redact_live = now_work and (d.get("playing_now") or d.get("game") not in ("", "—", None))
+    redact_last_seen = bool(d.get("last_seen_private"))
+
+    if not redact_live and not redact_last_seen:
         return d
-    if not in_work_hours(_now_et()):
-        return d
+
     out = dict(d)
-    out["game"] = "—"
-    out["playing_now"] = False
-    out["device"] = ""
-    out["state"] = d.get("social_state") or "Offline"
-    out["last_seen_game"] = ""
-    out["last_seen_ago"] = ""
+    if redact_live:
+        out["game"] = "—"
+        out["playing_now"] = False
+        out["device"] = ""
+        out["state"] = d.get("social_state") or "Offline"
+    if redact_last_seen:
+        out["last_seen_game"] = ""
+        out["last_seen_ago"] = ""
     return out
 
 

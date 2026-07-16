@@ -425,6 +425,12 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         xbox_data = await fetch_xbox_status()
     raw_log = persistence.load_xbox_log()
 
+    # Work-hours privacy: personal activity during weekday work hours is hidden
+    # from the public view (coworkers). Only the admin, with reveal toggled on
+    # (cookie), sees their own full day. Computed here (needs only `request`) so
+    # the 'Recently Launched' fallback below can also honor it.
+    reveal_private = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+
     # Recently-played, cleaned to REAL games only (drop Home / Xbox App / dashboard
     # noise) and prettified names — this feeds both the table and the insights.
     formatted_log = []
@@ -434,11 +440,17 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
             continue
         ts = entry.get("timestamp", "")
         played = ts
+        entry_dt = None
         try:
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            # naive-ET moment for the work-hours check (stored ts is naive ET)
+            entry_dt = dt.replace(tzinfo=None)
             played = dt.strftime("%b %-d, %Y • %-I:%M %p")
         except Exception:
             pass
+        # Skip work-hours launches from the public fallback table.
+        if not reveal_private and xbox.in_work_hours(entry_dt):
+            continue
         formatted_log.append({
             "game": xbox._clean_title(name),
             "timestamp": ts,
@@ -448,10 +460,6 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
 
     xbox_display = dict(xbox_data) if xbox_data else {}
 
-    # Work-hours privacy: personal activity during weekday work hours is hidden
-    # from the public view (coworkers). Only the admin, with reveal toggled on
-    # (cookie), sees their own full day.
-    reveal_private = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
     if not reveal_private:
         xbox_display = xbox.redact_status_for_public(xbox_display)
 
