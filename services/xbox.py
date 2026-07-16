@@ -172,7 +172,9 @@ async def fetch_xbox_status():
             # (Social `state` under-reports; lastSeen must never over-report.)
             device_active = any(isinstance(d, dict) and d.get("titles") for d in devices)
             presence_state = "Online" if device_active else (raw_state or "Offline")
-            playing_now = device_active and game != "—" and is_real_game(game)
+            # "Active now" is true for games AND media (watching a movie counts) —
+            # the `kind` field then distinguishes Playing vs Watching downstream.
+            playing_now = device_active and game != "—" and (is_real_game(game) or is_media_title(game))
 
             # Profile from player/summary — the /account endpoint returns empty
             # settings for this account, but player/summary/{xuid} has the real
