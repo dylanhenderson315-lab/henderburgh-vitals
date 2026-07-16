@@ -268,7 +268,7 @@
 
     <!-- Now Playing / Most Played hero -->
     <div class="mb-12">
-      <div class="section-label mb-4">{% if hero.playing_now %}Now Playing{% else %}Most Played{% endif %}</div>
+      <div id="hero-label" class="section-label mb-4">{% if hero.playing_now %}{% if hero.kind == 'media' %}Now Watching{% else %}Now Playing{% endif %}{% else %}Most Played{% endif %}</div>
       <div class="hero-card" style="background: linear-gradient(135deg, {{ hero.signature.c1 }} 0%, {{ hero.signature.c2 }} 100%);">
         {% if hero.cover %}
         <img src="{{ hero.cover }}" alt="" class="hero-cover" aria-hidden="true">
@@ -287,7 +287,7 @@
             </div>
             <div id="current-game" class="hero-game">{{ hero.game or 'No active game' }}</div>
             <div id="current-device" class="text-sm mt-2 text-white/70">
-              {% if hero.playing_now and xbox.device %}on {{ xbox.device }}{% elif hero.playing_now %}playing now
+              {% if hero.playing_now %}{% if hero.kind == 'media' %}watching{% if xbox.device %} on {{ xbox.device }}{% endif %}{% else %}playing{% if xbox.device %} on {{ xbox.device }}{% endif %}{% endif %}
               {% elif xbox.last_seen_game %}last seen: {{ xbox.last_seen_game }}{% if xbox.last_seen_ago %} · {{ xbox.last_seen_ago }}{% endif %}
               {% else %}your most-played game{% endif %}
             </div>
@@ -624,13 +624,20 @@
               : 'bg-zinc-700/60 text-zinc-400 border border-zinc-600/40');
         }
 
-        // Hero game — only update when a REAL game is running (else keep most-played).
+        // Hero game/title — update when something is live (game OR media);
+        // else keep the most-played fallback rendered by the server.
+        const live = d.playing_now && (d.kind === 'game' || d.kind === 'media');
         const gameEl = document.getElementById('current-game');
-        if (gameEl && isRealGame(d.game)) gameEl.textContent = d.game;
+        if (gameEl && live) gameEl.textContent = d.game;
+
+        // Kind-aware label ("Now Watching" for media, "Now Playing" for games).
+        const labelEl = document.getElementById('hero-label');
+        if (labelEl && live) labelEl.textContent = (d.kind === 'media') ? 'Now Watching' : 'Now Playing';
 
         const deviceEl = document.getElementById('current-device');
-        if (deviceEl && isRealGame(d.game)) {
-          deviceEl.textContent = d.device ? ('on ' + d.device) : 'playing now';
+        if (deviceEl && live) {
+          const verb = (d.kind === 'media') ? 'watching' : 'playing';
+          deviceEl.textContent = d.device ? (verb + ' on ' + d.device) : verb;
           deviceEl.className = 'text-sm mt-2 text-white/70';
         }
 
@@ -686,8 +693,17 @@
           const d = await r.json();
           if (d.status !== 'ok') return;
           const online = /online/i.test(d.state || '');
+          const live = d.playing_now && (d.kind === 'game' || d.kind === 'media');
           const g = document.getElementById('current-game');
-          if (g && isRealGame(d.game)) g.textContent = d.game;
+          if (g && live) g.textContent = d.game;
+          const labelEl = document.getElementById('hero-label');
+          if (labelEl && live) labelEl.textContent = (d.kind === 'media') ? 'Now Watching' : 'Now Playing';
+          const deviceEl = document.getElementById('current-device');
+          if (deviceEl && live) {
+            const verb = (d.kind === 'media') ? 'watching' : 'playing';
+            deviceEl.textContent = d.device ? (verb + ' on ' + d.device) : verb;
+            deviceEl.className = 'text-sm mt-2 text-white/70';
+          }
           ['profile-state', 'current-state'].forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.textContent = d.state || 'Unknown'; el.className = online ? PILL_ON : PILL_OFF; }

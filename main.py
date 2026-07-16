@@ -551,6 +551,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "signature": xbox.game_signature(hero_game or "xbox"),
         "playing_now": playing_now,
         "cover": hero_cover,
+        "kind": xbox.classify_title(xbox_display.get("game", "")),
     }
 
     return _render("xbox.html", {

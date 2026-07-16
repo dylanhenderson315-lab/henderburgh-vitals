@@ -1142,8 +1142,10 @@
         // 1. Gaming beats everything (live Xbox presence)
         const xb = LIVE.xbox;
         if (xb && xb.status === 'ok' && /online/i.test(xb.state || '') && xb.game && xb.game !== '—' && !/^home$/i.test(xb.game)) {
-          head = 'HENDERBURGH IS GAMING.';
-          sub = `${xb.game}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
+          const watching = xb.kind === 'media';
+          head = watching ? 'HENDERBURGH IS WATCHING.' : 'HENDERBURGH IS PLAYING.';
+          const verb = watching ? 'Watching' : 'Playing';
+          sub = `${verb} ${xb.game}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
         }
         // 2. Music actually playing (live last.fm scrobble)
         else if (window.LIVE_NOWPLAYING) {

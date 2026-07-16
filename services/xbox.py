@@ -228,6 +228,7 @@ async def fetch_xbox_status():
                 "state": presence_state,
                 "game": game,
                 "playing_now": playing_now,
+                "kind": classify_title(game) if playing_now else "",
                 "device": _pretty_device(primary_device),
                 "last_seen_game": _clean_title(last_seen_game) if last_seen_game else "",
                 "last_seen_ago": last_seen_ago,
@@ -1125,6 +1126,7 @@ def redact_status_for_public(d: dict) -> dict:
     if redact_live:
         out["game"] = "—"
         out["playing_now"] = False
+        out["kind"] = ""
         out["device"] = ""
         out["state"] = d.get("social_state") or "Offline"
     if redact_last_seen:
@@ -1267,6 +1269,8 @@ _NON_GAME_PREFIXES = (
     "amazon prime", "spotify", "twitch", "peacock", "apple tv", "plex",
     "paramount", "crunchyroll", "sling", "espn", "fubo", "tubi", "pluto",
     "pandora", "vudu", "movies anywhere",
+    # Physical disc / Blu-ray playback — watching, not gaming.
+    "blu-ray", "blu ray", "bluray", "4k blu", "dvd player", "disc",
 )
 
 
