@@ -205,15 +205,30 @@
   <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
     <!-- Header -->
     <div class="mb-10">
-      <div class="flex items-center gap-x-3 mb-2">
-        <div class="w-9 h-9 rounded-2xl bg-emerald-900/30 flex items-center justify-center">
-          <i class="fa-solid fa-gamepad text-emerald-400 text-xl"></i>
+      <div class="flex items-center justify-between gap-x-3 mb-2">
+        <div class="flex items-center gap-x-3">
+          <div class="w-9 h-9 rounded-2xl bg-emerald-900/30 flex items-center justify-center">
+            <i class="fa-solid fa-gamepad text-emerald-400 text-xl"></i>
+          </div>
+          <div>
+            <h1 class="text-4xl font-semibold tracking-tighter">Xbox</h1>
+            <p class="text-lg text-zinc-400">Live profile &amp; game log for {{ xbox.gamertag or 'NutNutBiinks' }}</p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-4xl font-semibold tracking-tighter">Xbox</h1>
-          <p class="text-lg text-zinc-400">Live profile &amp; game log for {{ xbox.gamertag or 'NutNutBiinks' }}</p>
-        </div>
+        {% if is_admin %}
+        <button id="reveal-toggle" type="button" data-on="{{ '1' if reveal_private else '0' }}"
+          class="flex-shrink-0 text-[11px] px-3 py-1.5 rounded-full border font-medium transition
+            {% if reveal_private %}bg-amber-500/15 border-amber-500/40 text-amber-300{% else %}bg-zinc-800/80 border-zinc-700 text-zinc-400{% endif %}">
+          <i class="fa-solid {% if reveal_private %}fa-lock-open{% else %}fa-lock{% endif %} mr-1 text-[10px]"></i>
+          {% if reveal_private %}Private view — work hours shown{% else %}Public view{% endif %}
+        </button>
+        {% endif %}
       </div>
+      {% if is_admin and reveal_private %}
+      <div class="text-[11px] text-amber-400/80 mt-1"><i class="fa-solid fa-eye text-[10px] mr-1"></i>You're seeing your full day, including work hours. Coworkers only ever see the public view.</div>
+      {% elif is_admin and replay and replay.hidden_count %}
+      <div class="text-[11px] text-zinc-500 mt-1">{{ replay.hidden_count }} item{{ 's' if replay.hidden_count != 1 }} hidden during work hours (public view). Tap “Public view” to reveal your own.</div>
+      {% endif %}
     </div>
 
     {% if xbox and xbox.status == 'ok' %}
@@ -633,6 +648,26 @@
       }
     }
     setInterval(refreshXboxLive, 300000);
+  </script>
+
+  <!-- Work-hours privacy toggle (admin only) -->
+  <script>
+    (function () {
+      const btn = document.getElementById('reveal-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', async function () {
+        const turningOn = btn.dataset.on !== '1';
+        btn.disabled = true;
+        try {
+          await fetch('/api/privacy/reveal', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ on: turningOn }),
+          });
+          location.reload();
+        } catch (e) { btn.disabled = false; }
+      });
+    })();
   </script>
 
   <!-- Card interactions now live in /static/motion.js (site-wide, WAAPI) -->

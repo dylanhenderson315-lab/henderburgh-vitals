@@ -384,9 +384,10 @@ async def get_recent_achievements(library: list, days: int = 4, cap_titles: int 
     return _ach_cache["data"]
 
 
-def recent_unlocks_display(achievements: list, limit: int = 8) -> list:
+def recent_unlocks_display(achievements: list, limit: int = 8, reveal: bool = False) -> list:
     out = []
-    for a in achievements[:limit]:
+    src = achievements if reveal else [a for a in achievements if not in_work_hours(a.get("dt"))]
+    for a in src[:limit]:
         out.append({**a, "when": a["dt"].strftime("%b %-d · %-I:%M %p").replace(" 0", " "),
                     "rare_txt": (f"{a['rare']:.0f}% have this" if a.get("rare") and a["rare"] <= 20 else "")})
     return out
@@ -836,7 +837,7 @@ def compute_pulse_chart(sessions: list, history: list, days: int = 14) -> dict:
 # day later. So we replay it: the complete curve for yesterday with game
 # sessions, sleep, and workouts shaded onto the exact minutes they happened.
 
-async def compute_day_replay(achievements=None, day_offset=1):
+async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
     """A day rendered on a true minutes-since-midnight axis: the full HR curve
     plus game/media/workout/sleep bands and achievement markers at their exact
     times. The frontend defaults its view to the ACTIVE window (when you were
@@ -897,6 +898,7 @@ async def compute_day_replay(achievements=None, day_offset=1):
     bands = []
     game_facts = []
     activity_spans = []   # (start_min, end_min) for computing the active window
+    hidden_count = 0      # work-hours items withheld from the public view
 
     # Game + media sessions overlapping the day, classified from the stored title.
     for s in persistence.load_xbox_sessions():
@@ -909,6 +911,9 @@ async def compute_day_replay(achievements=None, day_offset=1):
         except Exception:
             continue
         if en <= day_start or st >= day_end:
+            continue
+        if not reveal and in_work_hours(st):
+            hidden_count += 1               # private during work hours
             continue
         name = _clean_title(s["game"])
         label = name + (f" · ♥{s['hr_avg']}" if s.get("hr_avg") else "")
@@ -943,6 +948,9 @@ async def compute_day_replay(achievements=None, day_offset=1):
             is_main = p is longest
             if not is_main and (p["be"] - p["bs"]).total_seconds() < 1200:
                 continue
+            if not is_main and not reveal and in_work_hours(p["bs"]):
+                hidden_count += 1           # a work-hours nap stays private
+                continue
             bands.append({"kind": "sleep", "label": "asleep" if is_main else "nap",
                           "x0": round(mins(p["bs"]), 1), "x1": round(mins(p["be"]), 1)})
 
@@ -964,10 +972,13 @@ async def compute_day_replay(achievements=None, day_offset=1):
         bands.append({"kind": "workout", "label": act, "x0": round(x0, 1), "x1": round(x1, 1)})
         activity_spans.append((x0, x1))
 
-    # Achievement markers at their exact minute.
+    # Achievement markers at their exact minute (work-hours unlocks stay private).
     moments, day_unlocks = [], []
     for a in achievements or []:
         if day_start <= a["dt"] < day_end:
+            if not reveal and in_work_hours(a["dt"]):
+                hidden_count += 1
+                continue
             day_unlocks.append(a)
             m = mins(a["dt"])
             moments.append({"x": round(m, 1), "label": f"🏆 {a['name']} (+{a['gs']}G · {a['game']})", "hr": hr_at(m)})
@@ -1041,6 +1052,8 @@ async def compute_day_replay(achievements=None, day_offset=1):
         "games_count": len([b for b in bands if b["kind"] == "game"]),
         "media_count": len(media_bands),
         "unlocks_count": len(day_unlocks),
+        "hidden_count": hidden_count,
+        "revealed": reveal,
     }
 
 
@@ -1061,6 +1074,18 @@ def recent_games_display(games: list, limit: int = 12) -> list:
 
 
 _ET = ZoneInfo("America/New_York")
+
+# Work-hours privacy: gaming / watching / naps that happen on a weekday between
+# these hours are hidden from the PUBLIC view (coworkers), but never deleted —
+# the admin can reveal their own full day. Privacy, not a lie: hidden ≠ faked.
+WORK_START_MIN = 8 * 60 + 30     # 8:30 AM
+WORK_END_MIN = 17 * 60           # 5:00 PM
+
+
+def in_work_hours(dt) -> bool:
+    if dt is None or dt.weekday() >= 5:
+        return False
+    return WORK_START_MIN <= (dt.hour * 60 + dt.minute) < WORK_END_MIN
 
 
 def _now_et() -> datetime:
@@ -1301,10 +1326,11 @@ def _pretty_device(t: str) -> str:
     return _DEVICE_LABELS.get(t, t or "")
 
 
-def sessions_for_display(sessions: list, limit: int = 40) -> list:
+def sessions_for_display(sessions: list, limit: int = 40, reveal: bool = False) -> list:
     """Format sessions into a readable timeline (newest first): games AND media
     (watching), when it started, how long, device, heart rate, and whether it's
-    live. Media rows are tagged so 'peaked at 110 during a movie' reads clearly."""
+    live. Media rows are tagged so 'peaked at 110 during a movie' reads clearly.
+    Work-hours sessions are withheld from the public view unless revealed."""
     out = []
     for s in sessions or []:
         kind = classify_title(s.get("game", ""))
@@ -1314,6 +1340,8 @@ def sessions_for_display(sessions: list, limit: int = 40) -> list:
             start = datetime.fromisoformat(s["start"])
             end = datetime.fromisoformat(s["end"])
         except Exception:
+            continue
+        if not reveal and in_work_hours(start):
             continue
         dur = max(0.0, (end - start).total_seconds())
         live = not s.get("closed")

@@ -223,6 +223,20 @@ async def auth_logout(request: Request):
     return response
 
 
+@app.post("/api/privacy/reveal")
+async def toggle_reveal(request: Request, body: dict = Body(default={})):
+    """Admin-only: flip the work-hours 'reveal my full day' cookie. Coworkers are
+    never admin, so this can only ever reveal the owner's own view."""
+    require_admin(request)
+    on = bool(body.get("on"))
+    resp = JSONResponse({"status": "ok", "revealed": on})
+    if on:
+        resp.set_cookie("reveal_private", "1", max_age=12 * 3600, httponly=False, samesite="lax")
+    else:
+        resp.delete_cookie("reveal_private")
+    return resp
+
+
 @app.get("/api/auth/status")
 async def auth_status(request: Request):
     """Honest access picture for the lighting UI.
@@ -366,10 +380,11 @@ async def home(request: Request):
     # Yesterday, replayed: the cross-domain timeline (heart + games + sleep +
     # house lights + spoken commands) promoted to the OS level, with the
     # morning narration. This is the site's thesis in one artifact.
+    _reveal = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
     try:
         _lib = await xbox.get_title_history()
         _ach = await xbox.get_recent_achievements(_lib)
-        replay = await xbox.compute_day_replay(_ach)
+        replay = await xbox.compute_day_replay(_ach, reveal=_reveal)
     except Exception as e:
         print(f"home replay error: {e}")
         replay = {"has_data": False}
@@ -433,6 +448,11 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
 
     xbox_display = dict(xbox_data) if xbox_data else {}
 
+    # Work-hours privacy: personal activity during weekday work hours is hidden
+    # from the public view (coworkers). Only the admin, with reveal toggled on
+    # (cookie), sees their own full day.
+    reveal_private = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+
     # Truthful profile stats only — surface a number when the API actually returned
     # one, otherwise the template simply omits it (no fake zeros, no stale "Gold").
     def _real(v):
@@ -454,7 +474,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     # The Recently-Played timeline is now real play sessions (start / length /
     # device) when the observer has any — otherwise fall back to the legacy
     # launch log so the section is never empty during the transition.
-    session_log = xbox.sessions_for_display(true_sessions)
+    session_log = xbox.sessions_for_display(true_sessions, reveal=reveal_private)
 
     # Render **bold** in insight lines to safe HTML (escape first, then emphasize).
     from html import escape as _esc
@@ -491,12 +511,12 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
 
     # Achievements: real in-game moments (unlock times + gamerscore).
     achievements = await xbox.get_recent_achievements(library)
-    unlocks = xbox.recent_unlocks_display(achievements, limit=8)
+    unlocks = xbox.recent_unlocks_display(achievements, limit=8, reveal=reveal_private)
 
     # The Replay: yesterday's full HR curve annotated with sessions, sleep,
     # workouts, and achievement unlocks pinned to the exact minute.
     try:
-        replay = await xbox.compute_day_replay(achievements)
+        replay = await xbox.compute_day_replay(achievements, reveal=reveal_private)
     except Exception as e:
         print(f"day replay error: {e}")
         replay = {"has_data": False}
@@ -536,6 +556,8 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
         "pulse": pulse,
         "replay": replay,
         "unlocks": unlocks,
+        "is_admin": is_admin_authenticated(request),
+        "reveal_private": reveal_private,
         "public_mode": PUBLIC_MODE,
         "site_name": SITE_NAME,
         "display_name": DISPLAY_NAME,
