@@ -384,7 +384,7 @@ async def home(request: Request):
     try:
         _lib = await xbox.get_title_history()
         _ach = await xbox.get_recent_achievements(_lib)
-        replay = await xbox.compute_day_replay(_ach, reveal=_reveal)
+        replay = await xbox.compute_recent_replay(_ach, reveal=_reveal)
     except Exception as e:
         print(f"home replay error: {e}")
         replay = {"has_data": False}
@@ -526,7 +526,7 @@ async def xbox_page(request: Request, background_tasks: BackgroundTasks = None):
     # The Replay: yesterday's full HR curve annotated with sessions, sleep,
     # workouts, and achievement unlocks pinned to the exact minute.
     try:
-        replay = await xbox.compute_day_replay(achievements, reveal=reveal_private)
+        replay = await xbox.compute_recent_replay(achievements, reveal=reveal_private)
     except Exception as e:
         print(f"day replay error: {e}")
         replay = {"has_data": False}

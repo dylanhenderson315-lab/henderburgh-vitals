@@ -1084,6 +1084,28 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
     }
 
 
+async def compute_recent_replay(achievements=None, reveal=False, max_back=5):
+    """Replay wrapper that never goes empty: walk back from yesterday and return
+    the FIRST day that actually has HR data (the ring is off/not synced regularly,
+    so 'yesterday' is often blank). Annotates the chosen replay with `days_ago`
+    (1 = yesterday) and `is_recent_fallback` (True when we had to reach back past
+    yesterday). If NO day in the window has data, return the day_offset=1 result
+    unchanged so the current no-data behavior is preserved.
+
+    Cost note: compute_day_replay is async and hits Oura per call, but we stop at
+    the first hit — worst case is `max_back` fetches only during a long ring gap."""
+    first = None
+    for i in range(1, max_back + 1):
+        r = await compute_day_replay(achievements, day_offset=i, reveal=reveal)
+        if first is None:
+            first = r
+        if r.get("has_data"):
+            r["days_ago"] = i
+            r["is_recent_fallback"] = (i > 1)
+            return r
+    return first
+
+
 def recent_games_display(games: list, limit: int = 12) -> list:
     """Recently-played library rows for the page: cover, progress, gamerscore, when."""
     out = []
