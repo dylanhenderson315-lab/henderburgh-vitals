@@ -1058,12 +1058,23 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
     bits.append(f"Heart peaked at **{bpm[peak_i]} bpm** ({clk(tmins[peak_i])}); calmest waking {low_v}.")
     narration = " ".join(bits)
 
+    # Honest HR-coverage gap: the ring may stop recording partway through the
+    # day (removed/not synced) while Xbox activity bands keep coming. Flag when
+    # real activity (game/media/workout) ends >30m after the last HR reading.
+    hr_last_min = tmins[-1]
+    hr_gap = any(
+        b["kind"] in ("game", "media", "workout") and b["x1"] > hr_last_min + 30
+        for b in bands
+    )
+
     return {
         "has_data": True,
         "day": day.strftime("%A, %b %-d"),
         "points": points, "bands": bands, "moments": moments, "view": view,
         "facts": " · ".join(facts),
         "narration": narration,
+        "hr_gap": hr_gap,
+        "hr_ends": clk(hr_last_min),
         "games_count": len([b for b in bands if b["kind"] == "game"]),
         "media_count": len(media_bands),
         "unlocks_count": len(day_unlocks),

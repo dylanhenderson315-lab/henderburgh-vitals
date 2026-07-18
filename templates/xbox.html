@@ -327,6 +327,9 @@
         {% if replay.games_count == 0 and replay.media_count == 0 %}
         <div class="text-[11px] text-zinc-600 mt-3">No games or watching landed on this day — activity bands appear on days you played or watched.</div>
         {% endif %}
+        {% if replay.hr_gap %}
+        <div class="text-[11px] text-zinc-600 mt-3"><i class="fa-solid fa-circle-info text-[10px] mr-1"></i>Heart rate ends {{ replay.hr_ends }} — your ring wasn't worn or synced after that, so later activity has no pulse.</div>
+        {% endif %}
       </div>
     </div>
     {% endif %}
