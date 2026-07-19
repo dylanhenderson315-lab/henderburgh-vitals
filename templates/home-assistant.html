@@ -2750,7 +2750,6 @@
       const sug = modeSuggestion();
       return `
         <div class="mb-5">
-          ${guestBannerHTML()}
           <div class="section-label mb-2">House Modes</div>
           ${sug ? `
           <button onclick="runMode('${sug.key}')" class="w-full text-left mb-2 px-4 py-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 active:scale-[0.99] transition">
@@ -2772,8 +2771,20 @@
     // Rooms view: stacked premium sections. Each has clear master controls (All On/Off + quick % + slider) + its lights.
     function renderRoomsView(container, searchLower) {
       const rooms = haData.rooms || [];
-      let html = searchLower ? '' : renderModesSection();
+      // Mobile-first: guest banner + the primary room controls sit at the very top so a room can
+      // be switched off without scrolling past the mode cards. House Modes + the context-aware
+      // Suggestion banner are rendered below the rooms (appended near the end of this function).
+      let html = searchLower ? '' : guestBannerHTML();
       html += `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-500">— tap a room to jump, toggle to switch it</span></div>`;
+
+      // Compact whole-house quick action so the entire house can be killed in one tap up top.
+      // Reuses the existing Lights Out mode (runMode('lights-out')) — no new backend call.
+      if (isUnlocked && rooms.length && !searchLower) {
+        html += `
+          <div class="flex items-center gap-2 mb-3">
+            <button onclick="runMode('lights-out')" class="ha-btn min-h-[44px] px-4"><i class="fa-solid fa-power-off mr-1.5"></i>All Off</button>
+          </div>`;
+      }
 
       if (rooms.length === 0) {
         html += `<div class="card p-6 text-sm text-zinc-400">No rooms yet. Create one from the sidebar.</div>`;
@@ -2907,6 +2918,9 @@
         }
         html += `</div></div>`;
       }
+
+      // House Modes + context-aware Suggestion now live below the rooms (mobile-first reorder).
+      if (!searchLower) html += renderModesSection();
 
       container.innerHTML = html;
       initMobileTouchOnContainer(container);
