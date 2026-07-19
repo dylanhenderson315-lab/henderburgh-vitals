@@ -1095,7 +1095,11 @@ async def compute_recent_replay(achievements=None, reveal=False, max_back=5):
     Cost note: compute_day_replay is async and hits Oura per call, but we stop at
     the first hit — worst case is `max_back` fetches only during a long ring gap."""
     first = None
-    for i in range(1, max_back + 1):
+    # Start at TODAY (day_offset=0), not yesterday: today's live HR is the freshest
+    # data and must win. Only if today has no usable HR yet do we walk back. Landing
+    # on yesterday is still "normal"; reaching back further (i > 1) means newer days
+    # are genuinely blank (ring off/unsynced) and we flag that.
+    for i in range(0, max_back + 1):
         r = await compute_day_replay(achievements, day_offset=i, reveal=reveal)
         if first is None:
             first = r

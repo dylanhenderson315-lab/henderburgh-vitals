@@ -497,7 +497,7 @@
     <div class="content-section">
       <div class="flex items-baseline justify-between mb-3">
         <div>
-          <div class="section-label">{{ 'The Replay' if replay.is_recent_fallback else 'Yesterday' }} · {{ replay.day }}</div>
+          <div class="section-label">{{ 'The Replay' if replay.is_recent_fallback else ('Today' if replay.days_ago == 0 else 'Yesterday') }} · {{ replay.day }}</div>
           <p style="margin-top: 4px; color: #525252; font-size: 0.95rem;">Your previous day, written and drawn by the house from its own records.
           {% if replay.is_recent_fallback %}<span class="text-[11px] text-amber-400/80">· your most recent recorded day — open the Oura app to sync newer data</span>{% endif %}</p>
         </div>
