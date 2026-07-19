@@ -34,6 +34,13 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
 # Public base URL of the Cloudflare R2 bucket (custom domain). Lets the Clips
 # page accept a bare filename ("wedding.mp4") and auto-build the full link.
 R2_PUBLIC_BASE = os.getenv("R2_PUBLIC_BASE", "https://media.henderburgh.com").strip().rstrip("/")
+# Cloudflare R2 S3-API credentials for DIRECT phone->R2 uploads (presigned PUT),
+# which bypass Cloudflare's 100 MB proxy cap that blocks big clips through the app.
+R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID", "").strip()
+R2_BUCKET = os.getenv("R2_BUCKET", "").strip()
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "").strip()
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
+R2_UPLOAD_ENABLED = bool(R2_ACCOUNT_ID and R2_BUCKET and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY)
 SESSION_COOKIE_NAME = "admin_session"
 SESSION_MAX_AGE_SECONDS = 7 * 24 * 3600
 

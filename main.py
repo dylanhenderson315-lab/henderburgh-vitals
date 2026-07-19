@@ -36,6 +36,7 @@ from config import (
     PORT,
     PUBLIC_MODE,
     R2_PUBLIC_BASE,
+    R2_UPLOAD_ENABLED,
     SITE_NAME,
     SITE_URL,
 )
@@ -1578,6 +1579,7 @@ async def clips_page(request: Request):
         "request": request,
         "has_admin_token": bool(ADMIN_TOKEN),
         "is_admin": is_admin_authenticated(request),
+        "r2_enabled": R2_UPLOAD_ENABLED,
     })
 
 
@@ -1728,6 +1730,38 @@ async def upload_clip(
     }
 
 
+@app.post("/api/clips/presign")
+async def presign_clip_upload(request: Request, body: dict = Body(default={})):
+    """Admin-only: hand the phone a short-lived presigned PUT URL so it uploads the
+    clip DIRECTLY to R2, sidestepping Cloudflare's 100 MB proxy cap that blocks big
+    clips through the app. The client then registers the public URL via /link."""
+    require_admin(request)
+    from clients import r2
+    if not r2.enabled():
+        raise HTTPException(503, "Direct upload not configured (missing R2 credentials).")
+
+    filename = (body.get("filename") or "").strip()
+    title = (body.get("title") or "").strip()
+    ext = Path(filename).suffix.lower()
+    if ext not in _CLIP_EXTS:
+        raise HTTPException(400, f"Unsupported type {ext or '(none)'}.")
+
+    stem = _safe_clip_stem(title or Path(filename).name)
+    stamp = datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d-%H%M%S")
+    key = f"clips/{stem}-{stamp}{ext}"
+    ct = r2.content_type_for(ext)
+    put_url = r2.presign_put(key, ct, expires=3600)
+    public_url = f"{R2_PUBLIC_BASE}/{key}"
+    kind = "image" if ext in _CLIP_IMAGE_EXTS else "video"
+    return {
+        "put_url": put_url,
+        "public_url": public_url,
+        "key": key,
+        "content_type": ct,
+        "kind": kind,
+    }
+
+
 @app.post("/api/clips/link")
 async def add_clip_link(request: Request, body: dict = Body(default={})):
     """Admin-only: register a big video hosted on R2 (or any https URL) by link.
@@ -1774,9 +1808,22 @@ async def delete_clip(request: Request, name: str):
     # R2/external link? Forget it (the R2 object itself is untouched — delete that
     # in the Cloudflare dashboard if you want the file gone too).
     ext = persistence.load_external_clips()
+    gone = next((c for c in ext if c.get("id") == name), None)
     remaining = [c for c in ext if c.get("id") != name]
     if len(remaining) != len(ext):
         persistence.save_external_clips(remaining)
+        # If this link points at our own R2 bucket and we uploaded it (have creds),
+        # delete the underlying object too so we don't leave orphans behind.
+        url = (gone or {}).get("url") or ""
+        if R2_UPLOAD_ENABLED and url.startswith(R2_PUBLIC_BASE + "/"):
+            try:
+                import httpx
+                from clients import r2
+                key = url[len(R2_PUBLIC_BASE) + 1:].split("?")[0]
+                async with httpx.AsyncClient(timeout=15) as client:
+                    await client.delete(r2.presign_delete(key))
+            except Exception as e:
+                print(f"R2 object delete failed (link forgotten anyway): {e}")
         return {"status": "deleted", "name": name, "external": True}
 
     safe = Path(name).name
