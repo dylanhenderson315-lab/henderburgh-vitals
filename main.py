@@ -60,13 +60,56 @@ async def _light_history_loop():
             raise
         try:
             hour = datetime.now(tz).hour
-            if 10 <= hour <= 20:
+            # Waking hours widened to match real life: 8am–1am. The old 10am–8pm
+            # window missed the nighttime peak (when gaming/the game room is busiest),
+            # which is exactly when the richest lighting patterns happen.
+            if hour >= 8 or hour <= 1:
                 snap = await home_assistant.capture_light_snapshot()
                 if snap:
                     snap["ts"] = datetime.now(tz).isoformat()
                     persistence.log_light_snapshot(snap)
         except Exception as e:
             print(f"light history snapshot error: {e}")
+
+
+async def _light_transition_loop():
+    """Every ~2 min, poll the lights and record only what *changed* since last poll
+    (on/off, color, effect, deliberate brightness step) with time-of-day + whatever
+    you were doing on Xbox. Hourly snapshots capture *state*; this captures *intent*
+    — the actual moves you make — so after a week we can see the scenes you set by
+    hand (your real 'work mode') and propose automations that match them exactly."""
+    tz = ZoneInfo("America/New_York")
+    await asyncio.sleep(20)   # let the app settle
+    while True:
+        try:
+            snap = await home_assistant.capture_light_snapshot()
+            if snap and snap.get("lights"):
+                prev = state.last_light_lights
+                if prev is not None:
+                    changes = home_assistant.diff_light_states(prev, snap["lights"])
+                    if changes:
+                        now = datetime.now(tz)
+                        xb = state.last_xbox_data if isinstance(state.last_xbox_data, dict) else {}
+                        game = xb.get("game") if xb.get("game") not in (None, "—") else ""
+                        persistence.log_light_transitions({
+                            "ts": now.isoformat(),
+                            "weekday": now.weekday(),          # 0=Mon
+                            "hour": now.hour,
+                            "minute": now.minute,
+                            "changes": changes,
+                            "context": {
+                                "xbox_game": game or "",
+                                "playing": bool(xb.get("playing_now")),
+                                "kind": xb.get("kind") or "",
+                            },
+                        })
+                state.last_light_lights = snap["lights"]
+        except Exception as e:
+            print(f"light transition loop error: {e}")
+        try:
+            await asyncio.sleep(120)
+        except asyncio.CancelledError:
+            raise
 
 
 async def _xbox_observer_loop():
@@ -139,10 +182,12 @@ async def lifespan(app: FastAPI):
     elif PUBLIC_MODE:
         raise RuntimeError("PUBLIC_MODE requires OURA_TOKEN")
     history_task = asyncio.create_task(_light_history_loop())
+    transition_task = asyncio.create_task(_light_transition_loop())
     xbox_task = asyncio.create_task(_xbox_observer_loop())
     vitals_task = asyncio.create_task(_vitals_history_loop())
     yield
     history_task.cancel()
+    transition_task.cancel()
     xbox_task.cancel()
     vitals_task.cancel()
     if state.oura_client:
@@ -1444,6 +1489,28 @@ async def get_light_history(request: Request, limit: int = 300):
     require_admin(request)
     log = persistence.load_light_history()
     return {"total": len(log), "snapshots": log[: max(1, min(limit, 1000))]}
+
+
+@app.get("/api/ha/insights")
+async def get_light_insights(request: Request):
+    """Admin: the full lighting-intelligence report derived from snapshots +
+    transitions + commands — coverage, per-light profiles, what you set lights to,
+    and candidate automations. This is the data we mine to design real automations."""
+    require_admin(request)
+    from services import light_insights
+    return light_insights.compute_insights()
+
+
+@app.get("/insights")
+async def insights_page(request: Request):
+    """Private House Insights panel. The page shell is harmless; the actual data
+    is fetched from the admin-gated /api/ha/insights, so it only fills in for you."""
+    return _render("insights.html", {
+        "request": request,
+        "is_admin": is_admin_authenticated(request),
+        "display_name": DISPLAY_NAME,
+        "site_name": SITE_NAME,
+    })
 
 
 @app.get("/api/xbox/history")

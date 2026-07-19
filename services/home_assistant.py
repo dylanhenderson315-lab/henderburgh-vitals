@@ -77,6 +77,51 @@ async def capture_light_snapshot():
     return {"lights": lights, "on_count": on_count, "total": len(lights)}
 
 
+def _light_look(lt: dict) -> dict:
+    """The visually meaningful part of a light's state (what it looks like)."""
+    return {
+        "on": bool(lt.get("on")),
+        "rgb": lt.get("rgb"),
+        "kelvin": lt.get("kelvin"),
+        "effect": lt.get("effect"),
+        "brightness": lt.get("brightness"),
+    }
+
+
+def diff_light_states(prev_lights, cur_lights):
+    """Return the list of lights whose *look* materially changed between two
+    snapshots. Material = turned on/off, or (while on) a change of effect, color,
+    white temperature, or a brightness step big enough to be deliberate (>25/255,
+    ~10%). Tiny flicker is ignored so the transition log stays signal, not noise."""
+    prev_by_id = {l.get("id"): l for l in (prev_lights or [])}
+    changes = []
+    for cur in cur_lights or []:
+        eid = cur.get("id")
+        prev = prev_by_id.get(eid)
+        if prev is None:
+            continue
+        a, b = _light_look(prev), _light_look(cur)
+        material = False
+        if a["on"] != b["on"]:
+            material = True
+        elif b["on"]:  # both on — did the look change?
+            if a["effect"] != b["effect"] or a["rgb"] != b["rgb"] or a["kelvin"] != b["kelvin"]:
+                material = True
+            else:
+                pa, pb = a["brightness"] or 0, b["brightness"] or 0
+                if abs(pa - pb) > 25:
+                    material = True
+        if material:
+            changes.append({
+                "id": eid,
+                "room": cur.get("room"),
+                "name": cur.get("name"),
+                "from": a,
+                "to": b,
+            })
+    return changes
+
+
 async def get_ha_areas():
     """Fetch areas (rooms) from HA config."""
     if not HA_ENABLED:

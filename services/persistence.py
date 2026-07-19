@@ -591,6 +591,29 @@ def load_light_history():
     return log if isinstance(log, list) else []
 
 
+# Light TRANSITIONS — every time a light actually changes (on/off, color, effect,
+# brightness), we record from->to with time-of-day + context. Hourly snapshots
+# tell us *what's on*; transitions tell us *what you deliberately change things to*
+# and *when* — which is exactly what's needed to learn your real scenes (e.g. the
+# "work mode" you always set by hand) and propose automations that match reality.
+LIGHT_TRANSITIONS_FILE = _seed("light_transitions.json") or (DATA_PATH / "light_transitions.json")
+
+
+def log_light_transitions(entry: dict):
+    if not entry or not entry.get("changes"):
+        return
+    log = read_json(LIGHT_TRANSITIONS_FILE, [])
+    if not isinstance(log, list):
+        log = []
+    log.insert(0, entry)
+    write_json(LIGHT_TRANSITIONS_FILE, log[:8000])   # ~weeks of change events
+
+
+def load_light_transitions():
+    log = read_json(LIGHT_TRANSITIONS_FILE, [])
+    return log if isinstance(log, list) else []
+
+
 # Daily vitals history — one compact snapshot per calendar day, so we build a
 # longitudinal record beyond Oura's rolling window and can mine our own trends.
 VITALS_HISTORY_FILE = _seed("vitals_history.json") or (DATA_PATH / "vitals_history.json")
