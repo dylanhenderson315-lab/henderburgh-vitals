@@ -1,0 +1,186 @@
+/* ============================================================================
+   HENDERBURGH OS — Design Tokens
+   ----------------------------------------------------------------------------
+   One source of truth for colour, type, radius, spacing, elevation and motion.
+
+   WHY THIS EXISTS
+   An audit of the templates found the system had drifted badly: 17 distinct
+   border-radius values, ~15 near-identical dark greys drawn from THREE different
+   Tailwind palettes (zinc + neutral + slate) mixed inside the same product,
+   3 different "accent greens", and ~19 font sizes including 8-9px text that is
+   unreadable at arm's length. Individually every page looked fine; together they
+   never felt like one crafted product. This file collapses that sprawl.
+
+   HOW TO USE
+   - Prefer a token over a raw hex/px value. Always.
+   - Prefer a primitive class (.hb-card, .hb-label, .hb-stat) over re-styling.
+   - Tailwind utilities still work; tokens are for anything Tailwind can't express
+     consistently, and for the component primitives below.
+   - Adding a NEW colour/size/radius should feel like a decision, not a reflex.
+     If you need one, it probably belongs here rather than in a template.
+
+   ACCESSIBILITY NOTE
+   The old `text-zinc-500` (#71717a) on the near-black background measures ~3.0:1,
+   which fails WCAG AA (4.5:1) for body text — and it was used 165 times, often at
+   10-11px where it matters most. --text-3 below is reserved for >=12px incidental
+   text only; --text-2 is the smallest safe default for anything you must read.
+   ========================================================================== */
+
+:root {
+  /* ── Colour ───────────────────────────────────────────────────────────────
+     ONE neutral ramp (zinc-derived — it was already the dominant family), one
+     accent, one info. Backgrounds are charcoal, never pure #000: on OLED phones
+     pure black smears during scroll and makes "off" states invisible. */
+  --bg:            #0a0a0b;   /* page */
+  --surface:       #131316;   /* card / panel */
+  --surface-2:     #1a1a1f;   /* raised, hover, input */
+  --surface-3:     #232329;   /* pressed / active well */
+
+  --line:          rgba(255, 255, 255, 0.08);   /* default hairline */
+  --line-strong:   rgba(255, 255, 255, 0.14);   /* emphasised border */
+
+  --text:          #e8e8ea;   /* primary — headings, numbers */
+  --text-2:        #a1a1aa;   /* secondary — passes AA at all sizes */
+  --text-3:        #71717a;   /* tertiary — >=12px incidental text ONLY */
+
+  --accent:        #4ade80;   /* the one green: live, on, success */
+  --accent-dim:    rgba(74, 222, 128, 0.14);
+  --accent-line:   rgba(74, 222, 128, 0.32);
+  --info:          #60a5fa;   /* the one blue: links, secondary state */
+  --warn:          #f59e0b;   /* stale data, needs attention */
+  --danger:        #f87171;   /* failure, destructive */
+
+  /* ── Type ─────────────────────────────────────────────────────────────────
+     Two families and seven sizes. Display for identity, mono for instrument
+     labels/units/timestamps — that mono/sans split is what makes a dashboard
+     read as an instrument rather than a web page. */
+  --font-sans:    'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono:    'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+
+  --t-label: 0.625rem;  /* 10px — MONO UPPERCASE LABELS ONLY, never prose */
+  --t-xs:    0.75rem;   /* 12px — smallest readable incidental text */
+  --t-sm:    0.8438rem; /* 13.5px — dense secondary copy */
+  --t-base:  0.9375rem; /* 15px — body */
+  --t-lg:    1.125rem;  /* 18px — card titles */
+  --t-xl:    1.5rem;    /* 24px — section headings */
+  --t-2xl:   clamp(1.75rem, 4vw, 2.25rem);   /* page headings */
+  --t-hero:  clamp(2.25rem, 7vw, 3.75rem);   /* the front-door statement */
+
+  --lh-tight: 1.1;
+  --lh-snug:  1.35;
+  --lh-body:  1.55;
+
+  /* ── Radius ───────────────────────────────────────────────────────────────
+     Four values, replacing seventeen. */
+  --r-sm:   0.5rem;   /* 8px  — chips, inputs, small controls */
+  --r-md:   0.75rem;  /* 12px — buttons, tiles */
+  --r-lg:   1rem;     /* 16px — cards, panels */
+  --r-full: 999px;    /* pills, dots, avatars */
+
+  /* ── Spacing (4px base) ──────────────────────────────────────────────────*/
+  --s-1: 0.25rem;  --s-2: 0.5rem;   --s-3: 0.75rem;  --s-4: 1rem;
+  --s-5: 1.25rem;  --s-6: 1.5rem;   --s-8: 2rem;     --s-12: 3rem;
+
+  /* ── Elevation ───────────────────────────────────────────────────────────*/
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-md: 0 4px 12px -2px rgba(0,0,0,0.35);
+  --shadow-lg: 0 16px 32px -12px rgba(0,0,0,0.45);
+
+  /* ── Motion ──────────────────────────────────────────────────────────────
+     Press is deliberately sub-100ms: on a control you tap constantly it must
+     read as physical, not as an animation. Anything above ~150ms on an action
+     feels like latency. Longer easing is reserved for decoration. */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-press: cubic-bezier(0.2, 0, 0, 1);
+  --d-press: 80ms;
+  --d-fast:  140ms;
+  --d-base:  260ms;
+  --d-slow:  400ms;
+
+  /* Minimum comfortable touch target (audit found 26px toggles). */
+  --tap-min: 44px;
+}
+
+/* ============================================================================
+   PRIMITIVES — the small set of component classes pages should reach for.
+   Prefixed `hb-` so they can be adopted incrementally without colliding with
+   the existing .card / .live-card rules still in the templates.
+   ========================================================================== */
+
+/* Surface -------------------------------------------------------------------*/
+.hb-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--d-fast) ease,
+              box-shadow var(--d-fast) ease,
+              transform var(--d-base) var(--ease-out);
+}
+@media (hover: hover) {
+  .hb-card:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* Instrument label — mono, uppercase, tracked. The single most effective
+   "this is a control panel" signal, borrowed from the reference research. */
+.hb-label {
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 600;
+}
+
+/* Numbers. tabular-nums stops digits jittering as live values update — on a
+   dashboard that refreshes constantly this is the difference between "calm"
+   and "twitchy". */
+.hb-stat {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+.hb-stat-unit { color: var(--text-3); font-weight: 400; }
+
+/* Interactive: press feedback that fires on the element, fast. */
+.hb-press { transition: transform var(--d-base) var(--ease-out); }
+.hb-press:active { transform: scale(0.985); transition: transform var(--d-press) var(--ease-press); }
+
+/* Live/state dots -----------------------------------------------------------*/
+.hb-dot { width: 6px; height: 6px; border-radius: var(--r-full); flex-shrink: 0; display: inline-block; }
+.hb-dot-live   { background: var(--accent); animation: hb-pulse 2.4s ease-in-out infinite; }
+.hb-dot-stale  { background: var(--warn); }
+.hb-dot-off    { background: var(--text-3); }
+@keyframes hb-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+}
+
+/* Touch target guarantee ----------------------------------------------------*/
+.hb-tap { min-height: var(--tap-min); min-width: var(--tap-min); }
+
+/* ============================================================================
+   GLOBAL SAFETY
+   ========================================================================== */
+
+/* Visible focus for keyboard users. Tailwind's reset removes the default
+   outline and the templates never replaced it. */
+:where(a, button, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* Honour reduced motion globally — decoration stops, content never hides. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
