@@ -606,17 +606,15 @@
 
       </div>
 
-      <!-- Last.fm on its own row below for balance (clean spacing, premium contrast) -->
-      <div class="live-now live-now-secondary mt-3">
-        <!-- Last.fm -->
-        <div class="live-card">
-          <h3>Last.fm</h3>
-          <div id="lastfm-status"><p class="text-sm text-zinc-400"><em>Loading recent tracks...</em></p></div>
-          <p class="text-xs text-zinc-400 mt-2">
-            <a href="https://www.last.fm/user/henderburgh" target="_blank" class="hover:text-white transition">Last.fm • Recent</a>
-          </p>
-        </div>
-      </div>
+      <!-- Music: ONE slim ticker line, not a full card. The multi-track list
+           made this the tallest thing in Live Now for the least-important
+           signal; the full history lives on Last.fm itself, one tap away. -->
+      <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener"
+         class="mt-3 flex items-center gap-x-3 px-5 py-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--line-strong)] transition group">
+        <i class="fa-solid fa-music text-[11px] text-zinc-500 group-hover:text-[var(--accent)] transition-colors"></i>
+        <div id="lastfm-status" class="text-[13px] text-zinc-400 truncate flex-1">Loading…</div>
+        <span class="text-[10px] text-zinc-600 whitespace-nowrap group-hover:text-zinc-400 transition-colors">Last.fm →</span>
+      </a>
     </div>
 
     <!-- Yesterday, replayed — the whole OS on one timeline: heart, games, sleep,
@@ -1100,13 +1098,10 @@
     if (!el) return;
 
     if (!tracks || tracks.length === 0) {
-      smoothUpdate(el, `<p><em>No recent tracks</em></p>`, false);
+      el.textContent = 'No recent tracks';
       return;
     }
 
-    let html = '';
-
-    // Check for now playing track
     const nowPlayingTrack = tracks.find(t => t['@attr'] && t['@attr'].nowplaying === 'true');
 
     // Feed the living hero's brain: it knows when music is actually playing
@@ -1115,51 +1110,13 @@
       : null;
     if (window.__synthesizeLive) window.__synthesizeLive();
 
-    if (nowPlayingTrack) {
-      const name = nowPlayingTrack.name;
-      const artist = nowPlayingTrack.artist['#text'];
-      const image = nowPlayingTrack.image?.[1]?.['#text'] || nowPlayingTrack.image?.[2]?.['#text'];
-
-      html += `
-        <div style="margin-bottom:8px;">
-          <span style="background:#22c55e; color:white; font-size:0.65rem; padding:1px 5px; border-radius:3px; margin-right:6px;">NOW PLAYING</span>
-          <strong>${name}</strong><br>
-          <span style="color:#666; font-size:0.85rem;">${artist}</span>
-        </div>
-      `;
-    }
-
-    // Show up to 3 recent tracks (excluding the now playing one if present)
-    const recentTracks = tracks
-      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
-      .slice(0, 3);
-
-    if (recentTracks.length > 0) {
-      if (nowPlayingTrack) {
-        html += `<div style="font-size:0.7rem; color:#888; margin-bottom:4px; margin-top:6px;">Recently played</div>`;
-      }
-
-      recentTracks.forEach(track => {
-        const name = track.name;
-        const artist = track.artist['#text'];
-        html += `
-          <div style="margin-bottom:3px; font-size:0.85rem;">
-            <strong>${name}</strong><br>
-            <span style="color:#666;">${artist}</span>
-          </div>
-        `;
-      });
-    }
-
-    // Profile link
-    html += `
-      <div style="margin-top:6px;">
-        <a href="https://www.last.fm/user/${LASTFM_USER}" target="_blank" 
-           style="font-size:0.7rem; color:#3b82f6; text-decoration:none;">View on Last.fm →</a>
-      </div>
-    `;
-
-    smoothUpdate(el, html, false);
+    // ONE ticker line: what's playing now, else what played last. textContent
+    // (never innerHTML) so track/artist names can't inject markup.
+    const t = nowPlayingTrack || tracks[0];
+    const artist = (t.artist && t.artist['#text']) || '';
+    const prefix = nowPlayingTrack ? '▶ ' : '';
+    el.textContent = prefix + (artist ? `${t.name} — ${artist}` : t.name);
+    el.style.color = nowPlayingTrack ? 'var(--accent)' : '';
   }
 
   async function fetchLastFmTracks() {
@@ -1178,7 +1135,7 @@
       renderLastFmTracks(tracks);
     } catch (err) {
       console.error('Last.fm fetch error:', err);
-      smoothUpdate(el, `<p><em>Unable to load Last.fm tracks</em></p>`, false);
+      el.textContent = 'Unavailable';
     }
   }
 
