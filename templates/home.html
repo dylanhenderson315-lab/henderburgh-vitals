@@ -706,10 +706,7 @@
           <p class="text-xs text-zinc-400 mt-1">{{ '%.1f' % (steps.miles or 0) if steps.miles is not none else '--' }} miles</p>
         </a>
 
-      </div>
-
-      <!-- Last.fm: same live-card shell as Xbox / House (label, body, arrow). -->
-      <div class="live-now live-now-secondary mt-3">
+        <!-- Last.fm: peer tile in the same grid (same width as the others, not full-bleed). -->
         <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener"
            class="live-card block cursor-pointer hero-enter" data-hero-stagger="7"
            title="Open Last.fm profile">
@@ -721,6 +718,7 @@
             </div>
           </div>
         </a>
+
       </div>
     </div>
 
@@ -1241,7 +1239,8 @@
       : null;
     if (window.__synthesizeLive) window.__synthesizeLive();
 
-    // Same structure as Xbox: art + title/badge row + secondary line + quiet meta.
+    // Peer of Xbox: one primary signal only (track + artist + badge). No multi-track
+    // list — that forced a tall full-width card and broke grid parity.
     const primary = nowPlayingTrack || tracks[0];
     const name = escHtml(primary.name);
     const artist = escHtml((primary.artist && primary.artist['#text']) || '');
@@ -1254,23 +1253,6 @@
       ? `<img src="${escHtml(art)}" class="w-9 h-9 rounded-lg object-cover border border-zinc-700 flex-shrink-0" alt="">`
       : `<div class="w-9 h-9 rounded-lg border border-zinc-700 bg-zinc-800/80 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-music text-[11px] text-zinc-500"></i></div>`;
 
-    const recentTracks = tracks
-      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
-      .slice(0, isLive ? 2 : 3);
-
-    let recentHtml = '';
-    if (recentTracks.length) {
-      recentHtml = `
-        <div class="text-[10px] text-zinc-500 mt-2.5 space-y-1">
-          ${recentTracks.map(t => {
-            const n = escHtml(t.name);
-            const a = escHtml((t.artist && t.artist['#text']) || '');
-            return `<div class="truncate leading-snug"><span class="text-zinc-400">${n}</span>${a ? ` <span class="text-zinc-600">· ${a}</span>` : ''}</div>`;
-          }).join('')}
-        </div>
-      `;
-    }
-
     smoothUpdate(el, `
       <div class="flex gap-3">
         ${artHtml}
@@ -1280,7 +1262,6 @@
             ${badge}
           </div>
           <div class="text-xs ${isLive ? 'text-zinc-300' : 'text-zinc-500'} truncate mt-1 leading-snug">${artist || 'Unknown artist'}</div>
-          ${recentHtml}
         </div>
       </div>
     `, false);
