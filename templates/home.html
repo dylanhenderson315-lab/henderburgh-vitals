@@ -1208,7 +1208,17 @@
 
       window.__synthesizeLive = synthesize;  // last.fm hook re-synthesizes on now-playing changes
       tick();
-      setInterval(tick, 12000);
+      // Only poll while the page is actually being looked at. Without this the
+      // front door hit the backend every 12s forever in a background tab —
+      // thousands of pointless requests and real battery cost on a phone that
+      // sits on a home screen all day. Refresh immediately on return so the
+      // first thing seen is current, never stale.
+      setInterval(function () {
+        if (document.visibilityState === 'visible') tick();
+      }, 12000);
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') tick();
+      });
     })();
   </script>
 

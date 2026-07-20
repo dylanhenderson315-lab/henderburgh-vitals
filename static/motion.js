@@ -14,6 +14,7 @@
 
   var EASE = 'cubic-bezier(.22,1,.36,1)';   /* gentle spring-out */
   var batch = 0;
+  var pressBound = false;
 
   function reveal(el) {
     var delay = (batch++ % 5) * 45;
@@ -28,31 +29,95 @@
     el.style.opacity = '';   /* WAAPI fill:backwards owns the hidden phase */
   }
 
+  /* ── Safety net ───────────────────────────────────────────────────────────
+     Reveal used to depend ENTIRELY on IntersectionObserver firing. If the
+     observer was throttled, suppressed (iOS Low Power Mode), lost to a bfcache
+     restore, or simply missed during a fast flick-scroll, the element stayed at
+     opacity:0 FOREVER — a blank card with no path to recovery. Content
+     visibility must never hinge on one callback, so sweep() independently
+     reveals anything that is hidden while actually on screen. */
+  var hidden = [];
+  var io = null;
+  var sweepQueued = false;
+  var watchTimer = null;
+
+  function revealEl(el) {
+    var i = hidden.indexOf(el);
+    if (i !== -1) hidden.splice(i, 1);
+    if (io) { try { io.unobserve(el); } catch (e) {} }
+    reveal(el);
+  }
+
+  function sweep() {
+    sweepQueued = false;
+    var vh = window.innerHeight || 800;
+    for (var i = hidden.length - 1; i >= 0; i--) {
+      var el = hidden[i];
+      if (!el.isConnected) { hidden.splice(i, 1); continue; }   /* swapped away */
+      var r = el.getBoundingClientRect();
+      if (r.top < vh && r.bottom > 0) revealEl(el);
+    }
+    if (!hidden.length) stopWatch();
+  }
+
+  function queueSweep() {
+    if (sweepQueued) return;
+    sweepQueued = true;
+    requestAnimationFrame(sweep);
+  }
+
+  function startWatch() {
+    if (watchTimer) return;
+    window.addEventListener('scroll', queueSweep, { passive: true });
+    window.addEventListener('resize', queueSweep, { passive: true });
+    window.addEventListener('pageshow', queueSweep);
+    /* Cheap backstop for the case where even scroll events don't reach us.
+       Self-cancels the moment nothing is left hidden. */
+    watchTimer = setInterval(sweep, 1000);
+  }
+
+  function stopWatch() {
+    if (!watchTimer) return;
+    window.removeEventListener('scroll', queueSweep);
+    window.removeEventListener('resize', queueSweep);
+    window.removeEventListener('pageshow', queueSweep);
+    clearInterval(watchTimer);
+    watchTimer = null;
+  }
+
   function init() {
     var els = document.querySelectorAll(SELECTOR);
     if (!els.length) return;
     var vh = window.innerHeight || 800;
-    var io = new IntersectionObserver(function (entries) {
-      /* reset stagger counter per scroll-batch so long pages don't accumulate delay */
-      batch = 0;
-      entries.forEach(function (en) {
-        if (!en.isIntersecting) return;
-        io.unobserve(en.target);
-        reveal(en.target);
-      });
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+    if (!io) {
+      io = new IntersectionObserver(function (entries) {
+        /* reset stagger counter per scroll-batch so long pages don't accumulate delay */
+        batch = 0;
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          revealEl(en.target);
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+    }
 
     els.forEach(function (el) {
+      if (el.dataset.moSeen) return;      /* don't re-hide after an HTMX swap */
+      el.dataset.moSeen = '1';
       var r = el.getBoundingClientRect();
       /* Only elements clearly below the fold get the entrance — everything
          visible at load stays instantly readable (no content flash). */
       if (r.top > vh * 0.92) {
         el.style.opacity = '0';
+        hidden.push(el);
         io.observe(el);
       }
     });
+    if (hidden.length) { startWatch(); queueSweep(); }
 
-    /* Tactile press on cards & buttons — quick dip, springy release. */
+    /* Tactile press on cards & buttons — quick dip, springy release.
+       Bound once: init() can run again after an HTMX swap. */
+    if (pressBound) return;
+    pressBound = true;
     document.addEventListener('pointerdown', function (e) {
       var t = e.target.closest(SELECTOR + ',button,.btn-primary,.btn-ghost');
       if (!t || t.dataset.moPress) return;
@@ -120,4 +185,14 @@
   } else {
     boot();
   }
+
+  /* HTMX replaces #main-content wholesale; re-run so swapped-in cards get the
+     same treatment (and are tracked by the safety net) instead of being skipped. */
+  document.body && document.body.addEventListener('htmx:afterSwap', function () {
+    setTimeout(boot, 30);
+  });
+  /* Restoring from bfcache can skip observer callbacks entirely. */
+  window.addEventListener('pageshow', function (e) { if (e.persisted) queueSweep(); });
+
+  window.__moBoot = boot;   /* let pages re-init after their own DOM updates */
 })();

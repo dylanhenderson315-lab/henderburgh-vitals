@@ -371,7 +371,8 @@ async def home(request: Request):
         "miles": round(steps * 0.0005, 1) if steps is not None else None,
     }
 
-    # Format "updated X ago" the same way as vitals
+    # Bare phrase only — the template supplies the "Updated" label. Emitting
+    # "updated ..." here too produced the visible "Updated updated 40m ago".
     hr_updated_ago = "recently"
     if latest_hr_timestamp and hr_age_minutes is not None:
         try:
@@ -380,9 +381,9 @@ async def home(request: Request):
             local_time = ts.astimezone(local_tz)
 
             if hr_age_minutes < 60:
-                hr_updated_ago = f"updated {hr_age_minutes}m ago"
+                hr_updated_ago = f"{hr_age_minutes}m ago"
             else:
-                hr_updated_ago = local_time.strftime("updated at %-I:%M %p").replace(" 0", " ")
+                hr_updated_ago = local_time.strftime("at %-I:%M %p").replace(" 0", " ")
         except Exception:
             hr_updated_ago = "recently"
 
