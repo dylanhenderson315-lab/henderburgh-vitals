@@ -13,6 +13,11 @@ from fastapi import HTTPException
 
 from config import CACHE_TTL_SECONDS, DISPLAY_NAME, HEARTRATE_CACHE_TTL, OURA_BASE_URL
 
+# Widest heart-rate window we'll request in a single paginated call. ~7 days is
+# ~3600 readings — comfortably inside the max_pages x ~1000 ceiling.
+_HR_CHUNK_DAYS = 7
+
+
 class OuraClient:
     def __init__(self, token: str):
         self.token = token
@@ -101,13 +106,38 @@ class OuraClient:
                                   max_pages: int = 8) -> List[Dict]:
         """Heart rate for an EXACT datetime window, fully paginated.
 
-        Two traps this handles:
+        Three traps this handles:
           1. The endpoint ignores start_date/end_date — it needs start_datetime/
              end_datetime (date params return only a recent slice).
           2. Each page caps at ~1000 readings and returns the EARLIEST first with a
              next_token. Without following it, a multi-day (or dense single-day)
-             window silently returns only its beginning."""
-        out: List[Dict] = []
+             window silently returns only its beginning.
+          3. max_pages x ~1000 rows is a hard ceiling, and because pages fill
+             EARLIEST-first, a window wider than that ceiling silently drops its
+             most RECENT days — the opposite of what every caller wants. At ~450
+             readings/day, 8 pages covers only ~18 days, and Oura returns nothing
+             at all for very wide spans (measured: 30d -> truncated to the oldest
+             8000, 60d -> 0 rows). So we split anything wide into <=7-day segments
+             here, in ONE place, rather than leave a landmine every caller must
+             know about."""
+        try:
+            start_dt = datetime.fromisoformat(start_iso)
+            end_dt = datetime.fromisoformat(end_iso)
+        except Exception:
+            start_dt = end_dt = None
+
+        if start_dt and end_dt and (end_dt - start_dt) > timedelta(days=_HR_CHUNK_DAYS):
+            out: List[Dict] = []
+            cur = start_dt
+            while cur < end_dt:
+                nxt = min(cur + timedelta(days=_HR_CHUNK_DAYS), end_dt)
+                out.extend(await self.get_heartrate_range(
+                    cur.isoformat(), nxt.isoformat(),
+                    bypass_cache=bypass_cache, max_pages=max_pages))
+                cur = nxt
+            return out
+
+        out = []
         params = {"start_datetime": start_iso, "end_datetime": end_iso}
         for _ in range(max_pages):
             try:

@@ -1004,6 +1004,50 @@ async def api_xbox_status(request: Request):
     return d if reveal else xbox.redact_status_for_public(d)
 
 
+@app.get("/api/day-replay")
+async def api_day_replay(request: Request, day: str = ""):
+    """Day Explorer: the full replay payload for ANY past day.
+
+    Same privacy contract as the xbox page — work-hours gaming/watching/unlocks
+    and ALL sleep stay hidden unless the admin has explicitly revealed."""
+    try:
+        d = date.fromisoformat(day)
+    except Exception:
+        raise HTTPException(status_code=400, detail="day must be YYYY-MM-DD")
+    if d > xbox._now_et().date():
+        raise HTTPException(status_code=400, detail="day is in the future")
+
+    reveal = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+    try:
+        library = await xbox.get_title_history()
+        # Achievement unlock times only reach ~a few days back; older days simply
+        # come back with no markers rather than failing the whole request.
+        achievements = await xbox.get_recent_achievements(library)
+    except Exception as e:
+        print(f"day replay achievements error: {e}")
+        achievements = []
+    try:
+        payload = await xbox.compute_day_replay(achievements, reveal=reveal, day=d)
+    except Exception as e:
+        # A blank/odd day must degrade to "nothing here", never a 500.
+        print(f"day replay error for {day}: {e}")
+        payload = {"has_data": False}
+    payload["day_iso"] = d.isoformat()
+    return payload
+
+
+@app.get("/api/day-index")
+async def api_day_index(request: Request, days: int = 30):
+    """Which recent days are worth opening — powers the Day Explorer picker.
+    Cheap and cached; see xbox.compute_day_index for why it isn't N replays."""
+    reveal = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+    try:
+        return {"days": await xbox.compute_day_index(days=days, reveal=reveal)}
+    except Exception as e:
+        print(f"day index error: {e}")
+        return {"days": []}
+
+
 @app.get("/api/ha/summary")
 async def api_ha_summary():
     """Lightweight summary used by the homepage Live Now card. Always safe to call."""

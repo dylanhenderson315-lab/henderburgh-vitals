@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import time
 from collections import Counter, deque
@@ -848,7 +849,7 @@ def compute_pulse_chart(sessions: list, history: list, days: int = 14) -> dict:
 # day later. So we replay it: the complete curve for yesterday with game
 # sessions, sleep, and workouts shaded onto the exact minutes they happened.
 
-async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
+async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=None):
     """A day rendered on a true minutes-since-midnight axis: the full HR curve
     plus game/media/workout/sleep bands and achievement markers at their exact
     times. The frontend defaults its view to the ACTIVE window (when you were
@@ -856,7 +857,10 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
     if not state.oura_client:
         return {"has_data": False}
     migrate_sessions_et()
-    day = _now_et().date() - timedelta(days=day_offset)
+    # `day` (an explicit date, from the Day Explorer) wins when given; otherwise
+    # fall back to the historical day_offset behavior so existing callers are
+    # byte-for-byte unchanged.
+    day = day or (_now_et().date() - timedelta(days=day_offset))
     day_start = datetime.combine(day, datetime.min.time())
     day_end = day_start + timedelta(days=1)
 
@@ -867,8 +871,7 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
     # a recent slice, which is what made the old chart show ~3 evening hours).
     try:
         raw = await state.oura_client.get_heartrate_range(
-            day_start.strftime("%Y-%m-%dT%H:%M:%S-04:00"),
-            day_end.strftime("%Y-%m-%dT%H:%M:%S-04:00"))
+            _et_iso(day_start), _et_iso(day_end))
     except Exception:
         raw = []
     pts = []
@@ -1185,6 +1188,155 @@ def _now_et() -> datetime:
     bare datetime.now() there stamped sessions 4-5h off and skewed every
     night-owl / streak stat. All session timestamps use this."""
     return datetime.now(_ET).replace(tzinfo=None)
+
+
+def _et_iso(dt) -> str:
+    """Naive-ET datetime → offset-qualified ISO string for Oura's *_datetime
+    params. Must NOT hardcode -04:00: the Day Explorer reaches back to arbitrary
+    past days, and a winter (EST, -05:00) day sent as -04:00 shifts the window an
+    hour and can drop real readings off either end."""
+    return dt.replace(tzinfo=_ET).isoformat()
+
+
+# ── Day index (Day Explorer picker) ──────────────────────────────────────────
+# Cached because the picker is fetched on every page load but the underlying
+# answer ("which days have data") changes at most once per HR sync.
+_day_index_cache: dict = {}          # (days, reveal) -> (ts, payload)
+DAY_INDEX_TTL = 5 * 60
+# ~7 days measures ~3600 samples — well under get_heartrate_range's ~8000-row
+# (8-page) ceiling, which truncates oldest-first and would erase recent days.
+DAY_INDEX_CHUNK_DAYS = 7
+DAY_INDEX_CONCURRENCY = 4
+
+
+async def compute_day_index(days: int = 30, reveal: bool = False) -> list:
+    """Lightweight "which recent days are worth opening" index, newest first.
+
+    Deliberately does NOT call compute_day_replay per day (that would be one Oura
+    heart-rate fetch per day). Instead the window is fetched in CHUNKS and the
+    samples bucketed by ET calendar day, with game/media names layered on from the
+    already-persisted session log.
+
+    Why chunks and not one big call — both measured against the live API:
+      - a 30-day range hits get_heartrate_range's 8-page / ~8000-row ceiling and
+        fills from the OLDEST end, so every recent day silently vanishes;
+      - a 60-day range returns nothing at all.
+    A ~7-day chunk measures ~3600 samples, comfortably clear of the cap."""
+    days = max(1, min(120, int(days or 30)))
+    key = (days, bool(reveal))
+    hit = _day_index_cache.get(key)
+    if hit and time.time() - hit[0] < DAY_INDEX_TTL:
+        return hit[1]
+
+    migrate_sessions_et()
+    today = _now_et().date()
+    first = today - timedelta(days=days - 1)
+
+    # Build the chunk list, then fetch a few at a time: serial would make first
+    # paint slow at 120 days, unbounded would burst ~17 requests at Oura at once.
+    chunks = []          # (chunk_first_date, chunk_last_date_inclusive)
+    c0 = first
+    while c0 <= today:
+        c1 = min(c0 + timedelta(days=DAY_INDEX_CHUNK_DAYS - 1), today)
+        chunks.append((c0, c1))
+        c0 = c1 + timedelta(days=1)
+
+    sem = asyncio.Semaphore(DAY_INDEX_CONCURRENCY)
+
+    async def fetch(c0, c1):
+        """Returns (rows, ok). ok=False means we genuinely don't know about these
+        days — the caller must NOT record that as 'no data'."""
+        if not state.oura_client:
+            return [], False
+        async with sem:
+            try:
+                rows = await state.oura_client.get_heartrate_range(
+                    _et_iso(datetime.combine(c0, datetime.min.time())),
+                    _et_iso(datetime.combine(c1, datetime.min.time()) + timedelta(days=1)))
+                return rows or [], True
+            except Exception as e:
+                print(f"day index hr chunk {c0}..{c1} failed: {e}")
+                return [], False
+
+    results = await asyncio.gather(*[fetch(a, b) for a, b in chunks])
+
+    by_day: dict = {}     # date -> [bpm, ...]
+    known: set = set()    # days covered by a chunk that actually succeeded
+    for (c0, c1), (rows, ok) in zip(chunks, results):
+        if not ok:
+            continue      # leave these days 'unknown' rather than asserting empty
+        d = c0
+        while d <= c1:
+            known.add(d)
+            d += timedelta(days=1)
+        for e in rows:
+            if not isinstance(e, dict) or e.get("bpm") is None or not e.get("timestamp"):
+                continue
+            try:
+                t = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00")).astimezone(_ET)
+            except Exception:
+                continue
+            by_day.setdefault(t.date(), []).append(e["bpm"])
+
+    # Titles from the persisted session log — no extra API calls.
+    games_by_day: dict = {}
+    media_by_day: dict = {}
+    for s in persistence.load_xbox_sessions():
+        kind = classify_title(s.get("game", ""))
+        if not kind:
+            continue
+        try:
+            st = datetime.fromisoformat(s["start"])
+        except Exception:
+            continue
+        if st.date() < first or st.date() > today:
+            continue
+        if not reveal and in_work_hours(st):
+            continue          # same work-hours privacy rule as the replay itself
+        bucket = games_by_day if kind == "game" else media_by_day
+        names = bucket.setdefault(st.date(), [])
+        name = _clean_title(s["game"])
+        if name not in names:
+            names.append(name)
+
+    out = []
+    for i in range(days):
+        d = today - timedelta(days=i)
+        bpms = by_day.get(d, [])
+        # Same 12-sample floor compute_day_replay uses, so the picker can never
+        # enable a day that the replay would then report as has_data:false.
+        unknown = d not in known
+        has = (not unknown) and len(bpms) >= 12
+        g, m = games_by_day.get(d, [])[:3], media_by_day.get(d, [])[:3]
+        if has:
+            bits = []
+            if g:
+                bits.append(", ".join(g))
+            if m:
+                bits.append("watched " + ", ".join(m))
+            bits.append(f"peak {max(bpms)} bpm")
+            headline = " · ".join(bits)
+        elif unknown:
+            # A fetch failure is NOT evidence of an empty day. Say so, and let the
+            # UI dim the row instead of claiming the day was blank.
+            headline = "couldn't load this day"
+        else:
+            headline = "no heart rate recorded"
+        out.append({
+            "day_iso": d.isoformat(),
+            "label": "Today" if d == today else ("Yesterday" if d == today - timedelta(days=1)
+                                                 else d.strftime("%a, %b %-d")),
+            "has_data": has,
+            "unknown": unknown,
+            "peak_bpm": max(bpms) if has else None,
+            "min_bpm": min(bpms) if has else None,
+            "games": g,
+            "media": m,
+            "headline": headline,
+        })
+
+    _day_index_cache[key] = (time.time(), out)
+    return out
 
 
 # ── Session observer ─────────────────────────────────────────────────────────
