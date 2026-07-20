@@ -20,6 +20,7 @@
   {% endif %}
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/tokens.css?v=1">
   <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <!-- Day Explorer needs pan/zoom on the minutes-of-day replay chart (same libs as /xbox) -->
@@ -30,24 +31,27 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
     
+    /* Page-local aliases now resolve to the shared tokens (static/tokens.css)
+       instead of one-off hexes, so this page can't drift from the rest of the
+       OS again. Note the old stacks said `system_ui` (underscore) — an invalid
+       keyword that silently dropped the system-font fallback. */
     :root {
-      --bg: #0f1115;
-      --card: #161a20;
-      --accent-green: #4ade80;
-      --accent-blue: #60a5fa;
-      --text-primary: #e2e8f0;
-      --text-secondary: #94a3b8;
-      --status-relax: #22c55e;
+      --card: var(--surface);
+      --accent-green: var(--accent);
+      --accent-blue: var(--info);
+      --text-primary: var(--text);
+      --text-secondary: var(--text-2);
+      --status-relax: var(--accent);
     }
-    
+
     body {
-      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1115;
-      color: #e2e8f0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
     }
-    
+
     .font-display {
-      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-family: var(--font-display);
       font-feature-settings: "ss02";
     }
 
@@ -58,62 +62,62 @@
 
     /* ---- Day Explorer (dx-*) ---- */
     .dx-section-label {
-      font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase;
-      color: #737373; font-weight: 600;
+      font-size: var(--t-label); letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--text-3); font-weight: 600;
     }
     /* Horizontal day strip: thumb-scrollable on phone, snaps chip-to-chip */
     .dx-strip {
       display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden;
       scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
       padding: 2px 2px 10px 2px; scrollbar-width: thin;
-      scrollbar-color: #3f3f46 transparent;
+      scrollbar-color: var(--line-strong) transparent;
     }
     .dx-strip::-webkit-scrollbar { height: 6px; }
-    .dx-strip::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+    .dx-strip::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--r-sm); }
     .dx-chip {
       flex: 0 0 auto; scroll-snap-align: center; min-width: 72px;
-      background: #1b2027; border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 14px; padding: 8px 10px 7px; text-align: center;
-      cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .15s ease;
-      color: #e2e8f0; line-height: 1.15;
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: var(--r-md); padding: 8px 10px 7px; text-align: center;
+      cursor: pointer; transition: border-color var(--d-fast) ease, background var(--d-fast) ease, transform var(--d-fast) ease;
+      color: var(--text); line-height: 1.15;
     }
-    .dx-chip:hover:not(.dx-chip-off) { border-color: rgba(74,222,128,0.45); transform: translateY(-1px); }
+    .dx-chip:hover:not(.dx-chip-off) { border-color: var(--accent-line); transform: translateY(-1px); }
     .dx-chip-dow, .dx-chip-day, .dx-chip-mon { display: block; }
-    .dx-chip-dow { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #8b93a1; }
-    .dx-chip-day { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 19px; font-weight: 600; margin-top: 1px; }
-    .dx-chip-mon { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: #6b7280; }
-    .dx-chip-dot { display: block; width: 5px; height: 5px; border-radius: 50%; margin: 4px auto 0; background: #4ade80; }
+    .dx-chip-dow { font-size: var(--t-label); letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-2); }
+    .dx-chip-day { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin-top: 1px; }
+    .dx-chip-mon { font-size: var(--t-label); letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
+    .dx-chip-dot { display: block; width: 5px; height: 5px; border-radius: var(--r-full); margin: 4px auto 0; background: var(--accent); }
     .dx-chip-dot-off { background: transparent; }
     .dx-chip-off { opacity: .34; cursor: not-allowed; }
     .dx-chip-on {
-      border-color: #4ade80; background: rgba(74,222,128,0.12);
-      box-shadow: 0 0 0 1px rgba(74,222,128,0.35);
+      border-color: var(--accent); background: var(--accent-dim);
+      box-shadow: 0 0 0 1px var(--accent-line);
     }
-    .dx-chip-on .dx-chip-dow, .dx-chip-on .dx-chip-mon { color: #86efac; }
-    .dx-bignum { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 30px; font-weight: 600; line-height: 1; }
-    .dx-skel { background: linear-gradient(90deg,#1b2027 25%,#232a33 37%,#1b2027 63%); background-size: 400% 100%; animation: dxShimmer 1.3s ease infinite; border-radius: 10px; }
+    .dx-chip-on .dx-chip-dow, .dx-chip-on .dx-chip-mon { color: var(--accent); }
+    .dx-bignum { font-family: var(--font-display); font-size: 30px; font-weight: 600; line-height: 1; }
+    .dx-skel { background: linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 37%,var(--surface-2) 63%); background-size: 400% 100%; animation: dxShimmer 1.3s ease infinite; border-radius: var(--r-md); }
     @keyframes dxShimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
     @media (prefers-reduced-motion: reduce) { .dx-skel { animation: none; } }
 
     /* Premium dark theme cards matching lighting and home pages */
     .card-bg {
-      background: #161a20;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 1.5rem;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-md);
+      transition: border-color var(--d-fast) ease, box-shadow var(--d-fast) ease;
     }
     .card-bg:hover {
-      border-color: rgba(74, 222, 128, 0.3);
-      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
+      border-color: var(--accent-line);
+      box-shadow: var(--shadow-lg);
     }
 
     .metric-card {
-      background: #161a20;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 1.5rem;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-md);
+      transition: border-color var(--d-fast) ease, box-shadow var(--d-fast) ease;
       position: relative;
       overflow: hidden;
     }
@@ -127,8 +131,8 @@
       pointer-events: none;
     }
     .metric-card:hover {
-      border-color: rgba(74, 222, 128, 0.3);
-      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
+      border-color: var(--accent-line);
+      box-shadow: var(--shadow-lg);
     }
     .metric-card:hover::before {
       opacity: 1;
@@ -140,8 +144,8 @@
       line-height: 0.95;
       font-weight: 700;
       letter-spacing: -3px;
-      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
-      color: #f4f4f5;
+      font-family: var(--font-display);
+      color: var(--text);
     }
 
     .score-number {
@@ -153,7 +157,7 @@
       font-size: 11px;
       letter-spacing: 2.5px;
       text-transform: uppercase;
-      color: #737373;
+      color: var(--text-3);
       font-weight: 600;
     }
 
@@ -163,7 +167,7 @@
 
     .data-table th {
       font-weight: 500;
-      color: #64748b;
+      color: var(--text-2);
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: -.3px;
@@ -172,7 +176,7 @@
     .trend-pill {
       font-size: 12px;
       padding: 1px 8px;
-      border-radius: 9999px;
+      border-radius: var(--r-full);
       font-weight: 600;
       display: inline-flex;
       align-items: center;
@@ -185,24 +189,24 @@
     }
 
     .nav-active {
-      background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
-      border-radius: 6px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-radius: var(--r-sm);
     }
 
-    .oura-green { color: #10b981; }
-    
+    .oura-green { color: var(--accent); }
+
     .stat-label {
       font-size: 12px;
       letter-spacing: -.2px;
       font-weight: 500;
-      color: #94a3b8;
+      color: var(--text-2);
     }
 
     .sub-stat {
       font-size: 15px;
       font-weight: 600;
-      color: #94a3b8;
+      color: var(--text-2);
     }
 
     .chart-grid {
@@ -212,9 +216,9 @@
       background-size: 24px 24px;
     }
 
-    .value-good { color: #10b981; }
-    .value-warn { color: #f59e0b; }
-    .value-bad { color: #f43f5e; }
+    .value-good { color: var(--accent); }
+    .value-warn { color: var(--warn); }
+    .value-bad { color: var(--danger); }
 
     .htmx-request .refresh-icon {
       animation: spin 0.8s linear infinite;
@@ -227,26 +231,26 @@
 
     .sleep-bar {
       height: 6px;
-      background: linear-gradient(to right, #10b981, #34d399);
-      border-radius: 999px;
+      background: linear-gradient(to right, var(--accent), #34d399);
+      border-radius: var(--r-full);
     }
 
     /* High contrast for all text in cards */
     .metric-card, .card-bg {
-      color: #e2e8f0;
+      color: var(--text);
     }
     .metric-card .text-sm, .metric-card .text-xs,
     .card-bg .text-sm, .card-bg .text-xs {
-      color: #94a3b8;
+      color: var(--text-2);
     }
     .metric-card .text-white, .big-stat {
-      color: #f4f4f5;
+      color: var(--text);
     }
   </style>
   <script defer src="/static/os-command.js"></script>
-  <script defer src="/static/motion.js?v=3"></script>
+  <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[#0f1115] text-[#e2e8f0] min-h-screen">
+<body class="bg-[var(--bg)] text-[var(--text)] min-h-screen">
   {% if setup_mode %}
   <!-- ==================== SETUP SCREEN (local dev only) ==================== -->
   <div class="max-w-xl mx-auto pt-20 px-6">
@@ -262,7 +266,7 @@
 
     <div class="card-bg rounded-3xl p-8 shadow-2xl border border-zinc-800">
       <h1 class="text-3xl font-semibold tracking-tight mb-2">Connect your Oura Ring</h1>
-      <p class="text-[#94a3b8] mb-8">This dashboard pulls all available daily metrics directly from the Oura API v2.</p>
+      <p class="text-[var(--text-2)] mb-8">This dashboard pulls all available daily metrics directly from the Oura API v2.</p>
 
       <div class="space-y-6">
         <div>
@@ -272,7 +276,7 @@
             <i class="fa-solid fa-external-link-alt"></i>
             <span>Open Oura Cloud → Personal Access Tokens</span>
           </a>
-          <div class="mt-3 text-xs text-[#94a3b8]">
+          <div class="mt-3 text-xs text-[var(--text-2)]">
             If the page says tokens are deprecated, create an OAuth application instead and use the access token.
           </div>
         </div>
@@ -305,14 +309,14 @@
   
   {% if not fragment %}
   <!-- Top Navigation -->
-  <nav class="border-b border-zinc-800 sticky top-0 z-50 bg-[#0f1115]/95 backdrop-blur-xl">
+  <nav class="border-b border-zinc-800 sticky top-0 z-50 bg-[var(--bg)]/95 backdrop-blur-xl">
     <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-x-3">
         <div class="flex items-center gap-x-2.5">
           <div class="w-8 h-8 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-inner">
             <i class="fa-solid fa-ring text-white text-xl"></i>
           </div>
-          <a href="/" class="font-semibold text-xl tracking-tighter font-display hover:opacity-80 transition">
+          <a href="/" class="hb-tap inline-flex items-center font-semibold text-xl tracking-tighter font-display hover:opacity-80 transition">
             {% if public_mode %}{{ site_name }}{% else %}HENDERBURGH{% endif %}
           </a>
         </div>
@@ -332,7 +336,7 @@
         </nav>
 
         <!-- Status info (simple; detailed + countdown + refresh live inside content for HTMX partials) -->
-        <div class="text-xs text-[#94a3b8] font-medium px-3 py-1.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-x-2">
+        <div class="text-xs text-[var(--text-2)] font-medium px-3 py-1.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-x-2">
           <span>Updated {{ last_updated }}</span>
           {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}
           <span class="text-emerald-400 hidden sm:inline">• auto {{ (auto_refresh_seconds // 60) }}m</span>
@@ -506,7 +510,7 @@
           </span>
           {% endif %}
           <button id="refresh-btn" onclick="refreshVitals(this)" 
-                  class="inline-flex items-center gap-x-1.5 px-3 py-1 text-[11px] rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 active:scale-[0.985] transition"
+                  class="hb-tap justify-center inline-flex items-center gap-x-1.5 px-3 py-1 text-[11px] rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 active:scale-[0.985] transition"
                   title="Pull latest from Oura now (feels instant)">
             <i class="fa-solid fa-sync refresh-icon"></i>
             <span>Refresh</span>
@@ -921,8 +925,8 @@
         </div>
         <!-- Active / Full 24h view chips (same language as the Replay on /xbox) -->
         <div class="flex gap-1.5 mb-4">
-          <button id="hrc-active" type="button" class="text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
-          <button id="hrc-full" type="button" class="text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full 24h</button>
+          <button id="hrc-active" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
+          <button id="hrc-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full 24h</button>
           <span id="hrc-span" class="ml-auto self-center text-[11px] text-zinc-600"></span>
         </div>
         <div class="chart-container h-[200px]">
@@ -1082,7 +1086,7 @@
       </div>
       <input type="date" id="dx-date" max="{{ today_iso or '' }}"
              aria-label="Jump to a specific date"
-             class="flex-shrink-0 bg-[#1b2027] border border-white/10 rounded-lg text-xs text-zinc-300 px-2.5 py-1.5 focus:outline-none focus:border-emerald-400/60" />
+             class="hb-tap flex-shrink-0 bg-[var(--surface-2)] border border-white/10 rounded-lg text-xs text-zinc-300 px-2.5 py-1.5 focus:outline-none focus:border-emerald-400/60" />
     </div>
 
     <!-- Day picker strip -->
@@ -1121,8 +1125,8 @@
         <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
         <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
         <span class="ml-auto flex gap-1.5">
-          <button id="dx-view-active" type="button" class="text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
-          <button id="dx-view-full" type="button" class="text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full day</button>
+          <button id="dx-view-active" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
+          <button id="dx-view-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full day</button>
         </span>
       </div>
 
@@ -1147,7 +1151,7 @@
           <span><i class="fa-solid fa-hand-pointer text-[10px] mr-1"></i>drag to move · pinch or scroll to zoom · double-tap to reset</span>
           <span id="dx-gap-note" class="hidden text-zinc-600"></span>
         </div>
-        <button id="dx-share" type="button" class="mt-4 text-xs px-3.5 py-2 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-300 hover:border-emerald-400/50">
+        <button id="dx-share" type="button" class="hb-tap mt-4 text-xs px-3.5 py-2 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-300 hover:border-emerald-400/50">
           <i class="fa-solid fa-link text-[10px] mr-1.5"></i><span id="dx-share-label">Copy link to this day</span>
         </button>
       </div>
@@ -1351,7 +1355,7 @@
           dxChart.update('none');
           [btnA, btnF].forEach(b => {
             if (!b) return;
-            b.className = 'text-[11px] px-3 py-1.5 rounded-full font-medium ' + (b === activeBtn
+            b.className = 'hb-tap text-[11px] px-3 py-1.5 rounded-full font-medium ' + (b === activeBtn
               ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
               : 'bg-zinc-800/80 border border-zinc-700 text-zinc-400');
           });
@@ -1496,16 +1500,16 @@
   {% endif %}
 
   <!-- Mobile bottom navigation (premium app-like OS, consistent across all pages) -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0b] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg)] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
     <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
-      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
-      <a href="/vitals" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
-      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
-      <a href="/model" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
-      <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
-      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
-      <a href="/xbox" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
-      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+      <a href="/" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="hb-tap justify-center flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
+      <a href="/golf" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/clips" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/xbox" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
+      <a href="/blog" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
     </div>
   </nav>
 
@@ -1755,7 +1759,7 @@
           hrCurveChartInstance.update('none');
           [hrcBtnA, hrcBtnF].forEach(b => {
             if (!b) return;
-            b.className = 'text-[11px] px-3 py-1.5 rounded-full font-medium ' + (b === activeBtn
+            b.className = 'hb-tap text-[11px] px-3 py-1.5 rounded-full font-medium ' + (b === activeBtn
               ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
               : 'bg-zinc-800/80 border border-zinc-700 text-zinc-400');
           });

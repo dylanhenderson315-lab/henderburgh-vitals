@@ -16,7 +16,40 @@
   var batch = 0;
   var pressBound = false;
 
+  /* Animations that must never be allowed to strand an element hidden. */
+  var running = [];
+
+  function prune(anim) {
+    for (var i = running.length - 1; i >= 0; i--) {
+      if (running[i].anim === anim) running.splice(i, 1);
+    }
+  }
+
+  /* Force an element to its visible resting state. Cancelling matters: a WAAPI
+     animation's effect overrides inline style, so clearing opacity alone would
+     NOT beat a frozen fill:'backwards'. Cancel drops the effect entirely and
+     the element falls back to its own (visible) base style. */
+  function settle(el, anim) {
+    try { if (anim && anim.playState !== 'finished') anim.cancel(); } catch (e) {}
+    el.style.opacity = '';
+    el.style.transform = '';
+  }
+
   function reveal(el) {
+    /* Visibility is resolved FIRST and unconditionally; the animation may only
+       decorate. This used to be inverted: fill:'backwards' pinned the element
+       at the opening keyframe (opacity 0) until the animation ran — and a
+       backgrounded tab FREEZES the document timeline, so it never ran and the
+       card stayed blank permanently. The old sweep() net didn't help because
+       it recovered by calling reveal() again, re-arming the identical trap.
+       Same failure shape as the two innerHTML/anime.js cases already fixed. */
+    el.style.opacity = '';
+    el.style.transform = '';
+
+    /* No running timeline => no animation is possible. The element is already
+       visible above, so stop here rather than hiding it behind a frozen one. */
+    if (document.visibilityState !== 'visible') return;
+
     var delay = (batch++ % 5) * 45;
     var anim = el.animate(
       [
@@ -25,9 +58,24 @@
       ],
       { duration: 480, easing: EASE, delay: delay, fill: 'backwards' }
     );
-    anim.onfinish = function () { el.style.opacity = ''; };
-    el.style.opacity = '';   /* WAAPI fill:backwards owns the hidden phase */
+    running.push({ el: el, anim: anim });
+    anim.onfinish = function () { settle(el, anim); prune(anim); };
+    /* Backstop: however the animation ends up — frozen, interrupted, dropped —
+       this element is visible shortly after. */
+    setTimeout(function () { settle(el, anim); prune(anim); }, delay + 900);
   }
+
+  /* Returning to a backgrounded tab: rescue only the animations that never
+     progressed (currentTime still 0/null). In-flight ones are left to finish
+     so we don't snap a partially-played entrance. */
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    for (var i = running.length - 1; i >= 0; i--) {
+      var r = running[i], t = null;
+      try { t = r.anim.currentTime; } catch (e) {}
+      if (t === null || t === 0) { settle(r.el, r.anim); running.splice(i, 1); }
+    }
+  });
 
   /* ── Safety net ───────────────────────────────────────────────────────────
      Reveal used to depend ENTIRELY on IntersectionObserver firing. If the
