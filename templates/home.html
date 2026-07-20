@@ -206,6 +206,56 @@
     .hero-enter.ready { opacity: 1; transform: none; transition: opacity .5s cubic-bezier(.22,1,.36,1), transform .5s cubic-bezier(.22,1,.36,1); }
     @media (prefers-reduced-motion: reduce) { .hero-enter { opacity: 1; transform: none; } }
 
+    /* ── The Index ────────────────────────────────────────────────────────────
+       Every page as one editorial row: mono catalogue number, display-type name,
+       live signal, arrow. Hairline rules instead of boxes — a grid of identical
+       rounded cards is what made the hub read as a generic dashboard template.
+       Press feedback is deliberately sub-100ms: on a hub you tap constantly, the
+       control must feel physical and instant, never "animated". */
+    .idx { border-top: 1px solid rgba(255,255,255,0.08); }
+    .idx-row {
+      display: grid;
+      grid-template-columns: 2.25rem 1fr auto 1.25rem;
+      align-items: baseline;
+      gap: 0 1rem;
+      padding: 1.15rem 0.5rem 1.15rem 0.25rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      text-decoration: none;
+      position: relative;
+      transition: background-color 140ms ease, padding-left 180ms cubic-bezier(.22,1,.36,1);
+    }
+    .idx-row:hover { background-color: rgba(255,255,255,0.025); padding-left: 0.75rem; }
+    .idx-row:active { transform: scale(0.995); transition: transform 80ms cubic-bezier(0.2,0,0,1); }
+    .idx-num {
+      font-family: 'SF Mono', ui-monospace, 'Menlo', monospace;
+      font-size: 10px; letter-spacing: 0.1em; color: #52525b;
+      font-variant-numeric: tabular-nums;
+    }
+    .idx-name {
+      font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+      font-size: clamp(1.35rem, 4.5vw, 1.9rem);
+      font-weight: 600; letter-spacing: -0.02em; line-height: 1;
+      color: #e4e4e7;
+      transition: color 140ms ease;
+    }
+    .idx-row:hover .idx-name { color: #fafafa; }
+    .idx-sig {
+      font-family: 'SF Mono', ui-monospace, 'Menlo', monospace;
+      font-size: 10.5px; letter-spacing: 0.02em; color: #6b7280;
+      text-align: right; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; max-width: 46vw;
+      font-variant-numeric: tabular-nums;
+    }
+    .idx-arrow {
+      font-size: 13px; color: #3f3f46; text-align: right;
+      transition: color 140ms ease, transform 180ms cubic-bezier(.22,1,.36,1);
+    }
+    .idx-row:hover .idx-arrow { color: #4ade80; transform: translateX(3px); }
+    @media (prefers-reduced-motion: reduce) {
+      .idx-row, .idx-arrow, .idx-name { transition: none; }
+      .idx-row:hover { padding-left: 0.25rem; }
+    }
+
     /* Live Now specific balance - compact but intentional spacing */
     .live-now {
       gap: 14px;
@@ -527,41 +577,76 @@
   </div>
 
   <main class="max-w-[1080px] mx-auto px-6 pt-6 pb-8">
-    <!-- Live Now -->
+    <!-- THE INDEX — the home page's real job: a directory where every page is one
+         row carrying its own LIVE signal, so the hub answers "what's happening
+         everywhere" at a glance and every row is a door. Editorial rows with
+         hairline rules instead of a grid of identical boxes: the boxes were what
+         made this read as a generic dashboard template. -->
     <div class="content-section" id="live-now-section">
-      <div class="section-label mb-3">Live Now</div>
+      <div class="flex items-baseline justify-between mb-1">
+        <div class="section-label">The Index</div>
+        <div class="section-label">Live</div>
+      </div>
 
-      <!-- ACTIVITY, not metrics. Heart rate / lights / steps live once, in the
-           hero instrument row above — repeating them here made the fold say the
-           same three facts three times. These cards answer "what am I doing",
-           which the numbers can't. -->
-      <div class="live-now live-now-main relative z-10">
-        <!-- Xbox -->
-        <a href="/xbox" class="live-card block cursor-pointer" title="View full Xbox profile &amp; game log">
-          <h3>Xbox</h3>
-          <div id="xbox-status">Checking status...</div>
+      <nav class="idx">
+        <a href="/vitals" class="idx-row">
+          <span class="idx-num">01</span>
+          <span class="idx-name">Vitals</span>
+          <span class="idx-sig">{{ heart_rate.bpm if heart_rate and heart_rate.bpm is not none else '—' }} bpm{% if steps and steps.count is not none %} · {{ '{:,}'.format(steps.count) }} steps{% endif %}</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
         </a>
 
-        <!-- Home Assistant (only in private/local deploys) -->
         {% if not public_mode %}
-        <a href="/home-assistant" class="live-card block cursor-pointer" title="Open Home Assistant control panel">
-          <h3>The House</h3>
-          <div id="ha-status">Loading...</div>
+        <a href="/home-assistant" class="idx-row">
+          <span class="idx-num">02</span>
+          <span class="idx-name">Lighting</span>
+          <span class="idx-sig" id="ha-status">—</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
         </a>
         {% endif %}
-      </div>
 
-      <!-- Last.fm on its own row below for balance (clean spacing, premium contrast) -->
-      <div class="live-now live-now-secondary mt-3">
-        <!-- Last.fm -->
-        <div class="live-card">
-          <h3>Last.fm</h3>
-          <div id="lastfm-status"><p class="text-sm text-zinc-400"><em>Loading recent tracks...</em></p></div>
-          <p class="text-xs text-zinc-400 mt-2">
-            <a href="https://www.last.fm/user/henderburgh" target="_blank" class="hover:text-white transition">Last.fm • Recent</a>
-          </p>
-        </div>
-      </div>
+        <a href="/xbox" class="idx-row">
+          <span class="idx-num">03</span>
+          <span class="idx-name">Xbox</span>
+          <span class="idx-sig" id="xbox-status">—</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a href="/clips" class="idx-row">
+          <span class="idx-num">04</span>
+          <span class="idx-name">Clips</span>
+          <span class="idx-sig">{{ recent_clips | length }} recent</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a href="/blog" class="idx-row">
+          <span class="idx-num">05</span>
+          <span class="idx-name">Blog</span>
+          <span class="idx-sig">{% if blog_unread_count and blog_unread_count > 0 %}{{ blog_unread_count }} unread{% else %}{{ recent_messages | length }} posts{% endif %}</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a href="/model" class="idx-row">
+          <span class="idx-num">06</span>
+          <span class="idx-name">Model</span>
+          <span class="idx-sig">3D house</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a href="/golf" class="idx-row">
+          <span class="idx-num">07</span>
+          <span class="idx-name">Golf</span>
+          <span class="idx-sig">Rounds</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener" class="idx-row">
+          <span class="idx-num">08</span>
+          <span class="idx-name">Music</span>
+          <span class="idx-sig" id="lastfm-status">—</span>
+          <span class="idx-arrow" aria-hidden="true">↗</span>
+        </a>
+      </nav>
     </div>
 
     <!-- Yesterday, replayed — the whole OS on one timeline: heart, games, sleep,
@@ -863,81 +948,32 @@
 
   <!-- Xbox Live Status -->
   <script>
+  // Index rows carry ONE compact live signal each — a single line of mono text.
+  // (These used to render full cards with avatars and stat stacks; in a row
+  // layout that's noise, and the detail belongs on the page the row opens.)
   async function loadXbox() {
     const el = document.getElementById("xbox-status");
-    if (el) {
-      el.innerHTML = `<div class="flex justify-center py-3"><div class="neon-drift"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
-    }
+    if (!el) return;
 
     try {
       const res = await fetch("/api/xbox/status");
       const data = await res.json();
 
       if (data.status === "ok") {
-        const state = data.state || "Unknown";
-        const gameText = (data.game && data.game !== "—") ? data.game : "No active game";
-        const isOnline = state.toLowerCase() === "online";
-        const statusColor = isOnline 
-          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-          : "bg-zinc-700/50 text-zinc-400 border border-zinc-600/30";
-        const statusText = isOnline ? "Online" : "Offline";
-        const pic = data.gamerpic || "";
-        const gt = data.gamertag || "NutNutBiinks";
-        const score = data.gamerscore ? data.gamerscore.toLocaleString() : "";
-        const ten = data.tenure || 0;
-        const bottom = (score || ten) 
-          ? `<div class="text-[10px] text-zinc-500 mt-1.5 tabular-nums">${score}${score && ten ? " • " : ""}${ten ? ten + " years" : ""}</div>` 
-          : "";
-
-        // Show age of the cached snapshot (populated by backend). Helps communicate that we are not live-polling.
-        let updatedLine = "";
-        if (data.last_updated) {
-          const ageSec = Math.floor(Date.now() / 1000 - data.last_updated);
-          const ageMin = Math.max(0, Math.floor(ageSec / 60));
-          const label = ageMin === 0 ? "just now" : `${ageMin} min ago`;
-          updatedLine = `<div class="text-[9px] text-zinc-500 mt-1">Updated ${label}</div>`;
-        }
-
-        smoothUpdate(el, `
-          <div class="flex gap-3">
-            ${pic ? `<img src="${pic}" class="w-9 h-9 rounded-full object-cover border border-zinc-700 flex-shrink-0" alt="${gt} gamerpic">` : ''}
-            <div class="flex-1 min-w-0 overflow-hidden">
-              <div class="flex items-center justify-between gap-2">
-                <span class="font-semibold text-sm leading-none truncate">${gt}</span>
-                <span class="text-[10px] px-1.5 py-px rounded-full font-medium whitespace-nowrap ${statusColor}">${statusText}</span>
-              </div>
-              <div class="text-xs ${gameText === 'No active game' ? 'text-zinc-500 italic' : 'text-zinc-300'} truncate mt-1 leading-snug">${gameText}</div>
-              ${bottom}
-              ${updatedLine}
-            </div>
-          </div>
-        `);
-
-        // Anime.js calm number animation for gamerscore (production data polish)
-        if (score) {
-          setTimeout(() => {
-            const scoreNode = el.querySelector('.tabular-nums');
-            if (scoreNode) {
-              const targetScore = parseInt(score.replace(/,/g, '')) || 0;
-              anime({
-                targets: { val: 0 },
-                val: targetScore,
-                duration: 850,
-                easing: 'easeOutExpo',
-                update: (anim) => {
-                  scoreNode.textContent = Math.floor(anim.animations[0].currentValue).toLocaleString();
-                }
-              });
-            }
-          }, 180);
-        }
+        const isOnline = (data.state || "").toLowerCase() === "online";
+        const hasGame = data.game && data.game !== "—";
+        // Playing something is the interesting state, so it wins the line.
+        el.textContent = hasGame
+          ? data.game
+          : (isOnline ? "Online" : "Offline");
+        el.style.color = hasGame ? "#4ade80" : "";
       } else if (data.status === "not_configured") {
-        el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status not configured</p>`;
+        el.textContent = "Not configured";
       } else {
-        el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status temporarily unavailable</p>`;
+        el.textContent = "Unavailable";
       }
     } catch (error) {
-      el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status temporarily unavailable</p>`;
+      el.textContent = "Unavailable";
     }
   }
 
@@ -954,54 +990,27 @@
     const el = document.getElementById("ha-status");
     if (!el) return;
 
-    el.innerHTML = `<div class="flex justify-center py-3"><div class="neon-drift"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
-
     try {
       const res = await fetch("/api/ha/summary");
       const data = await res.json();
 
       if (data.status === "ok") {
         const on = data.lights_on || 0;
-        const tot = data.total_lights || 0;
-        const scene = data.active_scene && data.active_scene !== "—" ? data.active_scene : "No active scene";
-
-        // New room-aware summary for the professional dashboard
-        let roomsHtml = '';
-        const rooms = (data.active_rooms && data.active_rooms.length) ? data.active_rooms : (data.rooms || []).slice(0, 2);
-        if (rooms.length) {
-          roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1 space-x-1">` +
-            rooms.map(r => {
-              const pct = r.brightness_avg ? ` ${r.brightness_avg}%` : '';
-              return `<span class="tabular-nums">${r.name.split(' ')[0]}: ${r.on}/${r.total}${pct}</span>`;
-            }).join(' ') + `</div>`;
-        } else {
-          roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1">${(data.quick_status || []).slice(0,1).join('')}</div>`;
-        }
-
-        // Lead with the MOOD (which rooms are lit, what scene), not the light
-        // count — that number is already the hero's, and printing it here made
-        // the fold repeat itself. This card answers "what does the house feel
-        // like right now", which the count can't.
+        const rooms = (data.active_rooms && data.active_rooms.length) ? data.active_rooms : (data.rooms || []);
+        // Which rooms are alive — the light COUNT is already the hero's number,
+        // so this line says the thing the count can't.
         const litRooms = rooms.filter(r => r.on > 0).map(r => r.name);
-        const moodLine = litRooms.length
-          ? litRooms.slice(0, 3).join(' · ')
-          : (on > 0 ? 'Lights on' : 'Every light is off');
-
-        const haHtml = `
-          <div class="text-sm">
-            <div class="font-semibold leading-snug truncate">${moodLine}</div>
-            <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-[#94a3b8] italic' : 'text-[#4ade80]'} truncate">${scene}</div>
-            ${roomsHtml}
-          </div>
-        `;
-        smoothUpdate(el, haHtml);
+        el.textContent = litRooms.length
+          ? litRooms.slice(0, 2).join(' · ')
+          : (on > 0 ? `${on} on` : 'All off');
+        el.style.color = litRooms.length || on > 0 ? "#4ade80" : "";
       } else if (data.status === "disabled") {
-        el.innerHTML = `<p class="text-xs text-zinc-500">Home Assistant (local only)</p>`;
+        el.textContent = "Local only";
       } else {
-        el.innerHTML = `<p class="text-xs text-zinc-500">HA status unavailable</p>`;
+        el.textContent = "Unavailable";
       }
     } catch (error) {
-      el.innerHTML = `<p class="text-xs text-zinc-500">HA status unavailable</p>`;
+      el.textContent = "Unavailable";
     }
   }
 
@@ -1022,13 +1031,10 @@
     if (!el) return;
 
     if (!tracks || tracks.length === 0) {
-      smoothUpdate(el, `<p><em>No recent tracks</em></p>`, false);
+      el.textContent = 'No recent tracks';
       return;
     }
 
-    let html = '';
-
-    // Check for now playing track
     const nowPlayingTrack = tracks.find(t => t['@attr'] && t['@attr'].nowplaying === 'true');
 
     // Feed the living hero's brain: it knows when music is actually playing
@@ -1037,51 +1043,12 @@
       : null;
     if (window.__synthesizeLive) window.__synthesizeLive();
 
-    if (nowPlayingTrack) {
-      const name = nowPlayingTrack.name;
-      const artist = nowPlayingTrack.artist['#text'];
-      const image = nowPlayingTrack.image?.[1]?.['#text'] || nowPlayingTrack.image?.[2]?.['#text'];
-
-      html += `
-        <div style="margin-bottom:8px;">
-          <span style="background:#22c55e; color:white; font-size:0.65rem; padding:1px 5px; border-radius:3px; margin-right:6px;">NOW PLAYING</span>
-          <strong>${name}</strong><br>
-          <span style="color:#666; font-size:0.85rem;">${artist}</span>
-        </div>
-      `;
-    }
-
-    // Show up to 3 recent tracks (excluding the now playing one if present)
-    const recentTracks = tracks
-      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
-      .slice(0, 3);
-
-    if (recentTracks.length > 0) {
-      if (nowPlayingTrack) {
-        html += `<div style="font-size:0.7rem; color:#888; margin-bottom:4px; margin-top:6px;">Recently played</div>`;
-      }
-
-      recentTracks.forEach(track => {
-        const name = track.name;
-        const artist = track.artist['#text'];
-        html += `
-          <div style="margin-bottom:3px; font-size:0.85rem;">
-            <strong>${name}</strong><br>
-            <span style="color:#666;">${artist}</span>
-          </div>
-        `;
-      });
-    }
-
-    // Profile link
-    html += `
-      <div style="margin-top:6px;">
-        <a href="https://www.last.fm/user/${LASTFM_USER}" target="_blank" 
-           style="font-size:0.7rem; color:#3b82f6; text-decoration:none;">View on Last.fm →</a>
-      </div>
-    `;
-
-    smoothUpdate(el, html, false);
+    // One compact signal for the index row: what's on now, else what was last
+    // played. The full history lives on Last.fm, which the row links out to.
+    const t = nowPlayingTrack || tracks[0];
+    const artist = (t.artist && t.artist['#text']) || '';
+    el.textContent = artist ? `${t.name} — ${artist}` : t.name;
+    el.style.color = nowPlayingTrack ? '#4ade80' : '';
   }
 
   async function fetchLastFmTracks() {
@@ -1100,7 +1067,7 @@
       renderLastFmTracks(tracks);
     } catch (err) {
       console.error('Last.fm fetch error:', err);
-      smoothUpdate(el, `<p><em>Unable to load Last.fm tracks</em></p>`, false);
+      el.textContent = 'Unavailable';
     }
   }
 
