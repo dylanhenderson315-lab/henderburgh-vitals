@@ -740,9 +740,17 @@ def process_dashboard_data(
     # Full-day heart-rate curve (last ~24h of 5-min samples, downsampled for a chart).
     hr_curve_labels: List[str] = []
     hr_curve_values: List[Optional[int]] = []
+    # Real time coordinates for the chart. The old version shipped only label
+    # STRINGS, which Chart.js spaces evenly by index — so a 5-hour gap rendered
+    # the same width as a 20-minute one and the axis never spanned a true 24h.
+    # Emitting {x: epoch_ms, y: bpm} on a linear axis makes time honest: gaps
+    # look like gaps, and "Full 24h" really is 24 hours.
+    hr_curve_points: List[Dict[str, Any]] = []
+    hr_curve_window: Dict[str, Any] = {}
     if heartrate:
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            now_utc = datetime.now(timezone.utc)
+            cutoff = now_utc - timedelta(hours=24)
             pts = []
             for e in heartrate:
                 if not isinstance(e, dict) or e.get("bpm") is None:
@@ -754,12 +762,25 @@ def process_dashboard_data(
                 if dt >= cutoff:
                     pts.append((dt, e["bpm"]))
             pts.sort(key=lambda p: p[0])
-            step = max(1, len(pts) // 60)   # cap ~60 points
+            # ~288 points = 5-minute resolution across a day (was ~60, i.e. 24-min
+            # buckets, which flattened real spikes).
+            step = max(1, len(pts) // 288)
             for dt, bpm in pts[::step]:
                 hr_curve_labels.append(dt.astimezone(local_tz).strftime("%-I:%M %p"))
                 hr_curve_values.append(bpm)
+                hr_curve_points.append({"x": int(dt.timestamp() * 1000), "y": bpm})
+            if hr_curve_points:
+                hr_curve_window = {
+                    # Full rolling 24h span — what the "Full 24h" view should show.
+                    "start": int(cutoff.timestamp() * 1000),
+                    "end": int(now_utc.timestamp() * 1000),
+                    # Where readings actually exist — the default "Active" framing.
+                    "active_start": hr_curve_points[0]["x"],
+                    "active_end": hr_curve_points[-1]["x"],
+                }
         except Exception:
             hr_curve_labels, hr_curve_values = [], []
+            hr_curve_points, hr_curve_window = [], {}
 
     now = datetime.now(ZoneInfo("UTC"))
 
@@ -853,7 +874,10 @@ def process_dashboard_data(
 
         # Full-day heart-rate curve. NOTE: keys are 'times'/'bpm' — NOT 'values',
         # which in Jinja collides with dict.values() and resolves to the method.
-        "hr_curve": {"times": hr_curve_labels, "bpm": hr_curve_values},
+        "hr_curve": {
+            "times": hr_curve_labels, "bpm": hr_curve_values,
+            "points": hr_curve_points, "window": hr_curve_window,
+        },
 
         # Trends
         "readiness_trend": readiness_trend,
