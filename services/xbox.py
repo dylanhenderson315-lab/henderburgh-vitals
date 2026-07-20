@@ -1006,14 +1006,20 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False):
 
     # Active window: the stretch worth looking at. Pad 30m, snap to the hour,
     # min 3h wide. Falls back to waking window (post-wake → last reading).
+    data_lo, data_hi = tmins[0], tmins[-1]
     if activity_spans:
         lo = min(s for s, _ in activity_spans) - 30
         hi = max(e for _, e in activity_spans) + 30
     elif main_sleep:
         lo = mins(main_sleep["wake"]) - 15
-        hi = tmins[-1] + 15
+        hi = data_hi + 15
     else:
-        lo, hi = tmins[0], tmins[-1]
+        lo, hi = data_lo, data_hi
+    # The window must frame the REAL data: never clip the HR curve on the right
+    # (a short 12am session used to hide hours of later readings), and never run
+    # far past the last reading (that's what left the chart 80% dead space).
+    hi = min(max(hi, data_hi + 10), data_hi + 30)
+    lo = max(0, min(lo, data_lo))
     lo = max(0, (int(lo) // 60) * 60)
     hi = min(1440, -(-int(hi) // 60) * 60)
     if hi - lo < 180:
