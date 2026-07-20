@@ -193,7 +193,9 @@
        of the page, oversized to the edge of the viewport (wairk/heatbureau
        move), with a quiet metallic gradient so it reads expensive, not loud. */
     .hero-word {
-      font-size: clamp(4.5rem, 17vw, 11rem);
+      /* 13.5vw is tuned so the longest live state ("LISTENING.") fits a 375px
+         viewport whole — a clipped period reads as a bug, not a wairk flex. */
+      font-size: clamp(3.25rem, 13.5vw, 11rem);
       font-weight: 700;
       line-height: 0.9;
       letter-spacing: -0.045em;
@@ -227,7 +229,7 @@
        numbers (Heart / Steps) are secondary stat tiles. Equal boxes said
        "template"; weighted ones say someone decided. */
     @media (min-width: 768px) {
-      .live-now-main { grid-template-columns: 1.35fr 1.35fr 1fr 1fr; }
+      .live-now-main { grid-template-columns: minmax(0,1.35fr) minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr); }
     }
     .stat-tile { padding: 1.25rem 1.5rem !important; display: flex; flex-direction: column; justify-content: center; }
     .stat-tile .big-number {
@@ -420,13 +422,19 @@
       align-items: stretch;
     }
 
+    /* minmax(0, …) is load-bearing: bare 1fr means minmax(auto, 1fr), so an
+       unbreakable child (the Xbox avatar+name+badge row) inflates its column
+       past the container and the whole page scrolls sideways on a phone —
+       measured 419px of content in a 375px viewport before this. min-width: 0
+       on the cards lets their innards truncate instead of dictate. */
     .live-now-main {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .live-now-main > * { min-width: 0; }
 
     @media (min-width: 768px) {
       .live-now-main {
-        grid-template-columns: repeat(4, 1fr); /* adjusted to actual 4 items for better balance */
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
     }
 
