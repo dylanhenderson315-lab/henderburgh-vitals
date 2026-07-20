@@ -390,6 +390,7 @@ async def home(request: Request):
     hr_ctx = {
         "bpm": latest_hr,
         "updated_ago": hr_updated_ago,
+        "age_minutes": hr_age_minutes,
     }
 
     # Blog content for the home hub: recent top-level posts (neat teaser) + unread count for the lamp poke notifier.

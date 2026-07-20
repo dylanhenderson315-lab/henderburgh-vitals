@@ -154,6 +154,58 @@
     @keyframes drift3 { from { transform: translate(0,0) scale(0.9); } to { transform: translate(3vw, -3vh) scale(1.1); } }
     @media (prefers-reduced-motion: reduce) { .aurora-blob { animation: none; } }
 
+    /* ── Live HUD ─────────────────────────────────────────────────────────────
+       Corner-pinned instrument readout (mono, small, always-on): live clock +
+       "is my data actually fresh" — the exact question that kept coming up
+       while debugging Oura sync. Answers it at a glance, everywhere, forever. */
+    .hud {
+      font-family: 'SF Mono', ui-monospace, 'Menlo', monospace;
+      font-size: 10.5px;
+      letter-spacing: 0.04em;
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
+    }
+    .hud .hud-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 0 0 rgba(74,222,128,.6);
+      animation: hud-pulse 2.4s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    .hud .hud-dot.stale { background: #f59e0b; animation: none; }
+    @keyframes hud-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,.45); }
+      50% { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+    }
+    @media (prefers-reduced-motion: reduce) { .hud .hud-dot { animation: none; } }
+    .hud time { color: #9ca3af; font-variant-numeric: tabular-nums; }
+
+    /* ── Hero: number-as-hero rhythm ──────────────────────────────────────────
+       The real facts (heart rate, lights on) were previously smaller than the
+       decorative headline and buried below the fold. These are load-bearing:
+       huge tabular numerals, whisper-quiet mono labels underneath. */
+    .hero-stat-value {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 0.95;
+    }
+    .hero-stat-label {
+      font-family: 'SF Mono', ui-monospace, 'Menlo', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #6b7280;
+    }
+    /* Session-gated entrance: staggered rise on the FIRST load of a session
+       only. Every load after that is instant — a first-impression flourish
+       that never becomes an annoyance on the 10th visit of the day. */
+    .hero-enter { opacity: 0; transform: translateY(10px); }
+    .hero-enter.ready { opacity: 1; transform: none; transition: opacity .5s cubic-bezier(.22,1,.36,1), transform .5s cubic-bezier(.22,1,.36,1); }
+    @media (prefers-reduced-motion: reduce) { .hero-enter { opacity: 1; transform: none; } }
+
     /* Live Now specific balance - compact but intentional spacing */
     .live-now {
       gap: 14px;
@@ -396,23 +448,39 @@
         </div>
       </div>
     </div>
+    <!-- Live HUD: answers "is my data fresh right now" at a glance, on every
+         load — a live clock plus the age of the last Oura heart-rate reading.
+         Amber dot + explicit age once a reading is over ~30 min old, so a
+         stopped ring reads as a fact instead of a mystery. -->
+    <div class="max-w-[1080px] mx-auto px-6">
+      <div class="h-8 flex items-center justify-between border-t border-zinc-900">
+        <div class="hud">
+          <span class="hud-dot{{ ' stale' if heart_rate.age_minutes is not none and heart_rate.age_minutes > 30 else '' }}"></span>
+          <span id="hud-sync">{% if heart_rate.age_minutes is not none %}ring · {{ heart_rate.age_minutes }}m ago{% else %}ring · —{% endif %}</span>
+        </div>
+        <time class="hud" id="hud-clock" datetime="">--:--:--</time>
+      </div>
+    </div>
   </header>
 
   <!-- Living hero: the aurora glow is painted from the REAL current colors of the
        house lights (via /api/ha/lights-data), and the headline is synthesized from
-       every live source — Xbox, lights, heart rate, time. The site mirrors the house. -->
-  <div class="hero relative overflow-hidden w-full bg-gradient-to-b from-emerald-950 via-[#0a0a0b] to-[#0a0a0b] min-h-[280px] pt-10 pb-6">
+       every live source — Xbox, lights, heart rate, time. The site mirrors the house.
+       Entrance is session-gated (see the inline script below): a staggered rise on
+       the FIRST load of a browser session, instant on every load after — a
+       first-impression flourish that can't become the 10th-visit-of-the-day annoyance. -->
+  <div class="hero relative overflow-hidden w-full bg-gradient-to-b from-emerald-950 via-[#0a0a0b] to-[#0a0a0b] min-h-[280px] pt-12 pb-8">
     <div id="aurora" class="absolute inset-0 pointer-events-none" style="transition: opacity 2s ease;">
       <div class="aurora-blob" id="aurora-1"></div>
       <div class="aurora-blob" id="aurora-2"></div>
       <div class="aurora-blob" id="aurora-3"></div>
     </div>
     <div class="max-w-[1080px] mx-auto px-6 w-full relative z-10">
-      <div class="mb-2">
+      <div class="mb-3 hero-enter" data-hero-stagger="0">
         <p class="section-label">HENDERBURGH'S PERSONAL OS · LIVE</p>
       </div>
-      <div class="mb-6 max-w-3xl">
-        <h1 id="live-headline" class="font-display text-4xl sm:text-5xl font-semibold tracking-tight text-zinc-100" style="transition: opacity .6s ease;">
+      <div class="mb-8 max-w-3xl hero-enter" data-hero-stagger="1">
+        <h1 id="live-headline" class="font-display font-semibold tracking-tight text-zinc-100" style="font-size: clamp(2.25rem, 7vw, 3.75rem); transition: opacity .6s ease;">
           {{ time_greeting or "HENDERBURGH IS HERE." }}
         </h1>
         <p id="live-subline" class="text-sm sm:text-base text-zinc-400 mt-3" style="transition: opacity .6s ease;">
@@ -420,10 +488,24 @@
         </p>
       </div>
 
+      <!-- The facts, promoted: heart rate and lights-on used to be smaller than
+           the decorative headline and buried below the fold. These ARE the
+           content of a life-dashboard front door — huge tabular numerals,
+           whisper-quiet mono labels, no card chrome needed. -->
+      <div class="flex items-end gap-x-10 gap-y-4 flex-wrap mb-8 hero-enter" data-hero-stagger="2">
+        <div>
+          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.5rem, 8vw, 4rem);" id="hero-hr-value">{{ heart_rate.bpm if heart_rate and heart_rate.bpm is not none else '—' }}<span class="text-2xl text-zinc-500 font-normal ml-1.5">bpm</span></div>
+          <div class="hero-stat-label mt-1">Heart Rate</div>
+        </div>
+        <div>
+          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.5rem, 8vw, 4rem);" id="hero-lights-value">—</div>
+          <div class="hero-stat-label mt-1">Lights On</div>
+        </div>
+      </div>
 
       <!-- Quirky little notification icon: click it and the office lamp temporarily flashes to physically signal you (or someone else) poked it -->
       {% if not public_mode %}
-      <div class="flex justify-center">
+      <div class="flex justify-center hero-enter" data-hero-stagger="3">
         <button onclick="triggerOfficeLampNotificationPoke()"
                 class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
                 title="Poke the office lamp (instant blink) — or signals notifications (blue temp via backend)">
@@ -1176,6 +1258,13 @@
         if (!hEl.dataset.base) hEl.dataset.base = hEl.textContent.trim();
         if (hEl.textContent.trim() !== head) { hEl.style.opacity = 0; setTimeout(() => { hEl.textContent = head; hEl.style.opacity = 1; }, 320); }
         if (sEl.textContent.trim() !== sub) { sEl.style.opacity = 0; setTimeout(() => { sEl.textContent = sub; sEl.style.opacity = 1; }, 320); }
+
+        // Hero stat row: the real numbers, kept in sync with the same live data.
+        const lightsEl = document.getElementById('hero-lights-value');
+        if (lightsEl && hasLightData) {
+          const val = `${onLights.length}<span class="text-2xl text-zinc-500 font-normal ml-1.5">/ ${lights.length}</span>`;
+          if (lightsEl.innerHTML !== val) lightsEl.innerHTML = val;
+        }
       }
 
       function paintAurora() {
@@ -1220,6 +1309,44 @@
         if (document.visibilityState === 'visible') tick();
       });
     })();
+  </script>
+
+  <!-- Session-gated hero entrance: a staggered rise on the FIRST load of a
+       browser session only. sessionStorage remembers we've shown it, so every
+       later load this session (and this page is opened many times a day)
+       skips straight to .ready with zero animation — delight once, never an
+       annoyance on repeat visits. Reduced-motion users always get instant. -->
+  <script>
+  (function () {
+    var els = document.querySelectorAll('.hero-enter');
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var seen = reduce || sessionStorage.getItem('hb_hero_seen');
+    els.forEach(function (el, i) {
+      if (seen) { el.classList.add('ready'); return; }
+      var delay = parseInt(el.dataset.heroStagger || i, 10) * 90;
+      setTimeout(function () { el.classList.add('ready'); }, 60 + delay);
+    });
+    if (!seen) { try { sessionStorage.setItem('hb_hero_seen', '1'); } catch (e) {} }
+  })();
+  </script>
+
+  <!-- Live clock in the corner HUD. One-second tick, ET, feather-light. -->
+  <script>
+  (function () {
+    var el = document.getElementById('hud-clock');
+    if (!el) return;
+    function paint() {
+      var now = new Date();
+      var text = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric', minute: '2-digit', second: '2-digit',
+        hour12: true, timeZone: 'America/New_York'
+      }).format(now);
+      el.textContent = text;
+      el.setAttribute('datetime', now.toISOString());
+    }
+    paint();
+    setInterval(paint, 1000);
+  })();
   </script>
 
 </body>
