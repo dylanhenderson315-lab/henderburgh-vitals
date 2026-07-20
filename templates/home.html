@@ -188,24 +188,14 @@
     @media (prefers-reduced-motion: reduce) { .hud .hud-dot { animation: none; } }
     .hud time { color: #9ca3af; font-variant-numeric: tabular-nums; }
 
-    /* ── The state word ───────────────────────────────────────────────────────
-       One enormous live word (WORKING. / PLAYING. / SLEEPING.) — the identity
-       of the page, oversized to the edge of the viewport (wairk/heatbureau
-       move), with a quiet metallic gradient so it reads expensive, not loud. */
-    .hero-word {
-      /* 13.5vw is tuned so the longest live state ("LISTENING.") fits a 375px
-         viewport whole — a clipped period reads as a bug, not a wairk flex. */
-      font-size: clamp(3.25rem, 13.5vw, 11rem);
-      font-weight: 700;
-      line-height: 0.9;
-      letter-spacing: -0.045em;
-      text-transform: uppercase;
-      margin-left: -0.04em;             /* optical alignment to the margin */
-      background: linear-gradient(175deg, #fafafa 55%, #9d9da6 100%);
-      -webkit-background-clip: text;
-              background-clip: text;
-      color: transparent;
-      user-select: none;
+    /* Hero identity: "HENDERBURGH IS …" is the big statement. Activity details
+       live in the subline and Live Now cards — never competing for the fold. */
+    #live-headline {
+      font-size: clamp(2.25rem, 7vw, 3.75rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      color: #f4f4f5;
     }
 
     /* Film-grain overlay (is.graphics energy): a static SVG-noise wash at 2.5%
@@ -220,8 +210,7 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
     }
 
-    /* Instrument-bracket section labels — [ LIVE NOW ] — the heatbureau
-       category treatment; scoped to main so the hero eyebrow stays clean. */
+    /* Instrument-bracket section labels — [ LIVE NOW ] */
     main .section-label::before { content: '[ '; color: #3f3f46; }
     main .section-label::after  { content: ' ]'; color: #3f3f46; }
 
@@ -603,18 +592,17 @@
       <div class="aurora-blob" id="aurora-3"></div>
     </div>
     <div class="max-w-[1080px] mx-auto px-6 w-full relative z-10">
-      <!-- Identity through form (heatbureau/wairk): the sentence is inverted —
-           "HENDERBURGH IS" becomes a quiet mono eyebrow and the live STATE WORD
-           becomes the page. One enormous word that changes as life changes is
-           the whole thesis of the OS, typeset like it. -->
-      {% set _g = (time_greeting or "HENDERBURGH IS HERE.") %}
-      {% set _parts = _g.rsplit(' ', 1) %}
-      <div class="mb-1 hero-enter" data-hero-stagger="0">
-        <p class="section-label" id="hero-eyebrow" style="color:#8b8b93;">{{ _parts[0] if _parts|length > 1 else "HENDERBURGH IS" }}</p>
+      <!-- Hierarchy: identity is the hero ("HENDERBURGH IS …"). What you're doing
+           is a quieter subline + Live Now cards — never inverted so activity
+           outranks the name. -->
+      <div class="mb-3 hero-enter" data-hero-stagger="0">
+        <p class="section-label">HENDERBURGH'S PERSONAL OS · LIVE</p>
       </div>
-      <div class="mb-8 hero-enter" data-hero-stagger="1">
-        <h1 id="live-headline" class="hero-word font-display" style="transition: opacity .6s ease;">{{ _parts[1] if _parts|length > 1 else _g }}</h1>
-        <p id="live-subline" class="text-[13px] text-zinc-400 mt-4 max-w-xl" style="transition: opacity .6s ease;">
+      <div class="mb-8 max-w-3xl hero-enter" data-hero-stagger="1">
+        <h1 id="live-headline" class="font-display" style="transition: opacity .6s ease;">
+          {{ time_greeting or "HENDERBURGH IS HERE." }}
+        </h1>
+        <p id="live-subline" class="text-sm sm:text-base text-zinc-400 mt-3 max-w-xl" style="transition: opacity .6s ease;">
           Reading the house…
         </p>
       </div>
@@ -683,15 +671,16 @@
 
       </div>
 
-      <!-- Music: ONE slim ticker line, not a full card. The multi-track list
-           made this the tallest thing in Live Now for the least-important
-           signal; the full history lives on Last.fm itself, one tap away. -->
-      <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener"
-         class="mt-3 flex items-center gap-x-3 px-5 py-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--line-strong)] transition group">
-        <i class="fa-solid fa-music text-[11px] text-zinc-500 group-hover:text-[var(--accent)] transition-colors"></i>
-        <div id="lastfm-status" class="text-[13px] text-zinc-400 truncate flex-1">Loading…</div>
-        <span class="text-[10px] text-zinc-600 whitespace-nowrap group-hover:text-zinc-400 transition-colors">Last.fm →</span>
-      </a>
+      <!-- Last.fm as a real card: now-playing + recent tracks (not a one-line ticker). -->
+      <div class="live-now live-now-secondary mt-3">
+        <div class="live-card hero-enter" data-hero-stagger="7">
+          <h3>Last.fm</h3>
+          <div id="lastfm-status"><p class="text-sm text-zinc-400"><em>Loading recent tracks...</em></p></div>
+          <p class="text-xs text-zinc-400 mt-2">
+            <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener" class="hover:text-white transition">Last.fm • Recent</a>
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Yesterday, replayed — the whole OS on one timeline: heart, games, sleep,
@@ -1170,12 +1159,21 @@
 
   let lastfmInterval = null;
 
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function renderLastFmTracks(tracks) {
     const el = document.getElementById('lastfm-status');
     if (!el) return;
 
     if (!tracks || tracks.length === 0) {
-      el.textContent = 'No recent tracks';
+      smoothUpdate(el, `<p class="text-sm text-zinc-500"><em>No recent tracks</em></p>`, false);
       return;
     }
 
@@ -1187,13 +1185,48 @@
       : null;
     if (window.__synthesizeLive) window.__synthesizeLive();
 
-    // ONE ticker line: what's playing now, else what played last. textContent
-    // (never innerHTML) so track/artist names can't inject markup.
-    const t = nowPlayingTrack || tracks[0];
-    const artist = (t.artist && t.artist['#text']) || '';
-    const prefix = nowPlayingTrack ? '▶ ' : '';
-    el.textContent = prefix + (artist ? `${t.name} — ${artist}` : t.name);
-    el.style.color = nowPlayingTrack ? 'var(--accent)' : '';
+    let html = '';
+
+    if (nowPlayingTrack) {
+      const name = escHtml(nowPlayingTrack.name);
+      const artist = escHtml(nowPlayingTrack.artist['#text']);
+      html += `
+        <div class="mb-2">
+          <span class="inline-block bg-emerald-500 text-black text-[10px] font-semibold tracking-wide px-1.5 py-0.5 rounded mr-1.5 align-middle">NOW PLAYING</span>
+          <strong class="text-sm text-zinc-100 align-middle">${name}</strong>
+          <div class="text-xs text-zinc-500 mt-0.5">${artist}</div>
+        </div>
+      `;
+    }
+
+    const recentTracks = tracks
+      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
+      .slice(0, 3);
+
+    if (recentTracks.length > 0) {
+      if (nowPlayingTrack) {
+        html += `<div class="text-[10px] uppercase tracking-wider text-zinc-600 mb-1.5 mt-1">Recently played</div>`;
+      }
+      recentTracks.forEach(track => {
+        const name = escHtml(track.name);
+        const artist = escHtml(track.artist['#text']);
+        html += `
+          <div class="mb-1.5">
+            <div class="text-sm text-zinc-200 font-medium leading-snug">${name}</div>
+            <div class="text-xs text-zinc-500">${artist}</div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+      <div class="mt-2">
+        <a href="https://www.last.fm/user/${escHtml(LASTFM_USER)}" target="_blank" rel="noopener"
+           class="text-[11px] text-sky-400 hover:text-sky-300 transition">View on Last.fm →</a>
+      </div>
+    `;
+
+    smoothUpdate(el, html, false);
   }
 
   async function fetchLastFmTracks() {
@@ -1212,7 +1245,7 @@
       renderLastFmTracks(tracks);
     } catch (err) {
       console.error('Last.fm fetch error:', err);
-      el.textContent = 'Unavailable';
+      smoothUpdate(el, `<p class="text-sm text-zinc-500"><em>Unable to load Last.fm tracks</em></p>`, false);
     }
   }
 
@@ -1332,7 +1365,8 @@
 
         let head = null, sub = null;
 
-        // 1. Gaming beats everything (live Xbox presence)
+        // Full sentence stays the hero ("HENDERBURGH IS …"). Details stay subtle
+        // in the subline — never invert so the activity word outranks the name.
         const xb = LIVE.xbox;
         if (xb && xb.status === 'ok' && /online/i.test(xb.state || '') && xb.game && xb.game !== '—' && !/^home$/i.test(xb.game)) {
           const watching = xb.kind === 'media';
@@ -1340,48 +1374,38 @@
           const verb = watching ? 'Watching' : 'Playing';
           sub = `${verb} ${xb.game}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
         }
-        // 2. Music actually playing (live last.fm scrobble)
         else if (window.LIVE_NOWPLAYING) {
           const t = window.LIVE_NOWPLAYING;
           head = 'HENDERBURGH IS LISTENING.';
           sub = `${t.name} — ${t.artist}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
         }
-        // 3. House completely dark
         else if (hasLightData && onLights.length === 0) {
           if (hour >= 22 || hour < 7) { head = 'HENDERBURGH IS SLEEPING.'; sub = `Every light in the house is off${hr}`; }
           else { head = 'HENDERBURGH IS OUT.'; sub = 'The house is dark right now.'; }
         }
-        // 3. Time of day, enriched with live house facts
         else {
-          head = hEl.dataset.full || FULL_GREETING;
-          // Context only — the numbers live in the stat tiles one scroll-line
-          // below; repeating them here made the fold say everything twice.
+          head = hEl.dataset.base || FULL_GREETING;
           if (hasLightData && onLights.length) {
             const rooms = {};
             onLights.forEach(l => { const r = l.room_name || 'somewhere'; rooms[r] = (rooms[r] || 0) + 1; });
             const topRoom = Object.entries(rooms).sort((a, b) => b[1] - a[1])[0];
-            sub = topRoom && topRoom[0] !== 'Unassigned' ? `${topRoom[0]} lit · live from the house.` : 'Live from the house.';
+            sub = topRoom && topRoom[0] !== 'Unassigned'
+              ? `${onLights.length} of ${lights.length} lights on · ${topRoom[0]} lit${hr}`
+              : `${onLights.length} of ${lights.length} lights on${hr}`;
           } else {
-            sub = 'Live from the house.';
+            sub = HR_BPM ? `Heart ${HR_BPM} bpm · live from the Oura Ring` : 'Live from the house.';
           }
         }
 
-        // The headline is typographically split: "HENDERBURGH IS" sits in the
-        // eyebrow, the STATE WORD is the giant element. Split on last space.
-        const eEl = document.getElementById('hero-eyebrow');
-        if (!hEl.dataset.full) hEl.dataset.full = FULL_GREETING;
-        if (hEl.dataset.full !== head) {
-          const cut = head.lastIndexOf(' ');
+        if (!hEl.dataset.base) hEl.dataset.base = hEl.textContent.trim() || FULL_GREETING;
+        if (hEl.textContent.trim() !== head) {
           hEl.style.opacity = 0;
-          setTimeout(() => {
-            if (eEl && cut > 0) eEl.textContent = head.slice(0, cut);
-            hEl.textContent = cut > 0 ? head.slice(cut + 1) : head;
-            hEl.dataset.full = head;
-            hEl.style.opacity = 1;
-          }, 320);
+          setTimeout(() => { hEl.textContent = head; hEl.style.opacity = 1; }, 320);
         }
-        if (sEl.textContent.trim() !== sub) { sEl.style.opacity = 0; setTimeout(() => { sEl.textContent = sub; sEl.style.opacity = 1; }, 320); }
-
+        if (sEl.textContent.trim() !== sub) {
+          sEl.style.opacity = 0;
+          setTimeout(() => { sEl.textContent = sub; sEl.style.opacity = 1; }, 320);
+        }
       }
 
       function paintAurora() {
