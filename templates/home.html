@@ -188,14 +188,45 @@
     @media (prefers-reduced-motion: reduce) { .hud .hud-dot { animation: none; } }
     .hud time { color: #9ca3af; font-variant-numeric: tabular-nums; }
 
-    /* Hero identity: "HENDERBURGH IS …" is the big statement. Activity details
-       live in the subline and Live Now cards — never competing for the fold. */
+    /* Hero identity hierarchy (non-negotiable):
+       1) HENDERBURGH IS  — brand anchor, loudest type on the page
+       2) WORKING.        — live state, same sentence, quieter / smaller
+       Never invert. Never let the state fill the viewport. */
     #live-headline {
-      font-size: clamp(2.25rem, 7vw, 3.75rem);
-      font-weight: 600;
-      letter-spacing: -0.03em;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: 0.4em;
+      row-gap: 0.12em;
+      margin: 0;
+      max-width: 40rem;
+    }
+    #live-headline .hero-brand {
+      font-size: clamp(1.85rem, 5.2vw, 3rem);
+      font-weight: 650;
+      letter-spacing: -0.035em;
       line-height: 1.05;
       color: #f4f4f5;
+    }
+    #live-headline .hero-state {
+      font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+      font-size: clamp(0.72rem, 1.55vw, 0.95rem);
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      line-height: 1.2;
+      color: #8b8b93;
+      /* Optical baseline with the display brand line */
+      transform: translateY(-0.12em);
+    }
+    #live-subline {
+      font-size: 0.875rem;
+      line-height: 1.55;
+      color: #71717a;
+      max-width: 32rem;
+    }
+    @media (min-width: 640px) {
+      #live-subline { font-size: 0.95rem; }
     }
 
     /* Film-grain overlay (is.graphics energy): a static SVG-noise wash at 2.5%
@@ -592,17 +623,23 @@
       <div class="aurora-blob" id="aurora-3"></div>
     </div>
     <div class="max-w-[1080px] mx-auto px-6 w-full relative z-10">
-      <!-- Hierarchy: identity is the hero ("HENDERBURGH IS …"). What you're doing
-           is a quieter subline + Live Now cards — never inverted so activity
-           outranks the name. -->
+      <!-- Hierarchy: brand first, state quiet, context quieter still.
+           Full line stays readable as "HENDERBURGH IS WORKING." — state is
+           not a separate metallic billboard. -->
+      {% set _g = time_greeting or "HENDERBURGH IS HERE." %}
       <div class="mb-3 hero-enter" data-hero-stagger="0">
-        <p class="section-label">HENDERBURGH'S PERSONAL OS · LIVE</p>
+        <p class="section-label" style="color:#8b8b93;">PERSONAL OS · LIVE</p>
       </div>
-      <div class="mb-8 max-w-3xl hero-enter" data-hero-stagger="1">
-        <h1 id="live-headline" class="font-display" style="transition: opacity .6s ease;">
-          {{ time_greeting or "HENDERBURGH IS HERE." }}
+      <div class="mb-8 hero-enter" data-hero-stagger="1">
+        <h1 id="live-headline" class="font-display" data-full="{{ _g }}" style="transition: opacity .45s ease;">
+          {% if _g.startswith('HENDERBURGH IS ') %}
+          <span class="hero-brand">HENDERBURGH IS</span>
+          <span class="hero-state">{{ _g[15:] }}</span>
+          {% else %}
+          <span class="hero-brand">{{ _g }}</span>
+          {% endif %}
         </h1>
-        <p id="live-subline" class="text-sm sm:text-base text-zinc-400 mt-3 max-w-xl" style="transition: opacity .6s ease;">
+        <p id="live-subline" class="mt-3" style="transition: opacity .45s ease;">
           Reading the house…
         </p>
       </div>
@@ -1372,6 +1409,30 @@
         } catch (e) { return new Date().getHours(); }
       }
 
+      const BRAND_PREFIX = 'HENDERBURGH IS ';
+
+      function escText(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // Renders the full identity line with brand loud + state quiet.
+      // Never splits into inverted "eyebrow / giant word" hierarchy.
+      function paintHeadline(hEl, head) {
+        if (head.indexOf(BRAND_PREFIX) === 0) {
+          const state = head.slice(BRAND_PREFIX.length);
+          hEl.innerHTML =
+            '<span class="hero-brand">HENDERBURGH IS</span>' +
+            (state ? '<span class="hero-state">' + escText(state) + '</span>' : '');
+        } else {
+          hEl.innerHTML = '<span class="hero-brand">' + escText(head) + '</span>';
+        }
+        hEl.dataset.full = head;
+      }
+
       function synthesize() {
         const hEl = document.getElementById('live-headline');
         const sEl = document.getElementById('live-subline');
@@ -1385,8 +1446,8 @@
 
         let head = null, sub = null;
 
-        // Full sentence stays the hero ("HENDERBURGH IS …"). Details stay subtle
-        // in the subline — never invert so the activity word outranks the name.
+        // Full sentence always: "HENDERBURGH IS <STATE>." Brand stays primary;
+        // live details stay in the subline — never invert the type hierarchy.
         const xb = LIVE.xbox;
         if (xb && xb.status === 'ok' && /online/i.test(xb.state || '') && xb.game && xb.game !== '—' && !/^home$/i.test(xb.game)) {
           const watching = xb.kind === 'media';
@@ -1417,14 +1478,32 @@
           }
         }
 
-        if (!hEl.dataset.base) hEl.dataset.base = hEl.textContent.trim() || FULL_GREETING;
-        if (hEl.textContent.trim() !== head) {
-          hEl.style.opacity = 0;
-          setTimeout(() => { hEl.textContent = head; hEl.style.opacity = 1; }, 320);
+        if (!hEl.dataset.base) hEl.dataset.base = hEl.dataset.full || FULL_GREETING;
+
+        // Compare the logical full sentence, not flattened textContent (spans break that).
+        if ((hEl.dataset.full || '') !== head) {
+          const apply = function () {
+            paintHeadline(hEl, head);
+            hEl.style.opacity = '';
+          };
+          // Only decorate when the tab can actually finish a fade.
+          if (document.visibilityState === 'visible') {
+            hEl.style.opacity = '0';
+            setTimeout(apply, 280);
+            setTimeout(function () { hEl.style.opacity = ''; }, 900);
+          } else {
+            apply();
+          }
         }
         if (sEl.textContent.trim() !== sub) {
-          sEl.style.opacity = 0;
-          setTimeout(() => { sEl.textContent = sub; sEl.style.opacity = 1; }, 320);
+          if (document.visibilityState === 'visible') {
+            sEl.style.opacity = '0';
+            setTimeout(function () { sEl.textContent = sub; sEl.style.opacity = ''; }, 280);
+            setTimeout(function () { sEl.style.opacity = ''; }, 900);
+          } else {
+            sEl.textContent = sub;
+            sEl.style.opacity = '';
+          }
         }
       }
 
