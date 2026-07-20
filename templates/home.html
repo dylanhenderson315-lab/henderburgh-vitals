@@ -492,14 +492,18 @@
            the decorative headline and buried below the fold. These ARE the
            content of a life-dashboard front door — huge tabular numerals,
            whisper-quiet mono labels, no card chrome needed. -->
-      <div class="flex items-end gap-x-10 gap-y-4 flex-wrap mb-8 hero-enter" data-hero-stagger="2">
+      <div class="flex items-end gap-x-9 gap-y-5 flex-wrap mb-8 hero-enter" data-hero-stagger="2">
         <div>
-          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.5rem, 8vw, 4rem);" id="hero-hr-value">{{ heart_rate.bpm if heart_rate and heart_rate.bpm is not none else '—' }}<span class="text-2xl text-zinc-500 font-normal ml-1.5">bpm</span></div>
+          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.25rem, 6.5vw, 3.25rem);" id="hero-hr-value">{{ heart_rate.bpm if heart_rate and heart_rate.bpm is not none else '—' }}<span class="text-xl text-zinc-500 font-normal ml-1.5">bpm</span></div>
           <div class="hero-stat-label mt-1">Heart Rate</div>
         </div>
         <div>
-          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.5rem, 8vw, 4rem);" id="hero-lights-value">—</div>
+          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.25rem, 6.5vw, 3.25rem);" id="hero-lights-value">—</div>
           <div class="hero-stat-label mt-1">Lights On</div>
+        </div>
+        <div>
+          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.25rem, 6.5vw, 3.25rem);">{{ '{:,}'.format(steps.count) if steps and steps.count is not none else '—' }}</div>
+          <div class="hero-stat-label mt-1">Steps{% if steps and steps.miles is not none %} · {{ '%.1f' % steps.miles }} mi{% endif %}</div>
         </div>
       </div>
 
@@ -527,7 +531,10 @@
     <div class="content-section" id="live-now-section">
       <div class="section-label mb-3">Live Now</div>
 
-      <!-- First row: 4 balanced cards (bento-inspired) -->
+      <!-- ACTIVITY, not metrics. Heart rate / lights / steps live once, in the
+           hero instrument row above — repeating them here made the fold say the
+           same three facts three times. These cards answer "what am I doing",
+           which the numbers can't. -->
       <div class="live-now live-now-main relative z-10">
         <!-- Xbox -->
         <a href="/xbox" class="live-card block cursor-pointer" title="View full Xbox profile &amp; game log">
@@ -538,26 +545,10 @@
         <!-- Home Assistant (only in private/local deploys) -->
         {% if not public_mode %}
         <a href="/home-assistant" class="live-card block cursor-pointer" title="Open Home Assistant control panel">
-          <h3>Home Assistant</h3>
+          <h3>The House</h3>
           <div id="ha-status">Loading...</div>
         </a>
         {% endif %}
-
-        <!-- Heart Rate -->
-        <div class="live-card">
-          <h3>Heart Rate</h3>
-          <p class="big-number">{{ heart_rate.bpm or '--' }} bpm</p>
-          <p>Updated {{ heart_rate.updated_ago or 'recently' }}</p>
-        </div>
-
-        <!-- Steps (from Oura) -->
-        <div class="live-card">
-          <h3>Steps</h3>
-          <p class="big-number">{{ steps.count or '--' }} steps</p>
-          <p>{{ '%.1f' % (steps.miles or 0) if steps.miles is not none else '--' }} miles</p>
-          <p><a href="/vitals">Full details on Vitals page →</a></p>
-        </div>
-
       </div>
 
       <!-- Last.fm on its own row below for balance (clean spacing, premium contrast) -->
@@ -987,34 +978,23 @@
           roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1">${(data.quick_status || []).slice(0,1).join('')}</div>`;
         }
 
+        // Lead with the MOOD (which rooms are lit, what scene), not the light
+        // count — that number is already the hero's, and printing it here made
+        // the fold repeat itself. This card answers "what does the house feel
+        // like right now", which the count can't.
+        const litRooms = rooms.filter(r => r.on > 0).map(r => r.name);
+        const moodLine = litRooms.length
+          ? litRooms.slice(0, 3).join(' · ')
+          : (on > 0 ? 'Lights on' : 'Every light is off');
+
         const haHtml = `
           <div class="text-sm">
-            <div class="flex items-baseline gap-x-1.5">
-              <span class="font-semibold tabular-nums" id="ha-lights-count">${on}/${tot}</span>
-              <span class="text-xs text-[#94a3b8]">lights on</span>
-            </div>
+            <div class="font-semibold leading-snug truncate">${moodLine}</div>
             <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-[#94a3b8] italic' : 'text-[#4ade80]'} truncate">${scene}</div>
             ${roomsHtml}
           </div>
         `;
         smoothUpdate(el, haHtml);
-
-        // Anime number animation for lights count (calm data refresh)
-        setTimeout(() => {
-          const countEl = el.querySelector('#ha-lights-count');
-          if (countEl) {
-            anime({
-              targets: { val: 0 },
-              val: on,
-              duration: 720,
-              easing: 'easeOutExpo',
-              update: (anim) => {
-                const current = Math.floor(anim.animations[0].currentValue);
-                countEl.textContent = `${current}/${tot}`;
-              }
-            });
-          }
-        }, 120);
       } else if (data.status === "disabled") {
         el.innerHTML = `<p class="text-xs text-zinc-500">Home Assistant (local only)</p>`;
       } else {
@@ -1234,8 +1214,16 @@
         const lights = flatLights(LIVE.lights);
         const onLights = lights.filter(l => l.state === 'on');
         const hasLightData = lights.length > 0;
-        const hr = HR_BPM ? ` · heart ${HR_BPM} bpm` : '';
         const hour = easternHour();
+
+        // The subline carries CONTEXT, never numbers. Heart rate, lights-on and
+        // steps each render exactly once, in the hero instrument row — echoing
+        // them here made the fold state the same three facts three times over.
+        // What belongs here is what a number can't say: which rooms are alive.
+        const litRooms = [...new Set(onLights.map(l => l.room_name).filter(r => r && r !== 'Unassigned'))];
+        const roomPhrase = litRooms.length
+          ? `${litRooms.slice(0, 2).join(' & ')} lit`
+          : '';
 
         let head = null, sub = null;
 
@@ -1245,31 +1233,23 @@
           const watching = xb.kind === 'media';
           head = watching ? 'HENDERBURGH IS WATCHING.' : 'HENDERBURGH IS PLAYING.';
           const verb = watching ? 'Watching' : 'Playing';
-          sub = `${verb} ${xb.game}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
+          sub = `${verb} ${xb.game}${roomPhrase ? ` · ${roomPhrase}` : ''}`;
         }
         // 2. Music actually playing (live last.fm scrobble)
         else if (window.LIVE_NOWPLAYING) {
           const t = window.LIVE_NOWPLAYING;
           head = 'HENDERBURGH IS LISTENING.';
-          sub = `${t.name} — ${t.artist}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
+          sub = `${t.name} — ${t.artist}${roomPhrase ? ` · ${roomPhrase}` : ''}`;
         }
         // 3. House completely dark
         else if (hasLightData && onLights.length === 0) {
-          if (hour >= 22 || hour < 7) { head = 'HENDERBURGH IS SLEEPING.'; sub = `Every light in the house is off${hr}`; }
+          if (hour >= 22 || hour < 7) { head = 'HENDERBURGH IS SLEEPING.'; sub = 'Every light in the house is off.'; }
           else { head = 'HENDERBURGH IS OUT.'; sub = 'The house is dark right now.'; }
         }
         // 3. Time of day, enriched with live house facts
         else {
           head = hEl.dataset.base || hEl.textContent.trim();
-          if (hasLightData) {
-            // brightest room = the room with the most lights on
-            const rooms = {};
-            onLights.forEach(l => { const r = l.room_name || 'somewhere'; rooms[r] = (rooms[r] || 0) + 1; });
-            const topRoom = Object.entries(rooms).sort((a, b) => b[1] - a[1])[0];
-            sub = `${onLights.length} of ${lights.length} lights on${topRoom && topRoom[0] !== 'Unassigned' ? ` · ${topRoom[0]} lit` : ''}${hr}`;
-          } else {
-            sub = HR_BPM ? `Heart ${HR_BPM} bpm · live from the Oura Ring` : 'Live from the house.';
-          }
+          sub = roomPhrase ? `${roomPhrase} · live from the house.` : 'Live from the house.';
         }
 
         if (!hEl.dataset.base) hEl.dataset.base = hEl.textContent.trim();
@@ -1279,7 +1259,7 @@
         // Hero stat row: the real numbers, kept in sync with the same live data.
         const lightsEl = document.getElementById('hero-lights-value');
         if (lightsEl && hasLightData) {
-          const val = `${onLights.length}<span class="text-2xl text-zinc-500 font-normal ml-1.5">/ ${lights.length}</span>`;
+          const val = `${onLights.length}<span class="text-xl text-zinc-500 font-normal ml-1.5">/ ${lights.length}</span>`;
           if (lightsEl.innerHTML !== val) lightsEl.innerHTML = val;
         }
       }
