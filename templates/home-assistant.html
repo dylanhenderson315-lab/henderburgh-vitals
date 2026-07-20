@@ -27,10 +27,26 @@
     }
 
     body {
-      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1115;
-      color: #e2e8f0;
+      /* Tokens, not one-off hexes. Also fixes `system_ui` (underscore) — an
+         invalid keyword that silently dropped the system-font fallback. */
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
     }
+
+    /* ── Dark-room pass ───────────────────────────────────────────────────────
+       This page gets used at night, in an actually dark room, one-handed. Two
+       measured problems fixed here:
+
+       1. CONTRAST. The muted grey used for nearly every label and caption
+          (#71717a) measured 3.84:1 on the card surface — below the 4.5:1 WCAG
+          AA floor — and it was used at 8–11px, where it hurts most. Promoted
+          to #a1a1aa (7.24:1). That's the squint-in-the-dark text.
+       2. GLARE. Pure #fff on active controls reads as a small flashlight at
+          night (19.8:1). Capped to --text (#e8e8ea, still ~15:1) — unmistakably
+          bright, minus the sting. Applied at each declaration below rather than
+          as an override block here, since those rules come later in the file
+          and would otherwise win the cascade. */
     .font-display {
       font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
     }
@@ -377,7 +393,7 @@
     .effect-btn.active {
       background: rgba(16, 185, 129, 0.18);
       border-color: #10b981;
-      color: #fff;
+      color: var(--text);
       font-weight: 500;
     }
     .effect-btn:active {
@@ -492,12 +508,12 @@
     input.temp-slider::-webkit-slider-thumb {
       -webkit-appearance: none; appearance: none;
       width: 20px; height: 20px; border-radius: 50%;
-      background: #fff; border: 2px solid #52525b; cursor: pointer;
+      background: var(--text); border: 2px solid #52525b; cursor: pointer;
       box-shadow: 0 1px 4px rgba(0,0,0,.5);
     }
     input.temp-slider::-moz-range-thumb {
       width: 20px; height: 20px; border-radius: 50%;
-      background: #fff; border: 2px solid #52525b; cursor: pointer;
+      background: var(--text); border: 2px solid #52525b; cursor: pointer;
     }
 
     /* WiZ-style room/light toggle switch.
@@ -519,7 +535,7 @@
     .wiz-toggle.on { background: var(--accent, #10b981); }
     .wiz-toggle span {
       position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
-      border-radius: 50%; background: #fff; transition: left .18s ease, transform 80ms cubic-bezier(0.2,0,0,1);
+      border-radius: 50%; background: var(--text); transition: left .18s ease, transform 80ms cubic-bezier(0.2,0,0,1);
       box-shadow: 0 1px 3px rgba(0,0,0,.4);
     }
     .wiz-toggle.on span { left: 21px; }
@@ -611,7 +627,7 @@
     }
     .view-switcher button.active {
       background: #27272a;
-      color: #fff;
+      color: var(--text);
       box-shadow: 0 1px 2px rgba(0,0,0,0.3);
     }
 
@@ -753,7 +769,7 @@
           <p class="text-lg text-zinc-400">Local smart home control • {{ entity_count or 0 }} entities</p>
         </div>
       </div>
-      <div class="text-xs text-zinc-500">Connected to local instance. Changes affect the real house.</div>
+      <div class="text-xs text-zinc-400">Connected to local instance. Changes affect the real house.</div>
     </div>
 
     {% if public_mode or not ha_enabled %}
@@ -767,7 +783,7 @@
             <p class="text-sm text-zinc-400 mb-4">
               Home Assistant integration and controls are only available when running in private/local mode (PUBLIC_MODE=false) on the same network as your HA instance.
             </p>
-            <div class="text-xs text-zinc-500">
+            <div class="text-xs text-zinc-400">
               The summary card on the homepage is also hidden in public deployments.
             </div>
             <div class="mt-6">
@@ -786,7 +802,7 @@
                class="w-full bg-[#18181b] border border-[#3f3f46] text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500/50"
                oninput="filterCurrentView()">
       </div>
-      <div class="flex items-center gap-2 text-[10px] text-zinc-500 tabular-nums">
+      <div class="flex items-center gap-2 text-[10px] text-zinc-400 tabular-nums">
         <span id="last-refresh">—</span>
         <span id="sync-indicator" class="sync-indicator hidden">syncing…</span>
         <button onclick="refreshAllData(true)" class="ha-btn text-xs px-2 py-0.5" title="Refresh from Home Assistant"><i class="fa-solid fa-sync-alt"></i></button>
@@ -869,7 +885,7 @@
             <div class="card p-4 skeleton skeleton-card"></div>
             <div class="card p-4 skeleton skeleton-card"></div>
           </div>
-          <div class="text-center text-[10px] text-zinc-500 mt-3">Loading structure from saved rooms &amp; groups…</div>
+          <div class="text-center text-[10px] text-zinc-400 mt-3">Loading structure from saved rooms &amp; groups…</div>
         </div>
       </div>
     </div>
@@ -908,7 +924,7 @@
       <div id="detail-content" class="flex-1 overflow-auto p-4 space-y-5 text-sm">
         <!-- populated dynamically by openLightDetail -->
       </div>
-      <div class="p-3 border-t border-zinc-800 text-[10px] text-zinc-500">
+      <div class="p-3 border-t border-zinc-800 text-[10px] text-zinc-400">
         Changes sent live to Home Assistant. Sync Groups keep lights in step.
       </div>
     </div>
@@ -952,7 +968,7 @@
       </div>
     </div>
 
-    <div class="mt-8 text-[10px] text-zinc-500">
+    <div class="mt-8 text-[10px] text-zinc-400">
       Professional lighting control • Part of HENDERBURGH OS • Changes sent directly to Home Assistant.
     </div>
 
@@ -972,7 +988,7 @@
 
   <!-- Footer -->
   <footer class="max-w-[1080px] mx-auto px-6 pb-10">
-    <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-500 text-center">
+    <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-400 text-center">
       Local Home Assistant • HENDERBURGH
     </div>
   </footer>
@@ -1301,7 +1317,7 @@
               <div class="font-semibold">Access Requests (${reqs.length})</div>
               <button class="text-xl leading-none px-2" onclick="this.closest('.fixed').remove()">×</button>
             </div>
-            ${reqs.length === 0 ? '<div class="text-sm text-zinc-500">No requests yet.</div>' : ''}
+            ${reqs.length === 0 ? '<div class="text-sm text-zinc-400">No requests yet.</div>' : ''}
             <div class="space-y-3 text-sm">
               ${reqs.map(r => `
                 <div class="border border-zinc-800 rounded-xl p-3">
@@ -1360,11 +1376,11 @@
       }
       section.innerHTML = `
         <div class="flex items-center justify-between mb-3">
-          <div class="font-semibold text-sm">Access Requests <span class="text-zinc-500 text-xs">(admin)</span></div>
+          <div class="font-semibold text-sm">Access Requests <span class="text-zinc-400 text-xs">(admin)</span></div>
           <button onclick="loadAccessRequestsIntoSection()" class="text-xs btn px-2 py-0.5">Refresh</button>
         </div>
         <div id="access-admin-list" class="text-sm space-y-2"></div>
-        <div class="mt-2 text-[10px] text-zinc-500">Submitted requests are shown here when controls are unlocked. Use the popup list or quick links for an alternative view.</div>
+        <div class="mt-2 text-[10px] text-zinc-400">Submitted requests are shown here when controls are unlocked. Use the popup list or quick links for an alternative view.</div>
       `;
       loadAccessRequestsIntoSection();
     }
@@ -1380,7 +1396,7 @@
         }
         const reqs = await res.json();
         if (!reqs || reqs.length === 0) {
-          listEl.innerHTML = '<div class="text-xs text-zinc-500">No access requests yet.</div>';
+          listEl.innerHTML = '<div class="text-xs text-zinc-400">No access requests yet.</div>';
           return;
         }
         listEl.innerHTML = reqs.map(r => {
@@ -1390,7 +1406,7 @@
           const msg = r.message || '';
           return `
             <div class="border border-zinc-800 rounded-xl p-3">
-              <div class="flex justify-between text-[10px] text-zinc-500">
+              <div class="flex justify-between text-[10px] text-zinc-400">
                 <span>${t}</span>
                 <span>${ip}</span>
               </div>
@@ -1623,7 +1639,7 @@
         <button data-view="rooms" onclick="setPrimaryView('rooms')"
                 class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${primaryView === 'rooms' ? 'bg-[#27272a] text-white' : ''}">
           <span class="flex items-center gap-2"><i class="fa-solid fa-home w-4"></i> All Rooms</span>
-          <span class="text-xs text-zinc-500 tabular-nums">${haData.total_lights || 0}</span>
+          <span class="text-xs text-zinc-400 tabular-nums">${haData.total_lights || 0}</span>
         </button>`;
 
       (haData.rooms || []).forEach(room => {
@@ -1633,12 +1649,12 @@
             <button data-view="${room.name}" onclick="jumpToRoom('${room.id}')"
                     class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
               <span class="truncate">${room.name}</span>
-              <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${room.light_count || 0}</span>
+              <span class="text-xs text-zinc-400 tabular-nums ml-1">${on}/${room.light_count || 0}</span>
             </button>
             <button onclick="event.stopImmediatePropagation(); renameRoom('${room.id}', '${room.name.replace(/'/g, "\\'")}')" 
                     class="px-1 text-xs text-zinc-400 hover:text-white opacity-0 group-hover:opacity-100" title="Rename">✎</button>
             <button onclick="event.stopImmediatePropagation(); deleteRoom('${room.id}')" 
-                    class="px-1 text-xs text-zinc-500 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
+                    class="px-1 text-xs text-zinc-400 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
           </div>`;
       });
 
@@ -1648,7 +1664,7 @@
         <button data-view="unassigned" onclick="setPrimaryView('lights'); lightsFilter='unassigned'; renderPrimaryView();"
                 class="nav-room-btn flex-1 lg:w-full text-left px-3 py-1.5 rounded text-sm flex items-center justify-between hover:bg-[#27272a] ${ (primaryView==='lights' && lightsFilter==='unassigned') ? 'bg-[#27272a] text-white' : ''} text-amber-300">
           <span class="flex items-center gap-2"><i class="fa-solid fa-question w-4"></i> Unassigned</span>
-          <span class="text-xs text-zinc-500 tabular-nums">${unCount}</span>
+          <span class="text-xs text-zinc-400 tabular-nums">${unCount}</span>
         </button>`;
 
       roomContainer.innerHTML = roomHtml;
@@ -1663,15 +1679,15 @@
               <button data-view="${group.name}" onclick="setPrimaryView('groups')"
                       class="flex-1 text-left px-3 py-1.5 text-sm flex items-center justify-between">
                 <span class="truncate">${group.name}</span>
-                <span class="text-xs text-zinc-500 tabular-nums ml-1">${on}/${group.light_count || 0}</span>
+                <span class="text-xs text-zinc-400 tabular-nums ml-1">${on}/${group.light_count || 0}</span>
               </button>
               <button onclick="event.stopImmediatePropagation(); renameGroup('${group.id}', '${group.name.replace(/'/g, "\\'")}')" 
                       class="px-1 text-xs text-zinc-400 hover:text-white opacity-0 group-hover:opacity-100" title="Rename">✎</button>
               <button onclick="event.stopImmediatePropagation(); deleteGroup('${group.id}')" 
-                      class="px-1 text-xs text-zinc-500 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
+                      class="px-1 text-xs text-zinc-400 hover:text-rose-400 opacity-0 group-hover:opacity-100">×</button>
             </div>`;
         });
-        groupContainer.innerHTML = gHtml || '<div class="px-3 py-1 text-xs text-zinc-500">No groups yet</div>';
+        groupContainer.innerHTML = gHtml || '<div class="px-3 py-1 text-xs text-zinc-400">No groups yet</div>';
       }
 
       // Wiz Sync Box / sync controls (if backend discovered any)
@@ -1861,7 +1877,7 @@
 
       const syncs = (haData.groups || []).filter(g => (g.light_ids || []).includes(eid)).map(g => g.name).join(', ');
 
-      title.innerHTML = `${friendly} <span class="text-xs text-zinc-500 font-normal">${isOn ? 'On' : 'Off'}</span>`;
+      title.innerHTML = `${friendly} <span class="text-xs text-zinc-400 font-normal">${isOn ? 'On' : 'Off'}</span>`;
 
       let html = '';
       if (!isUnlocked) {
@@ -1879,7 +1895,7 @@
           <input type="range" min="1" max="100" value="${briPct || 70}" class="w-full accent-emerald-400 mb-3"
                  oninput="debouncedBrightness('${eid}', this.value, this); const v=document.getElementById('detail-bri-val'); if(v) v.textContent=this.value+'%' "
                  onpointerdown="event.stopPropagation()">
-          <div id="detail-bri-val" class="text-[10px] text-right text-zinc-500">${briPct}%</div>
+          <div id="detail-bri-val" class="text-[10px] text-right text-zinc-400">${briPct}%</div>
         </div>
       `;
 
@@ -1907,7 +1923,7 @@
                 </div>
               </div>
             </div>
-            <div class="text-[9px] text-zinc-500">Picker + quick palettes. Applies live to the group.</div>
+            <div class="text-[9px] text-zinc-400">Picker + quick palettes. Applies live to the group.</div>
           </div>
         `;
       }
@@ -1933,7 +1949,7 @@
                   return `<button onclick="toggleOrchestrated('${fx.key}', '${eid}'); event.stopImmediatePropagation();"
                     class="effect-btn flex-1 basis-[48%] min-w-[110px] text-left px-3 py-2 text-[13px] leading-tight rounded-xl ${active ? 'active !bg-indigo-500/20 !border-indigo-400 !text-white' : ''}">
                     <span class="mr-1.5">${fx.icon}</span>${fx.name}${active ? ' · running' : ''}
-                    <span class="block text-[9px] ${active ? 'text-indigo-200/80' : 'text-zinc-500'}">${active ? 'tap to stop' : fx.desc}</span>
+                    <span class="block text-[9px] ${active ? 'text-indigo-200/80' : 'text-zinc-400'}">${active ? 'tap to stop' : fx.desc}</span>
                   </button>`;
                 }).join('')}
               </div>
@@ -1958,7 +1974,7 @@
               <input id="detail-speed-slider" type="range" min="1" max="100" value="${curSpeed}" class="w-full accent-emerald-400"
                      oninput="debouncedEffectSpeed('${eid}', parseInt(this.value)); const v=document.getElementById('detail-speed-val'); if(v) v.textContent=this.value;"
                      onpointerdown="event.stopPropagation()">
-              <div class="flex justify-between text-[9px] text-zinc-500 mt-0.5">
+              <div class="flex justify-between text-[9px] text-zinc-400 mt-0.5">
                 <span>Slow</span>
                 <span>Normal</span>
                 <span>Fast</span>
@@ -1973,7 +1989,7 @@
             ${ (light.options && light.options.length) ? `
             <div class="mt-3 pt-2 border-t border-zinc-800">
               <div class="text-[10px] text-amber-300 mb-1 flex items-center gap-1">
-                <i class="fa-solid fa-magic"></i> Sync / Wiz modes <span class="text-[9px] text-zinc-500">(device-reported only)</span>
+                <i class="fa-solid fa-magic"></i> Sync / Wiz modes <span class="text-[9px] text-zinc-400">(device-reported only)</span>
               </div>
               <div class="flex flex-wrap gap-1.5">
                 ${light.options.map(opt => {
@@ -1992,7 +2008,7 @@
         html += `<div class="text-[10px] text-emerald-400 mt-3"><i class="fa-solid fa-link mr-1"></i> Synced with: ${syncs}</div>`;
       }
 
-      html += `<div class="text-[10px] text-zinc-500 mt-4">All changes sync across groups if applicable. Tap × or outside to close.</div>`;
+      html += `<div class="text-[10px] text-zinc-400 mt-4">All changes sync across groups if applicable. Tap × or outside to close.</div>`;
 
       content.innerHTML = html;
 
@@ -2229,7 +2245,7 @@
       const scenes = (haData.scenes || []).filter(s => 
         !searchLower || (s.friendly_name || '').toLowerCase().includes(searchLower)
       );
-      let html = `<div class="mb-2 flex items-center justify-between"><div class="section-label">Scenes</div><div class="text-[10px] text-zinc-500">${scenes.length} available</div></div>`;
+      let html = `<div class="mb-2 flex items-center justify-between"><div class="section-label">Scenes</div><div class="text-[10px] text-zinc-400">${scenes.length} available</div></div>`;
       html += `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">`;
       if (scenes.length === 0) {
         html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No scenes found. Create some in Home Assistant.</div>`;
@@ -2238,7 +2254,7 @@
           html += `
             <div class="card p-4 flex flex-col">
               <div class="font-medium text-sm mb-1 truncate">${scene.friendly_name}</div>
-              ${scene.description ? `<div class="text-[10px] text-zinc-500 mb-3 line-clamp-2">${scene.description}</div>` : ''}
+              ${scene.description ? `<div class="text-[10px] text-zinc-400 mb-3 line-clamp-2">${scene.description}</div>` : ''}
               <button onclick="activateScene('${scene.entity_id}', this)"
                       class="mt-auto ha-btn bg-emerald-600/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-600/20 text-xs py-1.5 min-h-[44px]">
                 <i class="fa-solid fa-play mr-1"></i> Activate
@@ -2281,7 +2297,7 @@
       let html = `
         <div class="mb-3">
           <div class="flex items-center justify-between mb-2">
-            <div class="font-semibold">All Lights <span class="text-xs text-zinc-500 font-normal">(${filtered.length} / ${allCount})</span></div>
+            <div class="font-semibold">All Lights <span class="text-xs text-zinc-400 font-normal">(${filtered.length} / ${allCount})</span></div>
             <button onclick="refreshAllData(true)" class="text-emerald-400 text-xs"><i class="fa-solid fa-sync mr-1"></i>Sync</button>
           </div>
           <!-- Quick filters -->
@@ -2783,7 +2799,7 @@
                 class="mode-card text-left p-4 rounded-2xl border border-zinc-700 bg-[#141518] hover:border-emerald-500/40 active:scale-[0.97] transition min-h-[86px]">
                 <i class="fa-solid ${m.icon} text-emerald-300/90 text-sm"></i>
                 <div class="text-sm font-semibold text-zinc-100 mt-1.5 leading-tight">${m.name}</div>
-                <div class="text-[10px] text-zinc-500 mt-0.5 leading-snug">${m.desc}</div>
+                <div class="text-[10px] text-zinc-400 mt-0.5 leading-snug">${m.desc}</div>
               </button>`).join('')}
           </div>
         </div>`;
@@ -2796,7 +2812,7 @@
       // be switched off without scrolling past the mode cards. House Modes + the context-aware
       // Suggestion banner are rendered below the rooms (appended near the end of this function).
       let html = searchLower ? '' : guestBannerHTML();
-      html += `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-500">— tap a room to jump, toggle to switch it</span></div>`;
+      html += `<div class="mb-2"><span class="section-label">Rooms</span> <span class="text-xs text-zinc-400">— tap a room to jump, toggle to switch it</span></div>`;
 
       // Compact whole-house quick action so the entire house can be killed in one tap up top.
       // Reuses the existing Lights Out mode (runMode('lights-out')) — no new backend call.
@@ -2826,12 +2842,12 @@
             <div class="card p-3 cursor-pointer flex flex-col justify-between min-h-[92px]" style="${anyOn ? 'border-color:rgba(16,185,129,0.45)' : ''}"
                  onclick="document.querySelector('[data-room-section=&quot;${room.id}&quot;]')?.scrollIntoView({behavior:'smooth',block:'start'});">
               <div class="flex items-center justify-between">
-                <i class="fa-solid ${roomIcon(room.name)} ${anyOn ? 'text-emerald-300' : 'text-zinc-500'}"></i>
+                <i class="fa-solid ${roomIcon(room.name)} ${anyOn ? 'text-emerald-300' : 'text-zinc-400'}"></i>
                 ${toggle}
               </div>
               <div class="mt-2">
                 <div class="text-sm font-medium truncate">${room.name}</div>
-                <div class="text-[10px] ${anyOn ? 'text-emerald-400/80' : 'text-zinc-500'}">${onCount}/${total} on</div>
+                <div class="text-[10px] ${anyOn ? 'text-emerald-400/80' : 'text-zinc-400'}">${onCount}/${total} on</div>
               </div>
             </div>`;
         });
@@ -2872,7 +2888,7 @@
                      onchange="roomOrGroupMasterColorTemp('${room.id}', this.value, false)">
             </div>
           </div>` : `
-          <div class="text-[11px] text-zinc-500 mb-3 italic">View only — unlock to use room masters</div>`;
+          <div class="text-[11px] text-zinc-400 mb-3 italic">View only — unlock to use room masters</div>`;
 
         html += `
           <div class="card p-4 mb-4" data-room-section="${room.id}">
@@ -2884,7 +2900,7 @@
             <div class="entity-grid mt-1">`;
 
         if (roomLights.length === 0) {
-          html += `<div class="col-span-full text-xs text-zinc-500 p-3 border border-dashed border-zinc-700 rounded">No lights in this room (fixed in configuration).</div>`;
+          html += `<div class="col-span-full text-xs text-zinc-400 p-3 border border-dashed border-zinc-700 rounded">No lights in this room (fixed in configuration).</div>`;
         } else if (room.name === 'Game Room') {
           // Leave Game Room unchanged (individual cards, no collapsing even if any groups were defined).
           roomLights.forEach(l => { html += createLightCardHTML(l); });
@@ -2921,7 +2937,7 @@
             </div>
             <div class="entity-grid">`;
         if (unLights.length === 0) {
-          html += `<div class="col-span-full text-xs text-zinc-500">No unassigned lights.</div>`;
+          html += `<div class="col-span-full text-xs text-zinc-400">No unassigned lights.</div>`;
         } else {
           // Collapse any grouped lights here too (defensive).
           const seenGroupKeys = new Set();
@@ -2988,7 +3004,7 @@
             </div>
           </div>
           <div class="text-[10px] text-emerald-400/70 mb-2">True sync: brightness, color, and dynamic effects start at the exact same moment across all lights in this group.</div>` : `
-          <div class="text-[11px] text-zinc-500 mb-3 italic">View only — unlock to use group masters</div>`;
+          <div class="text-[11px] text-zinc-400 mb-3 italic">View only — unlock to use group masters</div>`;
 
         html += `
           <div class="card p-4 mb-4">
@@ -2999,7 +3015,7 @@
             ${master}
             ${gLights.length > 0 ? `
             <div class="text-[10px] text-emerald-300/80 mt-1">Synced as one — tap the group card in other views or use masters above. Members: ${gLights.map(l => (l.friendly_name || l.entity_id.split('.').pop())).join(', ')}</div>` : `
-            <div class="text-xs text-zinc-500 p-2 border border-dashed border-emerald-900/40 rounded">This group is empty (lights fixed in configuration).</div>` }
+            <div class="text-xs text-zinc-400 p-2 border border-dashed border-emerald-900/40 rounded">This group is empty (lights fixed in configuration).</div>` }
           </div>`;
       });
 
@@ -3161,7 +3177,7 @@
             <span class="section-label">TV Sync</span>
             <span class="text-xs text-amber-400/80 ml-2">— zone-aware ambient for the big screen</span>
           </div>
-          <div class="text-[10px] text-zinc-500">${Object.values(tvAssignments).flat().length} lights assigned</div>
+          <div class="text-[10px] text-zinc-400">${Object.values(tvAssignments).flat().length} lights assigned</div>
         </div>
 
         ${leaderHtml}
@@ -3180,16 +3196,16 @@
             </div>
             <div class="tv-stand"></div>
           </div>
-          <div class="tv-hint text-[10px] text-center text-zinc-500 mt-1">Drag chips or tap a chip then a zone • Leader "T.V Lights" anchors the experience</div>
+          <div class="tv-hint text-[10px] text-center text-zinc-400 mt-1">Drag chips or tap a chip then a zone • Leader "T.V Lights" anchors the experience</div>
         </div>
 
         <!-- One-tap adders + drag source -->
         <div class="mt-4">
           <div class="section-label mb-2">Quick Add (rooms &amp; groups) — tap or drag</div>
           <div class="tv-chips">
-            ${availableHtml || '<div class="text-xs text-zinc-500">No lights match search.</div>'}
+            ${availableHtml || '<div class="text-xs text-zinc-400">No lights match search.</div>'}
           </div>
-          <div class="text-[10px] text-zinc-500 mt-1">Add whole room or Portable Lights, then fine-tune individuals by drag or tap ×</div>
+          <div class="text-[10px] text-zinc-400 mt-1">Add whole room or Portable Lights, then fine-tune individuals by drag or tap ×</div>
         </div>
 
         <!-- Modes + per-mode settings -->
@@ -3199,7 +3215,7 @@
             <button onclick="activateTVMode()" class="ha-btn bg-emerald-600 hover:bg-emerald-500 text-white px-4">Activate ${modes.find(m=>m.id===tvMode).label}</button>
           </div>
           ${modesHtml}
-          <div class="text-[10px] mt-1 text-zinc-500">Settings apply live to this mode. Activate pushes to lights + sync box (if present) using existing reliable controls.</div>
+          <div class="text-[10px] mt-1 text-zinc-400">Settings apply live to this mode. Activate pushes to lights + sync box (if present) using existing reliable controls.</div>
         </div>
 
         <div class="mt-4 flex gap-2">
@@ -3639,12 +3655,12 @@
           <div class="flex items-start justify-between mb-2">
             <div>
               <div class="font-medium text-sm truncate flex items-center gap-2">
-                <i class="fa-solid ${asGroup ? 'fa-link' : lightIcon(light)} ${isOn ? 'text-emerald-300' : 'text-zinc-500'} text-xs"></i>
+                <i class="fa-solid ${asGroup ? 'fa-link' : lightIcon(light)} ${isOn ? 'text-emerald-300' : 'text-zinc-400'} text-xs"></i>
                 <span class="truncate">${displayName}</span>
               </div>
               ${subInfoHtml}
               ${light && light.is_sync ? `<div class="text-[9px] text-amber-400 inline px-1 rounded bg-amber-900/30 mr-1">SYNC BOX</div>` : ''}
-              <div class="text-[10px] text-zinc-500">${isOn && state !== 'unknown' ? 'On' : (state === 'unknown' ? 'Syncing…' : 'Off')}${curEffect ? ' • ' + curEffect : ''}</div>
+              <div class="text-[10px] text-zinc-400">${isOn && state !== 'unknown' ? 'On' : (state === 'unknown' ? 'Syncing…' : 'Off')}${curEffect ? ' • ' + curEffect : ''}</div>
             </div>
             <button onclick="event.stopImmediatePropagation(); this.classList.toggle('on'); toggleLight('${eid}', this)" class="wiz-toggle ${isOn ? 'on' : ''}" aria-label="toggle ${displayName}"><span></span></button>
           </div>
@@ -3674,7 +3690,7 @@
           <div class="mb-2 control-wrapper">
             <div class="flex items-center justify-between text-[10px] mb-0.5">
               <span class="text-zinc-400">Color</span>
-              <span class="text-[9px] text-zinc-500">tap for more</span>
+              <span class="text-[9px] text-zinc-400">tap for more</span>
             </div>
             <input type="color" value="#ffcc99" class="w-10 h-8 p-0 border border-zinc-600 bg-transparent rounded-lg cursor-pointer shadow-sm" oninput="debouncedColor('${eid}', this.value, this)"
                    onpointerdown="event.stopPropagation()" onclick="if(window.innerWidth>=640)event.preventDefault();">
@@ -3766,7 +3782,7 @@
           <div class="floor-plan-room p-2 text-xs">
             <div class="font-medium text-emerald-300 mb-1 flex items-center justify-between">
               <span>${room.name}</span>
-              <span class="text-[10px] text-zinc-500">${roomLights.length}</span>
+              <span class="text-[10px] text-zinc-400">${roomLights.length}</span>
             </div>
             <div class="text-[10px] text-zinc-400 truncate">${names}</div>
           </div>`;
@@ -3775,7 +3791,7 @@
 
       const imgHtml = `
         <div class="mb-3">
-          <div class="text-xs text-zinc-500 mb-1">Floor Plan Reference — place your blueprint image at <code>static/floorplan.jpg</code> (or .png) to show the real photo as visual context.</div>
+          <div class="text-xs text-zinc-400 mb-1">Floor Plan Reference — place your blueprint image at <code>static/floorplan.jpg</code> (or .png) to show the real photo as visual context.</div>
           <img src="/static/floorplan.jpg" class="w-full max-h-64 object-contain rounded border border-zinc-800 bg-zinc-950 mb-2" 
                onerror="this.outerHTML = '<div class=\\'text-[10px] text-zinc-400 p-2 border border-dashed border-zinc-700 rounded\\'>Add your floor plan blueprint image as static/floorplan.jpg to see it here as reference.</div>'; ">
         </div>
@@ -4361,7 +4377,7 @@
     async function refreshAllData(quiet = false) {
       if (!quiet) {
         const content = document.getElementById('dashboard-content');
-        if (content) content.innerHTML = `<div class="text-sm text-zinc-500 p-6 text-center">Refreshing from Home Assistant…</div>`;
+        if (content) content.innerHTML = `<div class="text-sm text-zinc-400 p-6 text-center">Refreshing from Home Assistant…</div>`;
       }
       const ok = await hydrateLiveStates(quiet);
       if (!ok && !quiet) {
