@@ -784,15 +784,27 @@
         if (applied) return;
         applied = true;
         el.innerHTML = newHtml;
+        // Land on a VISIBLE resting state before decorating. The previous
+        // version handed the element straight to a fade-in starting at
+        // opacity 0 — and since anime drives that with rAF, a tab hidden at
+        // this exact moment (app-switch, lock screen) froze the card at 0 and
+        // it never came back: real data present in the DOM, invisible forever.
+        el.style.opacity = '';
+        el.style.transform = '';
+        // Only decorate when we can actually see it animate.
+        if (document.visibilityState !== 'visible') return;
         try {
           anime({
             targets: el,
             opacity: [0, 1],
             translateY: slide ? [6, 0] : 0,
             duration: 260,
-            easing: 'easeOutCubic'
+            easing: 'easeOutCubic',
+            complete: function () { el.style.opacity = ''; el.style.transform = ''; }
           });
-        } catch (e) {}
+        } catch (e) { el.style.opacity = ''; }
+        // Final backstop: whatever the animation did, this card is visible.
+        setTimeout(function () { el.style.opacity = ''; el.style.transform = ''; }, 600);
       };
       try {
         anime({
@@ -1379,6 +1391,29 @@
       setTimeout(function () { el.classList.add('ready'); }, 60 + delay);
     });
     if (!seen) { try { sessionStorage.setItem('hb_hero_seen', '1'); } catch (e) {} }
+  })();
+  </script>
+
+  <!-- Safety net: nothing on this page may stay invisible because an animation
+       was interrupted. rAF is paused in a hidden tab, so any element mid-fade
+       when you app-switch can be stranded at opacity 0 with its real content
+       already in the DOM. On return to visibility (and once shortly after
+       load) we clear any leftover inline opacity/transform on the live cards.
+       Cheap, and it makes "blank card" structurally impossible. -->
+  <script>
+  (function () {
+    function unstick() {
+      document.querySelectorAll('#xbox-status, #ha-status, #lastfm-status, .live-card').forEach(function (el) {
+        if (el.style.opacity !== '' && parseFloat(el.style.opacity) < 1) {
+          el.style.opacity = '';
+          el.style.transform = '';
+        }
+      });
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') unstick();
+    });
+    setTimeout(unstick, 2500);
   })();
   </script>
 
