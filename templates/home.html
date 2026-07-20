@@ -726,18 +726,24 @@
 
     // Premium design system: Anime.js micro-interactions + smooth live updates (calm, professional)
     function smoothUpdate(el, newHtml, slide = true) {
-      if (!el || typeof anime === 'undefined') {
-        if (el) el.innerHTML = newHtml;
-        return;
-      }
-      anime({
-        targets: el,
-        opacity: [1, 0],
-        translateY: slide ? [0, 6] : 0,
-        duration: 110,
-        easing: 'easeInQuad',
-        complete: function() {
-          el.innerHTML = newHtml;
+      if (!el) return;
+      // The data write used to happen ONLY inside anime()'s `complete` callback.
+      // anime's engine runs on requestAnimationFrame, which browsers pause
+      // whenever a tab isn't visible/focused (backgrounded on a phone, a
+      // locked screen, a fast app-switch mid-poll) — so `complete` could just
+      // never fire, and the Live Now cards stayed on the loading dots forever.
+      // Same failure shape as the motion.js reveal bug: real content gated
+      // behind one animation callback with no escape hatch. Fix: apply the
+      // data immediately, unconditionally — the crossfade is now pure
+      // decoration layered on top, so a stalled rAF loop can no longer block
+      // real data from ever reaching the screen.
+      if (typeof anime === 'undefined') { el.innerHTML = newHtml; return; }
+      var applied = false;
+      var apply = function () {
+        if (applied) return;
+        applied = true;
+        el.innerHTML = newHtml;
+        try {
           anime({
             targets: el,
             opacity: [0, 1],
@@ -745,8 +751,19 @@
             duration: 260,
             easing: 'easeOutCubic'
           });
-        }
-      });
+        } catch (e) {}
+      };
+      try {
+        anime({
+          targets: el,
+          opacity: [1, 0],
+          translateY: slide ? [0, 6] : 0,
+          duration: 110,
+          easing: 'easeInQuad',
+          complete: apply
+        });
+      } catch (e) { apply(); }
+      setTimeout(apply, 200);   // backstop: never wait on rAF for real data
     }
 
     function initPremiumInteractions() {
