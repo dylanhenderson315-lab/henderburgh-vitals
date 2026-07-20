@@ -183,22 +183,6 @@
     @media (prefers-reduced-motion: reduce) { .hud .hud-dot { animation: none; } }
     .hud time { color: #9ca3af; font-variant-numeric: tabular-nums; }
 
-    /* ── Hero: number-as-hero rhythm ──────────────────────────────────────────
-       The real facts (heart rate, lights on) were previously smaller than the
-       decorative headline and buried below the fold. These are load-bearing:
-       huge tabular numerals, whisper-quiet mono labels underneath. */
-    .hero-stat-value {
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
-      line-height: 0.95;
-    }
-    .hero-stat-label {
-      font-family: 'SF Mono', ui-monospace, 'Menlo', monospace;
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #6b7280;
-    }
     /* Session-gated entrance: staggered rise on the FIRST load of a session
        only. Every load after that is instant — a first-impression flourish
        that never becomes an annoyance on the 10th visit of the day. */
@@ -206,54 +190,72 @@
     .hero-enter.ready { opacity: 1; transform: none; transition: opacity .5s cubic-bezier(.22,1,.36,1), transform .5s cubic-bezier(.22,1,.36,1); }
     @media (prefers-reduced-motion: reduce) { .hero-enter { opacity: 1; transform: none; } }
 
-    /* ── The Index ────────────────────────────────────────────────────────────
-       Every page as one editorial row: mono catalogue number, display-type name,
-       live signal, arrow. Hairline rules instead of boxes — a grid of identical
-       rounded cards is what made the hub read as a generic dashboard template.
-       Press feedback is deliberately sub-100ms: on a hub you tap constantly, the
-       control must feel physical and instant, never "animated". */
-    .idx { border-top: 1px solid rgba(255,255,255,0.08); }
-    .idx-row {
-      display: grid;
-      grid-template-columns: 2.25rem 1fr auto 1.25rem;
-      align-items: baseline;
-      gap: 0 1rem;
-      padding: 1.15rem 0.5rem 1.15rem 0.25rem;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      text-decoration: none;
+    /* ── Premium live cards ───────────────────────────────────────────────────
+       The effect the React component libraries are known for, rebuilt natively:
+       a spotlight and a gradient border that both track the pointer, driven by
+       two CSS custom properties (--mx/--my) set from one delegated listener.
+       Pure compositor work (opacity + gradients), so it costs effectively
+       nothing on a phone, and it simply never activates on touch — where it
+       degrades to the plain card rather than to something broken. */
+    .live-card, .top-option {
       position: relative;
-      transition: background-color 140ms ease, padding-left 180ms cubic-bezier(.22,1,.36,1);
+      isolation: isolate;
+      --mx: 50%; --my: 0%;
     }
-    .idx-row:hover { background-color: rgba(255,255,255,0.025); padding-left: 0.75rem; }
-    .idx-row:active { transform: scale(0.995); transition: transform 80ms cubic-bezier(0.2,0,0,1); }
-    .idx-num {
+    /* Spotlight wash inside the card */
+    .live-card::before, .top-option::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(340px circle at var(--mx) var(--my),
+                  rgba(74,222,128,0.09), transparent 62%);
+      opacity: 0;
+      transition: opacity 380ms ease;
+      pointer-events: none;
+      z-index: -1;
+    }
+    /* Hairline gradient border that lights up under the cursor. The mask trick
+       paints ONLY the 1px ring, so the fill stays clean. */
+    .live-card::after, .top-option::after {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: radial-gradient(240px circle at var(--mx) var(--my),
+                  rgba(74,222,128,0.55), rgba(96,165,250,0.18) 40%, transparent 70%);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+              mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              mask-composite: exclude;
+      opacity: 0;
+      transition: opacity 380ms ease;
+      pointer-events: none;
+    }
+    @media (hover: hover) {
+      .live-card:hover::before, .top-option:hover::before,
+      .live-card:hover::after,  .top-option:hover::after { opacity: 1; }
+      .live-card:hover, .top-option:hover { transform: translateY(-2px); }
+    }
+    .live-card, .top-option {
+      transition: transform 260ms cubic-bezier(.22,1,.36,1),
+                  border-color 200ms ease, box-shadow 200ms ease;
+    }
+    /* Tactile press: fast enough to read as physical, not as an animation. */
+    .live-card:active, .top-option:active {
+      transform: scale(0.985);
+      transition: transform 80ms cubic-bezier(0.2,0,0,1);
+    }
+    /* Instrument-panel labels */
+    .live-card h3 {
       font-family: 'SF Mono', ui-monospace, 'Menlo', monospace;
-      font-size: 10px; letter-spacing: 0.1em; color: #52525b;
-      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.16em;
     }
-    .idx-name {
-      font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-      font-size: clamp(1.35rem, 4.5vw, 1.9rem);
-      font-weight: 600; letter-spacing: -0.02em; line-height: 1;
-      color: #e4e4e7;
-      transition: color 140ms ease;
-    }
-    .idx-row:hover .idx-name { color: #fafafa; }
-    .idx-sig {
-      font-family: 'SF Mono', ui-monospace, 'Menlo', monospace;
-      font-size: 10.5px; letter-spacing: 0.02em; color: #6b7280;
-      text-align: right; white-space: nowrap; overflow: hidden;
-      text-overflow: ellipsis; max-width: 46vw;
-      font-variant-numeric: tabular-nums;
-    }
-    .idx-arrow {
-      font-size: 13px; color: #3f3f46; text-align: right;
-      transition: color 140ms ease, transform 180ms cubic-bezier(.22,1,.36,1);
-    }
-    .idx-row:hover .idx-arrow { color: #4ade80; transform: translateX(3px); }
+    .live-card .big-number { font-variant-numeric: tabular-nums; }
     @media (prefers-reduced-motion: reduce) {
-      .idx-row, .idx-arrow, .idx-name { transition: none; }
-      .idx-row:hover { padding-left: 0.25rem; }
+      .live-card, .top-option { transition: none; }
+      .live-card:hover, .top-option:hover { transform: none; }
+      .live-card::before, .live-card::after,
+      .top-option::before, .top-option::after { display: none; }
     }
 
     /* Live Now specific balance - compact but intentional spacing */
@@ -538,28 +540,13 @@
         </p>
       </div>
 
-      <!-- The facts, promoted: heart rate and lights-on used to be smaller than
-           the decorative headline and buried below the fold. These ARE the
-           content of a life-dashboard front door — huge tabular numerals,
-           whisper-quiet mono labels, no card chrome needed. -->
-      <div class="flex items-end gap-x-9 gap-y-5 flex-wrap mb-8 hero-enter" data-hero-stagger="2">
-        <div>
-          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.25rem, 6.5vw, 3.25rem);" id="hero-hr-value">{{ heart_rate.bpm if heart_rate and heart_rate.bpm is not none else '—' }}<span class="text-xl text-zinc-500 font-normal ml-1.5">bpm</span></div>
-          <div class="hero-stat-label mt-1">Heart Rate</div>
-        </div>
-        <div>
-          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.25rem, 6.5vw, 3.25rem);" id="hero-lights-value">—</div>
-          <div class="hero-stat-label mt-1">Lights On</div>
-        </div>
-        <div>
-          <div class="hero-stat-value text-zinc-50" style="font-size: clamp(2.25rem, 6.5vw, 3.25rem);">{{ '{:,}'.format(steps.count) if steps and steps.count is not none else '—' }}</div>
-          <div class="hero-stat-label mt-1">Steps{% if steps and steps.miles is not none %} · {{ '%.1f' % steps.miles }} mi{% endif %}</div>
-        </div>
-      </div>
+      <!-- The hero stays deliberately CLEAN: statement + one live sentence, and
+           nothing else. The numbers belong in the cards below, where each one
+           sits next to the context that explains it. -->
 
       <!-- Quirky little notification icon: click it and the office lamp temporarily flashes to physically signal you (or someone else) poked it -->
       {% if not public_mode %}
-      <div class="flex justify-center hero-enter" data-hero-stagger="3">
+      <div class="flex justify-center hero-enter" data-hero-stagger="2">
         <button onclick="triggerOfficeLampNotificationPoke()"
                 class="group relative inline-flex items-center justify-center w-10 h-10 rounded-2xl border border-zinc-700 bg-[#18181b] hover:bg-[#27272a] hover:border-emerald-500/40 active:scale-[0.86] transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50"
                 title="Poke the office lamp (instant blink) — or signals notifications (blue temp via backend)">
@@ -577,76 +564,54 @@
   </div>
 
   <main class="max-w-[1080px] mx-auto px-6 pt-6 pb-8">
-    <!-- THE INDEX — the home page's real job: a directory where every page is one
-         row carrying its own LIVE signal, so the hub answers "what's happening
-         everywhere" at a glance and every row is a door. Editorial rows with
-         hairline rules instead of a grid of identical boxes: the boxes were what
-         made this read as a generic dashboard template. -->
+    <!-- Live Now -->
     <div class="content-section" id="live-now-section">
-      <div class="flex items-baseline justify-between mb-1">
-        <div class="section-label">The Index</div>
-        <div class="section-label">Live</div>
-      </div>
+      <div class="section-label mb-3">Live Now</div>
 
-      <nav class="idx">
-        <a href="/vitals" class="idx-row">
-          <span class="idx-num">01</span>
-          <span class="idx-name">Vitals</span>
-          <span class="idx-sig">{{ heart_rate.bpm if heart_rate and heart_rate.bpm is not none else '—' }} bpm{% if steps and steps.count is not none %} · {{ '{:,}'.format(steps.count) }} steps{% endif %}</span>
-          <span class="idx-arrow" aria-hidden="true">→</span>
+      <!-- First row: 4 balanced cards (bento-inspired) -->
+      <div class="live-now live-now-main relative z-10">
+        <!-- Xbox -->
+        <a href="/xbox" class="live-card block cursor-pointer hero-enter" data-hero-stagger="3" title="View full Xbox profile &amp; game log">
+          <h3>Xbox</h3>
+          <div id="xbox-status">Checking status...</div>
         </a>
 
+        <!-- Home Assistant (only in private/local deploys) -->
         {% if not public_mode %}
-        <a href="/home-assistant" class="idx-row">
-          <span class="idx-num">02</span>
-          <span class="idx-name">Lighting</span>
-          <span class="idx-sig" id="ha-status">—</span>
-          <span class="idx-arrow" aria-hidden="true">→</span>
+        <a href="/home-assistant" class="live-card block cursor-pointer hero-enter" data-hero-stagger="4" title="Open Home Assistant control panel">
+          <h3>The House</h3>
+          <div id="ha-status">Loading...</div>
         </a>
         {% endif %}
 
-        <a href="/xbox" class="idx-row">
-          <span class="idx-num">03</span>
-          <span class="idx-name">Xbox</span>
-          <span class="idx-sig" id="xbox-status">—</span>
-          <span class="idx-arrow" aria-hidden="true">→</span>
-        </a>
+        <!-- Heart Rate -->
+        <div class="live-card hero-enter" data-hero-stagger="5">
+          <h3>Heart Rate</h3>
+          <p class="big-number">{{ heart_rate.bpm or '--' }} bpm</p>
+          <p>Updated {{ heart_rate.updated_ago or 'recently' }}</p>
+        </div>
 
-        <a href="/clips" class="idx-row">
-          <span class="idx-num">04</span>
-          <span class="idx-name">Clips</span>
-          <span class="idx-sig">{{ recent_clips | length }} recent</span>
-          <span class="idx-arrow" aria-hidden="true">→</span>
-        </a>
+        <!-- Steps (from Oura) -->
+        <div class="live-card hero-enter" data-hero-stagger="6">
+          <h3>Steps</h3>
+          <p class="big-number">{{ '{:,}'.format(steps.count) if steps and steps.count is not none else '--' }}<span class="text-base text-zinc-500 font-normal ml-1.5">steps</span></p>
+          <p>{{ '%.1f' % (steps.miles or 0) if steps.miles is not none else '--' }} miles</p>
+          <p><a href="/vitals">Full details on Vitals page →</a></p>
+        </div>
 
-        <a href="/blog" class="idx-row">
-          <span class="idx-num">05</span>
-          <span class="idx-name">Blog</span>
-          <span class="idx-sig">{% if blog_unread_count and blog_unread_count > 0 %}{{ blog_unread_count }} unread{% else %}{{ recent_messages | length }} posts{% endif %}</span>
-          <span class="idx-arrow" aria-hidden="true">→</span>
-        </a>
+      </div>
 
-        <a href="/model" class="idx-row">
-          <span class="idx-num">06</span>
-          <span class="idx-name">Model</span>
-          <span class="idx-sig">3D house</span>
-          <span class="idx-arrow" aria-hidden="true">→</span>
-        </a>
-
-        <a href="/golf" class="idx-row">
-          <span class="idx-num">07</span>
-          <span class="idx-name">Golf</span>
-          <span class="idx-sig">Rounds</span>
-          <span class="idx-arrow" aria-hidden="true">→</span>
-        </a>
-
-        <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener" class="idx-row">
-          <span class="idx-num">08</span>
-          <span class="idx-name">Music</span>
-          <span class="idx-sig" id="lastfm-status">—</span>
-          <span class="idx-arrow" aria-hidden="true">↗</span>
-        </a>
-      </nav>
+      <!-- Last.fm on its own row below for balance (clean spacing, premium contrast) -->
+      <div class="live-now live-now-secondary mt-3">
+        <!-- Last.fm -->
+        <div class="live-card">
+          <h3>Last.fm</h3>
+          <div id="lastfm-status"><p class="text-sm text-zinc-400"><em>Loading recent tracks...</em></p></div>
+          <p class="text-xs text-zinc-400 mt-2">
+            <a href="https://www.last.fm/user/henderburgh" target="_blank" class="hover:text-white transition">Last.fm • Recent</a>
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Yesterday, replayed — the whole OS on one timeline: heart, games, sleep,
@@ -948,32 +913,81 @@
 
   <!-- Xbox Live Status -->
   <script>
-  // Index rows carry ONE compact live signal each — a single line of mono text.
-  // (These used to render full cards with avatars and stat stacks; in a row
-  // layout that's noise, and the detail belongs on the page the row opens.)
   async function loadXbox() {
     const el = document.getElementById("xbox-status");
-    if (!el) return;
+    if (el) {
+      el.innerHTML = `<div class="flex justify-center py-3"><div class="neon-drift"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+    }
 
     try {
       const res = await fetch("/api/xbox/status");
       const data = await res.json();
 
       if (data.status === "ok") {
-        const isOnline = (data.state || "").toLowerCase() === "online";
-        const hasGame = data.game && data.game !== "—";
-        // Playing something is the interesting state, so it wins the line.
-        el.textContent = hasGame
-          ? data.game
-          : (isOnline ? "Online" : "Offline");
-        el.style.color = hasGame ? "#4ade80" : "";
+        const state = data.state || "Unknown";
+        const gameText = (data.game && data.game !== "—") ? data.game : "No active game";
+        const isOnline = state.toLowerCase() === "online";
+        const statusColor = isOnline 
+          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+          : "bg-zinc-700/50 text-zinc-400 border border-zinc-600/30";
+        const statusText = isOnline ? "Online" : "Offline";
+        const pic = data.gamerpic || "";
+        const gt = data.gamertag || "NutNutBiinks";
+        const score = data.gamerscore ? data.gamerscore.toLocaleString() : "";
+        const ten = data.tenure || 0;
+        const bottom = (score || ten) 
+          ? `<div class="text-[10px] text-zinc-500 mt-1.5 tabular-nums">${score}${score && ten ? " • " : ""}${ten ? ten + " years" : ""}</div>` 
+          : "";
+
+        // Show age of the cached snapshot (populated by backend). Helps communicate that we are not live-polling.
+        let updatedLine = "";
+        if (data.last_updated) {
+          const ageSec = Math.floor(Date.now() / 1000 - data.last_updated);
+          const ageMin = Math.max(0, Math.floor(ageSec / 60));
+          const label = ageMin === 0 ? "just now" : `${ageMin} min ago`;
+          updatedLine = `<div class="text-[9px] text-zinc-500 mt-1">Updated ${label}</div>`;
+        }
+
+        smoothUpdate(el, `
+          <div class="flex gap-3">
+            ${pic ? `<img src="${pic}" class="w-9 h-9 rounded-full object-cover border border-zinc-700 flex-shrink-0" alt="${gt} gamerpic">` : ''}
+            <div class="flex-1 min-w-0 overflow-hidden">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-semibold text-sm leading-none truncate">${gt}</span>
+                <span class="text-[10px] px-1.5 py-px rounded-full font-medium whitespace-nowrap ${statusColor}">${statusText}</span>
+              </div>
+              <div class="text-xs ${gameText === 'No active game' ? 'text-zinc-500 italic' : 'text-zinc-300'} truncate mt-1 leading-snug">${gameText}</div>
+              ${bottom}
+              ${updatedLine}
+            </div>
+          </div>
+        `);
+
+        // Anime.js calm number animation for gamerscore (production data polish)
+        if (score) {
+          setTimeout(() => {
+            const scoreNode = el.querySelector('.tabular-nums');
+            if (scoreNode) {
+              const targetScore = parseInt(score.replace(/,/g, '')) || 0;
+              anime({
+                targets: { val: 0 },
+                val: targetScore,
+                duration: 850,
+                easing: 'easeOutExpo',
+                update: (anim) => {
+                  scoreNode.textContent = Math.floor(anim.animations[0].currentValue).toLocaleString();
+                }
+              });
+            }
+          }, 180);
+        }
       } else if (data.status === "not_configured") {
-        el.textContent = "Not configured";
+        el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status not configured</p>`;
       } else {
-        el.textContent = "Unavailable";
+        el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status temporarily unavailable</p>`;
       }
     } catch (error) {
-      el.textContent = "Unavailable";
+      el.innerHTML = `<p class="text-xs text-zinc-500">Xbox status temporarily unavailable</p>`;
     }
   }
 
@@ -990,27 +1004,65 @@
     const el = document.getElementById("ha-status");
     if (!el) return;
 
+    el.innerHTML = `<div class="flex justify-center py-3"><div class="neon-drift"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+
     try {
       const res = await fetch("/api/ha/summary");
       const data = await res.json();
 
       if (data.status === "ok") {
         const on = data.lights_on || 0;
-        const rooms = (data.active_rooms && data.active_rooms.length) ? data.active_rooms : (data.rooms || []);
-        // Which rooms are alive — the light COUNT is already the hero's number,
-        // so this line says the thing the count can't.
-        const litRooms = rooms.filter(r => r.on > 0).map(r => r.name);
-        el.textContent = litRooms.length
-          ? litRooms.slice(0, 2).join(' · ')
-          : (on > 0 ? `${on} on` : 'All off');
-        el.style.color = litRooms.length || on > 0 ? "#4ade80" : "";
+        const tot = data.total_lights || 0;
+        const scene = data.active_scene && data.active_scene !== "—" ? data.active_scene : "No active scene";
+
+        // New room-aware summary for the professional dashboard
+        let roomsHtml = '';
+        const rooms = (data.active_rooms && data.active_rooms.length) ? data.active_rooms : (data.rooms || []).slice(0, 2);
+        if (rooms.length) {
+          roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1 space-x-1">` +
+            rooms.map(r => {
+              const pct = r.brightness_avg ? ` ${r.brightness_avg}%` : '';
+              return `<span class="tabular-nums">${r.name.split(' ')[0]}: ${r.on}/${r.total}${pct}</span>`;
+            }).join(' ') + `</div>`;
+        } else {
+          roomsHtml = `<div class="text-[10px] text-zinc-500 mt-1">${(data.quick_status || []).slice(0,1).join('')}</div>`;
+        }
+
+        const haHtml = `
+          <div class="text-sm">
+            <div class="flex items-baseline gap-x-1.5">
+              <span class="font-semibold tabular-nums" id="ha-lights-count">${on}/${tot}</span>
+              <span class="text-xs text-[#94a3b8]">lights on</span>
+            </div>
+            <div class="text-xs mt-0.5 ${scene === 'No active scene' ? 'text-[#94a3b8] italic' : 'text-[#4ade80]'} truncate">${scene}</div>
+            ${roomsHtml}
+          </div>
+        `;
+        smoothUpdate(el, haHtml);
+
+        // Anime number animation for lights count (calm data refresh)
+        setTimeout(() => {
+          const countEl = el.querySelector('#ha-lights-count');
+          if (countEl) {
+            anime({
+              targets: { val: 0 },
+              val: on,
+              duration: 720,
+              easing: 'easeOutExpo',
+              update: (anim) => {
+                const current = Math.floor(anim.animations[0].currentValue);
+                countEl.textContent = `${current}/${tot}`;
+              }
+            });
+          }
+        }, 120);
       } else if (data.status === "disabled") {
-        el.textContent = "Local only";
+        el.innerHTML = `<p class="text-xs text-zinc-500">Home Assistant (local only)</p>`;
       } else {
-        el.textContent = "Unavailable";
+        el.innerHTML = `<p class="text-xs text-zinc-500">HA status unavailable</p>`;
       }
     } catch (error) {
-      el.textContent = "Unavailable";
+      el.innerHTML = `<p class="text-xs text-zinc-500">HA status unavailable</p>`;
     }
   }
 
@@ -1031,10 +1083,13 @@
     if (!el) return;
 
     if (!tracks || tracks.length === 0) {
-      el.textContent = 'No recent tracks';
+      smoothUpdate(el, `<p><em>No recent tracks</em></p>`, false);
       return;
     }
 
+    let html = '';
+
+    // Check for now playing track
     const nowPlayingTrack = tracks.find(t => t['@attr'] && t['@attr'].nowplaying === 'true');
 
     // Feed the living hero's brain: it knows when music is actually playing
@@ -1043,12 +1098,51 @@
       : null;
     if (window.__synthesizeLive) window.__synthesizeLive();
 
-    // One compact signal for the index row: what's on now, else what was last
-    // played. The full history lives on Last.fm, which the row links out to.
-    const t = nowPlayingTrack || tracks[0];
-    const artist = (t.artist && t.artist['#text']) || '';
-    el.textContent = artist ? `${t.name} — ${artist}` : t.name;
-    el.style.color = nowPlayingTrack ? '#4ade80' : '';
+    if (nowPlayingTrack) {
+      const name = nowPlayingTrack.name;
+      const artist = nowPlayingTrack.artist['#text'];
+      const image = nowPlayingTrack.image?.[1]?.['#text'] || nowPlayingTrack.image?.[2]?.['#text'];
+
+      html += `
+        <div style="margin-bottom:8px;">
+          <span style="background:#22c55e; color:white; font-size:0.65rem; padding:1px 5px; border-radius:3px; margin-right:6px;">NOW PLAYING</span>
+          <strong>${name}</strong><br>
+          <span style="color:#666; font-size:0.85rem;">${artist}</span>
+        </div>
+      `;
+    }
+
+    // Show up to 3 recent tracks (excluding the now playing one if present)
+    const recentTracks = tracks
+      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
+      .slice(0, 3);
+
+    if (recentTracks.length > 0) {
+      if (nowPlayingTrack) {
+        html += `<div style="font-size:0.7rem; color:#888; margin-bottom:4px; margin-top:6px;">Recently played</div>`;
+      }
+
+      recentTracks.forEach(track => {
+        const name = track.name;
+        const artist = track.artist['#text'];
+        html += `
+          <div style="margin-bottom:3px; font-size:0.85rem;">
+            <strong>${name}</strong><br>
+            <span style="color:#666;">${artist}</span>
+          </div>
+        `;
+      });
+    }
+
+    // Profile link
+    html += `
+      <div style="margin-top:6px;">
+        <a href="https://www.last.fm/user/${LASTFM_USER}" target="_blank" 
+           style="font-size:0.7rem; color:#3b82f6; text-decoration:none;">View on Last.fm →</a>
+      </div>
+    `;
+
+    smoothUpdate(el, html, false);
   }
 
   async function fetchLastFmTracks() {
@@ -1067,7 +1161,7 @@
       renderLastFmTracks(tracks);
     } catch (err) {
       console.error('Last.fm fetch error:', err);
-      el.textContent = 'Unavailable';
+      smoothUpdate(el, `<p><em>Unable to load Last.fm tracks</em></p>`, false);
     }
   }
 
@@ -1181,16 +1275,8 @@
         const lights = flatLights(LIVE.lights);
         const onLights = lights.filter(l => l.state === 'on');
         const hasLightData = lights.length > 0;
+        const hr = HR_BPM ? ` · heart ${HR_BPM} bpm` : '';
         const hour = easternHour();
-
-        // The subline carries CONTEXT, never numbers. Heart rate, lights-on and
-        // steps each render exactly once, in the hero instrument row — echoing
-        // them here made the fold state the same three facts three times over.
-        // What belongs here is what a number can't say: which rooms are alive.
-        const litRooms = [...new Set(onLights.map(l => l.room_name).filter(r => r && r !== 'Unassigned'))];
-        const roomPhrase = litRooms.length
-          ? `${litRooms.slice(0, 2).join(' & ')} lit`
-          : '';
 
         let head = null, sub = null;
 
@@ -1200,35 +1286,37 @@
           const watching = xb.kind === 'media';
           head = watching ? 'HENDERBURGH IS WATCHING.' : 'HENDERBURGH IS PLAYING.';
           const verb = watching ? 'Watching' : 'Playing';
-          sub = `${verb} ${xb.game}${roomPhrase ? ` · ${roomPhrase}` : ''}`;
+          sub = `${verb} ${xb.game}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
         }
         // 2. Music actually playing (live last.fm scrobble)
         else if (window.LIVE_NOWPLAYING) {
           const t = window.LIVE_NOWPLAYING;
           head = 'HENDERBURGH IS LISTENING.';
-          sub = `${t.name} — ${t.artist}${roomPhrase ? ` · ${roomPhrase}` : ''}`;
+          sub = `${t.name} — ${t.artist}${hasLightData ? ` · ${onLights.length} light${onLights.length === 1 ? '' : 's'} on` : ''}${hr}`;
         }
         // 3. House completely dark
         else if (hasLightData && onLights.length === 0) {
-          if (hour >= 22 || hour < 7) { head = 'HENDERBURGH IS SLEEPING.'; sub = 'Every light in the house is off.'; }
+          if (hour >= 22 || hour < 7) { head = 'HENDERBURGH IS SLEEPING.'; sub = `Every light in the house is off${hr}`; }
           else { head = 'HENDERBURGH IS OUT.'; sub = 'The house is dark right now.'; }
         }
         // 3. Time of day, enriched with live house facts
         else {
           head = hEl.dataset.base || hEl.textContent.trim();
-          sub = roomPhrase ? `${roomPhrase} · live from the house.` : 'Live from the house.';
+          if (hasLightData) {
+            // brightest room = the room with the most lights on
+            const rooms = {};
+            onLights.forEach(l => { const r = l.room_name || 'somewhere'; rooms[r] = (rooms[r] || 0) + 1; });
+            const topRoom = Object.entries(rooms).sort((a, b) => b[1] - a[1])[0];
+            sub = `${onLights.length} of ${lights.length} lights on${topRoom && topRoom[0] !== 'Unassigned' ? ` · ${topRoom[0]} lit` : ''}${hr}`;
+          } else {
+            sub = HR_BPM ? `Heart ${HR_BPM} bpm · live from the Oura Ring` : 'Live from the house.';
+          }
         }
 
         if (!hEl.dataset.base) hEl.dataset.base = hEl.textContent.trim();
         if (hEl.textContent.trim() !== head) { hEl.style.opacity = 0; setTimeout(() => { hEl.textContent = head; hEl.style.opacity = 1; }, 320); }
         if (sEl.textContent.trim() !== sub) { sEl.style.opacity = 0; setTimeout(() => { sEl.textContent = sub; sEl.style.opacity = 1; }, 320); }
 
-        // Hero stat row: the real numbers, kept in sync with the same live data.
-        const lightsEl = document.getElementById('hero-lights-value');
-        if (lightsEl && hasLightData) {
-          const val = `${onLights.length}<span class="text-xl text-zinc-500 font-normal ml-1.5">/ ${lights.length}</span>`;
-          if (lightsEl.innerHTML !== val) lightsEl.innerHTML = val;
-        }
       }
 
       function paintAurora() {
@@ -1291,6 +1379,31 @@
       setTimeout(function () { el.classList.add('ready'); }, 60 + delay);
     });
     if (!seen) { try { sessionStorage.setItem('hb_hero_seen', '1'); } catch (e) {} }
+  })();
+  </script>
+
+  <!-- Pointer-tracked card lighting. ONE delegated listener for the whole page
+       (not one per card), writing two CSS custom properties that the card's
+       ::before/::after gradients read. rAF-throttled so a fast mouse can't
+       out-run the compositor, and skipped entirely on touch/reduced-motion,
+       where the cards simply stay flat. -->
+  <script>
+  (function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!window.matchMedia('(hover: hover)').matches) return;
+
+    var pending = null;
+    document.addEventListener('pointermove', function (e) {
+      var card = e.target.closest && e.target.closest('.live-card, .top-option');
+      if (!card) return;
+      if (pending) return;
+      pending = requestAnimationFrame(function () {
+        pending = null;
+        var r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+        card.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%');
+      });
+    }, { passive: true });
   })();
   </script>
 
