@@ -500,19 +500,32 @@
       background: #fff; border: 2px solid #52525b; cursor: pointer;
     }
 
-    /* WiZ-style room/light toggle switch */
+    /* WiZ-style room/light toggle switch.
+       The pill stays 44x26 visually, but the real hit area is >=44x44 via an
+       invisible ::after overlay — the audit measured these at 26px tall, well
+       under the comfortable thumb target for the single most-tapped control
+       on the most-used page of the site. */
     .wiz-toggle {
-      width: 44px; height: 26px; border-radius: 999px; background: #3f3f46;
+      width: 44px; height: 26px; border-radius: var(--r-full, 999px); background: #3f3f46;
       position: relative; flex: none; transition: background .18s ease; cursor: pointer;
       border: none; padding: 0;
+      touch-action: manipulation;   /* no 350ms double-tap delay on the thing you tap most */
     }
-    .wiz-toggle.on { background: #10b981; }
+    .wiz-toggle::after {
+      content: ''; position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px; height: 44px;    /* the real target */
+    }
+    .wiz-toggle.on { background: var(--accent, #10b981); }
     .wiz-toggle span {
       position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
-      border-radius: 50%; background: #fff; transition: left .18s ease;
+      border-radius: 50%; background: #fff; transition: left .18s ease, transform 80ms cubic-bezier(0.2,0,0,1);
       box-shadow: 0 1px 3px rgba(0,0,0,.4);
     }
     .wiz-toggle.on span { left: 21px; }
+    /* Physical press: the knob squashes the instant your thumb lands — feedback
+       on pointerdown, never waiting for the network round-trip. */
+    .wiz-toggle:active span { transform: scale(0.88); }
 
     /* Enhanced drag feedback for touch */
     .dragging {
@@ -712,8 +725,14 @@
           <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
         </nav>
 
-        <div class="md:hidden">
-          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">← Home</a>
+        <!-- Mobile: compact global nav. This page's own bottom bar is the section
+             switcher (Rooms/Lights/Scenes...), so the site-wide destinations live
+             up here — before this, entering the most-used page cost you one-tap
+             access to every other page (only a lone "← Home" pill survived). -->
+        <div class="md:hidden flex items-center gap-x-1">
+          <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white active:bg-zinc-800 transition"><i class="fa-solid fa-home text-base"></i></a>
+          <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white active:bg-zinc-800 transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
+          <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white active:bg-zinc-800 transition"><i class="fa-solid fa-gamepad text-base"></i></a>
         </div>
       </div>
     </div>
@@ -4097,16 +4116,39 @@
       const targetLights = allLights.filter(l => lights.includes(l.entity_id));
       const newState = action === 'turn_on' ? 'on' : 'off';
 
+      // Remember what each light showed BEFORE the optimistic flip, so a failed
+      // call can put the truth back instead of leaving the UI lying.
+      const prevStates = new Map(targetLights.map(l => {
+        const st = (typeof getLightState === 'function' && getLightState(l.entity_id)) || {};
+        return [l.entity_id, st.state || l.state];
+      }));
+
       targetLights.forEach(l => updateLightState(l.entity_id, {state: newState}));
       renderCurrentView();
 
-      const promises = targetLights.map(l => 
+      // Optimistic UI, honest on failure: this used to await a bare
+      // Promise.all — one network error meant an unhandled rejection and every
+      // failed light stayed painted in a state it never reached, until a poll
+      // 12s later happened to correct it. Now each call settles individually,
+      // failed lights revert immediately, and one reconcile pass fetches the
+      // real state from HA.
+      const results = await Promise.allSettled(targetLights.map(l =>
         adminFetch(`/api/ha/service/light/${action}`, {
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({entity_id: l.entity_id})
-        })
-      );
-      await Promise.all(promises);
+        }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r; })
+      ));
+
+      const failed = [];
+      results.forEach((res, i) => {
+        if (res.status === 'rejected') failed.push(targetLights[i]);
+      });
+      if (failed.length) {
+        failed.forEach(l => updateLightState(l.entity_id, {state: prevStates.get(l.entity_id)}));
+        renderCurrentView();
+        showFeedback(`${failed.length} light${failed.length === 1 ? '' : 's'} didn't respond — reverted`, true);
+        refreshAllData();   // reconcile with what the house actually did
+      }
     }
 
     async function roomOrGroupMasterBrightness(id, percent, isGroup) {
