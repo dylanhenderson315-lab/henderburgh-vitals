@@ -462,6 +462,103 @@
       grid-template-columns: 1fr;
     }
 
+    /* Equal tile geometry: every Live Now peer shares width (grid) and a
+       common min-height so Last.fm multi-track can't grow into a banner. */
+    .live-now-main > .live-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 152px;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    .live-now-main > .live-card > h3 { flex: 0 0 auto; }
+    .live-now-main > .live-card > #xbox-status,
+    .live-now-main > .live-card > #ha-status,
+    .live-now-main > .live-card > #lastfm-status {
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
+    }
+    /* Compact multi-song list sized for the tile — not a tall dump. */
+    .lfm-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+      height: 100%;
+    }
+    .lfm-primary {
+      display: flex;
+      gap: 10px;
+      min-width: 0;
+      flex: 0 0 auto;
+    }
+    .lfm-primary img,
+    .lfm-primary .lfm-art-fallback {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      object-fit: cover;
+      border: 1px solid var(--line);
+    }
+    .lfm-primary .lfm-art-fallback {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(39, 39, 42, 0.8);
+      color: #71717a;
+      font-size: 11px;
+    }
+    .lfm-primary .lfm-meta { min-width: 0; flex: 1; overflow: hidden; }
+    .lfm-primary .lfm-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+    }
+    .lfm-primary .lfm-title > span:first-child {
+      font-weight: 600;
+      font-size: 13px;
+      line-height: 1.15;
+      color: #f4f4f5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .lfm-primary .lfm-artist {
+      margin-top: 3px;
+      font-size: 11px;
+      line-height: 1.25;
+      color: #a1a1aa;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lfm-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .lfm-list li {
+      font-size: 11px;
+      line-height: 1.25;
+      color: #71717a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .lfm-list li .lfm-n { color: #a1a1aa; }
+    .lfm-list li .lfm-a { color: #52525b; }
+
     .live-card {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -706,7 +803,7 @@
           <p class="text-xs text-zinc-400 mt-1">{{ '%.1f' % (steps.miles or 0) if steps.miles is not none else '--' }} miles</p>
         </a>
 
-        <!-- Last.fm: peer tile in the same grid (same width as the others, not full-bleed). -->
+        <!-- Last.fm: same grid tile size as peers; multi-track body fits the tile. -->
         <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener"
            class="live-card block cursor-pointer hero-enter" data-hero-stagger="7"
            title="Open Last.fm profile">
@@ -1239,30 +1336,46 @@
       : null;
     if (window.__synthesizeLive) window.__synthesizeLive();
 
-    // Peer of Xbox: one primary signal only (track + artist + badge). No multi-track
-    // list — that forced a tall full-width card and broke grid parity.
-    const primary = nowPlayingTrack || tracks[0];
-    const name = escHtml(primary.name);
-    const artist = escHtml((primary.artist && primary.artist['#text']) || '');
-    const art = lastFmArt(primary);
+    // Multi-song, tile-sized: 1 primary (art + badge) + up to 2 more lines.
+    // Three tracks fit the equal Live Now card height without growing a banner.
     const isLive = !!nowPlayingTrack;
+    const primary = nowPlayingTrack || tracks[0];
+    const rest = tracks
+      .filter(t => t !== primary)
+      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
+      .slice(0, 2);
+
+    const name = escHtml(primary.name);
+    const artist = escHtml((primary.artist && primary.artist['#text']) || '') || 'Unknown artist';
+    const art = lastFmArt(primary);
     const badge = isLive
       ? `<span class="text-[10px] px-1.5 py-px rounded-full font-medium whitespace-nowrap bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Playing</span>`
       : `<span class="text-[10px] px-1.5 py-px rounded-full font-medium whitespace-nowrap bg-zinc-700/50 text-zinc-400 border border-zinc-600/30">Recent</span>`;
     const artHtml = art
-      ? `<img src="${escHtml(art)}" class="w-9 h-9 rounded-lg object-cover border border-zinc-700 flex-shrink-0" alt="">`
-      : `<div class="w-9 h-9 rounded-lg border border-zinc-700 bg-zinc-800/80 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-music text-[11px] text-zinc-500"></i></div>`;
+      ? `<img src="${escHtml(art)}" alt="">`
+      : `<div class="lfm-art-fallback" aria-hidden="true"><i class="fa-solid fa-music"></i></div>`;
+
+    const listHtml = rest.length
+      ? `<ul class="lfm-list">${rest.map(t => {
+          const n = escHtml(t.name);
+          const a = escHtml((t.artist && t.artist['#text']) || '');
+          return `<li><span class="lfm-n">${n}</span>${a ? ` <span class="lfm-a">· ${a}</span>` : ''}</li>`;
+        }).join('')}</ul>`
+      : '';
 
     smoothUpdate(el, `
-      <div class="flex gap-3">
-        ${artHtml}
-        <div class="flex-1 min-w-0 overflow-hidden">
-          <div class="flex items-center justify-between gap-2">
-            <span class="font-semibold text-sm leading-none truncate">${name}</span>
-            ${badge}
+      <div class="lfm-stack">
+        <div class="lfm-primary">
+          ${artHtml}
+          <div class="lfm-meta">
+            <div class="lfm-title">
+              <span>${name}</span>
+              ${badge}
+            </div>
+            <div class="lfm-artist">${artist}</div>
           </div>
-          <div class="text-xs ${isLive ? 'text-zinc-300' : 'text-zinc-500'} truncate mt-1 leading-snug">${artist || 'Unknown artist'}</div>
         </div>
+        ${listHtml}
       </div>
     `, false);
   }
