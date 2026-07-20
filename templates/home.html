@@ -671,15 +671,19 @@
 
       </div>
 
-      <!-- Last.fm as a real card: now-playing + recent tracks (not a one-line ticker). -->
+      <!-- Last.fm: same live-card shell as Xbox / House (label, body, arrow). -->
       <div class="live-now live-now-secondary mt-3">
-        <div class="live-card hero-enter" data-hero-stagger="7">
+        <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener"
+           class="live-card block cursor-pointer hero-enter" data-hero-stagger="7"
+           title="Open Last.fm profile">
+          <span class="card-arrow" aria-hidden="true">→</span>
           <h3>Last.fm</h3>
-          <div id="lastfm-status"><p class="text-sm text-zinc-400"><em>Loading recent tracks...</em></p></div>
-          <p class="text-xs text-zinc-400 mt-2">
-            <a href="https://www.last.fm/user/henderburgh" target="_blank" rel="noopener" class="hover:text-white transition">Last.fm • Recent</a>
-          </p>
-        </div>
+          <div id="lastfm-status">
+            <div class="flex justify-center py-3">
+              <div class="neon-drift"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            </div>
+          </div>
+        </a>
       </div>
     </div>
 
@@ -1168,12 +1172,27 @@
       .replace(/'/g, '&#39;');
   }
 
+  function lastFmArt(track) {
+    // Prefer medium, fall back to large/small; skip Last.fm placeholder empties.
+    const imgs = track && track.image;
+    if (!Array.isArray(imgs)) return '';
+    for (const size of ['medium', 'large', 'small', 'extralarge']) {
+      const hit = imgs.find(i => i && i.size === size && i['#text']);
+      if (hit && hit['#text'] && !/2a96cbd8b46e442fc41c2b86b821562f/i.test(hit['#text'])) {
+        return hit['#text'];
+      }
+    }
+    const any = imgs.map(i => i && i['#text']).find(Boolean);
+    if (any && !/2a96cbd8b46e442fc41c2b86b821562f/i.test(any)) return any;
+    return '';
+  }
+
   function renderLastFmTracks(tracks) {
     const el = document.getElementById('lastfm-status');
     if (!el) return;
 
     if (!tracks || tracks.length === 0) {
-      smoothUpdate(el, `<p class="text-sm text-zinc-500"><em>No recent tracks</em></p>`, false);
+      smoothUpdate(el, `<p class="text-xs text-zinc-500">No recent tracks</p>`, false);
       return;
     }
 
@@ -1185,48 +1204,49 @@
       : null;
     if (window.__synthesizeLive) window.__synthesizeLive();
 
-    let html = '';
+    // Same structure as Xbox: art + title/badge row + secondary line + quiet meta.
+    const primary = nowPlayingTrack || tracks[0];
+    const name = escHtml(primary.name);
+    const artist = escHtml((primary.artist && primary.artist['#text']) || '');
+    const art = lastFmArt(primary);
+    const isLive = !!nowPlayingTrack;
+    const badge = isLive
+      ? `<span class="text-[10px] px-1.5 py-px rounded-full font-medium whitespace-nowrap bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Playing</span>`
+      : `<span class="text-[10px] px-1.5 py-px rounded-full font-medium whitespace-nowrap bg-zinc-700/50 text-zinc-400 border border-zinc-600/30">Recent</span>`;
+    const artHtml = art
+      ? `<img src="${escHtml(art)}" class="w-9 h-9 rounded-lg object-cover border border-zinc-700 flex-shrink-0" alt="">`
+      : `<div class="w-9 h-9 rounded-lg border border-zinc-700 bg-zinc-800/80 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-music text-[11px] text-zinc-500"></i></div>`;
 
-    if (nowPlayingTrack) {
-      const name = escHtml(nowPlayingTrack.name);
-      const artist = escHtml(nowPlayingTrack.artist['#text']);
-      html += `
-        <div class="mb-2">
-          <span class="inline-block bg-emerald-500 text-black text-[10px] font-semibold tracking-wide px-1.5 py-0.5 rounded mr-1.5 align-middle">NOW PLAYING</span>
-          <strong class="text-sm text-zinc-100 align-middle">${name}</strong>
-          <div class="text-xs text-zinc-500 mt-0.5">${artist}</div>
+    const recentTracks = tracks
+      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
+      .slice(0, isLive ? 2 : 3);
+
+    let recentHtml = '';
+    if (recentTracks.length) {
+      recentHtml = `
+        <div class="text-[10px] text-zinc-500 mt-2.5 space-y-1">
+          ${recentTracks.map(t => {
+            const n = escHtml(t.name);
+            const a = escHtml((t.artist && t.artist['#text']) || '');
+            return `<div class="truncate leading-snug"><span class="text-zinc-400">${n}</span>${a ? ` <span class="text-zinc-600">· ${a}</span>` : ''}</div>`;
+          }).join('')}
         </div>
       `;
     }
 
-    const recentTracks = tracks
-      .filter(t => !(t['@attr'] && t['@attr'].nowplaying === 'true'))
-      .slice(0, 3);
-
-    if (recentTracks.length > 0) {
-      if (nowPlayingTrack) {
-        html += `<div class="text-[10px] uppercase tracking-wider text-zinc-600 mb-1.5 mt-1">Recently played</div>`;
-      }
-      recentTracks.forEach(track => {
-        const name = escHtml(track.name);
-        const artist = escHtml(track.artist['#text']);
-        html += `
-          <div class="mb-1.5">
-            <div class="text-sm text-zinc-200 font-medium leading-snug">${name}</div>
-            <div class="text-xs text-zinc-500">${artist}</div>
+    smoothUpdate(el, `
+      <div class="flex gap-3">
+        ${artHtml}
+        <div class="flex-1 min-w-0 overflow-hidden">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-semibold text-sm leading-none truncate">${name}</span>
+            ${badge}
           </div>
-        `;
-      });
-    }
-
-    html += `
-      <div class="mt-2">
-        <a href="https://www.last.fm/user/${escHtml(LASTFM_USER)}" target="_blank" rel="noopener"
-           class="text-[11px] text-sky-400 hover:text-sky-300 transition">View on Last.fm →</a>
+          <div class="text-xs ${isLive ? 'text-zinc-300' : 'text-zinc-500'} truncate mt-1 leading-snug">${artist || 'Unknown artist'}</div>
+          ${recentHtml}
+        </div>
       </div>
-    `;
-
-    smoothUpdate(el, html, false);
+    `, false);
   }
 
   async function fetchLastFmTracks() {
@@ -1245,7 +1265,7 @@
       renderLastFmTracks(tracks);
     } catch (err) {
       console.error('Last.fm fetch error:', err);
-      smoothUpdate(el, `<p class="text-sm text-zinc-500"><em>Unable to load Last.fm tracks</em></p>`, false);
+      smoothUpdate(el, `<p class="text-xs text-zinc-500">Last.fm temporarily unavailable</p>`, false);
     }
   }
 
