@@ -458,6 +458,48 @@ async def home(request: Request):
     })
 
 
+@app.get("/home-concept", response_class=HTMLResponse)
+async def home_concept(request: Request):
+    """Preview route for the day-timeline home redesign. NOT wired into nav —
+    reachable only by direct URL while it's being evaluated. Deliberately
+    duplicates home()'s data-gathering rather than sharing it, so iterating on
+    this concept can't destabilize the live home page."""
+    metrics = vitals.snapshot_home_metrics()
+    if state.oura_client and metrics.get("steps") is None:
+        try:
+            days = 14 if PUBLIC_MODE else OURA_DAYS
+            processed = await vitals.get_processed_vitals(days=days, use_cache=True)
+            metrics = {
+                "steps": processed.get("steps"),
+                "latest_hr": processed.get("latest_hr"),
+                "hr_age_minutes": processed.get("hr_age_minutes"),
+                "latest_hr_timestamp": processed.get("latest_hr_timestamp"),
+            }
+        except Exception:
+            pass
+    steps_ctx = {
+        "count": metrics.get("steps"),
+        "miles": round(metrics["steps"] * 0.0005, 1) if metrics.get("steps") is not None else None,
+    }
+    hr_ctx = {"bpm": metrics.get("latest_hr"), "age_minutes": metrics.get("hr_age_minutes")}
+
+    _reveal = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+    try:
+        _lib = await xbox.get_title_history()
+        _ach = await xbox.get_recent_achievements(_lib)
+        replay = await xbox.compute_recent_replay(_ach, reveal=_reveal)
+    except Exception as e:
+        print(f"home-concept replay error: {e}")
+        replay = {"has_data": False}
+
+    return _render("home-concept.html", {
+        "request": request,
+        "public_mode": PUBLIC_MODE,
+        "display_name": DISPLAY_NAME,
+        "steps": steps_ctx,
+        "heart_rate": hr_ctx,
+        "replay": replay,
+    })
 
 
 @app.get("/xbox", response_class=HTMLResponse)

@@ -1076,6 +1076,25 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
         for b in bands
     )
 
+    # Structured timeline events — additive, doesn't change any existing key.
+    # Built for the home-page day-timeline concept: peak/low/current HR as
+    # plain numbers (the old `facts` string only had them baked into prose),
+    # plus game/media/workout sessions as discrete events with real durations.
+    # Sessions are read back off `bands`, which already went through the same
+    # work-hours/reveal privacy filtering above — nothing new is exposed.
+    session_events = []
+    for b in bands:
+        if b["kind"] not in ("game", "media", "workout"):
+            continue
+        name, _, hr_part = b["label"].partition(" · ♥")
+        session_events.append({
+            "kind": b["kind"], "name": name,
+            "hr": int(hr_part) if hr_part.isdigit() else None,
+            "x0": b["x0"], "x1": b["x1"], "dur_min": round(b["x1"] - b["x0"], 1),
+            "clk": clk(b["x0"]),
+        })
+    session_events.sort(key=lambda e: e["x0"])
+
     return {
         "has_data": True,
         "day": day.strftime("%A, %b %-d"),
@@ -1090,6 +1109,10 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
         "hidden_count": hidden_count,
         "sleep_hidden_count": sleep_hidden_count,
         "revealed": reveal,
+        "peak": {"x": round(tmins[peak_i], 1), "clk": clk(tmins[peak_i]), "bpm": bpm[peak_i]},
+        "low": {"x": round(low_m, 1), "clk": clk(low_m), "bpm": low_v},
+        "current": {"x": round(tmins[-1], 1), "clk": clk(tmins[-1]), "bpm": bpm[-1]},
+        "sessions": session_events,
     }
 
 

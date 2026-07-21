@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HENDERBURGH — home, redesigned</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-0:#0a0e17; --navy-1:#0d131c; --navy-2:#141b26;
+    --cyan:#5EEAD4; --amber:#FFB454; --violet:#8B7FFF;
+    --text:#E8EDF2; --text-dim:#7A8494; --line:#1E2733;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--navy-0);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
+  .bgwash{position:fixed;inset:0;z-index:-2;background:var(--navy-0);transition:background 0.6s ease-out;}
+  .grid{position:fixed;inset:0;z-index:-1;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;opacity:0.15;
+    mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);
+    -webkit-mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);}
+
+  .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
+    padding:14px 32px;background:rgba(10,14,23,0.82);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:12.5px;letter-spacing:0.02em;
+    overflow-x:auto;white-space:nowrap;}
+  .ticker .brand{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;letter-spacing:0.04em;color:var(--text);margin-right:8px;}
+  .tick{display:flex;align-items:center;gap:7px;color:var(--text-dim);}
+  .tick b{color:var(--cyan);font-weight:500;}
+  .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);animation:beat 0.9s infinite;}
+  @keyframes beat{0%,100%{transform:scale(1);opacity:1;}30%{transform:scale(1.6);opacity:0.6;}}
+  .ticker .spacer{flex:1;}
+  @media(prefers-reduced-motion:reduce){.pulse-dot{animation:none;}}
+
+  .hero{min-height:82vh;display:flex;flex-direction:column;justify-content:center;padding:0 32px;max-width:760px;margin:0 auto;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.08em;margin-bottom:18px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(32px,5vw,52px);line-height:1.15;letter-spacing:-0.01em;max-width:16ch;}
+  h1 .status{color:var(--text-dim);}
+  .hero-sub{margin-top:20px;color:var(--text-dim);font-size:15px;max-width:46ch;line-height:1.6;}
+
+  .systems-wrap{max-width:920px;margin:0 auto;padding:20px 32px 60px;}
+  .systems-label{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:16px;border-top:1px solid var(--line);padding-top:28px;}
+  .systems{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);}
+  .sys-tile{background:var(--navy-1);padding:20px 18px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:10px;min-height:118px;justify-content:space-between;transition:background 0.25s ease;}
+  .sys-tile:hover{background:var(--navy-2);}
+  .sys-tile .top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .sys-tile .name{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:14.5px;}
+  .sys-tile .arrow{color:var(--text-dim);font-size:13px;transition:transform 0.25s ease,color 0.25s ease;}
+  .sys-tile:hover .arrow{color:var(--cyan);transform:translate(2px,-2px);}
+  .sys-tile .stat{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sys-tile .stat.amber{color:var(--amber);}
+  .sys-tile .stat.violet{color:var(--violet);}
+  .sys-tile .stat.dim{color:var(--text-dim);}
+  @media(max-width:720px){.systems{grid-template-columns:repeat(2,1fr);}}
+
+  .timeline{position:relative;max-width:760px;margin:0 auto;padding:40px 32px 200px 88px;}
+  .spine{position:absolute;left:44px;top:0;bottom:0;width:1px;background:var(--line);}
+  .spine-fill{position:absolute;left:44px;top:0;width:1px;background:linear-gradient(var(--cyan),var(--violet));height:0%;transition:height 0.1s linear;}
+  .event{position:relative;padding:36px 0;opacity:0;transform:translateY(18px);transition:opacity 0.6s ease,transform 0.6s ease;}
+  .event.in{opacity:1;transform:translateY(0);}
+  .event::before{content:'';position:absolute;left:-52px;top:40px;width:9px;height:9px;border-radius:50%;background:var(--navy-0);border:1.5px solid var(--text-dim);transition:border-color 0.4s,background 0.4s;}
+  .event.in::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(94,234,212,0.15);}
+  .event .time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.04em;margin-bottom:8px;}
+  .event .time.amber{color:var(--amber);}
+  .event .time.violet{color:var(--violet);}
+  .event h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:22px;margin-bottom:8px;}
+  .event p{color:var(--text-dim);font-size:14.5px;line-height:1.6;max-width:44ch;}
+  .card{margin-top:16px;display:inline-flex;gap:24px;padding:14px 18px;background:var(--navy-1);border:1px solid var(--line);border-radius:6px;flex-wrap:wrap;}
+  .card .m{display:flex;flex-direction:column;gap:2px;}
+  .card .m label{font-size:10.5px;color:var(--text-dim);letter-spacing:0.05em;font-family:'JetBrains Mono',monospace;}
+  .card .m span{font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--cyan);}
+
+  .empty{max-width:760px;margin:0 auto;padding:20px 32px 120px 88px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px;}
+  footer{text-align:center;padding:60px 32px 90px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:0.04em;border-top:1px solid var(--line);}
+
+  .preview-flag{position:fixed;bottom:14px;right:14px;z-index:60;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);background:rgba(13,19,28,0.9);border:1px solid var(--line);border-radius:6px;padding:6px 10px;}
+  .preview-flag a{color:var(--cyan);text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="bgwash" id="bgwash"></div>
+<div class="grid"></div>
+
+{# ---- live values pulled straight from the same data home() uses ---- #}
+{% set hr = heart_rate.bpm if heart_rate and heart_rate.bpm is not none else None %}
+{% set age = heart_rate.age_minutes if heart_rate else None %}
+{% set steps_n = steps.count if steps and steps.count is not none else None %}
+{% set has_story = replay and replay.has_data %}
+
+<div class="ticker">
+  <span class="brand">HENDERBURGH</span>
+  {% if hr %}<div class="tick"><span class="pulse-dot"></span><b>{{ hr }}</b>bpm</div>{% endif %}
+  {% if steps_n is not none %}<div class="tick">{{ '{:,}'.format(steps_n) }} <span style="opacity:0.6">steps</span></div>{% endif %}
+  {% if age is not none %}<div class="tick">ring · {{ age }}m ago</div>{% endif %}
+  <span class="spacer"></span>
+  <div class="tick" id="tk-clock">—</div>
+</div>
+
+<section class="hero">
+  <div class="eyebrow">PERSONAL OS &middot; 8 SYSTEMS &middot; LIVE</div>
+  <h1>Henderburgh's day, <span class="status">system by system.</span></h1>
+  <p class="hero-sub">
+    {% if has_story %}
+      {{ replay.narration | replace('**','') }}
+    {% else %}
+      Every system below is reporting live. Scroll for today's story as the day fills in.
+    {% endif %}
+  </p>
+</section>
+
+<div class="systems-wrap">
+  <div class="systems-label">SYSTEMS</div>
+  <div class="systems">
+    <a class="sys-tile" href="/vitals">
+      <div class="top"><span class="name">Vitals</span><span class="arrow">&#8599;</span></div>
+      <div class="stat">{% if hr %}{{ hr }} bpm{% else %}—{% endif %}</div>
+    </a>
+    <a class="sys-tile" href="/xbox">
+      <div class="top"><span class="name">Xbox</span><span class="arrow">&#8599;</span></div>
+      <div class="stat violet" id="sys-xbox">profile &amp; log</div>
+    </a>
+    <a class="sys-tile" href="/home-assistant">
+      <div class="top"><span class="name">Lighting</span><span class="arrow">&#8599;</span></div>
+      <div class="stat dim" id="sys-lights">house control</div>
+    </a>
+    <a class="sys-tile" href="/model">
+      <div class="top"><span class="name">Model</span><span class="arrow">&#8599;</span></div>
+      <div class="stat dim">3D home</div>
+    </a>
+    <a class="sys-tile" href="/golf">
+      <div class="top"><span class="name">Golf</span><span class="arrow">&#8599;</span></div>
+      <div class="stat dim">recent rounds</div>
+    </a>
+    <a class="sys-tile" href="/clips">
+      <div class="top"><span class="name">Clips</span><span class="arrow">&#8599;</span></div>
+      <div class="stat amber">highlights</div>
+    </a>
+    <a class="sys-tile" href="/blog">
+      <div class="top"><span class="name">Blog</span><span class="arrow">&#8599;</span></div>
+      <div class="stat dim">recent posts</div>
+    </a>
+    <a class="sys-tile" href="https://www.last.fm/user/henderburgh" rel="noopener">
+      <div class="top"><span class="name">Last.fm</span><span class="arrow">&#8599;</span></div>
+      <div class="stat dim" id="sys-music">scrobbling</div>
+    </a>
+  </div>
+</div>
+
+{% if has_story %}
+<div class="systems-wrap" style="padding-top:0;padding-bottom:0;">
+  <div class="systems-label" style="border-top:none;padding-top:0;">TODAY'S STORY &middot; {{ replay.day }} &middot; SCROLL TO MOVE THROUGH THE DAY</div>
+</div>
+
+<div class="timeline">
+  <div class="spine"></div>
+  <div class="spine-fill" id="spine-fill"></div>
+
+  {# Calmest reading #}
+  {% if replay.low %}
+  <div class="event" data-hour="{{ (replay.low.x / 60) | round(2) }}">
+    <div class="time">{{ replay.low.clk }}</div>
+    <h2>Calmest reading of the day</h2>
+    <p>The day's lowest heart rate — the quiet baseline everything else is measured against.</p>
+    <div class="card"><div class="m"><label>HEART RATE</label><span>{{ replay.low.bpm }} bpm</span></div></div>
+  </div>
+  {% endif %}
+
+  {# Peak #}
+  {% if replay.peak %}
+  <div class="event" data-hour="{{ (replay.peak.x / 60) | round(2) }}">
+    <div class="time amber">{{ replay.peak.clk }}</div>
+    <h2>Heart rate peaks</h2>
+    <p>The day's highest reading{% if replay.low %} — {{ replay.peak.bpm - replay.low.bpm }} beats above the calmest point{% endif %}.</p>
+    <div class="card">
+      <div class="m"><label>PEAK</label><span style="color:var(--amber)">{{ replay.peak.bpm }} bpm</span></div>
+      {% if replay.low %}<div class="m"><label>ABOVE LOW</label><span style="color:var(--amber)">+{{ replay.peak.bpm - replay.low.bpm }}</span></div>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Game / media / workout sessions #}
+  {% for s in replay.sessions %}
+  <div class="event" data-hour="{{ (s.x0 / 60) | round(2) }}">
+    <div class="time {{ 'violet' if s.kind in ('game','media') else '' }}">{{ s.clk }}</div>
+    <h2>{{ s.name }}</h2>
+    <p>{{ {'game':'Game session','media':'Watching','workout':'Workout'}[s.kind] }}{% if s.hr %} · heart averaged {{ s.hr }} bpm{% endif %}.</p>
+    <div class="card">
+      <div class="m"><label>DURATION</label><span style="color:var(--violet)">{% if s.dur_min < 1 %}&lt;1 min{% else %}{{ s.dur_min | int }} min{% endif %}</span></div>
+      {% if s.hr %}<div class="m"><label>AVG HEART</label><span>{{ s.hr }} bpm</span></div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {# Current reading #}
+  {% if replay.current %}
+  <div class="event" data-hour="{{ (replay.current.x / 60) | round(2) }}">
+    <div class="time">{{ replay.current.clk }}</div>
+    <h2>Latest reading</h2>
+    <p>The most recent heart rate the ring recorded today{% if age is not none %} — {{ age }} minutes ago{% endif %}.</p>
+    <div class="card">
+      <div class="m"><label>HEART RATE</label><span>{{ replay.current.bpm }} bpm</span></div>
+      {% if steps_n is not none %}<div class="m"><label>STEPS</label><span>{{ '{:,}'.format(steps_n) }}</span></div>{% endif %}
+      {% if steps and steps.miles is not none %}<div class="m"><label>DISTANCE</label><span>{{ '%.1f' % steps.miles }} mi</span></div>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty">
+  // TODAY'S STORY — waiting on data. The ring hasn't logged enough of today yet,
+  or activity is private during work hours. It fills in as the day goes.
+</div>
+{% endif %}
+
+<footer>© HENDERBURGH — PERSONAL OS &middot; CALM &middot; POWERFUL &middot; YOURS</footer>
+
+<div class="preview-flag">PREVIEW · <a href="/">back to live home</a></div>
+
+<script>
+  const events = document.querySelectorAll('.event');
+  const bgwash = document.getElementById('bgwash');
+  const spineFill = document.getElementById('spine-fill');
+  const timeline = document.querySelector('.timeline');
+
+  const colorStops = [
+    {h:6,c:[16,24,37]},{h:12,c:[13,22,33]},{h:17,c:[36,26,18]},{h:20,c:[20,27,38]},{h:22,c:[10,14,23]}
+  ];
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  function colorAtHour(h){
+    for(let i=0;i<colorStops.length-1;i++){
+      const a=colorStops[i],b=colorStops[i+1];
+      if(h>=a.h&&h<=b.h){const t=(h-a.h)/(b.h-a.h);const c=[0,1,2].map(k=>Math.round(lerp(a.c[k],b.c[k],t)));return `rgb(${c[0]},${c[1]},${c[2]})`;}
+    }
+    return `rgb(${colorStops[0].c.join(',')})`;
+  }
+
+  const io=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{if(e.isIntersecting) e.target.classList.add('in');});
+  },{threshold:0.35});
+  events.forEach(e=>io.observe(e));
+
+  // Safety net: never let the scroll-reveal strand an event invisible if the
+  // observer misses it (backgrounded tab, fast flick). On return-to-visible,
+  // reveal anything already on screen.
+  function unstick(){
+    const vh=window.innerHeight;
+    events.forEach(e=>{const r=e.getBoundingClientRect(); if(r.top<vh&&r.bottom>0) e.classList.add('in');});
+  }
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible') unstick();});
+
+  let ticking=false;
+  function onScroll(){
+    if(!timeline){bgwash.style.background=colorAtHour(22);return;}
+    const rect=timeline.getBoundingClientRect();
+    const total=rect.height-window.innerHeight;
+    const scrolled=Math.min(Math.max(-rect.top,0),total);
+    const frac=total>0?scrolled/total:0;
+    spineFill.style.height=(frac*100)+'%';
+    bgwash.style.background=colorAtHour(6+frac*(22-6));
+    ticking=false;
+  }
+  window.addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(onScroll);}},{passive:true});
+  onScroll();
+
+  document.getElementById('tk-clock').textContent=
+    new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+
+  // Light-touch live enrichment of the systems tiles (best-effort, never blocks).
+  fetch('/api/xbox/status').then(r=>r.json()).then(d=>{
+    if(d.status==='ok'){const el=document.getElementById('sys-xbox');
+      el.textContent=(d.game&&d.game!=='—')?('now · '+d.game):((d.state||'offline').toLowerCase());}
+  }).catch(()=>{});
+  fetch('/api/ha/summary').then(r=>r.json()).then(d=>{
+    if(d.status==='ok'){document.getElementById('sys-lights').textContent=(d.lights_on||0)+'/'+(d.total_lights||0)+' lights on';}
+  }).catch(()=>{});
+</script>
+
+</body>
+</html>
