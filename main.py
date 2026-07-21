@@ -495,6 +495,16 @@ async def home(request: Request):
         print(f"home-concept replay error: {e}")
         replay = {"has_data": False}
 
+    # Unread count for the office-lamp poke badge (same source as the old
+    # home page's notifier — see old_homepage() above).
+    blog_unread_count = 0
+    try:
+        all_messages = persistence.load_messages()
+        last_read = persistence.load_last_blog_read()
+        blog_unread_count = len([m for m in all_messages if str(m.get("timestamp", "")) > last_read])
+    except Exception:
+        blog_unread_count = 0
+
     return _render("home-concept.html", {
         "request": request,
         "public_mode": PUBLIC_MODE,
@@ -502,6 +512,7 @@ async def home(request: Request):
         "steps": steps_ctx,
         "heart_rate": hr_ctx,
         "replay": replay,
+        "blog_unread_count": blog_unread_count,
     })
 
 
