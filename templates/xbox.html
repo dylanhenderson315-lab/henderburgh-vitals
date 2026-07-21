@@ -825,14 +825,35 @@
           });
         }
       };
+      // Same two-tier gap handling as the /vitals HR chart: a short quiet
+      // stretch (ring briefly not reporting — real, not a bug) stays bridged
+      // but is marked dashed/faded as an estimate; a genuinely long gap (ring
+      // off, asleep, dead) gets an actual break in the line rather than one
+      // smooth solid span implying continuous measurement that never happened.
+      const RP_ESTIMATE_MAX_MIN = 20;  // <=20 min: bridge, dashed
+      const RP_BREAK_MIN = 30;         // >30 min: hard break
+      const rpData = [];
+      for (let i = 0; i < R.points.length; i++) {
+        const p = R.points[i];
+        if (i > 0 && (p.x - R.points[i - 1].x) > RP_BREAK_MIN) {
+          rpData.push({ x: R.points[i - 1].x + 0.1, y: null });
+        }
+        rpData.push(p);
+      }
+      const rpIsEstimated = (ctx) => (ctx.p1.parsed.x - ctx.p0.parsed.x) > RP_ESTIMATE_MAX_MIN;
+
       const chart = new Chart(cv, {
         type: 'line',
         data: {
           datasets: [{
-            label: 'BPM', data: R.points, parsing: false,
+            label: 'BPM', data: rpData, parsing: false, spanGaps: false,
             borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.08)',
             borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 4,
             pointHoverBackgroundColor: '#fb7185', fill: true, tension: 0.3,
+            segment: {
+              borderDash: (ctx) => rpIsEstimated(ctx) ? [5, 4] : undefined,
+              borderColor: (ctx) => rpIsEstimated(ctx) ? 'rgba(251,113,133,0.5)' : undefined,
+            },
           }]
         },
         options: {
@@ -844,7 +865,7 @@
               backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
               callbacks: {
                 title: (items) => items.length ? clk(items[0].parsed.x) : '',
-                label: (ctx) => ' ' + ctx.parsed.y + ' bpm',
+                label: (ctx) => ctx.parsed.y == null ? ' no reading' : ' ' + ctx.parsed.y + ' bpm',
                 afterLabel: (ctx) => {
                   const mx = ctx.parsed.x, out = [];
                   const hit = (R.bands || []).find(b => mx >= b.x0 && mx <= b.x1 && b.kind !== 'sleep');

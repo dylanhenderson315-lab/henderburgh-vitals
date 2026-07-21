@@ -919,15 +919,19 @@
             <div class="font-semibold flex items-center gap-x-2">
               <i class="fa-solid fa-wave-square text-rose-400"></i> Heart Rate · Last 24h
             </div>
-            <div class="text-xs text-zinc-500">Every reading from your ring — real times, real gaps</div>
+            <div class="text-xs text-zinc-500">Every reading from your ring — solid is real, dashed bridges a short gap</div>
           </div>
           {% if latest_hr %}<div class="text-2xl font-semibold tabular-nums text-right">{{ latest_hr }}<span class="text-sm text-zinc-500 font-normal ml-0.5">bpm</span></div>{% endif %}
         </div>
         <!-- Active / Full 24h view chips (same language as the Replay on /xbox) -->
-        <div class="flex gap-1.5 mb-4">
+        <div class="flex gap-1.5 mb-4 items-center">
           <button id="hrc-active" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
           <button id="hrc-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full 24h</button>
-          <span id="hrc-span" class="ml-auto self-center text-[11px] text-zinc-600"></span>
+          <span class="ml-auto flex items-center gap-x-3 text-[10px] text-zinc-600">
+            <span class="flex items-center gap-x-1"><i class="fa-solid fa-minus text-rose-400"></i>real</span>
+            <span class="flex items-center gap-x-1"><i class="fa-solid fa-minus" style="color:rgba(251,113,133,0.5)"></i>estimated</span>
+          </span>
+          <span id="hrc-span" class="self-center text-[11px] text-zinc-600"></span>
         </div>
         <div class="chart-container h-[200px]">
           <canvas id="hrCurveChart"></canvas>
@@ -1690,21 +1694,40 @@
       if (hrCurveCtx && hrCurvePoints.length > 3) {
         if (hrCurveChartInstance) { hrCurveChartInstance.destroy(); }
 
-        const HRC_GAP_MS = 15 * 60 * 1000;  // >15 min apart = the ring wasn't reporting
+        // Oura samples densely during workouts/sleep and sparsely when you're
+        // just sitting still — that's real, not a bug (confirmed against live
+        // data: gaps show up at both 116bpm and 64bpm alike). The dishonest
+        // part was drawing one smooth solid line across ANY gap, which looked
+        // like continuous measurement that never happened.
+        //
+        // Two tiers now, not one hard cutoff: a short gap (ring briefly quiet,
+        // physiologically HR can't have swung wildly) is bridged with a
+        // straight line same as before, but visually marked DASHED and faded —
+        // "estimated across a gap", never mistakable for a real reading. A
+        // long gap (ring off, asleep unmonitored, dead battery) gets an actual
+        // break: no line at all, exactly like today.
+        const HRC_ESTIMATE_MAX_MS = 20 * 60 * 1000;  // <=20 min: bridge, marked dashed
+        const HRC_BREAK_MS = 30 * 60 * 1000;         // >30 min: hard break, never bridged
         const hrcClock = (ms) => new Date(ms).toLocaleTimeString('en-US', {
           hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York'
         });
 
-        // Break the line across gaps by splicing in an explicit null y. Chart.js
-        // renders that as a hole rather than bridging it with a straight lie.
+        // Only a genuinely long gap gets a null spliced in (Chart.js renders
+        // that as a real hole). Gaps in between stay connected but are styled
+        // dashed via the `segment` callback below.
         const hrcData = [];
         for (let i = 0; i < hrCurvePoints.length; i++) {
           const p = hrCurvePoints[i];
-          if (i > 0 && (p.x - hrCurvePoints[i - 1].x) > HRC_GAP_MS) {
+          if (i > 0 && (p.x - hrCurvePoints[i - 1].x) > HRC_BREAK_MS) {
             hrcData.push({ x: hrCurvePoints[i - 1].x + 1, y: null });
           }
           hrcData.push(p);
         }
+        // Segment-level styling: fade + dash any connector spanning an
+        // estimated gap. ctx.p0/p1 are null-safe here since null-y segments
+        // are skipped by Chart.js before this callback runs on them.
+        const hrcSegmentGapMs = (ctx) => (ctx.p1.parsed.x - ctx.p0.parsed.x);
+        const hrcIsEstimated = (ctx) => hrcSegmentGapMs(ctx) > HRC_ESTIMATE_MAX_MS;
 
         const hrcW = hrCurveWindow || {};
         const hrcFallbackStart = hrCurvePoints[0].x;
@@ -1723,6 +1746,10 @@
               backgroundColor: 'rgba(251, 113, 133, 0.10)',
               borderWidth: 2, tension: 0.35, fill: true,
               spanGaps: false,
+              segment: {
+                borderDash: (ctx) => hrcIsEstimated(ctx) ? [5, 4] : undefined,
+                borderColor: (ctx) => hrcIsEstimated(ctx) ? 'rgba(251, 113, 133, 0.5)' : undefined,
+              },
               pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: '#fb7185',
             }]
           },
