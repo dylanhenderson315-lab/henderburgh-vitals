@@ -1295,9 +1295,12 @@
         if (dxChart) { dxChart.destroy(); dxChart = null; }
         // Default the axis to the framed ACTIVE window, never 0..1440 — a full-day
         // axis leaves the chart mostly empty (that was a real bug on /xbox).
+        // A "day" runs 4am→4am (see _DAY_START_HOUR in services/xbox.py), so the
+        // axis spans 240..1680, not 0..1440 — otherwise the midnight→4am tail
+        // (late-night gaming/watching) gets clipped off the right edge.
         const v = R.view || {};
-        const vs = Number.isFinite(v.start) ? v.start : 0;
-        const ve = Number.isFinite(v.end) ? v.end : 1440;
+        const vs = Number.isFinite(v.start) ? v.start : 240;
+        const ve = Number.isFinite(v.end) ? v.end : 1680;
         dxChart = new Chart(cv, {
           type: 'line',
           data: {
@@ -1332,7 +1335,7 @@
               zoom: {
                 zoom: { wheel: { enabled: true, speed: 0.08 }, pinch: { enabled: true }, drag: { enabled: false }, mode: 'x' },
                 pan: { enabled: true, mode: 'x', threshold: 6 },
-                limits: { x: { min: 0, max: 1440, minRange: 20 } }
+                limits: { x: { min: 240, max: 1680, minRange: 20 } }
               }
             },
             scales: {
@@ -1454,7 +1457,7 @@
 
       const btnA = el('dx-view-active'), btnF = el('dx-view-full');
       if (btnA) btnA.addEventListener('click', () => { if (dxSetView && dxPayload) dxSetView(dxPayload.view.start, dxPayload.view.end, btnA); });
-      if (btnF) btnF.addEventListener('click', () => { if (dxSetView) dxSetView(0, 1440, btnF); });
+      if (btnF) btnF.addEventListener('click', () => { if (dxSetView) dxSetView(240, 1680, btnF); });
       const cvEl = el('dxReplayChart');
       if (cvEl) cvEl.addEventListener('dblclick', () => { if (dxSetView && dxPayload) dxSetView(dxPayload.view.start, dxPayload.view.end, btnA); });
 

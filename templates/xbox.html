@@ -861,7 +861,7 @@
               // 'kinda broken' feel.)
               zoom: { wheel: { enabled: true, speed: 0.08 }, pinch: { enabled: true }, drag: { enabled: false }, mode: 'x' },
               pan: { enabled: true, mode: 'x', threshold: 6 },
-              limits: { x: { min: 0, max: 1440, minRange: 20 } }
+              limits: { x: { min: 240, max: 1680, minRange: 20 } }
             }
           },
           scales: {
@@ -893,7 +893,7 @@
         });
       }
       if (btnA) btnA.addEventListener('click', () => setView(R.view.start, R.view.end, btnA));
-      if (btnF) btnF.addEventListener('click', () => setView(0, 1440, btnF));
+      if (btnF) btnF.addEventListener('click', () => setView(240, 1680, btnF));
       cv.addEventListener('dblclick', () => setView(R.view.start, R.view.end, btnA));
     })();
   </script>

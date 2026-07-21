@@ -503,9 +503,18 @@ async def home(request: Request):
     timeline = []
     if replay.get("has_data"):
         _now_et = datetime.now(ZoneInfo("America/New_York"))
-        _now_min = _now_et.hour * 60 + _now_et.minute
+        # The timeline axis is minutes since midnight of the LOGICAL day, which
+        # runs 4 AM → 4 AM (see xbox._DAY_START_HOUR). Before 4 AM we are still
+        # in yesterday's story, so "now" is 1440+ on that day's axis and the
+        # weekday test must ask about yesterday, not the fresh calendar date.
+        _logical_now = _now_et.replace(tzinfo=None)
+        if _logical_now.hour < xbox._DAY_START_HOUR:
+            _now_min = 1440 + _logical_now.hour * 60 + _logical_now.minute
+            _logical_now -= timedelta(days=1)
+        else:
+            _now_min = _logical_now.hour * 60 + _logical_now.minute
         _is_today = (replay.get("days_ago") == 0)
-        _weekday = _now_et.weekday() < 5
+        _weekday = _logical_now.weekday() < 5
 
         if replay.get("wake"):
             w = replay["wake"]

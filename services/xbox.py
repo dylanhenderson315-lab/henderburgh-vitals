@@ -844,6 +844,34 @@ def compute_pulse_chart(sessions: list, history: list, days: int = 14) -> dict:
     }
 
 
+# ── The logical day ──────────────────────────────────────────────────────────
+# A human's day does not reset at midnight; it resets when they wake. Watching
+# HBO Max at 12:00 AM Monday is the tail of SUNDAY's story, not the opening of
+# Monday's. So every "day" in the replay runs 4:00 AM → 4:00 AM, and anything
+# between midnight and 4 AM attributes to the PREVIOUS calendar date.
+#
+# This is the single knob. Change the hour here and the whole stack follows.
+_DAY_START_HOUR = 4
+_DAY_START_MIN = _DAY_START_HOUR * 60          # 240  — first minute on the axis
+_DAY_END_MIN = _DAY_START_MIN + 1440           # 1680 — last minute on the axis
+
+
+def _logical_date(dt):
+    """The logical day a moment belongs to (its calendar date, rolled back one
+    day when it falls before the 4 AM boundary)."""
+    if dt is None:
+        return None
+    d = dt.date() if isinstance(dt, datetime) else dt
+    if isinstance(dt, datetime) and dt.hour < _DAY_START_HOUR:
+        d -= timedelta(days=1)
+    return d
+
+
+def _logical_today():
+    """Today, in logical-day terms — still 'yesterday' until 4 AM."""
+    return _logical_date(_now_et().replace(tzinfo=None))
+
+
 # ── The Replay: yesterday's full HR curve annotated with your day ────────────
 # Oura is a historian, not a live wire — its detailed heart-rate curve lands a
 # day later. So we replay it: the complete curve for yesterday with game
@@ -860,12 +888,20 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
     # `day` (an explicit date, from the Day Explorer) wins when given; otherwise
     # fall back to the historical day_offset behavior so existing callers are
     # byte-for-byte unchanged.
-    day = day or (_now_et().date() - timedelta(days=day_offset))
-    day_start = datetime.combine(day, datetime.min.time())
+    day = day or (_logical_today() - timedelta(days=day_offset))
+    # The logical day: 4 AM on `day` → 4 AM the next calendar morning.
+    midnight = datetime.combine(day, datetime.min.time())
+    day_start = midnight + timedelta(hours=_DAY_START_HOUR)
     day_end = day_start + timedelta(days=1)
 
     def mins(dt):
-        return max(0.0, min(1440.0, (dt - day_start).total_seconds() / 60))
+        """X axis = minutes since MIDNIGHT of `day`, extended past 1440 for the
+        after-midnight tail. So the axis runs 240 (4 AM) → 1680 (4 AM next day),
+        1 AM Tuesday on Monday's chart is 1500, and clock labels still fall out
+        of `m % 1440`. Every producer of an x-value uses this one function, so
+        points / bands / moments / view stay on one consistent axis."""
+        return max(float(_DAY_START_MIN),
+                   min(float(_DAY_END_MIN), (dt - midnight).total_seconds() / 60))
 
     # Full-day HR curve — MUST use the datetime endpoint (date params return only
     # a recent slice, which is what made the old chart show ~3 evening hours).
@@ -974,7 +1010,9 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
 
     # Workouts.
     try:
-        workouts = await state.oura_client.get_workouts(day.isoformat(), (day + timedelta(days=1)).isoformat())
+        # +2 days: the logical day runs into the next calendar morning, so a
+        # 1 AM workout lives on the day AFTER `day`.
+        workouts = await state.oura_client.get_workouts(day.isoformat(), (day + timedelta(days=2)).isoformat())
     except Exception:
         workouts = []
     for w in workouts or []:
@@ -1022,11 +1060,12 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
     # (a short 12am session used to hide hours of later readings), and never run
     # far past the last reading (that's what left the chart 80% dead space).
     hi = min(max(hi, data_hi + 10), data_hi + 30)
-    lo = max(0, min(lo, data_lo))
-    lo = max(0, (int(lo) // 60) * 60)
-    hi = min(1440, -(-int(hi) // 60) * 60)
+    lo = max(_DAY_START_MIN, min(lo, data_lo))
+    lo = max(_DAY_START_MIN, (int(lo) // 60) * 60)
+    hi = min(_DAY_END_MIN, -(-int(hi) // 60) * 60)
     if hi - lo < 180:
-        hi = min(1440, lo + 180)
+        hi = min(_DAY_END_MIN, lo + 180)
+        lo = max(_DAY_START_MIN, min(lo, hi - 180))
     view = {"start": lo, "end": hi}
 
     # Facts — computed from the SAME stored session HR the bands show (no more
@@ -1260,7 +1299,9 @@ async def compute_day_index(days: int = 30, reveal: bool = False) -> list:
         return hit[1]
 
     migrate_sessions_et()
-    today = _now_et().date()
+    # Logical days throughout, so the picker agrees with the replay about which
+    # day a midnight-to-4 AM sample belongs to.
+    today = _logical_today()
     first = today - timedelta(days=days - 1)
 
     # Build the chunk list, then fetch a few at a time: serial would make first
@@ -1307,7 +1348,7 @@ async def compute_day_index(days: int = 30, reveal: bool = False) -> list:
                 t = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00")).astimezone(_ET)
             except Exception:
                 continue
-            by_day.setdefault(t.date(), []).append(e["bpm"])
+            by_day.setdefault(_logical_date(t.replace(tzinfo=None)), []).append(e["bpm"])
 
     # Titles from the persisted session log — no extra API calls.
     games_by_day: dict = {}
@@ -1320,12 +1361,13 @@ async def compute_day_index(days: int = 30, reveal: bool = False) -> list:
             st = datetime.fromisoformat(s["start"])
         except Exception:
             continue
-        if st.date() < first or st.date() > today:
+        sd = _logical_date(st)
+        if sd < first or sd > today:
             continue
         if not reveal and in_work_hours(st):
             continue          # same work-hours privacy rule as the replay itself
         bucket = games_by_day if kind == "game" else media_by_day
-        names = bucket.setdefault(st.date(), [])
+        names = bucket.setdefault(sd, [])
         name = _clean_title(s["game"])
         if name not in names:
             names.append(name)
