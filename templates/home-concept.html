@@ -304,7 +304,7 @@
       <div class="top"><span class="name">Weather</span><span class="wx-icon" id="wx-icon"></span></div>
       <div id="sys-weather">
         <div class="wx-temp"><span id="wx-temp">—</span></div>
-        <div class="sys-meta" id="wx-detail">locating&hellip;</div>
+        <div class="sys-meta" id="wx-detail">loading&hellip;</div>
       </div>
     </div>
 
@@ -610,17 +610,15 @@
       document.getElementById('wx-detail').textContent=label+' · feels '+feels+'°';
     }).catch(()=>{document.getElementById('wx-detail').textContent='unavailable';});
   }
-  function initWeather(){
-    const cached=(()=>{try{return JSON.parse(localStorage.getItem('hb_geo')||'null');}catch(e){return null;}})();
-    if(cached&&cached.lat){paintWeather(cached.lat,cached.lon);return;}
-    if(!navigator.geolocation){document.getElementById('wx-detail').textContent='no location';return;}
-    navigator.geolocation.getCurrentPosition(
-      p=>{const lat=p.coords.latitude.toFixed(3),lon=p.coords.longitude.toFixed(3);
-        try{localStorage.setItem('hb_geo',JSON.stringify({lat,lon}));}catch(e){}
-        paintWeather(lat,lon);},
-      ()=>{document.getElementById('wx-detail').textContent='location off';},
-      {maximumAge:3600000,timeout:8000});
-  }
+  // Home location: World Tour Golf Links, Myrtle Beach SC (confirmed real
+  // coordinates, not geolocation — the browser prompt was unreliable and
+  // this is a fixed address anyway). Privacy-matched to the rest of the
+  // site: public visitors get city-level weather (2 decimals, ~1km, no
+  // address precision); the private view gets the exact coordinate. Same
+  // "hide, never fabricate" rule as the work-hours redaction layer.
+  const HOME_LAT = {{ '33.741' if public_mode else '33.740614' }};
+  const HOME_LON = {{ '-78.909' if public_mode else '-78.908610' }};
+  function initWeather(){ paintWeather(HOME_LAT, HOME_LON); }
   initWeather();
 
   // ── Xbox: drives the system tile AND feeds the live-status cascade ──

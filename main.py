@@ -521,11 +521,17 @@ async def home(request: Request):
             timeline.append({"x": w["x"], "clk": w["clk"], "kind": "wake",
                              "title": "Woke up", "detail": "The ring's first reading after sleep — the day begins."})
 
-        # Work marker: only on a weekday, only once we're actually past 8:30,
-        # and only for today (a historical day's "work" is noise).
+        # Work markers: only on a weekday, only once we're actually past each
+        # threshold, only for today. Symmetric pair matching the exact
+        # WORKING/RELAXING boundary in time_greeting_now() (8:30 AM / 5 PM) —
+        # the same cascade the hero headline uses, so the story agrees with
+        # the greeting instead of only saying "done working" up top.
         if _is_today and _weekday and _now_min >= 510:
             timeline.append({"x": 510.0, "clk": "8:30 AM", "kind": "work",
                              "title": "Started work", "detail": "The workday begins — status turns to Working."})
+        if _is_today and _weekday and _now_min >= 1020:
+            timeline.append({"x": 1020.0, "clk": "5:00 PM", "kind": "work-end",
+                             "title": "Finished work", "detail": "The workday ends — status turns to Relaxing."})
 
         for s in replay.get("sessions", []):
             verb = {"game": "Played", "media": "Watched", "workout": "Worked out —"}.get(s["kind"], "")
