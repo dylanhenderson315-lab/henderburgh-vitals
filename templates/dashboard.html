@@ -917,16 +917,31 @@
         <div class="flex items-center justify-between mb-5">
           <div>
             <div class="font-semibold flex items-center gap-x-2">
-              <i class="fa-solid fa-wave-square text-rose-400"></i> Heart Rate · Last 24h
+              <i class="fa-solid fa-wave-square text-rose-400"></i> Heart Rate · 24h to last sync
             </div>
-            <div class="text-xs text-zinc-500">Every reading from your ring — solid is real, dashed bridges a short gap</div>
+            <div class="text-xs text-zinc-500">
+              {# Oura's own lag is real and bimodal (usually minutes, sometimes
+                 hours) — not something a fixed delay can fix, confirmed against
+                 live data. Ending the window at the last actual reading
+                 (instead of wall-clock "now") means the chart is honest either
+                 way: looks live when the ring is caught up, and doesn't show a
+                 dishonest blank tail when it isn't. #}
+              {% if hr_age_minutes is not none and hr_age_minutes > 15 %}
+                Ring last synced {{ hr_age_minutes }}m ago — showing the 24h ending then
+              {% else %}
+                Every reading from your ring — solid is real, dashed bridges a short gap
+              {% endif %}
+            </div>
           </div>
           {% if latest_hr %}<div class="text-2xl font-semibold tabular-nums text-right">{{ latest_hr }}<span class="text-sm text-zinc-500 font-normal ml-0.5">bpm</span></div>{% endif %}
         </div>
-        <!-- Active / Full 24h view chips (same language as the Replay on /xbox) -->
+        <!-- "Active" ends at the last real reading (the honest default — see
+             the note above). "Wall-clock 24h" ends at literal now, which is
+             where the dishonest blank tail came from when the ring is behind;
+             relabeled so it reads as a deliberate choice, not the default. -->
         <div class="flex gap-1.5 mb-4 items-center">
           <button id="hrc-active" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
-          <button id="hrc-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full 24h</button>
+          <button id="hrc-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Wall-clock 24h</button>
           <span class="ml-auto flex items-center gap-x-3 text-[10px] text-zinc-600">
             <span class="flex items-center gap-x-1"><i class="fa-solid fa-minus text-rose-400"></i>real</span>
             <span class="flex items-center gap-x-1"><i class="fa-solid fa-minus" style="color:rgba(251,113,133,0.5)"></i>estimated</span>
