@@ -52,11 +52,12 @@
   .ticker .spacer{flex:1;}
   @media(prefers-reduced-motion:reduce){.pulse-dot{animation:none;}}
 
-  .hero{min-height:82vh;display:flex;flex-direction:column;justify-content:center;padding:0 32px;max-width:760px;margin:0 auto;}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.08em;margin-bottom:18px;}
-  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(32px,5vw,52px);line-height:1.15;letter-spacing:-0.01em;max-width:16ch;}
-  h1 .status{color:var(--text-dim);}
-  .hero-sub{margin-top:20px;color:var(--text-dim);font-size:15px;max-width:46ch;line-height:1.6;}
+  /* Hero left-aligned to a page gutter (was a centered narrow column). */
+  .hero{min-height:78vh;display:flex;flex-direction:column;justify-content:center;padding:0 clamp(24px,6vw,88px);max-width:1000px;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.08em;margin-bottom:16px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(34px,5.5vw,60px);line-height:1.1;letter-spacing:-0.015em;max-width:18ch;}
+  h1 .status{color:var(--cyan);}
+  .hero-sub{margin-top:22px;color:var(--text-dim);font-size:15px;max-width:52ch;line-height:1.6;}
 
   /* Office-lamp poke — ported from /oldhomepage, restyled to the instrument
      look: a small bordered icon button rather than a rounded emerald pill. */
@@ -115,34 +116,43 @@
   .lastfm-mini{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:38px;}
   .lastfm-mini b{color:var(--text-dim);font-weight:400;}
 
-  /* Live status: the quirky "Henderburgh is WORKING / PLAYING / SLEEPING /
-     WATCHING" line, ported from the old home page's synthesize() cascade. */
-  .live-status{display:inline-flex;align-items:center;gap:8px;margin-top:22px;
-    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);
-    transition:opacity 0.3s ease;}
-  .live-status b{color:var(--cyan);font-weight:500;}
-  .live-status .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:beat 1.6s ease-in-out infinite;flex-shrink:0;}
-  @media(prefers-reduced-motion:reduce){.live-status .dot{animation:none;}}
+  .wx-temp{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:26px;letter-spacing:-0.02em;color:var(--text);line-height:1;margin-bottom:2px;}
+  .wx-temp span:after{content:'°';color:var(--text-dim);}
+  .wx-icon{font-size:18px;line-height:1;}
+
+  /* The live state IS the headline now. A small pulsing dot rides just before
+     the sentence to mark it live; the state word takes the accent colour. */
+  h1 .status{transition:opacity 0.3s ease;}
+  h1 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--cyan);
+    margin-right:14px;vertical-align:0.12em;animation:beat 1.6s ease-in-out infinite;}
+  @media(prefers-reduced-motion:reduce){h1 .dot{animation:none;}}
   @media(max-width:720px){.systems{grid-template-columns:repeat(2,1fr);}}
 
-  .timeline{position:relative;max-width:760px;margin:0 auto;padding:40px 32px 200px 88px;}
-  .spine{position:absolute;left:44px;top:0;bottom:0;width:1px;background:var(--line);}
-  .spine-fill{position:absolute;left:44px;top:0;width:1px;background:linear-gradient(var(--cyan),var(--violet));height:0%;transition:height 0.1s linear;}
-  .event{position:relative;padding:36px 0;opacity:0;transform:translateY(18px);transition:opacity 0.6s ease,transform 0.6s ease;}
+  /* Story header + timeline left-aligned to the page gutter (was centered). */
+  .story-head{padding:20px clamp(24px,6vw,88px) 0;}
+  .timeline{position:relative;max-width:820px;margin:0;padding:36px clamp(24px,6vw,88px) 200px calc(clamp(24px,6vw,88px) + 56px);}
+
+  /* HR rail: the day's heart rate as a vertical trace down the left, drawn by
+     JS from replay.hr_series. The mask sits over the un-scrolled portion so
+     the trace "fills" cyan→violet as you move down the day. */
+  .hr-rail{position:absolute;left:clamp(24px,6vw,88px);top:36px;width:44px;height:calc(100% - 236px);overflow:visible;}
+  .hr-rail-path{opacity:0.9;}
+  .hr-rail-mask{position:absolute;left:clamp(24px,6vw,88px);top:36px;width:48px;height:0;
+    background:var(--navy-0);opacity:0.7;pointer-events:none;}
+
+  .event{position:relative;padding:34px 0;opacity:0;transform:translateY(18px);transition:opacity 0.6s ease,transform 0.6s ease;}
   .event.in{opacity:1;transform:translateY(0);}
-  .event::before{content:'';position:absolute;left:-52px;top:40px;width:9px;height:9px;border-radius:50%;background:var(--navy-0);border:1.5px solid var(--text-dim);transition:border-color 0.4s,background 0.4s;}
+  .event::before{content:'';position:absolute;left:-40px;top:38px;width:9px;height:9px;border-radius:50%;background:var(--navy-0);border:1.5px solid var(--text-dim);transition:border-color 0.4s,background 0.4s;z-index:2;}
   .event.in::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(94,234,212,0.15);}
-  .event .time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.04em;margin-bottom:8px;}
+  .event.event-peak.in::before{border-color:var(--amber);background:var(--amber);box-shadow:0 0 0 4px rgba(255,180,84,0.15);}
+  .event.event-game.in::before,.event.event-media.in::before{border-color:var(--violet);background:var(--violet);box-shadow:0 0 0 4px rgba(139,127,255,0.15);}
+  .event .time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.04em;margin-bottom:7px;}
   .event .time.amber{color:var(--amber);}
   .event .time.violet{color:var(--violet);}
-  .event h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:22px;margin-bottom:8px;}
-  .event p{color:var(--text-dim);font-size:14.5px;line-height:1.6;max-width:44ch;}
-  .card{margin-top:16px;display:inline-flex;gap:24px;padding:14px 18px;background:var(--navy-1);border:1px solid var(--line);border-radius:6px;flex-wrap:wrap;}
-  .card .m{display:flex;flex-direction:column;gap:2px;}
-  .card .m label{font-size:10.5px;color:var(--text-dim);letter-spacing:0.05em;font-family:'JetBrains Mono',monospace;}
-  .card .m span{font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--cyan);}
+  .event h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:21px;margin-bottom:7px;}
+  .event p{color:var(--text-dim);font-size:14.5px;line-height:1.55;max-width:46ch;}
 
-  .empty{max-width:760px;margin:0 auto;padding:20px 32px 120px 88px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px;}
+  .empty{max-width:760px;margin:0;padding:20px clamp(24px,6vw,88px) 120px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px;}
   footer{text-align:center;padding:60px 32px 90px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:0.04em;border-top:1px solid var(--line);}
 
   .preview-flag{position:fixed;bottom:14px;right:14px;z-index:60;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);background:rgba(13,19,28,0.9);border:1px solid var(--line);border-radius:6px;padding:6px 10px;}
@@ -178,16 +188,18 @@
 </div>
 
 <section class="hero">
-  <div class="eyebrow">PERSONAL OS &middot; 8 SYSTEMS &middot; LIVE</div>
-  <h1>Henderburgh's day, <span class="status">system by system.</span></h1>
+  <div class="eyebrow">PERSONAL OS &middot; LIVE</div>
 
-  {# The quirky live-state line, ported from the old home page: WORKING /
-     PLAYING / SLEEPING / WATCHING, decided by the same cascade (Xbox
-     presence beats music beats an all-dark house beats time-of-day) and
-     kept live by the same poll loop that already drives the aurora. #}
-  <div class="live-status" id="live-status"><span class="dot"></span><span id="live-status-text">reading the house…</span></div>
+  {# The headline IS the live status, ported from the old home page's full
+     cascade: Xbox presence (playing / watching) beats music (listening)
+     beats an all-dark house (sleeping / out) beats the time-of-day slot
+     (waking up / working / relaxing / getting ready for bed / sleeping).
+     Seeded server-side from time_greeting so it's correct before JS runs,
+     then upgraded live by synthesizeStatus(). #}
+  {% set _state = (time_greeting or 'HENDERBURGH IS HERE.')[15:].rstrip('.').lower() %}
+  <h1><span class="dot" id="hero-dot"></span>Henderburgh is <span class="status" id="hero-state">{{ _state }}</span>.</h1>
 
-  <p class="hero-sub">
+  <p class="hero-sub" id="hero-sub">
     {% if has_story %}
       {{ replay.narration | replace('**','') }}
     {% else %}
@@ -226,10 +238,16 @@
       <div class="stat dim" id="sys-lights">checking&hellip;</div>
     </a>
 
-    <a class="sys-tile" href="/model">
-      <div class="top"><span class="name">Model</span><span class="arrow">&#8599;</span></div>
-      <div class="stat dim">{% if model_rooms %}{{ model_rooms }} room{{ 's' if model_rooms != 1 else '' }} mapped{% else %}3D home{% endif %}</div>
-    </a>
+    {# Weather tile (replaced Model): the real conditions where the house is,
+       via browser geolocation (cached once) + Open-Meteo. Not a link — it's a
+       readout, so no arrow. #}
+    <div class="sys-tile" style="cursor:default;">
+      <div class="top"><span class="name">Weather</span><span class="wx-icon" id="wx-icon"></span></div>
+      <div id="sys-weather">
+        <div class="wx-temp"><span id="wx-temp">—</span></div>
+        <div class="sys-meta" id="wx-detail">locating&hellip;</div>
+      </div>
+    </div>
 
     <a class="sys-tile" href="/golf">
       <div class="top"><span class="name">Golf</span><span class="arrow">&#8599;</span></div>
@@ -275,64 +293,37 @@
   </div>
 </div>
 
-{% if has_story %}
-<div class="systems-wrap" style="padding-top:0;padding-bottom:0;">
-  <div class="systems-label" style="border-top:none;padding-top:0;">TODAY'S STORY &middot; {{ replay.day }} &middot; SCROLL TO MOVE THROUGH THE DAY</div>
+{% if has_story and timeline %}
+<div class="story-head">
+  <div class="systems-label" style="border-top:none;padding-top:0;">TODAY'S STORY &middot; {{ replay.day }} &middot; SCROLL THROUGH THE DAY</div>
 </div>
 
-<div class="timeline">
-  <div class="spine"></div>
-  <div class="spine-fill" id="spine-fill"></div>
+{# The timeline: real events only, in time order, evenly spaced (no dead
+   space for quiet stretches). The left rail is a live vertical trace of the
+   day's heart rate — "the heart chart, sideways" — drawn by JS from
+   replay.hr_series and revealed as you scroll. Events sit to its right. #}
+<div class="timeline" id="timeline">
+  <svg class="hr-rail" id="hr-rail" preserveAspectRatio="none" aria-hidden="true">
+    <path id="hr-rail-path" fill="none" stroke="url(#hrgrad)" stroke-width="1.5"/>
+    <defs><linearGradient id="hrgrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--cyan)"/><stop offset="100%" stop-color="var(--violet)"/>
+    </linearGradient></defs>
+  </svg>
+  <div class="hr-rail-mask" id="hr-rail-mask"></div>
 
-  {# Calmest reading #}
-  {% if replay.low %}
-  <div class="event" data-hour="{{ (replay.low.x / 60) | round(2) }}">
-    <div class="time">{{ replay.low.clk }}</div>
-    <h2>Calmest reading of the day</h2>
-    <p>The day's lowest heart rate — the quiet baseline everything else is measured against.</p>
-    <div class="card"><div class="m"><label>HEART RATE</label><span>{{ replay.low.bpm }} bpm</span></div></div>
-  </div>
-  {% endif %}
-
-  {# Peak #}
-  {% if replay.peak %}
-  <div class="event" data-hour="{{ (replay.peak.x / 60) | round(2) }}">
-    <div class="time amber">{{ replay.peak.clk }}</div>
-    <h2>Heart rate peaks</h2>
-    <p>The day's highest reading{% if replay.low %} — {{ replay.peak.bpm - replay.low.bpm }} beats above the calmest point{% endif %}.</p>
-    <div class="card">
-      <div class="m"><label>PEAK</label><span style="color:var(--amber)">{{ replay.peak.bpm }} bpm</span></div>
-      {% if replay.low %}<div class="m"><label>ABOVE LOW</label><span style="color:var(--amber)">+{{ replay.peak.bpm - replay.low.bpm }}</span></div>{% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  {# Game / media / workout sessions #}
-  {% for s in replay.sessions %}
-  <div class="event" data-hour="{{ (s.x0 / 60) | round(2) }}">
-    <div class="time {{ 'violet' if s.kind in ('game','media') else '' }}">{{ s.clk }}</div>
-    <h2>{{ s.name }}</h2>
-    <p>{{ {'game':'Game session','media':'Watching','workout':'Workout'}[s.kind] }}{% if s.hr %} · heart averaged {{ s.hr }} bpm{% endif %}.</p>
-    <div class="card">
-      <div class="m"><label>DURATION</label><span style="color:var(--violet)">{% if s.dur_min < 1 %}&lt;1 min{% else %}{{ s.dur_min | int }} min{% endif %}</span></div>
-      {% if s.hr %}<div class="m"><label>AVG HEART</label><span>{{ s.hr }} bpm</span></div>{% endif %}
-    </div>
+  {% for e in timeline %}
+  <div class="event event-{{ e.kind }}" data-x="{{ e.x }}">
+    <div class="time{% if e.kind == 'peak' %} amber{% elif e.kind in ('game','media') %} violet{% endif %}">{{ e.clk }}</div>
+    <h2>{{ e.title }}</h2>
+    <p>{{ e.detail }}</p>
   </div>
   {% endfor %}
-
-  {# Current reading #}
-  {% if replay.current %}
-  <div class="event" data-hour="{{ (replay.current.x / 60) | round(2) }}">
-    <div class="time">{{ replay.current.clk }}</div>
-    <h2>Latest reading</h2>
-    <p>The most recent heart rate the ring recorded today{% if age is not none %} — {{ age }} minutes ago{% endif %}.</p>
-    <div class="card">
-      <div class="m"><label>HEART RATE</label><span>{{ replay.current.bpm }} bpm</span></div>
-      {% if steps_n is not none %}<div class="m"><label>STEPS</label><span>{{ '{:,}'.format(steps_n) }}</span></div>{% endif %}
-      {% if steps and steps.miles is not none %}<div class="m"><label>DISTANCE</label><span>{{ '%.1f' % steps.miles }} mi</span></div>{% endif %}
-    </div>
-  </div>
-  {% endif %}
+</div>
+{% elif has_story %}
+<div class="empty">
+  // TODAY'S STORY — {{ replay.day }}. Heart rate is logging but no timed
+  events have landed yet. Games, watching, and the day's peak fill in as
+  they happen.
 </div>
 {% else %}
 <div class="empty">
@@ -348,8 +339,9 @@
 <script>
   const events = document.querySelectorAll('.event');
   const bgwash = document.getElementById('bgwash');
-  const spineFill = document.getElementById('spine-fill');
+  const railMask = document.getElementById('hr-rail-mask');
   const timeline = document.querySelector('.timeline');
+  const HR_SERIES = {{ replay.hr_series | tojson if (replay and replay.hr_series) else '[]' }};
 
   const colorStops = [
     {h:6,c:[16,24,37]},{h:12,c:[13,22,33]},{h:17,c:[36,26,18]},{h:20,c:[20,27,38]},{h:22,c:[10,14,23]}
@@ -377,6 +369,24 @@
   }
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible') unstick();});
 
+  // Draw the vertical HR trace: y = position through the day's samples
+  // (top→bottom), x = bpm scaled into the 44px rail. Redrawn on resize since
+  // the rail height tracks the timeline's content height.
+  const railSvg=document.getElementById('hr-rail'), railPath=document.getElementById('hr-rail-path');
+  function drawHrRail(){
+    if(!railSvg||!railPath||!HR_SERIES.length)return;
+    const w=44, h=railSvg.getBoundingClientRect().height||600;
+    railSvg.setAttribute('viewBox',`0 0 ${w} ${h}`);
+    const bpms=HR_SERIES.map(p=>p.y), lo=Math.min(...bpms), hi=Math.max(...bpms), span=Math.max(1,hi-lo);
+    const n=HR_SERIES.length;
+    const d=HR_SERIES.map((p,i)=>{
+      const y=(i/(n-1))*h;
+      const x=6+(1-(p.y-lo)/span)*(w-12); // higher bpm → further left, gentle
+      return (i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);
+    }).join(' ');
+    railPath.setAttribute('d',d);
+  }
+
   let ticking=false;
   function onScroll(){
     if(!timeline){bgwash.style.background=colorAtHour(22);return;}
@@ -384,17 +394,27 @@
     const total=rect.height-window.innerHeight;
     const scrolled=Math.min(Math.max(-rect.top,0),total);
     const frac=total>0?scrolled/total:0;
-    spineFill.style.height=(frac*100)+'%';
+    // The mask dims the un-reached (future) part of the rail; as you scroll it
+    // slides down, "lighting up" the heart trace behind you.
+    if(railMask&&railSvg){
+      const railH=railSvg.getBoundingClientRect().height;
+      railMask.style.top=(36+frac*railH)+'px';
+      railMask.style.height=((1-frac)*railH)+'px';
+    }
     bgwash.style.background=colorAtHour(6+frac*(22-6));
     ticking=false;
   }
   window.addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(onScroll);}},{passive:true});
+  window.addEventListener('resize',()=>{drawHrRail();onScroll();},{passive:true});
+  // Draw after layout settles (fonts/images can shift the timeline height).
+  drawHrRail(); setTimeout(drawHrRail,300); setTimeout(drawHrRail,1200);
   onScroll();
 
   document.getElementById('tk-clock').textContent=
     new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
 
   function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  window.__HR_BPM={{ hr if hr else 'null' }};
 
   // Single live-state object, fed by the three pollers below, read by
   // synthesizeStatus() — the same shape/cascade the old home page used.
@@ -405,31 +425,93 @@
     catch(e){return new Date().getHours();}
   }
 
-  // ── The quirky live-state line (ported cascade from the old home page):
-  // gaming beats music beats an all-dark house beats time-of-day default. ──
+  // ── The live state, ported cascade from the old home page — but here it IS
+  // the headline. Xbox presence beats music beats an all-dark house beats the
+  // time-of-day slot. `state` fills "Henderburgh is ___", `sub` the details
+  // line below (lights + heart), exactly like the old page's synthesize(). ──
+  function timeSlot(hour){
+    if(hour>=7&&hour<8.5)return'waking up';
+    if(hour>=8.5&&hour<17)return'working';
+    if(hour>=17&&hour<22)return'relaxing';
+    if(hour>=22)return'getting ready for bed';
+    return'sleeping';
+  }
   function synthesizeStatus(){
-    const el=document.getElementById('live-status-text');
-    if(!el)return;
+    const stateEl=document.getElementById('hero-state');
+    const subEl=document.getElementById('hero-sub');
+    if(!stateEl)return;
     const lights=flatLights(LIVE.lights);
     const onLights=lights.filter(l=>l.state==='on');
     const hasLightData=lights.length>0;
-    const hour=easternHour();
-    let text=null;
+    const hourF=(()=>{try{const p=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'numeric',hour12:false,timeZone:'America/New_York'}).formatToParts(new Date());const h=+p.find(x=>x.type==='hour').value,m=+p.find(x=>x.type==='minute').value;return h+m/60;}catch(e){return new Date().getHours();}})();
+    const hr=window.__HR_BPM;
+    let state=null, sub=null, live=true;
 
     const xb=LIVE.xbox;
     if(xb&&xb.status==='ok'&&/online/i.test(xb.state||'')&&xb.game&&xb.game!=='—'&&!/^home$/i.test(xb.game)){
       const watching=xb.kind==='media';
-      text=(watching?'Watching ':'Playing ')+esc(xb.game);
+      state=watching?('watching '+xb.game):('playing '+xb.game);
+      sub=(watching?'Watching ':'Playing ')+xb.game;
     } else if(LIVE.nowplaying){
-      text='Listening to '+esc(LIVE.nowplaying.name)+' — '+esc(LIVE.nowplaying.artist);
+      state='listening to '+LIVE.nowplaying.name;
+      sub=LIVE.nowplaying.name+' — '+LIVE.nowplaying.artist;
     } else if(hasLightData&&onLights.length===0){
-      text=(hour>=22||hour<7)?'Sleeping — every light is off':'Out — the house is dark';
+      const night=(hourF>=22||hourF<7);
+      state=night?'sleeping':'out';
+      sub=night?'Every light in the house is off.':'The house is dark right now.';
+      live=!night; // no live-pulse while "asleep"
     } else {
-      text=(hour>=5&&hour<12)?'Starting the day':(hour>=12&&hour<17)?'Working':(hour>=17&&hour<22)?'Winding down':'Up late';
-      if(hasLightData&&onLights.length)text+=' · '+onLights.length+' light'+(onLights.length===1?'':'s')+' on';
+      state=timeSlot(hourF);
+      if(hasLightData&&onLights.length){
+        const rooms={};onLights.forEach(l=>{const r=l.room_name||'somewhere';rooms[r]=(rooms[r]||0)+1;});
+        const top=Object.entries(rooms).sort((a,b)=>b[1]-a[1])[0];
+        sub=onLights.length+' of '+lights.length+' lights on'+(top&&top[0]!=='Unassigned'?' · '+top[0]+' lit':'');
+      } else sub='Live from the house.';
     }
-    if(el.textContent!==text){el.style.opacity=0;setTimeout(()=>{el.textContent=text;el.style.opacity=1;},220);}
+    if(hr)sub=(sub?sub+' · ':'')+'heart '+hr+' bpm';
+
+    if(stateEl.textContent!==state){
+      stateEl.style.opacity=0;
+      setTimeout(()=>{stateEl.textContent=state;stateEl.style.opacity=1;},220);
+    }
+    if(subEl&&sub&&subEl.textContent.trim()!==sub){
+      subEl.style.opacity=0;
+      setTimeout(()=>{subEl.textContent=sub;subEl.style.opacity=1;},220);
+    }
+    const dot=document.getElementById('hero-dot');
+    if(dot)dot.style.animationPlayState=live?'running':'paused';
   }
+
+  // ── Weather: browser geolocation (asked once, cached) + Open-Meteo (free,
+  // no key). Shows current temp, feels-like, and a condition glyph. ──
+  const WX_CODE={0:['☀️','Clear'],1:['🌤️','Mostly clear'],2:['⛅','Partly cloudy'],3:['☁️','Overcast'],
+    45:['🌫️','Fog'],48:['🌫️','Fog'],51:['🌦️','Drizzle'],53:['🌦️','Drizzle'],55:['🌦️','Drizzle'],
+    61:['🌧️','Rain'],63:['🌧️','Rain'],65:['🌧️','Heavy rain'],71:['🌨️','Snow'],73:['🌨️','Snow'],75:['❄️','Heavy snow'],
+    80:['🌦️','Showers'],81:['🌧️','Showers'],82:['⛈️','Violent showers'],95:['⛈️','Thunderstorm'],96:['⛈️','Thunderstorm'],99:['⛈️','Thunderstorm']};
+  function paintWeather(lat,lon){
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`+
+      `&current=temperature_2m,apparent_temperature,weather_code&temperature_unit=fahrenheit&timezone=auto`;
+    fetch(url).then(r=>r.json()).then(d=>{
+      const c=d&&d.current; if(!c)throw 0;
+      const temp=Math.round(c.temperature_2m), feels=Math.round(c.apparent_temperature);
+      const [glyph,label]=WX_CODE[c.weather_code]||['🌡️','—'];
+      document.getElementById('wx-temp').textContent=temp;
+      document.getElementById('wx-icon').textContent=glyph;
+      document.getElementById('wx-detail').textContent=label+' · feels '+feels+'°';
+    }).catch(()=>{document.getElementById('wx-detail').textContent='unavailable';});
+  }
+  function initWeather(){
+    const cached=(()=>{try{return JSON.parse(localStorage.getItem('hb_geo')||'null');}catch(e){return null;}})();
+    if(cached&&cached.lat){paintWeather(cached.lat,cached.lon);return;}
+    if(!navigator.geolocation){document.getElementById('wx-detail').textContent='no location';return;}
+    navigator.geolocation.getCurrentPosition(
+      p=>{const lat=p.coords.latitude.toFixed(3),lon=p.coords.longitude.toFixed(3);
+        try{localStorage.setItem('hb_geo',JSON.stringify({lat,lon}));}catch(e){}
+        paintWeather(lat,lon);},
+      ()=>{document.getElementById('wx-detail').textContent='location off';},
+      {maximumAge:3600000,timeout:8000});
+  }
+  initWeather();
 
   // ── Xbox: drives the system tile AND feeds the live-status cascade ──
   function refreshXbox(){

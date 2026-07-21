@@ -1113,6 +1113,14 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
         "low": {"x": round(low_m, 1), "clk": clk(low_m), "bpm": low_v},
         "current": {"x": round(tmins[-1], 1), "clk": clk(tmins[-1]), "bpm": bpm[-1]},
         "sessions": session_events,
+        # Wake time drives "start the day timeline at wake, not midnight".
+        # main_sleep is computed regardless of reveal; the time itself is not
+        # sensitive (a wake hour), only the asleep/nap BANDS are withheld.
+        "wake": ({"x": round(mins(main_sleep["wake"]), 1), "clk": clk(mins(main_sleep["wake"]))}
+                 if main_sleep and main_sleep.get("wake") and day_start <= main_sleep["wake"] < day_end
+                 else None),
+        # HR sampled to a compact series for the timeline's vertical trace.
+        "hr_series": [{"x": round(m, 1), "y": b} for m, b in zip(tmins, bpm)],
     }
 
 

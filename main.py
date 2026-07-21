@@ -495,6 +495,62 @@ async def home(request: Request):
         print(f"home-concept replay error: {e}")
         replay = {"has_data": False}
 
+    # Build the day's timeline as an ordered list of REAL events only — no
+    # dead space. Start at wake, add a "started work" marker at 8:30 on
+    # weekdays, then the actual game/media/workout sessions, the HR peak, and
+    # the latest reading. Everything is sorted by minute-of-day and rendered
+    # in sequence (evenly spaced), so a quiet afternoon doesn't leave a gap.
+    timeline = []
+    if replay.get("has_data"):
+        _now_et = datetime.now(ZoneInfo("America/New_York"))
+        _now_min = _now_et.hour * 60 + _now_et.minute
+        _is_today = (replay.get("days_ago") == 0)
+        _weekday = _now_et.weekday() < 5
+
+        if replay.get("wake"):
+            w = replay["wake"]
+            timeline.append({"x": w["x"], "clk": w["clk"], "kind": "wake",
+                             "title": "Woke up", "detail": "The ring's first reading after sleep — the day begins."})
+
+        # Work marker: only on a weekday, only once we're actually past 8:30,
+        # and only for today (a historical day's "work" is noise).
+        if _is_today and _weekday and _now_min >= 510:
+            timeline.append({"x": 510.0, "clk": "8:30 AM", "kind": "work",
+                             "title": "Started work", "detail": "The workday begins — status turns to Working."})
+
+        for s in replay.get("sessions", []):
+            verb = {"game": "Played", "media": "Watched", "workout": "Worked out —"}.get(s["kind"], "")
+            dur = "<1 min" if s["dur_min"] < 1 else f"{int(s['dur_min'])} min"
+            detail = f"{verb} {s['name']} · {dur}"
+            if s.get("hr"):
+                detail += f" · heart averaged {s['hr']} bpm"
+            timeline.append({"x": s["x0"], "clk": s["clk"], "kind": s["kind"],
+                             "title": s["name"], "detail": detail})
+
+        if replay.get("peak"):
+            p = replay["peak"]
+            above = (f" — {p['bpm'] - replay['low']['bpm']} above the calmest point"
+                     if replay.get("low") else "")
+            timeline.append({"x": p["x"], "clk": p["clk"], "kind": "peak",
+                             "title": "Heart rate peaked", "detail": f"{p['bpm']} bpm{above}."})
+
+        if replay.get("current"):
+            c = replay["current"]
+            timeline.append({"x": c["x"], "clk": c["clk"], "kind": "now",
+                             "title": "Latest reading", "detail": f"{c['bpm']} bpm — the most recent the ring recorded."})
+
+        timeline.sort(key=lambda e: e["x"])
+        # De-dupe events landing on the same minute+kind (e.g. peak == current).
+        seen = set()
+        deduped = []
+        for e in timeline:
+            key = (round(e["x"]), e["kind"])
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(e)
+        timeline = deduped
+
     # Unread count for the office-lamp poke badge (same source as the old
     # home page's notifier — see old_homepage() above).
     blog_unread_count = 0
@@ -553,6 +609,8 @@ async def home(request: Request):
         "latest_round": latest_round,
         "model_rooms": model_rooms,
         "recent_clips": recent_clips,
+        "timeline": timeline,
+        "time_greeting": time_greeting_now(),
     })
 
 
