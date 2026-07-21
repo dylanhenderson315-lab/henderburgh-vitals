@@ -7,11 +7,18 @@
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<!-- Design tokens: one source of truth for colour/type/radius/motion, shared
+     with every other page. This page used to fork its own navy/cyan root —
+     that fork is now the canonical palette, ported INTO tokens.css, so these
+     aliases just point at the shared tokens instead of re-declaring them. -->
+<link rel="stylesheet" href="/static/tokens.css?v=2">
 <style>
   :root{
-    --navy-0:#0a0e17; --navy-1:#0d131c; --navy-2:#141b26;
-    --cyan:#5EEAD4; --amber:#FFB454; --violet:#8B7FFF;
-    --text:#E8EDF2; --text-dim:#7A8494; --line:#1E2733;
+    /* Aliases so the rest of this file (787 lines deep) doesn't need a
+       find/replace pass — same names, values now sourced from tokens.css. */
+    --navy-0: var(--bg); --navy-1: var(--surface); --navy-2: var(--surface-2);
+    --cyan: var(--accent);
+    --text-dim: var(--text-3);
     /* ONE container for every section. Before this the page had four
        different left edges (hero 86, rail 86, event text 142, cards 285 —
        a 199px spread), which is what read as "doesn't make sense". */

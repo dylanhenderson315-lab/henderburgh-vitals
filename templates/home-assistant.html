@@ -17,13 +17,13 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
     :root {
-      --bg: #0f1115;
-      --card: #161a20;
-      --accent-green: #4ade80;
-      --accent-blue: #60a5fa;
-      --text-primary: #e2e8f0;
-      --text-secondary: #94a3b8;
-      --status-relax: #22c55e;
+      --bg: var(--bg);
+      --card: var(--surface);
+      --accent-green: var(--success);
+      --accent-blue: var(--info);
+      --text-primary: var(--text);
+      --text-secondary: var(--text-2);
+      --status-relax: var(--success);
     }
 
     body {
@@ -39,58 +39,58 @@
        measured problems fixed here:
 
        1. CONTRAST. The muted grey used for nearly every label and caption
-          (#71717a) measured 3.84:1 on the card surface — below the 4.5:1 WCAG
+          (var(--text-3)) measured 3.84:1 on the card surface — below the 4.5:1 WCAG
           AA floor — and it was used at 8–11px, where it hurts most. Promoted
-          to #a1a1aa (7.24:1). That's the squint-in-the-dark text.
+          to var(--text-2) (7.24:1). That's the squint-in-the-dark text.
        2. GLARE. Pure #fff on active controls reads as a small flashlight at
           night (19.8:1). Capped to --text (#e8e8ea, still ~15:1) — unmistakably
           bright, minus the sting. Applied at each declaration below rather than
           as an override block here, since those rules come later in the file
           and would otherwise win the cascade. */
     .font-display {
-      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-family: var(--font-display);
     }
 
     .section-label {
       font-size: 10px;
       letter-spacing: 2.5px;
       text-transform: uppercase;
-      color: #737373;
+      color: var(--text-3);
       font-weight: 600;
     }
 
     .card {
-      background: #161a20;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 1.5rem;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-md);
+      transition: border-color var(--d-fast) var(--ease-out), box-shadow var(--d-fast) var(--ease-out);
     }
     .card:hover {
-      border-color: rgba(74, 222, 128, 0.3);
-      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
+      border-color: rgba(var(--success-rgb), 0.3);
+      box-shadow: var(--shadow-lg);
     }
 
     .nav-link {
-      color: #a1a1aa;
-      transition: color 0.15s ease;
+      color: var(--text-2);
+      transition: color var(--d-fast) var(--ease-out);
       font-weight: 500;
       font-size: 14px;
     }
     .nav-link:hover {
-      color: #f4f4f5;
+      color: var(--text);
     }
 
     .entity-row {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
     }
 
     .status-pill {
       font-size: 10px;
       padding: 1px 7px;
-      border-radius: 9999px;
+      border-radius: var(--r-full);
       font-weight: 600;
       letter-spacing: 0.5px;
       display: inline-block;
@@ -99,16 +99,16 @@
     .ha-btn {
       font-size: 11px;
       padding: 5px 12px;
-      border-radius: 8px;
-      border: 1px solid #3f3f46;
-      background: #27272a;
-      color: #e4e4e7;
-      transition: all 0.1s ease;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      color: var(--text);
+      transition: all var(--d-press) var(--ease-press);
       font-weight: 500;
     }
     .ha-btn:hover {
-      background: #3f3f46;
-      border-color: #52525b;
+      background: var(--line);
+      border-color: var(--line-strong);
       transform: translateY(-0.5px);
     }
     .ha-btn:active {
@@ -133,9 +133,9 @@
       opacity: 0.6;
     }
     .view-only-banner {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
       padding: 16px 20px;
       margin-bottom: 16px;
       text-align: center;
@@ -143,68 +143,68 @@
     .full-control-indicator {
       font-size: 11px;
       padding: 2px 10px;
-      border-radius: 9999px;
-      background: rgba(16, 185, 129, 0.15);
-      color: #10b981;
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: var(--r-full);
+      background: rgba(var(--success-rgb), 0.15);
+      color: var(--success);
+      border: 1px solid rgba(var(--success-rgb), 0.3);
     }
     .lock-btn {
       font-size: 10px;
       padding: 1px 8px;
-      border-radius: 6px;
-      background: #27272a;
-      border: 1px solid #3f3f46;
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
     }
 
     /* TV Sync premium spatial whole-house maps (scaled real dims, position+height, does not affect cards/sync groups) */
     .tv-wholehouse { max-width: 720px; margin: 0 auto; }
     .tv-room-selector { display: flex; gap: 6px; flex-wrap: wrap; }
-    .tv-room-btn { background: #27272a; border: 1px solid #3f3f46; padding: 4px 10px; border-radius: 999px; font-size: 12px; cursor: pointer; }
-    .tv-room-btn.active { background: #052e16; border-color: #4ade80; color: #4ade80; }
+    .tv-room-btn { background: var(--surface-2); border: 1px solid var(--line); padding: 4px 10px; border-radius: var(--r-full); font-size: 12px; cursor: pointer; }
+    .tv-room-btn.active { background: var(--success-dim); border-color: var(--success); color: var(--success); }
     .tv-map-wrap { margin: 8px auto; }
-    .tv-map-label { font-size: 11px; color: #71717a; margin-bottom: 4px; text-align: center; }
+    .tv-map-label { font-size: 11px; color: var(--text-3); margin-bottom: 4px; text-align: center; }
     .tv-map {
-      background: #0a0a0b; border: 2px solid #3f3f46; border-radius: 4px; position: relative; box-shadow: inset 0 0 30px rgba(0,0,0,0.6), 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      background: var(--bg); border: 2px solid var(--line); border-radius: var(--r-sm); position: relative; box-shadow: inset 0 0 30px rgba(0,0,0,0.6), 0 4px 6px -1px rgb(0 0 0 / 0.1);
       overflow: hidden; margin: 0 auto;
     }
-    .tv-map.drop-over { border-color: #4ade80; box-shadow: 0 0 0 2px rgba(74,222,128,0.3); }
+    .tv-map.drop-over { border-color: var(--success); box-shadow: 0 0 0 2px rgba(var(--success-rgb), 0.3); }
     .tv-map::after {
       content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(63,63,70,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(63,63,70,0.12) 1px, transparent 1px);
       background-size: 18px 18px; pointer-events: none;
     }
     .tv-tv-symbol {
-      position: absolute; height: 16px; background: #1f2937; border: 1px solid #4b5563; border-radius: 2px; font-size: 8px; display: flex; align-items: center; justify-content: center; color: #9ca3af; z-index: 1; letter-spacing: 0.5px;
+      position: absolute; height: 16px; background: var(--surface-3); border: 1px solid var(--line-strong); border-radius: var(--r-sm); font-size: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-3); z-index: 1; letter-spacing: 0.5px;
     }
     .tv-light-marker {
-      position: absolute; transform: translate(-50%, -50%); background: #27272a; border: 1px solid #4b5563; border-radius: 5px; padding: 1px 4px; font-size: 9px; min-width: 38px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.3); cursor: grab; user-select: none; z-index: 2;
+      position: absolute; transform: translate(-50%, -50%); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 1px 4px; font-size: 9px; min-width: 38px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.3); cursor: grab; user-select: none; z-index: 2;
       transition: box-shadow .1s, transform .1s;
     }
-    .tv-light-marker:hover { box-shadow: 0 0 0 2px rgba(74,222,128,0.4); }
-    .tv-light-marker.leader { border-color: #4ade80; background: #052e16; }
-    .tv-light-marker.h-floor { border-left: 3px solid #60a5fa; }
-    .tv-light-marker.h-tv { border-left: 3px solid #4ade80; }
-    .tv-light-marker.h-above { border-left: 3px solid #f59e0b; }
+    .tv-light-marker:hover { box-shadow: 0 0 0 2px rgba(var(--success-rgb), 0.4); }
+    .tv-light-marker.leader { border-color: var(--success); background: var(--success-dim); }
+    .tv-light-marker.h-floor { border-left: 3px solid var(--info); }
+    .tv-light-marker.h-tv { border-left: 3px solid var(--success); }
+    .tv-light-marker.h-above { border-left: 3px solid var(--warn); }
     .tv-light-marker .m-name { font-weight: 500; line-height: 1; }
-    .tv-light-marker .m-height { font-size: 7px; background: #1f2937; display: inline-block; padding: 0 2px; border-radius: 2px; margin-top: 1px; cursor: pointer; }
-    .tv-map-hint { font-size: 9px; color: #52525b; text-align: center; margin-top: 3px; }
+    .tv-light-marker .m-height { font-size: 7px; background: var(--surface-3); display: inline-block; padding: 0 2px; border-radius: var(--r-sm); margin-top: 1px; cursor: pointer; }
+    .tv-map-hint { font-size: 9px; color: var(--line-strong); text-align: center; margin-top: 3px; }
     .tv-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-    .tv-chip { font-size: 11px; background: #27272a; border: 1px solid #3f3f46; padding: 3px 8px; border-radius: 999px; cursor: grab; display: inline-flex; align-items: center; }
-    .tv-chip.portable-special { border-color: #854d0e; }
+    .tv-chip { font-size: 11px; background: var(--surface-2); border: 1px solid var(--line); padding: 3px 8px; border-radius: var(--r-full); cursor: grab; display: inline-flex; align-items: center; }
+    .tv-chip.portable-special { border-color: var(--warn); }
     .tv-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px; }
-    .tv-mode-card { background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; padding: 5px 6px; font-size: 10px; cursor: pointer; }
-    .tv-mode-card.active { border-color: #4ade80; background: #052e16; }
+    .tv-mode-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 5px 6px; font-size: 10px; cursor: pointer; }
+    .tv-mode-card.active { border-color: var(--success); background: var(--success-dim); }
     .tv-mode-card .setting-row { display: flex; align-items: center; gap: 3px; font-size: 9px; margin: 1px 0; }
-    .tv-mode-card .setting-row label { width: 52px; color: #71717a; }
+    .tv-mode-card .setting-row label { width: 52px; color: var(--text-3); }
     .tv-mode-card .setting-row input { flex: 1; }
     .tv-mode-card .setting-row .val { width: 20px; text-align: right; }
 
     /* feedback */
-    .tv-mode-card.activating { border-color: #f59e0b; animation: tv-activate-pulse 900ms infinite; }
+    .tv-mode-card.activating { border-color: var(--warn); animation: tv-activate-pulse 900ms infinite; }
     @keyframes tv-activate-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.015)} }
-    .tv-map.syncing { box-shadow: 0 0 0 3px rgba(74,222,128,0.4); }
+    .tv-map.syncing { box-shadow: 0 0 0 3px rgba(var(--success-rgb), 0.4); }
     .tv-map.music-syncing { animation: tv-music-wave 700ms infinite; }
-    @keyframes tv-music-wave { 0%,100%{box-shadow:0 0 0 3px rgba(245,158,11,0.5)} 50%{box-shadow:0 0 0 6px rgba(245,158,11,0.2)} }
-    .tv-feedback-badge { position:absolute; top:4px; right:4px; font-size:8px; padding:0 4px; border-radius:3px; background:#451a03; color:#f59e0b; }
+    @keyframes tv-music-wave { 0%,100%{box-shadow:0 0 0 3px rgba(245, 158, 11, 0.5)} 50%{box-shadow:0 0 0 6px rgba(245, 158, 11, 0.2)} }
+    .tv-feedback-badge { position:absolute; top:4px; right:4px; font-size:8px; padding:0 4px; border-radius:3px; background:rgba(var(--warn-rgb, 245,158,11), 0.15); color:var(--warn); }
 
     /* Simple accessible modals */
     .modal {
@@ -218,26 +218,26 @@
     }
     .modal.open { display: flex; }
     .modal-content {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
       width: 100%;
       max-width: 420px;
       margin: 16px;
       padding: 24px;
-      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+      box-shadow: var(--shadow-lg);
     }
     .modal input, .modal textarea {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
       padding: 12px 14px;
-      color: #e4e4e7;
+      color: var(--text);
       width: 100%;
       font-size: 15px;
     }
     .modal input:focus, .modal textarea:focus {
-      border-color: #10b981;
+      border-color: var(--success);
       outline: none;
     }
     .modal .btn {
@@ -252,24 +252,24 @@
     }
 
     .floor-plan-room {
-      border: 1px solid #3f3f46;
-      background: #18181b;
-      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: var(--r-sm);
       padding: 6px;
       min-height: 70px;
-      transition: all 0.15s ease;
+      transition: all var(--d-fast) var(--ease-out);
     }
     .floor-plan-room.drop-target {
-      border-color: #10b981;
-      background: rgba(16, 185, 129, 0.1);
-      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+      border-color: var(--success);
+      background: rgba(var(--success-rgb), 0.1);
+      box-shadow: 0 0 0 2px rgba(var(--success-rgb), 0.3);
     }
     .light-pill {
       font-size: 10px;
       padding: 1px 4px;
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
       margin: 1px;
       display: inline-block;
       cursor: grab;
@@ -279,29 +279,29 @@
       opacity: 0.5;
     }
     .drop-target {
-      border-color: #10b981 !important;
-      background-color: rgba(16, 185, 129, 0.08) !important;
+      border-color: var(--success) !important;
+      background-color: rgba(var(--success-rgb), 0.08) !important;
     }
 
     .light-card {
-      background: #161a20;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
       padding: 1.25rem;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: var(--shadow-md);
+      transition: border-color var(--d-fast) var(--ease-out), box-shadow var(--d-fast) var(--ease-out);
       position: relative;
       overflow: hidden;
     }
     .light-card::before {
       content: '';
       position: absolute; inset: 0;
-      background: linear-gradient(135deg, rgba(74,222,128,0.06), transparent);
+      background: linear-gradient(135deg, rgba(var(--success-rgb), 0.06), transparent);
       opacity: 0; transition: opacity 500ms ease; pointer-events: none;
     }
     .light-card:hover {
-      border-color: rgba(74, 222, 128, 0.3);
-      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
+      border-color: rgba(var(--success-rgb), 0.3);
+      box-shadow: var(--shadow-lg);
     }
     .light-card:hover::before { opacity: 1; }
     .dragging {
@@ -309,9 +309,9 @@
       transform: scale(0.96);
     }
     .drop-target {
-      border-color: #10b981 !important;
-      background-color: rgba(16, 185, 129, 0.08) !important;
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+      border-color: var(--success) !important;
+      background-color: rgba(var(--success-rgb), 0.08) !important;
+      box-shadow: 0 0 0 3px rgba(var(--success-rgb), 0.15);
     }
     #light-detail {
       box-shadow: -8px 0 30px -10px rgb(0 0 0 / 0.6);
@@ -346,25 +346,25 @@
     .mode-toggle {
       display: inline-flex;
       font-size: 9px;
-      border: 1px solid #3f3f46;
-      border-radius: 6px;
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
       overflow: hidden;
-      background: #18181b;
+      background: var(--surface);
     }
     .mode-toggle button {
       padding: 3px 10px;
       min-height: 24px;
-      transition: all 0.1s ease;
+      transition: all var(--d-press) var(--ease-press);
       font-weight: 500;
-      border-radius: 4px;
+      border-radius: var(--r-sm);
     }
     .mode-toggle button.active {
-      background: #10b981;
-      color: #052e16;
+      background: var(--success);
+      color: var(--bg);
       font-weight: 600;
     }
     .mode-toggle button:not(.active):hover {
-      background: #27272a;
+      background: var(--surface-2);
     }
     .effect-grid {
       display: grid;
@@ -376,23 +376,23 @@
     .effect-btn {
       font-size: 13px;
       padding: 8px 12px;
-      border-radius: 10px;
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      color: #d4d4d8;
+      border-radius: var(--r-md);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      color: var(--text-2);
       text-align: left;
       transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
       min-height: 36px;
       line-height: 1.2;
     }
     .effect-btn:hover {
-      background: #3f3f46;
-      border-color: #52525b;
+      background: var(--line);
+      border-color: var(--line-strong);
       transform: translateY(-0.5px);
     }
     .effect-btn.active {
-      background: rgba(16, 185, 129, 0.18);
-      border-color: #10b981;
+      background: rgba(var(--success-rgb), 0.18);
+      border-color: var(--success);
       color: var(--text);
       font-weight: 500;
     }
@@ -403,8 +403,8 @@
     /* NeonDrift loader + aurora (consistent with DESIGN.md) */
     .neon-drift { display: inline-flex; gap: 6px; }
     .neon-drift .dot {
-      width: 6px; height: 6px; background: #4ade80; border-radius: 9999px;
-      box-shadow: 0 0 8px #4ade80; animation: neon-drift 1.2s infinite ease-in-out;
+      width: 6px; height: 6px; background: var(--success); border-radius: var(--r-full);
+      box-shadow: 0 0 8px var(--success); animation: neon-drift 1.2s infinite ease-in-out;
     }
     .neon-drift .dot:nth-child(2) { animation-delay: .2s; }
     .neon-drift .dot:nth-child(3) { animation-delay: .4s; }
@@ -414,8 +414,8 @@
     }
     .aurora-bg {
       position:absolute; inset:-20%;
-      background: radial-gradient(circle at 30% 20%, rgba(74,222,128,.08) 0%, transparent 50%),
-                  radial-gradient(circle at 70% 80%, rgba(96,165,250,.06) 0%, transparent 60%);
+      background: radial-gradient(circle at 30% 20%, rgba(var(--success-rgb), .08) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 80%, rgba(96, 165, 250, .06) 0%, transparent 60%);
       pointer-events:none; z-index:0; opacity:.55;
       animation: aurora-drift 18s ease-in-out infinite;
     }
@@ -434,7 +434,7 @@
       transform: translateY(-50%);
       width: 9px;
       height: 9px;
-      border: 1.5px solid #10b981;
+      border: 1.5px solid var(--success);
       border-right-color: transparent;
       border-radius: 50%;
       animation: ha-spin 0.7s linear infinite;
@@ -443,9 +443,9 @@
       to { transform: translateY(-50%) rotate(360deg); }
     }
     .effect-btn.success-flash {
-      border-color: #10b981;
-      background: rgba(16, 185, 129, 0.18);
-      transition: all 0.2s ease;
+      border-color: var(--success);
+      background: rgba(var(--success-rgb), 0.18);
+      transition: all var(--d-fast) var(--ease-out);
     }
     .mode-toggle button.applying {
       opacity: 0.6;
@@ -502,18 +502,18 @@
     /* Warm→cool color-temperature slider with a true gradient track + clear center */
     input.temp-slider {
       -webkit-appearance: none; appearance: none;
-      height: 10px; border-radius: 999px; outline: none;
-      background: linear-gradient(90deg, #f59e0b 0%, #fcd34d 30%, #f4f4f5 50%, #bae6fd 70%, #38bdf8 100%);
+      height: 10px; border-radius: var(--r-full); outline: none;
+      background: linear-gradient(90deg, var(--warn) 0%, var(--warn) 30%, var(--text) 50%, #bae6fd 70%, #38bdf8 100%);
     }
     input.temp-slider::-webkit-slider-thumb {
       -webkit-appearance: none; appearance: none;
       width: 20px; height: 20px; border-radius: 50%;
-      background: var(--text); border: 2px solid #52525b; cursor: pointer;
+      background: var(--text); border: 2px solid var(--line-strong); cursor: pointer;
       box-shadow: 0 1px 4px rgba(0,0,0,.5);
     }
     input.temp-slider::-moz-range-thumb {
       width: 20px; height: 20px; border-radius: 50%;
-      background: var(--text); border: 2px solid #52525b; cursor: pointer;
+      background: var(--text); border: 2px solid var(--line-strong); cursor: pointer;
     }
 
     /* WiZ-style room/light toggle switch.
@@ -522,8 +522,8 @@
        under the comfortable thumb target for the single most-tapped control
        on the most-used page of the site. */
     .wiz-toggle {
-      width: 44px; height: 26px; border-radius: var(--r-full, 999px); background: #3f3f46;
-      position: relative; flex: none; transition: background .18s ease; cursor: pointer;
+      width: 44px; height: 26px; border-radius: var(--r-full, 999px); background: var(--line);
+      position: relative; flex: none; transition: background var(--d-fast) ease; cursor: pointer;
       border: none; padding: 0;
       touch-action: manipulation;   /* no 350ms double-tap delay on the thing you tap most */
     }
@@ -532,7 +532,7 @@
       transform: translate(-50%, -50%);
       width: 48px; height: 44px;    /* the real target */
     }
-    .wiz-toggle.on { background: var(--accent, #10b981); }
+    .wiz-toggle.on { background: var(--accent, var(--success)); }
     .wiz-toggle span {
       position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
       border-radius: 50%; background: var(--text); transition: left .18s ease, transform 80ms cubic-bezier(0.2,0,0,1);
@@ -550,17 +550,17 @@
       z-index: 50;
     }
     .drop-target {
-      border-color: #10b981 !important;
-      background-color: rgba(16, 185, 129, 0.12) !important;
+      border-color: var(--success) !important;
+      background-color: rgba(var(--success-rgb), 0.12) !important;
       transform: scale(1.02);
     }
 
     /* Premium calm dark + skeletons + mobile app bar */
     .skeleton {
-      background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
       background-size: 200% 100%;
       animation: shimmer 1.2s ease-in-out infinite;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
     }
     @keyframes shimmer {
       0% { background-position: 200% 0; }
@@ -576,8 +576,8 @@
       right: 0;
       bottom: 0;
       z-index: 60;
-      background: #111113;
-      border-top: 1px solid #3f3f46;
+      background: var(--bg);
+      border-top: 1px solid var(--line);
       display: none; /* shown via media */
       padding-bottom: env(safe-area-inset-bottom);
     }
@@ -595,12 +595,12 @@
       justify-content: center;
       padding: 8px 4px 6px;
       font-size: 10px;
-      color: #a1a1aa;
+      color: var(--text-2);
       min-height: 56px;
-      transition: color 0.1s ease;
+      transition: color var(--d-press) var(--ease-press);
     }
     .bottom-nav-btn.active {
-      color: #10b981;
+      color: var(--success);
     }
     .bottom-nav-btn i {
       font-size: 18px;
@@ -613,20 +613,20 @@
     /* Desktop view switcher pills (consistent with bottom nav) */
     .view-switcher {
       display: inline-flex;
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 9999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-full);
       padding: 2px;
     }
     .view-switcher button {
       padding: 6px 14px;
       font-size: 12px;
-      border-radius: 9999px;
-      color: #a1a1aa;
-      transition: all 0.1s ease;
+      border-radius: var(--r-full);
+      color: var(--text-2);
+      transition: all var(--d-press) var(--ease-press);
     }
     .view-switcher button.active {
-      background: #27272a;
+      background: var(--surface-2);
       color: var(--text);
       box-shadow: 0 1px 2px rgba(0,0,0,0.3);
     }
@@ -635,16 +635,16 @@
     .filter-chip {
       font-size: 11px;
       padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid #3f3f46;
-      background: #18181b;
-      color: #d4d4d8;
+      border-radius: var(--r-full);
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text-2);
       min-height: 32px;
     }
     .filter-chip.active {
-      background: #10b981;
-      border-color: #10b981;
-      color: #052e16;
+      background: var(--success);
+      border-color: var(--success);
+      color: var(--bg);
       font-weight: 600;
     }
 
@@ -652,17 +652,17 @@
     .sync-indicator {
       font-size: 10px;
       padding: 1px 6px;
-      border-radius: 4px;
-      background: #27272a;
-      color: #71717a;
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      color: var(--text-3);
     }
 
     /* === Premium micro polish (Anime.js driven interactions + calmer hierarchy) === */
     .light-card {
-      transition: border-color 0.2s ease, box-shadow 0.2s ease; /* keep some, anime handles transform on tap */
+      transition: border-color var(--d-fast) var(--ease-out), box-shadow var(--d-fast) var(--ease-out); /* keep some, anime handles transform on tap */
     }
     .light-card:hover {
-      border-color: #52525b;
+      border-color: var(--line-strong);
     }
 
     /* Calmer, more refined spacing + visual hierarchy inside cards */
@@ -713,6 +713,53 @@
     #detail-title {
       letter-spacing: -0.2px;
     }
+
+    /* ── Design-token overrides for Tailwind utility drift ───────────────────
+       The body markup uses many Tailwind zinc/emerald/amber/red utilities and
+       raw bg-[#hex] arbitrary values predating tokens.css. Rather than rewrite
+       every class list on ~4000 lines of markup (high risk for the thumb-arc
+       control layout this page depends on), these overrides pin the same
+       classes to the token palette so colour/radius stay one system. Meaning
+       preserved: emerald/green = --success (on/live/good state), amber = --warn,
+       red = --danger, zinc = neutral text/surface/line scale. !important is
+       required because Tailwind's CDN stylesheet is injected at runtime and
+       can otherwise win the cascade over this static block. */
+    .bg-zinc-900, .bg-zinc-950, .bg-zinc-800,
+    .bg-\[\#0a0a0b\], .bg-\[\#111113\], .bg-\[\#101312\], .bg-\[\#141518\] { background-color: var(--bg) !important; }
+    .bg-zinc-700, .bg-\[\#18181b\] { background-color: var(--surface) !important; }
+    .bg-\[\#27272a\] { background-color: var(--surface-2) !important; }
+    .bg-\[\#122b22\] { background-color: var(--success-dim) !important; }
+    .bg-\[\#3f1f1f\] { background-color: rgba(248, 113, 113, 0.14) !important; }
+
+    .border-zinc-800, .border-zinc-700, .border-zinc-600 { border-color: var(--line) !important; }
+    .border-zinc-500 { border-color: var(--line-strong) !important; }
+
+    .text-zinc-100, .text-zinc-200, .text-zinc-300 { color: var(--text) !important; }
+    .text-zinc-400 { color: var(--text-2) !important; }
+    .text-zinc-500 { color: var(--text-3) !important; }
+
+    .text-emerald-100, .text-emerald-200, .text-emerald-300, .text-emerald-400 { color: var(--success) !important; }
+    .bg-emerald-500, .bg-emerald-600 { background-color: var(--success) !important; }
+    .bg-emerald-900 { background-color: var(--success-dim) !important; }
+    .border-emerald-400, .border-emerald-500 { border-color: var(--success) !important; }
+    .border-emerald-800, .border-emerald-900 { border-color: var(--success-line) !important; }
+
+    .text-amber-300, .text-amber-400 { color: var(--warn) !important; }
+    .bg-amber-500 { background-color: var(--warn) !important; }
+    .bg-amber-900 { background-color: rgba(245, 158, 11, 0.14) !important; }
+    .border-amber-500 { border-color: var(--warn) !important; }
+    .border-amber-900 { border-color: rgba(245, 158, 11, 0.32) !important; }
+
+    .text-red-300 { color: var(--danger) !important; }
+    .border-red-500 { border-color: var(--danger) !important; }
+
+    .rounded-2xl { border-radius: var(--r-lg) !important; }
+    .rounded-xl { border-radius: var(--r-md) !important; }
+    .rounded-lg { border-radius: var(--r-sm) !important; }
+
+    /* Retire tiny prose text below the readable floor; 10px stays reserved for
+       mono uppercase instrument labels only, per tokens.css --t-label. */
+    .text-\[8px\], .text-\[9px\] { font-size: var(--t-xs) !important; }
   </style>
   <!-- ?v= busts Cloudflare's long cache of /static/* so Guest Mode helpers ship with the HTML -->
   <script defer src="/static/os-command.js?v=20260710-guest1"></script>

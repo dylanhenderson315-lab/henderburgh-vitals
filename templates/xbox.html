@@ -9,6 +9,7 @@
   <meta property="og:description" content="Live Xbox status and recently played games.">
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/tokens.css?v=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -17,47 +18,56 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
+    /* Page-local aliases now resolve to the shared tokens (static/tokens.css)
+       instead of one-off hexes, so this page can't drift from the rest of the
+       OS again. --accent-green points at --success (on/live/good state), not
+       the brand --accent — this page's greens are all "playing now" style
+       signals, not identity. Old stack said `system_ui` (underscore), an
+       invalid keyword that silently dropped the system-font fallback. */
     :root {
-      --bg: #0f1115; --card: #161a20; --accent-green: #4ade80;
-      --text-primary: #e2e8f0; --text-secondary: #94a3b8;
+      --card: var(--surface);
+      --accent-green: var(--success);
+      --text-primary: var(--text);
+      --text-secondary: var(--text-2);
     }
     body {
-      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1115;
-      color: #e2e8f0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
     }
     .font-display {
-      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-family: var(--font-display);
     }
 
     .section-label {
-      font-size: 10px;
-      letter-spacing: 2.5px;
+      font-size: var(--t-label);
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: #737373;
+      color: var(--text-3);
       font-weight: 600;
+      font-family: var(--font-mono);
     }
 
     .card {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 14px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-sm);
+      transition: border-color var(--d-fast) var(--ease-out), box-shadow var(--d-fast) var(--ease-out);
     }
     .card:hover {
-      border-color: #52525b;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-md);
     }
 
     .nav-link {
-      color: #a1a1aa;
-      transition: color 0.15s ease;
+      color: var(--text-2);
+      transition: color var(--d-fast) var(--ease-out);
       font-weight: 500;
       font-size: 14px;
     }
     .nav-link:hover {
-      color: #f4f4f5;
+      color: var(--text);
     }
 
     .status-pill {
@@ -74,7 +84,7 @@
       border-radius: 22px;
       padding: 28px;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--line);
       min-height: 200px;
       display: flex;
       align-items: flex-end;
@@ -118,49 +128,51 @@
       color: #fff;
       position: relative;
     }
+    /* live/on-air indicator — this is a STATE signal ("playing now"), so it
+       uses --success, not the brand --accent (cyan). */
     .live-dot {
       display: inline-block;
       width: 8px; height: 8px;
-      border-radius: 9999px;
-      background: #4ade80;
-      box-shadow: 0 0 0 0 rgba(74,222,128,0.6);
+      border-radius: var(--r-full);
+      background: var(--success);
+      box-shadow: 0 0 0 0 rgba(var(--success-rgb),0.6);
       animation: livePulse 2s infinite;
     }
     @keyframes livePulse {
-      0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
-      70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
-      100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+      0% { box-shadow: 0 0 0 0 rgba(var(--success-rgb),0.5); }
+      70% { box-shadow: 0 0 0 8px rgba(var(--success-rgb),0); }
+      100% { box-shadow: 0 0 0 0 rgba(var(--success-rgb),0); }
     }
     .game-card {
-      background: #18181b;
-      border: 1px solid #27272a;
-      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
       overflow: hidden;
-      transition: border-color .2s ease, transform .2s ease;
+      transition: border-color var(--d-fast) var(--ease-out), transform var(--d-base) var(--ease-out);
     }
-    .game-card:hover { border-color: #3f3f46; transform: translateY(-2px); }
+    .game-card:hover { border-color: var(--line-strong); transform: translateY(-2px); }
     .game-cover {
       width: 100%;
       aspect-ratio: 16 / 9;
       object-fit: cover;
       display: block;
-      background: #0a0a0b;
+      background: var(--bg);
     }
     .game-info { padding: 12px 14px 14px; }
     .rank-bar {
       height: 6px;
-      border-radius: 9999px;
-      background: rgba(255,255,255,0.08);
+      border-radius: var(--r-full);
+      background: var(--line);
       overflow: hidden;
     }
-    .rank-bar > span { display:block; height:100%; border-radius:9999px; }
+    .rank-bar > span { display:block; height:100%; border-radius: var(--r-full); }
   </style>
   <script defer src="/static/os-command.js"></script>
   <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[#0a0a0b] text-zinc-200 antialiased">
+<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
   <!-- Header -->
-  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
+  <header class="border-b border-zinc-800 bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-50">
     <div class="max-w-[1080px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
         <a href="/" class="flex items-center gap-x-2.5 group">
@@ -189,16 +201,16 @@
   </header>
 
   <!-- Mobile bottom navigation (premium app-like, consistent site-wide) -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--surface)] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
     <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
-      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
-      <a href="/vitals" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
-      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
-      <a href="/model" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
-      <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
-      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
-      <a href="/xbox" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
-      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+      <a href="/" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
+      <a href="/golf" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/clips" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/xbox" class="hb-tap justify-center flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
+      <a href="/blog" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
     </div>
   </nav>
 
@@ -217,7 +229,7 @@
         </div>
         {% if is_admin %}
         <button id="reveal-toggle" type="button" data-on="{{ '1' if reveal_private else '0' }}"
-          class="flex-shrink-0 text-[11px] px-3 py-1.5 rounded-full border font-medium transition
+          class="hb-tap justify-center inline-flex items-center flex-shrink-0 text-[11px] px-3 py-1.5 rounded-full border font-medium transition
             {% if reveal_private %}bg-amber-500/15 border-amber-500/40 text-amber-300{% else %}bg-zinc-800/80 border-zinc-700 text-zinc-400{% endif %}">
           <i class="fa-solid {% if reveal_private %}fa-lock-open{% else %}fa-lock{% endif %} mr-1 text-[10px]"></i>
           {% if reveal_private %}Private view — work hours shown{% else %}Public view{% endif %}
@@ -308,8 +320,8 @@
           {% if replay.is_recent_fallback %}<span class="text-[11px] text-amber-400/80">· your most recent recorded day — open the Oura app to sync newer data</span>{% endif %}</p>
         </div>
         <div class="flex gap-1.5 flex-shrink-0">
-          <button id="rp-active" type="button" class="text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
-          <button id="rp-full" type="button" class="text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full day</button>
+          <button id="rp-active" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
+          <button id="rp-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full day</button>
         </div>
       </div>
       <div class="card p-5 sm:p-6">
@@ -317,7 +329,7 @@
         <p class="text-[13.5px] text-zinc-300 leading-relaxed mb-4 pb-4 border-b border-zinc-800/70">{{ replay.narration_html | safe }}</p>
         {% endif %}
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px]">
-          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.35);border:1px solid rgba(74,222,128,.7)"></span>gaming</span>
+          <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(var(--success-rgb),.35);border:1px solid rgba(var(--success-rgb),.7)"></span>gaming</span>
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(167,139,250,.3);border:1px solid rgba(167,139,250,.6)"></span>watching</span>
           {% if reveal_private %}<span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>{% endif %}
           <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
@@ -424,7 +436,7 @@
             <span class="text-sm font-medium text-zinc-200 truncate pr-3">{{ g.name }}</span>
             <span class="text-xs text-zinc-500 tabular-nums flex-shrink-0">{% if g.time %}{{ g.time }} · {% endif %}{{ g.pct }}%</span>
           </div>
-          <div class="rank-bar"><span style="width: {{ g.pct }}%; background: linear-gradient(90deg, #059669, #4ade80);"></span></div>
+          <div class="rank-bar"><span style="width: {{ g.pct }}%; background: linear-gradient(90deg, #059669, var(--success));"></span></div>
         </div>
         {% endfor %}
         {% if insights.true_sessions < 2 %}
@@ -526,7 +538,7 @@
       <div class="card overflow-hidden">
         <table class="w-full text-sm">
           <thead>
-            <tr class="bg-[#27272a]">
+            <tr class="bg-[var(--surface-2)]">
               <th class="text-left px-5 py-3 font-medium text-zinc-400">Game</th>
               <th class="text-left px-5 py-3 font-medium text-zinc-400">Seen</th>
             </tr>
@@ -748,9 +760,9 @@
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { labels: { color: '#a1a1aa', boxWidth: 10, font: { size: 11 } } },
+            legend: { labels: { color: '#a7b0bd', boxWidth: 10, font: { size: 11 } } },
             tooltip: {
-              backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
+              backgroundColor: '#0d131c', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
               callbacks: {
                 afterTitle: (items) => {
                   const g = P.top_game[items[0].dataIndex];
@@ -763,7 +775,7 @@
             }
           },
           scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, autoSkip: true } },
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7a8494', font: { size: 10 }, maxRotation: 0, autoSkip: true } },
             y: { position: 'left', beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#4ade80', font: { size: 10 }, callback: v => v + 'h' } },
             y2: { position: 'right', grid: { display: false }, ticks: { color: '#fb7185', font: { size: 10 }, callback: v => v + ' bpm' }, suggestedMin: 50, suggestedMax: 120 },
           }
@@ -780,8 +792,11 @@
       if (!cv || typeof Chart === 'undefined') return;
       const R = {{ replay | tojson if replay else '{}' }};
       if (!R.has_data || !R.points || !R.points.length) return;
+      // "game" = "this was a live/active session" -> the shared --success token,
+      // not the brand --accent. Read at runtime so it stays in sync with tokens.css.
+      const RP_SUCCESS_RGB = (getComputedStyle(document.documentElement).getPropertyValue('--success-rgb') || '74, 222, 128').trim();
       const BAND = {
-        game:    { fill: 'rgba(74,222,128,0.16)',  edge: 'rgba(74,222,128,0.55)',  text: '#86efac' },
+        game:    { fill: `rgba(${RP_SUCCESS_RGB},0.16)`,  edge: `rgba(${RP_SUCCESS_RGB},0.55)`,  text: '#86efac' },
         media:   { fill: 'rgba(167,139,250,0.16)', edge: 'rgba(167,139,250,0.55)', text: '#c4b5fd' },
         sleep:   { fill: 'rgba(96,165,250,0.10)',  edge: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
         workout: { fill: 'rgba(245,158,11,0.14)',  edge: 'rgba(245,158,11,0.45)',  text: '#fcd34d' },
@@ -908,7 +923,7 @@
         [btnA, btnF].forEach(b => {
           if (!b) return;
           const on = b === activeBtn;
-          b.className = 'text-[11px] px-3 py-1.5 rounded-full font-medium ' + (on
+          b.className = 'hb-tap text-[11px] px-3 py-1.5 rounded-full font-medium ' + (on
             ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
             : 'bg-zinc-800/80 border border-zinc-700 text-zinc-400');
         });
@@ -945,13 +960,13 @@
           plugins: {
             legend: { display: false },
             tooltip: {
-              backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
+              backgroundColor: '#0d131c', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
               callbacks: { label: (c) => ' ' + c.raw.toLocaleString() + ' G' }
             }
           },
           scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, maxTicksLimit: 7 } },
-            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, callback: v => v.toLocaleString() } },
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7a8494', font: { size: 10 }, maxRotation: 0, maxTicksLimit: 7 } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7a8494', font: { size: 10 }, callback: v => v.toLocaleString() } },
           }
         }
       });

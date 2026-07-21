@@ -7,17 +7,22 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <meta name="robots" content="noindex">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/tokens.css?v=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap');
-    body { font-family:'Inter',system-ui,sans-serif; background:#0f1115; color:#e2e8f0; }
-    .font-display { font-family:'Space Grotesk','Inter',sans-serif; }
-    .section-label { font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#737373; font-weight:600; }
-    .card { background:#161a20; border:1px solid #232830; border-radius:16px; }
-    .pill { font-size:11px; padding:2px 9px; border-radius:999px; font-weight:600; }
-    .heat { width:11px; height:16px; border-radius:2px; background:#1c2129; display:inline-block; }
-    a.nav { color:#94a3b8; } a.nav:hover { color:#e2e8f0; }
-    .swatch { width:14px; height:14px; border-radius:4px; display:inline-block; vertical-align:-2px; border:1px solid #333; }
+    /* Page-local aliases now resolve to the shared tokens (static/tokens.css)
+       instead of one-off hexes, so this page can't drift from the rest of the
+       OS again. */
+    body { font-family: var(--font-sans); background: var(--bg); color: var(--text); }
+    .font-display { font-family: var(--font-display); }
+    .section-label { font-family: var(--font-mono); font-size: var(--t-label); letter-spacing:2.5px; text-transform:uppercase; color: var(--text-3); font-weight:600; }
+    .card { background: var(--surface); border:1px solid var(--line); border-radius: var(--r-lg); }
+    .pill { font-size: var(--t-xs); padding:2px 9px; border-radius: var(--r-full); font-weight:600; }
+    .heat { width:11px; height:16px; border-radius: var(--r-sm); background: var(--surface-2); display:inline-block; }
+    a.nav { color: var(--text-2); } a.nav:hover { color: var(--text); }
+    .swatch { width:14px; height:14px; border-radius: var(--r-sm); display:inline-block; vertical-align:-2px; border:1px solid var(--line-strong); }
+    .hb-tap-inline { min-height: var(--tap-min); display: inline-flex; align-items: center; }
   </style>
 </head>
 <body class="min-h-screen">
@@ -27,19 +32,19 @@
         <div class="section-label">Private · {{ display_name }}</div>
         <h1 class="font-display text-2xl font-bold mt-1">House Insights</h1>
       </div>
-      <a href="/home-assistant" class="nav text-sm"><i class="fa-solid fa-arrow-left mr-1"></i>Lighting</a>
+      <a href="/home-assistant" class="hb-tap-inline nav text-sm"><i class="fa-solid fa-arrow-left mr-1"></i>Lighting</a>
     </div>
 
     <div id="lock" class="card p-8 text-center hidden">
-      <i class="fa-solid fa-lock text-2xl text-neutral-500 mb-3"></i>
-      <p class="text-neutral-300 mb-4">Unlock to see your house's patterns.</p>
+      <i class="fa-solid fa-lock text-2xl text-[var(--text-2)] mb-3"></i>
+      <p class="text-[var(--text)] mb-4">Unlock to see your house's patterns.</p>
       <input id="pin" type="password" inputmode="numeric" placeholder="Admin token"
-        class="bg-[#0f1115] border border-[#2a2f38] rounded-lg px-4 py-2 text-center outline-none focus:border-blue-500">
-      <button onclick="unlock()" class="ml-2 bg-blue-600 hover:bg-blue-500 rounded-lg px-4 py-2 font-semibold">Unlock</button>
-      <p id="lockerr" class="text-red-400 text-sm mt-3 hidden"></p>
+        class="hb-tap bg-[var(--bg)] border border-[var(--line)] rounded-lg px-4 py-2 text-center outline-none focus:border-[var(--accent)]">
+      <button onclick="unlock()" class="hb-tap ml-2 bg-[var(--accent-dim)] border border-[var(--accent-line)] text-[var(--accent)] hover:opacity-90 rounded-lg px-4 py-2 font-semibold">Unlock</button>
+      <p id="lockerr" class="text-[var(--danger)] text-sm mt-3 hidden"></p>
     </div>
 
-    <div id="loading" class="text-center text-neutral-500 py-16">
+    <div id="loading" class="text-center text-[var(--text-2)] py-16">
       <i class="fa-solid fa-circle-notch fa-spin text-xl"></i>
       <p class="mt-2 text-sm">Reading your house…</p>
     </div>
@@ -67,7 +72,7 @@ function heatRow(byhour){
   for(let h=0; h<24; h++){
     const v = byhour[h] ?? byhour[String(h)];
     const on = (v==null) ? null : v;
-    const bg = on==null ? '#1c2129' : `rgba(96,165,250,${0.12 + 0.88*(on/100)})`;
+    const bg = on==null ? 'var(--surface-2)' : `rgba(96,165,250,${0.12 + 0.88*(on/100)})`;
     const tip = on==null ? `${h}:00 no data` : `${h}:00 · ${on}% on`;
     cells += `<span class="heat" style="background:${bg}" title="${tip}"></span>`;
   }
@@ -77,11 +82,11 @@ function heatRow(byhour){
 function lookChip(label){
   const isHex = /^#[0-9a-f]{6}$/i.test(label||'');
   const sw = isHex ? `<span class="swatch" style="background:${label}"></span> ` : '';
-  return `<span class="pill bg-[#1c2129] text-neutral-200">${sw}${esc(label)}</span>`;
+  return `<span class="pill bg-[var(--surface-2)] text-[var(--text)]">${sw}${esc(label)}</span>`;
 }
 
 function strengthPill(s){
-  const map = {strong:['#16351f','#4ade80'], emerging:['#2a2410','#fbbf24'], weak:['#1c2129','#94a3b8']};
+  const map = {strong:['var(--success-dim)','var(--success)'], emerging:['rgba(245,158,11,0.14)','var(--warn)'], weak:['var(--surface-2)','var(--text-2)']};
   const [bg,fg] = map[s]||map.weak;
   return `<span class="pill" style="background:${bg};color:${fg}">${s}</span>`;
 }
@@ -94,15 +99,15 @@ function render(d){
   parts.push(`<div class="card p-5">
     <div class="section-label mb-2">Data Collection</div>
     <div class="flex items-end justify-between mb-2">
-      <div class="font-display text-3xl font-bold">${c.days_collected}<span class="text-neutral-500 text-lg font-normal"> / ${c.target_days} days</span></div>
-      <div class="text-right text-xs text-neutral-400">
+      <div class="font-display text-3xl font-bold">${c.days_collected}<span class="text-[var(--text-2)] text-lg font-normal"> / ${c.target_days} days</span></div>
+      <div class="text-right text-xs text-[var(--text-2)]">
         ${c.snapshots} snapshots · ${c.changes_logged} light changes<br>${c.commands_logged} voice commands
       </div>
     </div>
-    <div class="h-2 rounded-full bg-[#0f1115] overflow-hidden">
-      <div class="h-full rounded-full" style="width:${c.progress_pct}%;background:${c.ready?'#4ade80':'#60a5fa'}"></div>
+    <div class="h-2 rounded-full bg-[var(--bg)] overflow-hidden">
+      <div class="h-full rounded-full" style="width:${c.progress_pct}%;background:${c.ready?'var(--success)':'var(--info)'}"></div>
     </div>
-    <p class="text-xs mt-2 ${c.ready?'text-green-400':'text-neutral-400'}">
+    <p class="text-xs mt-2" style="color:${c.ready?'var(--success)':'var(--text-2)'}">
       ${c.ready ? '✓ A full week collected — ready to design automations from real patterns.'
                 : `Collecting… ${c.target_days - c.days_collected} more day(s) for a confident week of data. Watching ${c.hours_covered.length} hours/day.`}
     </p>
@@ -113,13 +118,13 @@ function render(d){
   parts.push(`<div class="card p-5">
     <div class="section-label mb-3">Candidate Automations · learned from what you actually do</div>
     ${cand.length ? cand.map(a=>`
-      <div class="flex items-center gap-3 py-2 border-b border-[#232830] last:border-0">
+      <div class="flex items-center gap-3 py-2 border-b border-[var(--line)] last:border-0">
         ${strengthPill(a.strength)}
         <div class="flex-1 text-sm">${esc(a.suggestion)}</div>
-        <div class="text-xs text-neutral-500 whitespace-nowrap">${a.days}d · ${a.count}×</div>
+        <div class="text-xs text-[var(--text-2)] whitespace-nowrap">${a.days}d · ${a.count}×</div>
       </div>`).join('')
-      : `<p class="text-sm text-neutral-500">No repeating patterns yet — they'll surface as you use the lights over the next few days.</p>`}
-    <p class="text-[11px] text-neutral-600 mt-3">Ranked by how many different days a pattern repeats. "Strong" = seen on 3+ days.</p>
+      : `<p class="text-sm text-[var(--text-2)]">No repeating patterns yet — they'll surface as you use the lights over the next few days.</p>`}
+    <p class="text-[var(--t-xs)] text-[var(--text-2)] mt-3">Ranked by how many different days a pattern repeats. "Strong" = seen on 3+ days.</p>
   </div>`);
 
   // What you set lights TO
@@ -127,10 +132,10 @@ function render(d){
   if(sp.length) parts.push(`<div class="card p-5">
     <div class="section-label mb-3">What You Set Each Light To</div>
     ${sp.slice(0,10).map(l=>`
-      <div class="flex items-center gap-3 py-2 border-b border-[#232830] last:border-0">
+      <div class="flex items-center gap-3 py-2 border-b border-[var(--line)] last:border-0">
         <div class="w-40 truncate text-sm">${esc(l.name)}</div>
-        <div class="flex-1 flex flex-wrap gap-1">${l.top_targets.map(t=>`${lookChip(t.look)}<span class="text-[10px] text-neutral-500 mr-2">${t.pct}%</span>`).join('')}</div>
-        <div class="text-xs text-neutral-500">${l.changes}×</div>
+        <div class="flex-1 flex flex-wrap gap-1">${l.top_targets.map(t=>`${lookChip(t.look)}<span class="text-[var(--t-xs)] text-[var(--text-2)] mr-2">${t.pct}%</span>`).join('')}</div>
+        <div class="text-xs text-[var(--text-2)]">${l.changes}×</div>
       </div>`).join('')}
   </div>`);
 
@@ -139,10 +144,10 @@ function render(d){
   parts.push(`<div class="card p-5">
     <div class="section-label mb-3">Light Profiles · on-rate by hour (0–23)</div>
     ${L.map(l=>`
-      <div class="py-2.5 border-b border-[#232830] last:border-0">
+      <div class="py-2.5 border-b border-[var(--line)] last:border-0">
         <div class="flex items-center justify-between mb-1.5">
-          <div class="text-sm font-medium">${esc(l.name)} ${l.room?`<span class="text-neutral-600 text-xs">· ${esc(l.room)}</span>`:''}</div>
-          <div class="flex items-center gap-2 text-xs text-neutral-400">
+          <div class="text-sm font-medium">${esc(l.name)} ${l.room?`<span class="text-[var(--text-2)] text-xs">· ${esc(l.room)}</span>`:''}</div>
+          <div class="flex items-center gap-2 text-xs text-[var(--text-2)]">
             ${l.favorite_look?lookChip(l.favorite_look):''}
             <span>${l.on_rate}% on</span>
             ${l.typical_brightness!=null?`<span>· ${l.typical_brightness}% bri</span>`:''}
@@ -156,8 +161,8 @@ function render(d){
   const un = d.unmet_requests||[];
   if(un.length) parts.push(`<div class="card p-5">
     <div class="section-label mb-3">Scenes You Asked For That Don't Exist Yet</div>
-    ${un.map(u=>`<div class="text-sm py-1 text-amber-300">"${esc(u.text)}" <span class="text-neutral-600 text-xs">· ${esc((u.ts||'').slice(0,10))}</span></div>`).join('')}
-    <p class="text-[11px] text-neutral-600 mt-2">Commands the parser didn't understand — each is a scene worth building.</p>
+    ${un.map(u=>`<div class="text-sm py-1 text-[var(--warn)]">"${esc(u.text)}" <span class="text-[var(--text-2)] text-xs">· ${esc((u.ts||'').slice(0,10))}</span></div>`).join('')}
+    <p class="text-[var(--t-xs)] text-[var(--text-2)] mt-2">Commands the parser didn't understand — each is a scene worth building.</p>
   </div>`);
 
   document.getElementById('report').innerHTML = parts.join('');
@@ -168,10 +173,10 @@ async function load(){
   try {
     const r = await fetch('/api/ha/insights');
     if(r.status===401 || r.status===403){ hide('loading'); show('lock'); return; }
-    if(!r.ok){ document.getElementById('loading').innerHTML = '<p class="text-red-400">Could not load insights.</p>'; return; }
+    if(!r.ok){ document.getElementById('loading').innerHTML = '<p class="text-[var(--danger)]">Could not load insights.</p>'; return; }
     render(await r.json());
   } catch(e){
-    document.getElementById('loading').innerHTML = '<p class="text-red-400">Network error.</p>';
+    document.getElementById('loading').innerHTML = '<p class="text-[var(--danger)]">Network error.</p>';
   }
 }
 load();

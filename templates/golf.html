@@ -9,58 +9,66 @@
   <meta property="og:description" content="Golf bag, rounds, and progress.">
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/tokens.css?v=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
+    /* Page-local aliases now resolve to the shared tokens (static/tokens.css)
+       instead of one-off hexes, so this page can't drift from the rest of the
+       OS again. Old stack said `system_ui` (underscore), an invalid keyword
+       that silently dropped the system-font fallback. */
     :root {
-      --bg: #0f1115; --card: #161a20; --accent-green: #4ade80;
-      --text-primary: #e2e8f0; --text-secondary: #94a3b8;
+      --card: var(--surface); --accent-green: var(--success);
+      --text-primary: var(--text); --text-secondary: var(--text-2);
     }
     body {
-      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1115;
-      color: #e2e8f0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
     }
     .font-display {
-      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-family: var(--font-display);
     }
 
     .section-label {
-      font-size: 10px;
+      font-family: var(--font-mono);
+      font-size: var(--t-label);
       letter-spacing: 2.5px;
       text-transform: uppercase;
-      color: #737373;
+      color: var(--text-3);
       font-weight: 600;
     }
 
     .card {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 14px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-sm);
+      transition: border-color var(--d-fast) ease, box-shadow var(--d-fast) ease;
     }
     .card:hover {
-      border-color: #52525b;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-md);
     }
 
     .stat-card {
-      background: #161a20;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
       padding: 18px 18px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      box-shadow: var(--shadow-sm);
     }
 
-    /* NeonDrift + aurora for consistency */
+    /* NeonDrift + aurora for consistency. These are decorative "system is
+       alive" motion, not a state readout, so they use --accent (brand cyan)
+       rather than --success. */
     .neon-drift { display: inline-flex; gap: 6px; }
-    .neon-drift .dot { width:6px;height:6px;background:#4ade80;border-radius:9999px;box-shadow:0 0 8px #4ade80;animation:neon-drift 1.2s infinite ease-in-out; }
+    .neon-drift .dot { width:6px;height:6px;background:var(--accent);border-radius:var(--r-full);box-shadow:0 0 8px var(--accent);animation:neon-drift 1.2s infinite ease-in-out; }
     .neon-drift .dot:nth-child(2){animation-delay:.2s}.neon-drift .dot:nth-child(3){animation-delay:.4s}
     @keyframes neon-drift{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1.1);opacity:1}}
-    .aurora-bg{position:absolute;inset:-20%;background:radial-gradient(circle at 30% 20%,rgba(74,222,128,.08) 0%,transparent 50%),radial-gradient(circle at 70% 80%,rgba(96,165,250,.06) 0%,transparent 60%);pointer-events:none;z-index:0;opacity:.55;animation:aurora-drift 18s ease-in-out infinite}
+    .aurora-bg{position:absolute;inset:-20%;background:radial-gradient(circle at 30% 20%,rgba(var(--accent-rgb),.08) 0%,transparent 50%),radial-gradient(circle at 70% 80%,rgba(96,165,250,.06) 0%,transparent 60%);pointer-events:none;z-index:0;opacity:.55;animation:aurora-drift 18s ease-in-out infinite}
     @keyframes aurora-drift{0%,100%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(2%,-3%) rotate(1deg)}}
 
     table {
@@ -70,86 +78,89 @@
 
     .distance-table td {
       padding: 10px 14px;
-      border-bottom: 1px solid #3f3f46;
+      border-bottom: 1px solid var(--line);
     }
 
     .distance-table td:first-child {
       font-weight: 500;
-      color: #e4e4e7;
+      color: var(--text);
     }
 
     .distance-table .distance-cell {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: #e4e4e7;
+      font-family: var(--font-mono);
+      color: var(--text);
       min-width: 70px;
     }
 
     .distance-cell:focus {
-      outline: 2px solid #52525b;
+      outline: 2px solid var(--line-strong);
       outline-offset: -2px;
-      background: #18181b;
-      border-radius: 4px;
+      background: var(--surface);
+      border-radius: var(--r-sm);
     }
 
     .round-card {
-      border: 1px solid #3f3f46;
-      border-radius: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
       padding: 14px 16px;
-      background: #18181b;
-      transition: all 0.15s ease;
+      background: var(--surface);
+      transition: border-color var(--d-fast) ease;
     }
 
     .round-card:hover {
-      border-color: #52525b;
+      border-color: var(--line-strong);
     }
 
     .form-input {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
       padding: 10px 14px;
       font-size: 14px;
-      color: #e4e4e7;
-      transition: border-color 0.15s;
+      color: var(--text);
+      min-height: var(--tap-min);
+      transition: border-color var(--d-fast) ease;
     }
     .form-input:focus {
-      border-color: #52525b;
+      border-color: var(--line-strong);
       outline: none;
-      background: #18181b;
+      background: var(--surface);
     }
 
     .btn {
-      background: #27272a;
-      color: #e4e4e7;
+      background: var(--surface-2);
+      color: var(--text);
       font-weight: 500;
       padding: 10px 18px;
-      border-radius: 10px;
+      border-radius: var(--r-sm);
       font-size: 14px;
-      border: 1px solid #3f3f46;
-      transition: all 0.2s;
+      border: 1px solid var(--line);
+      min-height: var(--tap-min);
+      transition: background var(--d-fast) ease, border-color var(--d-fast) ease;
     }
     .btn:hover {
-      background: #3f3f46;
-      border-color: #52525b;
+      background: var(--line-strong);
+      border-color: var(--line-strong);
     }
     .btn-secondary {
-      background: #18181b;
-      color: #e4e4e7;
-      border: 1px solid #3f3f46;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--line);
+      min-height: var(--tap-min);
     }
     .btn-secondary:hover {
-      background: #27272a;
-      border-color: #52525b;
+      background: var(--surface-2);
+      border-color: var(--line-strong);
     }
 
     .nav-link {
-      color: #a1a1aa;
-      transition: color 0.15s ease;
+      color: var(--text-2);
+      transition: color var(--d-fast) ease;
       font-weight: 500;
       font-size: 14px;
     }
     .nav-link:hover {
-      color: #f4f4f5;
+      color: var(--text);
     }
     .nav-link.active {
       color: #fff;
@@ -159,9 +170,9 @@
   <script defer src="/static/os-command.js"></script>
   <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[#0a0a0b] text-zinc-200 antialiased">
+<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
   <!-- Header -->
-  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
+  <header class="border-b border-zinc-800 bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-50">
     <div class="max-w-[1080px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
         <a href="/" class="flex items-center gap-x-2.5 group">
@@ -184,23 +195,23 @@
 
         <!-- Mobile bottom nav for app-like OS feel -->
         <div class="md:hidden">
-          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800">← Home</a>
+          <a href="/" class="hb-tap inline-flex items-center text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800">← Home</a>
         </div>
       </div>
     </div>
   </header>
 
   <!-- Mobile bottom navigation (premium top-tier app on phone, consistent across site) -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--surface)] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
     <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
-      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
-      <a href="/vitals" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
-      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
-      <a href="/model" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
-      <a href="/golf" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
-      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
-      <a href="/xbox" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
-      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+      <a href="/" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
+      <a href="/golf" class="hb-tap justify-center flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/clips" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/xbox" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
+      <a href="/blog" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
     </div>
   </nav>
 
@@ -237,7 +248,7 @@
           <!-- Populated by JavaScript (header + rows) -->
         </table>
       </div>
-      <p class="text-[11px] text-zinc-500 mt-2 px-1">Changes save automatically to the server.</p>
+      <p class="text-[var(--t-xs)] text-[var(--text-2)] mt-2 px-1">Changes save automatically to the server.</p>
     </div>
 
     <!-- Log New Round -->
@@ -325,15 +336,15 @@
       <div class="card p-5">
         <div class="flex items-center justify-between mb-4 px-1">
           <div class="font-medium">Recent Rounds</div>
-          <button onclick="clearAllRounds()" 
-                  class="text-xs text-red-500 hover:text-red-600 px-3 py-1">Clear all</button>
+          <button onclick="clearAllRounds()"
+                  class="hb-tap text-xs text-[var(--danger)] hover:opacity-80 px-3 py-1">Clear all</button>
         </div>
 
         <div id="rounds-list" class="space-y-3">
           <!-- Populated by JavaScript -->
         </div>
 
-        <div id="no-rounds" class="hidden text-center py-6 text-zinc-500 text-sm">
+        <div id="no-rounds" class="hidden text-center py-6 text-[var(--text-2)] text-sm">
           No rounds logged yet. Add your first round above.
         </div>
       </div>
@@ -341,7 +352,7 @@
   </main>
 
   <footer class="max-w-[1080px] mx-auto px-6 pb-10">
-    <div class="border-t border-zinc-800 pt-6 text-xs text-zinc-500 text-center">
+    <div class="border-t border-zinc-800 pt-6 text-xs text-[var(--text-2)] text-center">
       Club distances saved on server • Rounds stored in your browser • HENDERBURGH Golf
     </div>
   </footer>
@@ -416,7 +427,7 @@
     function renderClubs() {
       const table = document.getElementById('clubs-table');
       table.innerHTML = `
-        <tr class="bg-[#27272a]">
+        <tr class="bg-[var(--surface-2)]">
           <th class="text-left px-5 py-3 font-medium text-zinc-400 w-1/2">Club</th>
           <th class="text-left px-5 py-3 font-medium text-zinc-400">Distance (yards)</th>
           <th class="w-10"></th>
@@ -436,8 +447,8 @@
             <span class="text-zinc-400 text-xs ml-1">yds</span>
           </td>
           <td class="text-right pr-4">
-            <button onclick="deleteClub(${index})" 
-                    class="text-zinc-400 hover:text-red-400 text-lg leading-none px-2">×</button>
+            <button onclick="deleteClub(${index})"
+                    class="hb-tap text-[var(--text-2)] hover:text-[var(--danger)] text-lg leading-none px-2">×</button>
           </td>
         `;
 
@@ -497,7 +508,7 @@
     function showSavedFeedback() {
       const feedback = document.createElement('span');
       feedback.textContent = ' Saved';
-      feedback.style.color = '#22c55e';
+      feedback.style.color = getComputedStyle(document.documentElement).getPropertyValue('--success').trim() || '#4ade80';
       feedback.style.marginLeft = '8px';
       feedback.style.fontSize = '12px';
       document.body.appendChild(feedback);
@@ -647,8 +658,8 @@
             ${meta ? `<div class="mt-1">${meta}</div>` : ''}
             ${round.notes ? `<div class="text-xs text-zinc-400 mt-1 italic">"${round.notes}"</div>` : ''}
           </div>
-          <button onclick="deleteRound(${round.id})" 
-                  class="text-red-300 hover:text-red-500 text-xl leading-none px-2 self-start sm:self-center">×</button>
+          <button onclick="deleteRound(${round.id})"
+                  class="hb-tap text-[var(--danger)] hover:opacity-80 text-xl leading-none px-2 self-start sm:self-center">×</button>
         `;
         container.appendChild(div);
       });

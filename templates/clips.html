@@ -9,45 +9,51 @@
   <meta property="og:description" content="Game clips and highlights.">
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/tokens.css?v=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
+    /* Page-local aliases now resolve to the shared tokens (static/tokens.css)
+       instead of one-off hexes, so this page can't drift from the rest of the
+       OS again. Old stack said `system_ui` (underscore), an invalid keyword
+       that silently dropped the system-font fallback. */
     :root {
-      --bg: #0f1115; --card: #161a20; --accent-green: #4ade80;
-      --text-primary: #e2e8f0; --text-secondary: #94a3b8;
+      --card: var(--surface); --accent-green: var(--success);
+      --text-primary: var(--text); --text-secondary: var(--text-2);
     }
     body {
-      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1115;
-      color: #e2e8f0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
     }
     .font-display {
-      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-family: var(--font-display);
     }
 
     .section-label {
-      font-size: 10px;
+      font-family: var(--font-mono);
+      font-size: var(--t-label);
       letter-spacing: 2.5px;
       text-transform: uppercase;
-      color: #737373;
+      color: var(--text-3);
       font-weight: 600;
     }
 
     .clip-card {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
       overflow: hidden;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      transition: border-color var(--d-fast) var(--ease-out), box-shadow var(--d-fast) var(--ease-out);
       position: relative;
     }
 
     .clip-card:hover {
-      border-color: #52525b;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-md);
     }
 
     .clip-card video, .clip-card img.clip-media {
@@ -67,48 +73,50 @@
       font-size: 15px;
       line-height: 1.3;
       margin-bottom: 4px;
-      color: #f4f4f5;
+      color: var(--text);
     }
 
     .clip-meta .date {
-      font-size: 12px;
-      color: #a1a1aa;
+      font-size: var(--t-xs);
+      color: var(--text-2);
     }
 
     .upload-zone {
-      border: 1px dashed #3f3f46;
-      border-radius: 1.5rem;
-      background: linear-gradient(180deg, #141518 0%, #101114 100%);
-      transition: border-color .2s, background .2s;
+      border: 1px dashed var(--line);
+      border-radius: var(--r-lg);
+      background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+      transition: border-color var(--d-fast) ease, background var(--d-fast) ease;
     }
+    /* Drag/upload are in-progress interactive states (not yet a completed
+       "success"), so they use --accent, not --success. */
     .upload-zone.dragover {
-      border-color: rgba(74, 222, 128, .55);
-      background: rgba(16, 185, 129, .06);
+      border-color: var(--accent-line);
+      background: var(--accent-dim);
     }
     .upload-zone.uploading {
-      border-color: rgba(74, 222, 128, .35);
+      border-color: var(--accent-line);
     }
 
     .btn-primary {
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      color: #a7f3d0;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-line);
+      color: var(--accent);
       font-weight: 600;
-      border-radius: 9999px;
+      border-radius: var(--r-full);
       padding: 12px 18px;
       font-size: 14px;
       min-height: 48px;
-      transition: all .15s;
+      transition: transform var(--d-fast) ease, opacity var(--d-fast) ease;
     }
     .btn-primary:active { transform: scale(0.98); }
     .btn-primary:disabled { opacity: .5; pointer-events: none; }
 
     .btn-ghost {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      color: #d4d4d8;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--text-2);
       font-weight: 500;
-      border-radius: 9999px;
+      border-radius: var(--r-full);
       padding: 10px 16px;
       font-size: 13px;
       min-height: 44px;
@@ -116,28 +124,30 @@
 
     .progress-bar {
       height: 4px;
-      border-radius: 9999px;
-      background: #27272a;
+      border-radius: var(--r-full);
+      background: var(--surface-2);
       overflow: hidden;
     }
     .progress-bar > span {
       display: block;
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #059669, #4ade80);
-      transition: width .2s ease;
+      background: var(--accent);
+      transition: width var(--d-fast) ease;
     }
 
+    /* Delete is destructive, not brand/state, so it uses --danger. Bumped to
+       the 44px touch-target minimum (was 36px). */
     .clip-delete {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 36px;
-      height: 36px;
-      border-radius: 9999px;
+      top: 8px;
+      right: 8px;
+      width: 44px;
+      height: 44px;
+      border-radius: var(--r-full);
       background: rgba(0,0,0,.65);
-      border: 1px solid rgba(255,255,255,.12);
-      color: #fda4af;
+      border: 1px solid var(--line);
+      color: var(--danger);
       display: none;
       align-items: center;
       justify-content: center;
@@ -146,13 +156,14 @@
     body.admin-mode .clip-delete { display: flex; }
     body.admin-mode #link-zone { display: block !important; }
 
+    /* Admin-unlocked chip signals an "on" state, so it uses --success. */
     .admin-chip {
       font-size: 11px;
       padding: 4px 10px;
-      border-radius: 9999px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #a7f3d0;
+      border-radius: var(--r-full);
+      background: var(--success-dim);
+      border: 1px solid var(--success-line);
+      color: var(--success);
     }
 
     /* Mobile: keep content above bottom nav */
@@ -163,8 +174,8 @@
   <script src="/static/auth.js?v=20260710-guest2"></script>
   <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[#0a0a0b] text-zinc-200 antialiased">
-  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
+<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
+  <header class="border-b border-zinc-800 bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-50">
     <div class="max-w-[1080px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
         <a href="/" class="flex items-center gap-x-2.5 group">
@@ -192,16 +203,16 @@
     </div>
   </header>
 
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--surface)] border-t border-zinc-800 pb-safe" style="padding-bottom: env(safe-area-inset-bottom, 0);">
     <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
-      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
-      <a href="/vitals" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
-      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
-      <a href="/model" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
-      <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
-      <a href="/clips" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
-      <a href="/xbox" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
-      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+      <a href="/" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
+      <a href="/golf" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/clips" class="hb-tap justify-center flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/xbox" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
+      <a href="/blog" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
     </div>
   </nav>
 
@@ -229,15 +240,15 @@
       <div class="flex flex-col sm:flex-row sm:items-center gap-4">
         <div class="flex-1 min-w-0">
           <div class="text-sm font-semibold text-zinc-100 mb-1">
-            <i class="fa-solid fa-cloud-arrow-up text-emerald-400 mr-1.5"></i>
+            <i class="fa-solid fa-cloud-arrow-up text-[var(--accent)] mr-1.5"></i>
             Upload a clip
           </div>
-          <div class="text-xs text-zinc-500 leading-relaxed" id="upload-hint">
+          <div class="text-xs text-[var(--text-2)] leading-relaxed" id="upload-hint">
             Unlock as admin, then pick a video or photo from your camera roll. Saved to the same permanent clips folder as before.
           </div>
           <div class="mt-3 hidden" id="title-row">
             <input id="clip-title" type="text" placeholder="Optional title (e.g. Clutch 1v3)"
-                   class="w-full sm:max-w-md bg-[#0f1115] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50"
+                   class="w-full sm:max-w-md bg-[var(--bg)] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[var(--accent)]/50"
                    autocomplete="off">
           </div>
           <div class="mt-3 hidden" id="progress-wrap">
@@ -255,7 +266,7 @@
             <span>Choose from phone</span>
             <input id="file-input" type="file" accept="video/*,image/*,.mp4,.mov,.webm,.m4v,.jpg,.jpeg,.png,.webp,.gif" class="hidden" disabled>
           </label>
-          <div class="text-[10px] text-zinc-600 text-center sm:text-right">mp4 · mov · webm · photos · max 200&nbsp;MB</div>
+          <div class="text-xs text-zinc-600 text-center sm:text-right">mp4 · mov · webm · photos · max 200&nbsp;MB</div>
         </div>
       </div>
     </div>
@@ -266,21 +277,21 @@
       <div class="flex flex-col sm:flex-row sm:items-end gap-4">
         <div class="flex-1 min-w-0">
           <div class="text-sm font-semibold text-zinc-100 mb-1">
-            <i class="fa-solid fa-cloud text-sky-400 mr-1.5"></i>
+            <i class="fa-solid fa-cloud text-[var(--info)] mr-1.5"></i>
             Add a large video (R2 link)
           </div>
-          <div class="text-xs text-zinc-500 leading-relaxed mb-3">
+          <div class="text-xs text-[var(--text-2)] leading-relaxed mb-3">
             For big files (like the wedding video). Upload it to your R2 bucket, then just type its
             filename below. Streams free, no size limit.
           </div>
-          <div class="flex items-stretch mb-2 rounded-xl overflow-hidden border border-zinc-700 focus-within:border-sky-500/50 bg-[#0f1115]">
-            <span class="flex items-center px-3 text-xs text-zinc-500 bg-[#15181d] border-r border-zinc-700 select-none whitespace-nowrap">media.henderburgh.com/</span>
+          <div class="flex items-stretch mb-2 rounded-xl overflow-hidden border border-zinc-700 focus-within:border-[var(--info)]/50 bg-[var(--bg)]">
+            <span class="flex items-center px-3 text-xs text-zinc-500 bg-[var(--surface-2)] border-r border-zinc-700 select-none whitespace-nowrap">media.henderburgh.com/</span>
             <input id="link-url" type="text" inputmode="url" placeholder="wedding.mp4"
                    class="flex-1 min-w-0 bg-transparent px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none"
                    autocomplete="off">
           </div>
           <input id="link-title" type="text" placeholder="Optional title (e.g. Our Wedding)"
-                 class="w-full sm:max-w-md bg-[#0f1115] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50"
+                 class="w-full sm:max-w-md bg-[var(--bg)] border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[var(--info)]/50"
                  autocomplete="off">
           <div id="link-status" class="text-xs mt-2 hidden"></div>
         </div>
@@ -318,7 +329,7 @@
       if (!el) return;
       if (!msg) { el.classList.add('hidden'); el.textContent = ''; return; }
       el.classList.remove('hidden');
-      el.className = 'text-xs mt-2 ' + (isError ? 'text-rose-300' : 'text-emerald-300');
+      el.className = 'text-xs mt-2 ' + (isError ? 'text-[var(--danger)]' : 'text-[var(--success)]');
       el.textContent = msg;
     }
 
@@ -457,7 +468,7 @@
       const url = (urlEl.value || '').trim();
       const showStatus = (msg, bad) => {
         statusEl.textContent = msg;
-        statusEl.className = 'text-xs mt-2 ' + (bad ? 'text-rose-400' : 'text-emerald-400');
+        statusEl.className = 'text-xs mt-2 ' + (bad ? 'text-[var(--danger)]' : 'text-[var(--success)]');
         statusEl.classList.remove('hidden');
       };
       if (!url || /\s/.test(url)) { showStatus('Type the filename, e.g. wedding.mp4', true); return; }

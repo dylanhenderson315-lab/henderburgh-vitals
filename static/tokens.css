@@ -28,24 +28,48 @@
 
 :root {
   /* ── Colour ───────────────────────────────────────────────────────────────
-     ONE neutral ramp (zinc-derived — it was already the dominant family), one
-     accent, one info. Backgrounds are charcoal, never pure #000: on OLED phones
-     pure black smears during scroll and makes "off" states invisible. */
-  --bg:            #0a0a0b;   /* page */
-  --surface:       #131316;   /* card / panel */
-  --surface-2:     #1a1a1f;   /* raised, hover, input */
-  --surface-3:     #232329;   /* pressed / active well */
+     Navy scale (ported from the homepage, templates/home-concept.html) is now
+     the one background family — it replaces the older charcoal/zinc ramp.
+     Backgrounds are never pure #000: on OLED phones pure black smears during
+     scroll and makes "off" states invisible. */
+  --navy-0:        #0a0e17;   /* page */
+  --navy-1:        #0d131c;   /* card / panel */
+  --navy-2:        #141b26;   /* raised, hover, input */
+  --navy-3:        #1a2330;   /* pressed / active well */
+
+  --bg:            var(--navy-0);
+  --surface:       var(--navy-1);
+  --surface-2:     var(--navy-2);
+  --surface-3:     var(--navy-3);
 
   --line:          rgba(255, 255, 255, 0.08);   /* default hairline */
   --line-strong:   rgba(255, 255, 255, 0.14);   /* emphasised border */
 
-  --text:          #e8e8ea;   /* primary — headings, numbers */
-  --text-2:        #a1a1aa;   /* secondary — passes AA at all sizes */
-  --text-3:        #71717a;   /* tertiary — >=12px incidental text ONLY */
+  --text:          #e8edf2;   /* primary — headings, numbers */
+  --text-2:        #a7b0bd;   /* secondary — passes AA at all sizes */
+  --text-3:        #7a8494;   /* tertiary — >=12px incidental text ONLY */
 
-  --accent:        #4ade80;   /* the one green: live, on, success */
-  --accent-dim:    rgba(74, 222, 128, 0.14);
-  --accent-line:   rgba(74, 222, 128, 0.32);
+  /* PRIMARY accent = cyan (from the homepage). Use for brand, links, focus
+     rings, active nav, and any "this is interactive / this is us" moment.
+     --success (the old --accent green) is now reserved for "on / live / good"
+     STATE — a different meaning than brand, kept as its own token so the two
+     don't collide as pages migrate onto this file. Existing templates built
+     against var(--accent) meaning "good/on" keep working unchanged until
+     their migration pass swaps those specific usages to var(--success); both
+     tokens are valid simultaneously so that migration is zero-regression. */
+  --accent:        #5EEAD4;   /* cyan — primary/brand */
+  --accent-rgb:    94, 234, 212;
+  --accent-dim:    rgba(94, 234, 212, 0.14);
+  --accent-line:   rgba(94, 234, 212, 0.32);
+
+  --success:       #4ade80;   /* emerald — on / live / good state only */
+  --success-rgb:   74, 222, 128;
+  --success-dim:   rgba(74, 222, 128, 0.14);
+  --success-line:  rgba(74, 222, 128, 0.32);
+
+  --amber:         #FFB454;   /* second accent — highlight, secondary stat */
+  --violet:        #8B7FFF;   /* third accent — tertiary stat, rare use */
+
   --info:          #60a5fa;   /* the one blue: links, secondary state */
   --warn:          #f59e0b;   /* stale data, needs attention */
   --danger:        #f87171;   /* failure, destructive */
@@ -56,7 +80,7 @@
      read as an instrument rather than a web page. */
   --font-sans:    'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-  --font-mono:    'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  --font-mono:    'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 
   --t-label: 0.625rem;  /* 10px — MONO UPPERCASE LABELS ONLY, never prose */
   --t-xs:    0.75rem;   /* 12px — smallest readable incidental text */
@@ -153,13 +177,47 @@
 
 /* Live/state dots -----------------------------------------------------------*/
 .hb-dot { width: 6px; height: 6px; border-radius: var(--r-full); flex-shrink: 0; display: inline-block; }
-.hb-dot-live   { background: var(--accent); animation: hb-pulse 2.4s ease-in-out infinite; }
+.hb-dot-live   { background: var(--success); animation: hb-pulse 2.4s ease-in-out infinite; }
 .hb-dot-stale  { background: var(--warn); }
 .hb-dot-off    { background: var(--text-3); }
 @keyframes hb-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.45); }
-  50%      { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--success-rgb), 0.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(var(--success-rgb), 0); }
 }
+
+/* ============================================================================
+   SHARED CHROME — sticky top bar used by templates/partials/chrome.html.
+   Ported from the homepage's ticker bar so every page opens on the same
+   instrument-panel language. See that partial for markup/usage.
+   ========================================================================== */
+.hb-chrome {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  display: flex; align-items: center; gap: 22px;
+  padding: 14px 24px;
+  background: rgba(10, 14, 23, 0.82);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-x: auto; white-space: nowrap;
+}
+.hb-chrome-brand {
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 14px; letter-spacing: 0.04em; color: var(--text);
+  text-decoration: none; flex-shrink: 0;
+}
+.hb-chrome-nav { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
+.hb-chrome-nav a {
+  color: var(--text-3); text-decoration: none; font-size: 12px;
+  padding: 6px 10px; border-radius: var(--r-sm);
+  transition: color var(--d-fast) ease, background var(--d-fast) ease;
+}
+.hb-chrome-nav a:hover { color: var(--text); background: var(--surface-2); }
+.hb-chrome-nav a.active { color: var(--accent); background: var(--accent-dim); }
+.hb-chrome-spacer { flex: 1; }
+/* Body offset so fixed chrome never overlaps page content — pages that used
+   their own hero padding-top should drop it in favour of this one class. */
+.hb-chrome-offset { padding-top: 56px; }
 
 /* Touch target guarantee ----------------------------------------------------*/
 .hb-tap { min-height: var(--tap-min); min-width: var(--tap-min); }

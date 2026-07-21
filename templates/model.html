@@ -10,80 +10,93 @@
   <meta property="og:type" content="website">
   <meta name="description" content="3D spatial home replica foundation — precise placement of lights, furniture and TVs using real dimensions.">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/tokens.css?v=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
 
+    /* Page-local aliases now resolve to the shared tokens (static/tokens.css)
+       instead of one-off hexes, so this page can't drift from the rest of the
+       OS again. Old stack said `system_ui` (underscore), an invalid keyword
+       that silently dropped the system-font fallback.
+       NOTE: this page renders a three.js scene on #model-canvas — none of the
+       WebGL scene/material/light colors are touched here, only the
+       surrounding chrome (nav, cards, palette, inspector, labels). */
     :root {
-      --bg: #0f1115;
-      --card: #161a20;
-      --accent-green: #4ade80;
-      --accent-blue: #60a5fa;
-      --text-primary: #e2e8f0;
-      --text-secondary: #94a3b8;
+      --card: var(--surface);
+      --accent-green: var(--success);
+      --accent-blue: var(--info);
+      --text-primary: var(--text);
+      --text-secondary: var(--text-2);
     }
 
     body {
-      font-family: 'Inter', system_ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1115;
-      color: #e2e8f0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
     }
 
     .font-display {
-      font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+      font-family: var(--font-display);
       font-feature-settings: "ss02";
     }
 
     .section-label {
-      font-size: 10px;
+      font-family: var(--font-mono);
+      font-size: var(--t-label);
       letter-spacing: 2.8px;
       text-transform: uppercase;
-      color: #525252;
+      color: var(--text-3);
       font-weight: 600;
     }
 
     .card {
-      background: #161a20;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 1.5rem;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-md);
     }
 
     .model-canvas, .editor-2d {
       display: block;
       width: 100%;
       height: 100%;
-      border-radius: 1rem;
-      background: #0a0a0b;
+      border-radius: var(--r-md);
+      background: var(--bg);
       touch-action: none;
     }
 
+    /* Selection/active state on pills & tabs is "this is currently chosen",
+       the same meaning as active nav — brand accent (cyan), not --success. */
     .room-pill {
-      background: #27272a;
-      border: 1px solid #3f3f46;
-      color: #e4e4e7;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      color: var(--text);
       padding: 6px 16px;
-      border-radius: 9999px;
+      border-radius: var(--r-full);
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all var(--d-fast) ease;
       white-space: nowrap;
+      min-height: var(--tap-min);
+      display: inline-flex;
+      align-items: center;
     }
-    .room-pill:hover { border-color: #52525b; }
+    .room-pill:hover { border-color: var(--line-strong); }
     .room-pill.active {
-      background: #052e16;
-      border-color: #4ade80;
-      color: #4ade80;
+      background: var(--accent-dim);
+      border-color: var(--accent-line);
+      color: var(--accent);
     }
 
     .obj-chip {
-      background: #18181b;
-      border: 1px solid #3f3f46;
+      background: var(--surface);
+      border: 1px solid var(--line);
       padding: 6px 10px;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       font-size: 11px;
       font-weight: 500;
       cursor: pointer;
@@ -92,82 +105,92 @@
       align-items: center;
       gap: 6px;
       user-select: none;
+      min-height: var(--tap-min);
     }
-    .obj-chip:hover { border-color: #4ade80; transform: translateY(-1px); }
-    .obj-chip.active { border-color: #4ade80; background: #052e16; color: #4ade80; }
+    .obj-chip:hover { border-color: var(--accent-line); transform: translateY(-1px); }
+    .obj-chip.active { border-color: var(--accent-line); background: var(--accent-dim); color: var(--accent); }
 
     .obj-chip .swatch {
       width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--line-strong);
     }
 
     .inspector {
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
       padding: 14px;
     }
 
-    #ambient-toggle.amb-on { background:#3f2d04; border-color:#a16207; color:#fde68a; }
+    /* Ambient preview "on" is a genuine live/state toggle, distinct from
+       selection — kept in the warm/amber family it already used. */
+    #ambient-toggle.amb-on { background: rgba(245,158,11,0.14); border-color: var(--warn); color: #fde68a; }
     .height-btn, .temp-btn {
       padding: 4px 10px;
       font-size: 11px;
-      border-radius: 6px;
-      border: 1px solid #3f3f46;
-      background: #27272a;
-      color: #e4e4e7;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      color: var(--text);
       transition: all 0.1s;
       cursor: pointer;
+      min-height: var(--tap-min);
     }
     .height-btn.active, .temp-btn.active {
-      background: #052e16;
-      border-color: #4ade80;
-      color: #4ade80;
+      background: var(--accent-dim);
+      border-color: var(--accent-line);
+      color: var(--accent);
     }
 
     .three-legend {
-      font-size: 10px;
-      color: #52525b;
+      font-size: var(--t-xs);
+      color: var(--text-3);
     }
 
     .spatial-card {
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+      box-shadow: var(--shadow-md);
     }
 
     .layer-toggle {
       font-size: 11px;
       padding: 2px 8px;
-      border-radius: 9999px;
-      border: 1px solid #3f3f46;
-      background: #27272a;
+      border-radius: var(--r-full);
+      border: 1px solid var(--line);
+      background: var(--surface-2);
       cursor: pointer;
       transition: all .1s;
+      min-height: var(--tap-min);
+      display: inline-flex;
+      align-items: center;
     }
     .layer-toggle.active {
-      background: #052e16;
-      border-color: #4ade80;
-      color: #4ade80;
+      background: var(--accent-dim);
+      border-color: var(--accent-line);
+      color: var(--accent);
     }
 
     .view-tab {
       padding: 4px 12px;
       font-size: 12px;
-      border-radius: 9999px;
-      border: 1px solid #3f3f46;
-      background: #27272a;
+      border-radius: var(--r-full);
+      border: 1px solid var(--line);
+      background: var(--surface-2);
       cursor: pointer;
       transition: all .1s;
+      min-height: var(--tap-min);
+      display: inline-flex;
+      align-items: center;
     }
     .view-tab.active {
-      background: #052e16;
-      border-color: #4ade80;
-      color: #4ade80;
+      background: var(--accent-dim);
+      border-color: var(--accent-line);
+      color: var(--accent);
     }
   </style>
   <script defer src="/static/os-command.js"></script>
 </head>
-<body class="bg-[#0f1115] text-zinc-200 antialiased">
-  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
+<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
+  <header class="border-b border-zinc-800 bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-50">
     <div class="max-w-[1120px] mx-auto px-6">
       <div class="h-16 flex items-center justify-between">
         <a href="/" class="flex items-center gap-x-2.5 group">
@@ -189,23 +212,23 @@
         </nav>
 
         <div class="md:hidden">
-          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">← Home</a>
+          <a href="/" class="hb-tap inline-flex items-center text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">← Home</a>
         </div>
       </div>
     </div>
   </header>
 
   <!-- Mobile bottom navigation (consistent site-wide) -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800" style="padding-bottom: env(safe-area-inset-bottom, 0);">
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--surface)] border-t border-zinc-800" style="padding-bottom: env(safe-area-inset-bottom, 0);">
     <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
-      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
-      <a href="/vitals" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
-      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
-      <a href="/model" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
-      <a href="/golf" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
-      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
-      <a href="/xbox" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
-      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+      <a href="/" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/vitals" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-heart-pulse text-base"></i><span>Vitals</span></a>
+      <a href="/home-assistant" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="hb-tap justify-center flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
+      <a href="/golf" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-golf-ball text-base"></i><span>Golf</span></a>
+      <a href="/clips" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/xbox" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-gamepad text-base"></i><span>Xbox</span></a>
+      <a href="/blog" class="hb-tap justify-center flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
     </div>
   </nav>
 
@@ -220,7 +243,7 @@
       </div>
       <div class="hidden md:block text-right">
         <div class="text-[10px] text-emerald-400/70 font-mono">/model • server persisted</div>
-        <div class="text-[10px] text-zinc-500">All changes save automatically</div>
+        <div class="text-[var(--t-xs)] text-[var(--text-2)]">All changes save automatically</div>
       </div>
     </div>
 
@@ -247,8 +270,8 @@
       <div class="lg:col-span-8">
         <div class="card p-4 spatial-card">
           <!-- View Switcher -->
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-x-2">
+          <div class="flex items-center justify-between mb-3 overflow-x-auto gap-3" style="scrollbar-width:none">
+            <div class="flex items-center gap-x-2 flex-shrink-0">
               <button id="view-3d-btn" class="view-tab active" onclick="switchView('3d')">3D View (Primary)</button>
               <button id="view-2d-btn" class="view-tab" onclick="switchView('2d')">2D Top-Down (Alternative)</button>
               <div class="ml-3 flex items-center gap-x-1 text-xs">
@@ -260,21 +283,21 @@
             </div>
 
             <!-- 3D only controls -->
-            <div id="3d-controls" class="flex items-center gap-x-2">
-              <button onclick="fitHouseView(true)" class="px-3 py-1 text-xs rounded-lg border border-emerald-800 text-emerald-300 hover:bg-emerald-950/40"><i class="fa-solid fa-house mr-1"></i>Fit House</button>
-              <button onclick="setCameraView('top')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Top</button>
-              <button onclick="setCameraView('iso')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Isometric</button>
-              <button onclick="setCameraView('reset')" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800">Reset</button>
-              <button id="ambient-toggle" onclick="toggleAmbientPreview()" class="px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800"><i class="fa-solid fa-tv mr-1"></i>Ambient Preview</button>
-              <button id="ambient-push" onclick="applyPreviewToBulbs()" style="display:none" class="px-3 py-1 text-xs rounded-lg border border-amber-800 text-amber-300 hover:bg-amber-950/40">Apply to bulbs</button>
+            <div id="3d-controls" class="flex items-center gap-x-2 flex-shrink-0">
+              <button onclick="fitHouseView(true)" class="hb-tap px-3 py-1 text-xs rounded-lg border border-emerald-800 text-emerald-300 hover:bg-emerald-950/40 whitespace-nowrap"><i class="fa-solid fa-house mr-1"></i>Fit House</button>
+              <button onclick="setCameraView('top')" class="hb-tap px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 whitespace-nowrap">Top</button>
+              <button onclick="setCameraView('iso')" class="hb-tap px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 whitespace-nowrap">Isometric</button>
+              <button onclick="setCameraView('reset')" class="hb-tap px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 whitespace-nowrap">Reset</button>
+              <button id="ambient-toggle" onclick="toggleAmbientPreview()" class="hb-tap px-3 py-1 text-xs rounded-lg border border-zinc-700 hover:bg-zinc-800 whitespace-nowrap"><i class="fa-solid fa-tv mr-1"></i>Ambient Preview</button>
+              <button id="ambient-push" onclick="applyPreviewToBulbs()" style="display:none" class="hb-tap px-3 py-1 text-xs rounded-lg border border-amber-800 text-amber-300 hover:bg-amber-950/40 whitespace-nowrap">Apply to bulbs</button>
             </div>
           </div>
 
           <!-- 3D Canvas -->
-          <div id="canvas-wrap" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b; width:100%; min-height:300px;">
+          <div id="canvas-wrap" class="relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:var(--bg); width:100%; min-height:300px;">
             <canvas id="model-canvas" class="model-canvas"></canvas>
             <div id="place-hint" class="hidden absolute inset-0 bg-black/40 items-center justify-center pointer-events-none">
-              <div class="px-4 py-1.5 bg-[#161a20] border border-emerald-800 rounded-full text-emerald-300 text-sm flex items-center gap-x-2">
+              <div class="px-4 py-1.5 bg-[var(--surface)] border border-emerald-800 rounded-full text-emerald-300 text-sm flex items-center gap-x-2">
                 <i class="fa-solid fa-crosshairs"></i>
                 <span id="place-hint-text">Click floor to place</span>
               </div>
@@ -282,11 +305,11 @@
           </div>
 
           <!-- 2D Canvas -->
-          <div id="2d-wrap" class="hidden relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:#0a0a0b; width:100%; min-height:300px;">
+          <div id="2d-wrap" class="hidden relative w-full rounded-2xl overflow-hidden border border-zinc-800" style="aspect-ratio: 16 / 11; max-height: 540px; background:var(--bg); width:100%; min-height:300px;">
             <canvas id="2d-canvas" class="editor-2d"></canvas>
           </div>
 
-          <div class="mt-3 flex items-center justify-between text-[10px] three-legend">
+          <div class="mt-3 flex items-center justify-between three-legend">
             <div id="view-help">Whole House: double-click a room to fly in & orbit it • Fit House to pull back • drag = orbit (around cursor) • right/Shift-drag = pan.</div>
             <div class="hidden md:block">Wheel = zoom • Double-click room = focus • Click = select</div>
           </div>
@@ -301,7 +324,7 @@
             <i id="lock-icon" class="fa-solid fa-lock text-amber-400"></i>
             <span id="lock-label" class="text-zinc-300">Locked — view only</span>
           </div>
-          <button id="lock-action" class="text-xs px-3 py-1.5 rounded-lg border border-emerald-800 text-emerald-300 hover:bg-emerald-950/40">Unlock to edit</button>
+          <button id="lock-action" class="hb-tap text-xs px-3 py-1.5 rounded-lg border border-emerald-800 text-emerald-300 hover:bg-emerald-950/40">Unlock to edit</button>
         </div>
 
         <!-- Improved Categorized Palette (admin only) -->
@@ -326,7 +349,7 @@
             <div id="palette-tvs" class="grid grid-cols-2 gap-1.5"></div>
           </div>
 
-          <div class="mt-2 text-[10px] text-zinc-500">Select type → move mouse for live preview (green dot) → release to place in 3D or 2D. Snaps if enabled.</div>
+          <div class="mt-2 text-[var(--t-xs)] text-[var(--text-2)]">Select type → move mouse for live preview (green dot) → release to place in 3D or 2D. Snaps if enabled.</div>
         </div>
 
         <!-- Inspector -->
@@ -341,11 +364,11 @@
         <div id="roomactions-card" class="card p-4">
           <div class="section-label mb-2">Room Actions</div>
           <div class="flex flex-wrap gap-2">
-            <button onclick="clearCurrentRoom()" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Clear Room</button>
-            <button onclick="seedCurrentRoom()" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Seed Defaults</button>
-            <button onclick="saveModel(true)" class="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Force Save</button>
+            <button onclick="clearCurrentRoom()" class="hb-tap text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Clear Room</button>
+            <button onclick="seedCurrentRoom()" class="hb-tap text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Seed Defaults</button>
+            <button onclick="saveModel(true)" class="hb-tap text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Force Save</button>
           </div>
-          <div class="mt-3 text-[10px] text-zinc-500">Data lives in <span class="font-mono">data/model.json</span>. Fully extensible.</div>
+          <div class="mt-3 text-[var(--t-xs)] text-[var(--text-2)]">Data lives in <span class="font-mono">data/model.json</span>. Fully extensible.</div>
         </div>
       </div>
     </div>
@@ -366,12 +389,12 @@
       </div>
     </div>
 
-    <div class="mt-4 text-center text-[10px] text-zinc-500">
+    <div class="mt-4 text-center text-[var(--t-xs)] text-[var(--text-2)]">
       3D view is the stable primary experience. 2D is secondary for precision. All changes save to server. Real dimensions + height levels + real lighting.
     </div>
   </main>
 
-  <footer class="max-w-[1120px] mx-auto px-6 pb-8 text-xs text-zinc-500 text-center border-t border-zinc-800 pt-4 mt-2">
+  <footer class="max-w-[1120px] mx-auto px-6 pb-8 text-xs text-[var(--text-2)] text-center border-t border-zinc-800 pt-4 mt-2">
     HENDERBURGH • 3D Spatial Model (Primary) • Real dimensions • Calm &amp; precise
   </footer>
 
@@ -2008,7 +2031,7 @@
             ${obj.type === 'light' ? `<div class="text-xs text-zinc-400">Power: <span class="text-zinc-300">${obj.on === false ? 'Off' : 'On'}</span> · Brightness: <span class="text-zinc-300">${obj.brightness || 70}%</span></div>` : ''}
             ${tvName ? `<div class="text-xs text-zinc-400">Paired to TV: <span class="text-zinc-300">${tvName}</span> (${obj.tv_role || 'ambient'})</div>` : ''}
             ${obj.type === 'tv' ? `<div class="text-xs text-zinc-400">TV preview: <span class="text-zinc-300">${obj.tv_state === 'on' ? 'On — syncing' : 'Off'}</span></div>` : ''}
-            <div class="text-[10px] text-amber-400/80 pt-1"><i class="fa-solid fa-lock mr-1"></i>Locked — unlock to edit.</div>
+            <div class="text-[var(--t-xs)] text-amber-400/80 pt-1"><i class="fa-solid fa-lock mr-1"></i>Locked — unlock to edit.</div>
           </div>`;
         return;
       }
@@ -2023,7 +2046,7 @@
         <div class="space-y-3">
           <div>
             <div class="text-xs text-zinc-400 mb-0.5">Name</div>
-            <input id="obj-name" value="${obj.name || ''}" class="w-full bg-[#111113] border border-zinc-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-700" />
+            <input id="obj-name" value="${obj.name || ''}" class="w-full bg-[var(--surface-2)] border border-zinc-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-700" />
           </div>
           <div class="flex items-center gap-x-2">
             <div class="text-xs text-zinc-400">Type</div>
@@ -2039,9 +2062,9 @@
           </div>
           ${ (obj.type === 'light' || obj.type === 'tv') ? `
           <div>
-            <div class="text-xs text-zinc-400 mb-1">Exact height <span id="yft-val" class="text-emerald-300">${getObjectY(obj).toFixed(1)}</span> ft <span class="text-[10px] text-zinc-500">(off floor)</span></div>
+            <div class="text-xs text-zinc-400 mb-1">Exact height <span id="yft-val" class="text-emerald-300">${getObjectY(obj).toFixed(1)}</span> ft <span class="text-[10px] text-[var(--text-2)]">(off floor)</span></div>
             <input type="range" id="obj-yft" min="0" max="9" step="0.1" value="${getObjectY(obj)}" class="w-full accent-emerald-500">
-            <div class="text-[10px] text-zinc-500">Fine vertical position — also sets which screen row this light samples in Ambient Preview.</div>
+            <div class="text-[var(--t-xs)] text-[var(--text-2)]">Fine vertical position — also sets which screen row this light samples in Ambient Preview.</div>
           </div>` : '' }
           <div>
             <div class="text-xs text-zinc-400 mb-1">Scale <span id="scale-val">${(obj.scale || 1).toFixed(2)}</span></div>
@@ -2060,9 +2083,9 @@
           <div class="mt-2 pt-2 border-t border-zinc-700">
             <div class="text-xs text-zinc-400 mb-1">Dimensions (ft) - individual for accurate layout</div>
             <div id="dims-group" class="space-y-1 text-[11px]">
-              <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Length</span><input type="range" data-dim="length" min="0.5" max="14" step="0.1" value="${obj.length || 3.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.length || 3.5).toFixed(1)}</span></div>
-              <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Width</span><input type="range" data-dim="width" min="0.2" max="6" step="0.1" value="${obj.width || 1.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.width || 1.5).toFixed(1)}</span></div>
-              <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Height</span><input type="range" data-dim="height" min="0.5" max="9" step="0.1" value="${obj.height || 2.0}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.height || 2.0).toFixed(1)}</span></div>
+              <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Length</span><input type="range" data-dim="length" min="0.5" max="14" step="0.1" value="${obj.length || 3.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.length || 3.5).toFixed(1)}</span></div>
+              <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Width</span><input type="range" data-dim="width" min="0.2" max="6" step="0.1" value="${obj.width || 1.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.width || 1.5).toFixed(1)}</span></div>
+              <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Height</span><input type="range" data-dim="height" min="0.5" max="9" step="0.1" value="${obj.height || 2.0}" class="flex-1 accent-emerald-500"><span class="w-8 text-right dim-val">${(obj.height || 2.0).toFixed(1)}</span></div>
             </div>
           </div>` : '' }
 
@@ -2074,22 +2097,22 @@
                 const p = obj.params || {};
                 if (obj.subtype === 'l_couch') {
                   return `
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Main</span><input type="range" data-p="main_len" min="3" max="14" step="0.1" value="${p.main_len||7.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.main_len||7.5).toFixed(1)}</span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Return</span><input type="range" data-p="return_len" min="2" max="10" step="0.1" value="${p.return_len||4.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.return_len||4.5).toFixed(1)}</span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Depth</span><input type="range" data-p="depth" min="2" max="4.5" step="0.05" value="${p.depth||3.0}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.depth||3.0).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Main</span><input type="range" data-p="main_len" min="3" max="14" step="0.1" value="${p.main_len||7.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.main_len||7.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Return</span><input type="range" data-p="return_len" min="2" max="10" step="0.1" value="${p.return_len||4.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.return_len||4.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Depth</span><input type="range" data-p="depth" min="2" max="4.5" step="0.05" value="${p.depth||3.0}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.depth||3.0).toFixed(1)}</span></div>
                   `;
                 } else if (obj.subtype === 'l_desk') {
                   return `
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Main</span><input type="range" data-p="main_len" min="4" max="12" step="0.1" value="${p.main_len||6.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.main_len||6.5).toFixed(1)}</span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Return</span><input type="range" data-p="return_len" min="2" max="8" step="0.1" value="${p.return_len||4}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.return_len||4).toFixed(1)}</span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Width</span><input type="range" data-p="width" min="1.5" max="3.5" step="0.1" value="${p.width||2.2}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.width||2.2).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Main</span><input type="range" data-p="main_len" min="4" max="12" step="0.1" value="${p.main_len||6.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.main_len||6.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Return</span><input type="range" data-p="return_len" min="2" max="8" step="0.1" value="${p.return_len||4}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.return_len||4).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Width</span><input type="range" data-p="width" min="1.5" max="3.5" step="0.1" value="${p.width||2.2}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.width||2.2).toFixed(1)}</span></div>
                   `;
                 } else if (obj.subtype === 'bookshelf') {
                   return `
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Width</span><input type="range" data-p="width" min="2" max="8" step="0.1" value="${p.width||3.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.width||3.5).toFixed(1)}</span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Height</span><input type="range" data-p="height" min="3" max="9" step="0.1" value="${p.height||6.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.height||6.5).toFixed(1)}</span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Depth</span><input type="range" data-p="depth" min="0.8" max="2" step="0.05" value="${p.depth||1.2}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.depth||1.2).toFixed(1)}</span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 text-zinc-500">Shelves</span><input type="range" data-p="shelves" min="2" max="6" step="1" value="${p.shelves||4}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${p.shelves||4}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Width</span><input type="range" data-p="width" min="2" max="8" step="0.1" value="${p.width||3.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.width||3.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Height</span><input type="range" data-p="height" min="3" max="9" step="0.1" value="${p.height||6.5}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.height||6.5).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Depth</span><input type="range" data-p="depth" min="0.8" max="2" step="0.05" value="${p.depth||1.2}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${(p.depth||1.2).toFixed(1)}</span></div>
+                    <div class="flex items-center gap-2"><span class="w-16 text-[var(--text-2)]">Shelves</span><input type="range" data-p="shelves" min="2" max="6" step="1" value="${p.shelves||4}" class="flex-1 accent-emerald-500"><span class="w-8 text-right">${p.shelves||4}</span></div>
                   `;
                 }
                 return '';
@@ -2121,10 +2144,10 @@
           </div>
           <div class="mt-2 pt-1 border-t border-zinc-700">
             <div class="text-xs text-zinc-400 mb-0.5">Link to real light (live HA)</div>
-            <select id="light-link" class="w-full bg-[#111113] border border-zinc-700 rounded px-2 py-1 text-xs">
+            <select id="light-link" class="w-full bg-[var(--surface-2)] border border-zinc-700 rounded px-2 py-1 text-xs">
               <option value="">-- Not linked --</option>
             </select>
-            <div class="text-[10px] text-zinc-500 mt-0.5">When linked, controls below drive the real bulb live.</div>
+            <div class="text-[var(--t-xs)] text-[var(--text-2)] mt-0.5">When linked, controls below drive the real bulb live.</div>
           </div>
         `;
 
@@ -2160,7 +2183,7 @@
             ${effects.length ? `
             <div class="mt-2">
               <div class="text-[11px] text-zinc-400 mb-0.5">Effect</div>
-              <select id="real-effect" class="w-full bg-[#111113] border border-zinc-700 rounded px-2 py-1 text-[11px]">
+              <select id="real-effect" class="w-full bg-[var(--surface-2)] border border-zinc-700 rounded px-2 py-1 text-[11px]">
                 <option value="">-- none --</option>
                 ${effects.map(ef => `<option value="${ef}" ${ha.current_effect === ef ? 'selected' : ''}>${ef}</option>`).join('')}
               </select>
@@ -2182,8 +2205,8 @@
         const cellActive = (c) => uvNow && Math.abs(uvNow.u - c.u) < 0.17 && Math.abs(uvNow.v - c.v) < 0.17;
         html += `
           <div class="mt-2 pt-2 border-t border-zinc-700">
-            <div class="text-xs text-zinc-400 mb-1">TV Group <span class="text-[10px] text-zinc-500">(bias / ambient)</span></div>
-            <select id="light-tv" class="w-full bg-[#111113] border border-zinc-700 rounded px-2 py-1 text-xs">
+            <div class="text-xs text-zinc-400 mb-1">TV Group <span class="text-[10px] text-[var(--text-2)]">(bias / ambient)</span></div>
+            <select id="light-tv" class="w-full bg-[var(--surface-2)] border border-zinc-700 rounded px-2 py-1 text-xs">
               <option value="">-- Not paired to a TV --</option>
               ${lightRoomTVs.map(t => `<option value="${t.id}" ${obj.tv_group === t.id ? 'selected' : ''}>${t.name || 'TV'}</option>`).join('')}
             </select>
@@ -2192,26 +2215,26 @@
               <button data-lr="backlight" class="lr-btn flex-1 text-[11px] px-2 py-1 rounded ${obj.tv_role === 'backlight' ? 'bg-blue-600 text-white' : 'bg-zinc-700'}">Backlight</button>
               <button data-lr="ambient" class="lr-btn flex-1 text-[11px] px-2 py-1 rounded ${(obj.tv_role || 'ambient') === 'ambient' ? 'bg-violet-600 text-white' : 'bg-zinc-700'}">Ambient</button>
             </div>
-            <div class="text-[10px] ${pairedTV && pairedTV.tv_state === 'on' ? 'text-emerald-400' : 'text-zinc-500'} mt-1">
+            <div class="text-[10px] ${pairedTV && pairedTV.tv_state === 'on' ? 'text-emerald-400' : 'text-[var(--text-2)]'} mt-1">
               ${pairedTV && pairedTV.tv_state === 'on' ? '● Syncing now — '+(pairedTV.name||'TV')+' is on' : 'Paired to '+((pairedTV&&pairedTV.name)||'TV')+' (turn TV on to preview)'}
             </div>
 
             <!-- Screen region this light is responsible for (the spatial source of truth) -->
             <div class="mt-2 pt-2 border-t border-zinc-800">
               <div class="flex items-center justify-between mb-1">
-                <span class="text-[11px] text-zinc-400">Screen region <span class="text-zinc-500">${uvNow ? (uvNow.manual ? '(pinned)' : '(from position)') : ''}</span></span>
+                <span class="text-[11px] text-zinc-400">Screen region <span class="text-[var(--text-2)]">${uvNow ? (uvNow.manual ? '(pinned)' : '(from position)') : ''}</span></span>
                 <span class="text-[11px] text-emerald-300">${uvNow ? regionLabel(uvNow.u, uvNow.v) : '—'}</span>
               </div>
               <div class="grid grid-cols-3 gap-0.5 w-[84px]" id="region-grid">
                 ${regionCells.map(rowArr => rowArr.map(c => `
-                  <button data-ru="${c.u}" data-rv="${c.v}" class="region-cell h-6 rounded-sm border ${cellActive(c) ? 'bg-emerald-500/40 border-emerald-400' : 'bg-[#111113] border-zinc-700 hover:border-zinc-500'}"></button>
+                  <button data-ru="${c.u}" data-rv="${c.v}" class="region-cell h-6 rounded-sm border ${cellActive(c) ? 'bg-emerald-500/40 border-emerald-400' : 'bg-[var(--surface-2)] border-zinc-700 hover:border-zinc-500'}"></button>
                 `).join('')).join('')}
               </div>
               <div class="flex items-center gap-2 mt-1">
                 <button id="region-auto" class="text-[10px] px-2 py-0.5 rounded border ${obj.region ? 'border-zinc-700 hover:bg-zinc-800' : 'border-emerald-800 text-emerald-300'}">Auto from position</button>
-                <span class="text-[10px] text-zinc-500">Tap a cell to pin manually</span>
+                <span class="text-[10px] text-[var(--text-2)]">Tap a cell to pin manually</span>
               </div>
-            </div>` : `<div class="text-[10px] text-zinc-500 mt-0.5">Pair to a TV so it reacts as bias/ambient lighting.</div>`}
+            </div>` : `<div class="text-[var(--t-xs)] text-[var(--text-2)] mt-0.5">Pair to a TV so it reacts as bias/ambient lighting.</div>`}
           </div>
         `;
       }
@@ -2225,7 +2248,7 @@
         const swatches = ['#3b82f6','#8b5cf6','#ef4444','#10b981','#f59e0b','#ec4899','#ffffff'];
         html += `
           <div class="mt-3 pt-2 border-t border-zinc-700">
-            <div class="text-xs text-zinc-400 mb-1">TV Power <span class="text-[10px] text-zinc-500">(preview sync)</span></div>
+            <div class="text-xs text-zinc-400 mb-1">TV Power <span class="text-[10px] text-[var(--text-2)]">(preview sync)</span></div>
             <button id="tv-power" class="text-xs px-3 py-1 rounded ${tvOn ? 'bg-emerald-600 text-white' : 'bg-zinc-700'}">${tvOn ? 'ON — syncing lights' : 'OFF'}</button>
           </div>
           <div class="mt-2">
@@ -2235,12 +2258,12 @@
             </div>
           </div>
           <div class="mt-3 pt-2 border-t border-zinc-700">
-            <div class="text-xs text-zinc-400 mb-1">Paired lights <span class="text-[10px] text-zinc-500">(${pairedCount}/${roomLights.length})</span></div>
+            <div class="text-xs text-zinc-400 mb-1">Paired lights <span class="text-[10px] text-[var(--text-2)]">(${pairedCount}/${roomLights.length})</span></div>
             <div id="tv-pair-list" class="space-y-1">
               ${roomLights.length ? roomLights.map(l => {
                 const paired = l.tv_group === obj.id;
                 const claimedElsewhere = !paired && l.tv_group;
-                return `<div class="flex items-center justify-between gap-2 text-[11px] bg-[#111113] border border-zinc-800 rounded px-2 py-1">
+                return `<div class="flex items-center justify-between gap-2 text-[11px] bg-[var(--surface-2)] border border-zinc-800 rounded px-2 py-1">
                   <label class="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
                     <input type="checkbox" data-pair="${l.id}" ${paired ? 'checked' : ''} class="accent-emerald-500 shrink-0">
                     <span class="truncate">${l.name || l.subtype}${claimedElsewhere ? ' <span class=\"text-zinc-600\">(other TV)</span>' : ''}</span>
@@ -2250,9 +2273,9 @@
                     <button data-role="${l.id}" data-r="ambient" class="role-btn px-1.5 py-0.5 rounded ${(l.tv_role || 'ambient') === 'ambient' ? 'bg-violet-600 text-white' : 'bg-zinc-700'}">Amb</button>
                   </div>` : ''}
                 </div>`;
-              }).join('') : `<div class="text-[11px] text-zinc-500">No lights in this room yet. Add lights, then pair them here.</div>`}
+              }).join('') : `<div class="text-[11px] text-[var(--text-2)]">No lights in this room yet. Add lights, then pair them here.</div>`}
             </div>
-            <div class="text-[10px] text-zinc-500 mt-1">Turn the TV on to preview paired lights glowing in the sync color.</div>
+            <div class="text-[var(--t-xs)] text-[var(--text-2)] mt-1">Turn the TV on to preview paired lights glowing in the sync color.</div>
           </div>
         `;
       }
