@@ -28,14 +28,14 @@
 
 :root {
   /* ── Colour ───────────────────────────────────────────────────────────────
-     Navy scale (ported from the homepage, templates/home-concept.html) is now
-     the one background family — it replaces the older charcoal/zinc ramp.
-     Backgrounds are never pure #000: on OLED phones pure black smears during
-     scroll and makes "off" states invisible. */
-  --navy-0:        #0a0e17;   /* page */
-  --navy-1:        #0d131c;   /* card / panel */
-  --navy-2:        #141b26;   /* raised, hover, input */
-  --navy-3:        #1a2330;   /* pressed / active well */
+     Neutral charcoal, not navy — no blue hue in the background ramp, kept
+     ominous/instrument-panel dark rather than tech-blue. Backgrounds are
+     never pure #000: on OLED phones pure black smears during scroll and
+     makes "off" states invisible. */
+  --navy-0:        #0a0a0b;   /* page */
+  --navy-1:        #131316;   /* card / panel */
+  --navy-2:        #1a1a1f;   /* raised, hover, input */
+  --navy-3:        #232329;   /* pressed / active well */
 
   --bg:            var(--navy-0);
   --surface:       var(--navy-1);
@@ -49,20 +49,17 @@
   --text-2:        #a7b0bd;   /* secondary — passes AA at all sizes */
   --text-3:        #7a8494;   /* tertiary — >=12px incidental text ONLY */
 
-  /* PRIMARY accent = cyan (from the homepage). Use for brand, links, focus
-     rings, active nav, and any "this is interactive / this is us" moment.
-     --success (the old --accent green) is now reserved for "on / live / good"
-     STATE — a different meaning than brand, kept as its own token so the two
-     don't collide as pages migrate onto this file. Existing templates built
-     against var(--accent) meaning "good/on" keep working unchanged until
-     their migration pass swaps those specific usages to var(--success); both
-     tokens are valid simultaneously so that migration is zero-regression. */
-  --accent:        #5EEAD4;   /* cyan — primary/brand */
-  --accent-rgb:    94, 234, 212;
-  --accent-dim:    rgba(94, 234, 212, 0.14);
-  --accent-line:   rgba(94, 234, 212, 0.32);
+  /* ONE accent: emerald green. Cyan is gone. --accent (brand/link/focus/
+     active-nav) and --success (on/live/good state) are the same colour again
+     — the split was overthinking it; the original site used one green for
+     both and it read fine. Both tokens stay defined so nothing that already
+     migrated onto var(--success) needs touching. */
+  --accent:        #4ade80;   /* emerald — the only accent */
+  --accent-rgb:    74, 222, 128;
+  --accent-dim:    rgba(74, 222, 128, 0.14);
+  --accent-line:   rgba(74, 222, 128, 0.32);
 
-  --success:       #4ade80;   /* emerald — on / live / good state only */
+  --success:       #4ade80;
   --success-rgb:   74, 222, 128;
   --success-dim:   rgba(74, 222, 128, 0.14);
   --success-line:  rgba(74, 222, 128, 0.32);

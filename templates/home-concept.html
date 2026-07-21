@@ -59,7 +59,7 @@
   @media(prefers-reduced-motion:reduce){.aurora-blob{animation:none;}}
 
   .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
-    padding:14px 32px;background:rgba(10,14,23,0.82);backdrop-filter:blur(10px);
+    padding:14px 32px;background:rgba(10,10,11,0.82);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:12.5px;letter-spacing:0.02em;
     overflow-x:auto;white-space:nowrap;}
   .ticker .brand{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;letter-spacing:0.04em;color:var(--text);margin-right:8px;}
@@ -89,7 +89,7 @@
      goes dark when the lamp is off. */
   .lamp-poke-wrap{display:flex;justify-content:center;margin-top:36px;}
   .lamp-poke{position:relative;width:52px;height:52px;border-radius:14px;
-    --lamp:94,234,212;
+    --lamp:74,222,128;
     border:1px solid rgba(var(--lamp),0.45);background:var(--navy-1);color:rgb(var(--lamp));
     display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
     box-shadow:0 0 22px -4px rgba(var(--lamp),0.45), inset 0 0 14px -6px rgba(var(--lamp),0.5);
@@ -113,9 +113,9 @@
      plus a gradient hairline that lights up under the cursor, in the concept's
      cyan. Compositor-only, gated to hover devices, off under reduced-motion. */
   .sys-tile::before{content:'';position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity 0.38s ease;pointer-events:none;
-    background:radial-gradient(300px circle at var(--mx) var(--my),rgba(94,234,212,0.10),transparent 62%);}
+    background:radial-gradient(300px circle at var(--mx) var(--my),rgba(74,222,128,0.10),transparent 62%);}
   .sys-tile::after{content:'';position:absolute;inset:0;padding:1px;opacity:0;transition:opacity 0.38s ease;pointer-events:none;
-    background:radial-gradient(220px circle at var(--mx) var(--my),rgba(94,234,212,0.55),rgba(139,127,255,0.18) 40%,transparent 70%);
+    background:radial-gradient(220px circle at var(--mx) var(--my),rgba(74,222,128,0.55),rgba(139,127,255,0.18) 40%,transparent 70%);
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
     mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;}
   @media(hover:hover){.sys-tile:hover{background:var(--navy-2);}.sys-tile:hover::before,.sys-tile:hover::after{opacity:1;}}
@@ -212,7 +212,7 @@
   .event{position:relative;padding:34px 0;opacity:0;transform:translateY(18px);transition:opacity 0.6s ease,transform 0.6s ease;}
   .event.in{opacity:1;transform:translateY(0);}
   .event::before{content:'';position:absolute;left:-40px;top:38px;width:9px;height:9px;border-radius:50%;background:var(--navy-0);border:1.5px solid var(--text-dim);transition:border-color 0.4s,background 0.4s;z-index:2;}
-  .event.in::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(94,234,212,0.15);}
+  .event.in::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(74,222,128,0.15);}
   .event.event-peak.in::before{border-color:var(--amber);background:var(--amber);box-shadow:0 0 0 4px rgba(255,180,84,0.15);}
   .event.event-game.in::before,.event.event-media.in::before{border-color:var(--violet);background:var(--violet);box-shadow:0 0 0 4px rgba(139,127,255,0.15);}
   .event .time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.04em;margin-bottom:7px;}
