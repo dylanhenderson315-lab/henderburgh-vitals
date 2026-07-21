@@ -498,12 +498,48 @@ async def home(request: Request):
     # Unread count for the office-lamp poke badge (same source as the old
     # home page's notifier — see old_homepage() above).
     blog_unread_count = 0
+    latest_post = None
     try:
         all_messages = persistence.load_messages()
         last_read = persistence.load_last_blog_read()
         blog_unread_count = len([m for m in all_messages if str(m.get("timestamp", "")) > last_read])
+
+        # Latest top-level post + its reply count, for the Blog system tile —
+        # "get the overall goal of everything from one glance" means showing
+        # actual content, not just a link.
+        top_level = [m for m in all_messages if not m.get("parent_id")]
+        if top_level:
+            top_level.sort(key=lambda m: m.get("timestamp", ""), reverse=True)
+            latest_post = dict(top_level[0])
+            latest_post["reply_count"] = len(
+                [m for m in all_messages if m.get("parent_id") == latest_post.get("id")]
+            )
     except Exception:
-        blog_unread_count = 0
+        pass
+
+    # Latest golf round for the Golf system tile.
+    latest_round = None
+    try:
+        rounds = persistence.load_golf_rounds()
+        if rounds:
+            rounds_sorted = sorted(rounds, key=lambda r: r.get("date", ""), reverse=True)
+            latest_round = rounds_sorted[0]
+    except Exception:
+        latest_round = None
+
+    # Room count for the Model system tile. A live 3D embed on the home page
+    # would repeat the exact three.js weight problem already flagged for
+    # /model (the single heaviest asset on the site) — on a page opened many
+    # times a day, a real stat is the honest, cheap version of "a small
+    # model of what I built."
+    model_rooms = 0
+    try:
+        model_data = persistence.load_model()
+        model_rooms = len((model_data or {}).get("rooms") or {})
+    except Exception:
+        model_rooms = 0
+
+    recent_clips = list_clips(limit=3)
 
     return _render("home-concept.html", {
         "request": request,
@@ -513,6 +549,10 @@ async def home(request: Request):
         "heart_rate": hr_ctx,
         "replay": replay,
         "blog_unread_count": blog_unread_count,
+        "latest_post": latest_post,
+        "latest_round": latest_round,
+        "model_rooms": model_rooms,
+        "recent_clips": recent_clips,
     })
 
 

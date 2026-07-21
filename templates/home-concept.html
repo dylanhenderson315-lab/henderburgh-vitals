@@ -93,6 +93,36 @@
   .sys-tile .stat.amber{color:var(--amber);}
   .sys-tile .stat.violet{color:var(--violet);}
   .sys-tile .stat.dim{color:var(--text-dim);}
+
+  /* Rich tile content — so a glance at the grid gives the actual state of
+     everything, not just a link. */
+  .sys-body{font-size:12.5px;color:var(--text-dim);line-height:1.42;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .sys-body b{color:var(--text);font-weight:500;}
+  .sys-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);display:flex;align-items:center;gap:6px;}
+  .sys-meta .reply-badge{color:var(--violet);}
+
+  .clip-strip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:1px 0;}
+  .clip-strip::-webkit-scrollbar{display:none;}
+  .clip-thumb{flex:none;width:56px;height:36px;border-radius:4px;overflow:hidden;background:#05070c;border:1px solid var(--line);}
+  .clip-thumb img,.clip-thumb video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+
+  .lastfm-row{display:flex;align-items:center;gap:8px;}
+  .lastfm-art{width:30px;height:30px;border-radius:5px;object-fit:cover;flex:none;background:var(--navy-2);}
+  .lastfm-col{min-width:0;flex:1;}
+  .lastfm-title{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lastfm-artist{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lastfm-mini{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:38px;}
+  .lastfm-mini b{color:var(--text-dim);font-weight:400;}
+
+  /* Live status: the quirky "Henderburgh is WORKING / PLAYING / SLEEPING /
+     WATCHING" line, ported from the old home page's synthesize() cascade. */
+  .live-status{display:inline-flex;align-items:center;gap:8px;margin-top:22px;
+    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);
+    transition:opacity 0.3s ease;}
+  .live-status b{color:var(--cyan);font-weight:500;}
+  .live-status .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:beat 1.6s ease-in-out infinite;flex-shrink:0;}
+  @media(prefers-reduced-motion:reduce){.live-status .dot{animation:none;}}
   @media(max-width:720px){.systems{grid-template-columns:repeat(2,1fr);}}
 
   .timeline{position:relative;max-width:760px;margin:0 auto;padding:40px 32px 200px 88px;}
@@ -150,6 +180,13 @@
 <section class="hero">
   <div class="eyebrow">PERSONAL OS &middot; 8 SYSTEMS &middot; LIVE</div>
   <h1>Henderburgh's day, <span class="status">system by system.</span></h1>
+
+  {# The quirky live-state line, ported from the old home page: WORKING /
+     PLAYING / SLEEPING / WATCHING, decided by the same cascade (Xbox
+     presence beats music beats an all-dark house beats time-of-day) and
+     kept live by the same poll loop that already drives the aurora. #}
+  <div class="live-status" id="live-status"><span class="dot"></span><span id="live-status-text">reading the house…</span></div>
+
   <p class="hero-sub">
     {% if has_story %}
       {{ replay.narration | replace('**','') }}
@@ -176,35 +213,64 @@
   <div class="systems">
     <a class="sys-tile" href="/vitals">
       <div class="top"><span class="name">Vitals</span><span class="arrow">&#8599;</span></div>
-      <div class="stat">{% if hr %}{{ hr }} bpm{% else %}—{% endif %}</div>
+      <div class="stat">{% if hr %}{{ hr }} bpm{% endif %}{% if hr and steps_n is not none %} &middot; {% endif %}{% if steps_n is not none %}{{ '{:,}'.format(steps_n) }} steps{% endif %}{% if not hr and steps_n is none %}—{% endif %}</div>
     </a>
+
     <a class="sys-tile" href="/xbox">
       <div class="top"><span class="name">Xbox</span><span class="arrow">&#8599;</span></div>
-      <div class="stat violet" id="sys-xbox">profile &amp; log</div>
+      <div class="stat violet" id="sys-xbox">checking&hellip;</div>
     </a>
+
     <a class="sys-tile" href="/home-assistant">
       <div class="top"><span class="name">Lighting</span><span class="arrow">&#8599;</span></div>
-      <div class="stat dim" id="sys-lights">house control</div>
+      <div class="stat dim" id="sys-lights">checking&hellip;</div>
     </a>
+
     <a class="sys-tile" href="/model">
       <div class="top"><span class="name">Model</span><span class="arrow">&#8599;</span></div>
-      <div class="stat dim">3D home</div>
+      <div class="stat dim">{% if model_rooms %}{{ model_rooms }} room{{ 's' if model_rooms != 1 else '' }} mapped{% else %}3D home{% endif %}</div>
     </a>
+
     <a class="sys-tile" href="/golf">
       <div class="top"><span class="name">Golf</span><span class="arrow">&#8599;</span></div>
-      <div class="stat dim">recent rounds</div>
+      {% if latest_round %}
+      <div class="sys-body"><b>{{ latest_round.score }}</b> at {{ latest_round.course or 'the course' }}</div>
+      <div class="sys-meta">{{ latest_round.date or '' }}{% if latest_round.holes %} &middot; {{ latest_round.holes }} holes{% endif %}</div>
+      {% else %}
+      <div class="stat dim">no rounds logged yet</div>
+      {% endif %}
     </a>
+
     <a class="sys-tile" href="/clips">
       <div class="top"><span class="name">Clips</span><span class="arrow">&#8599;</span></div>
-      <div class="stat amber">highlights</div>
+      {% if recent_clips %}
+      <div class="clip-strip">
+        {% for c in recent_clips %}
+        <div class="clip-thumb">
+          {% if c.kind == 'image' %}<img src="{{ c.url }}" alt="" loading="lazy">
+          {% else %}<video src="{{ c.url }}#t=0.1" preload="metadata" muted playsinline></video>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="sys-meta">{{ recent_clips[0].title }}</div>
+      {% else %}
+      <div class="stat dim">no clips yet</div>
+      {% endif %}
     </a>
+
     <a class="sys-tile" href="/blog">
       <div class="top"><span class="name">Blog</span><span class="arrow">&#8599;</span></div>
-      <div class="stat dim">recent posts</div>
+      {% if latest_post %}
+      <div class="sys-body">{{ latest_post.text }}</div>
+      <div class="sys-meta">{{ latest_post.name }}{% if latest_post.reply_count %} &middot; <span class="reply-badge">{{ latest_post.reply_count }} repl{{ 'y' if latest_post.reply_count == 1 else 'ies' }}</span>{% endif %}</div>
+      {% else %}
+      <div class="stat dim">no posts yet</div>
+      {% endif %}
     </a>
-    <a class="sys-tile" href="https://www.last.fm/user/henderburgh" rel="noopener">
+
+    <a class="sys-tile" href="https://www.last.fm/user/henderburgh" rel="noopener" id="sys-lastfm-tile">
       <div class="top"><span class="name">Last.fm</span><span class="arrow">&#8599;</span></div>
-      <div class="stat dim" id="sys-music">scrobbling</div>
+      <div id="sys-music" class="stat dim">loading&hellip;</div>
     </a>
   </div>
 </div>
@@ -328,11 +394,87 @@
   document.getElementById('tk-clock').textContent=
     new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
 
-  // Light-touch live enrichment of the systems tiles (best-effort, never blocks).
-  fetch('/api/xbox/status').then(r=>r.json()).then(d=>{
-    if(d.status==='ok'){const el=document.getElementById('sys-xbox');
-      el.textContent=(d.game&&d.game!=='—')?('now · '+d.game):((d.state||'offline').toLowerCase());}
-  }).catch(()=>{});
+  function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  // Single live-state object, fed by the three pollers below, read by
+  // synthesizeStatus() — the same shape/cascade the old home page used.
+  const LIVE={xbox:null,lights:null,nowplaying:null};
+
+  function easternHour(){
+    try{return parseInt(new Intl.DateTimeFormat('en-US',{hour:'numeric',hour12:false,timeZone:'America/New_York'}).format(new Date()),10);}
+    catch(e){return new Date().getHours();}
+  }
+
+  // ── The quirky live-state line (ported cascade from the old home page):
+  // gaming beats music beats an all-dark house beats time-of-day default. ──
+  function synthesizeStatus(){
+    const el=document.getElementById('live-status-text');
+    if(!el)return;
+    const lights=flatLights(LIVE.lights);
+    const onLights=lights.filter(l=>l.state==='on');
+    const hasLightData=lights.length>0;
+    const hour=easternHour();
+    let text=null;
+
+    const xb=LIVE.xbox;
+    if(xb&&xb.status==='ok'&&/online/i.test(xb.state||'')&&xb.game&&xb.game!=='—'&&!/^home$/i.test(xb.game)){
+      const watching=xb.kind==='media';
+      text=(watching?'Watching ':'Playing ')+esc(xb.game);
+    } else if(LIVE.nowplaying){
+      text='Listening to '+esc(LIVE.nowplaying.name)+' — '+esc(LIVE.nowplaying.artist);
+    } else if(hasLightData&&onLights.length===0){
+      text=(hour>=22||hour<7)?'Sleeping — every light is off':'Out — the house is dark';
+    } else {
+      text=(hour>=5&&hour<12)?'Starting the day':(hour>=12&&hour<17)?'Working':(hour>=17&&hour<22)?'Winding down':'Up late';
+      if(hasLightData&&onLights.length)text+=' · '+onLights.length+' light'+(onLights.length===1?'':'s')+' on';
+    }
+    if(el.textContent!==text){el.style.opacity=0;setTimeout(()=>{el.textContent=text;el.style.opacity=1;},220);}
+  }
+
+  // ── Xbox: drives the system tile AND feeds the live-status cascade ──
+  function refreshXbox(){
+    fetch('/api/xbox/status').then(r=>r.json()).then(d=>{
+      LIVE.xbox=d;
+      const el=document.getElementById('sys-xbox');
+      if(el&&d.status==='ok'){
+        el.textContent=(d.game&&d.game!=='—')?d.game:((d.state||'offline').toLowerCase());
+      } else if(el){el.textContent='unavailable';}
+      synthesizeStatus();
+    }).catch(()=>{});
+  }
+
+  // ── Last.fm: up to 3 recent tracks rendered into the tile, ALSO feeds
+  // LIVE.nowplaying for the live-status line — the same dual-purpose pattern
+  // the old home page used. textContent/esc() throughout, never raw innerHTML
+  // of untrusted track/artist names. ──
+  const LASTFM_USER='henderburgh', LASTFM_API_KEY='3168e1997fc3a2150bfa1f10bafad213';
+  const LASTFM_ENDPOINT=`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${LASTFM_USER}&api_key=${LASTFM_API_KEY}&format=json&limit=5`;
+  function refreshLastfm(){
+    fetch(LASTFM_ENDPOINT).then(r=>r.json()).then(d=>{
+      const tracks=(d&&d.recenttracks&&d.recenttracks.track)||[];
+      const el=document.getElementById('sys-music');
+      if(!el)return;
+      if(!tracks.length){el.textContent='no recent tracks';LIVE.nowplaying=null;return;}
+      const now=tracks.find(t=>t['@attr']&&t['@attr'].nowplaying==='true');
+      LIVE.nowplaying=now?{name:now.name,artist:(now.artist&&now.artist['#text'])||''}:null;
+
+      const list=tracks.slice(0,3);
+      el.className='';
+      el.innerHTML=list.map((t,i)=>{
+        const artist=(t.artist&&t.artist['#text'])||'';
+        const isNow=t['@attr']&&t['@attr'].nowplaying==='true';
+        if(i===0){
+          const art=t.image&&t.image[1]&&t.image[1]['#text'];
+          return '<div class="lastfm-row">'+
+            (art?'<img class="lastfm-art" src="'+esc(art)+'" alt="">':'<div class="lastfm-art"></div>')+
+            '<div class="lastfm-col"><div class="lastfm-title" style="'+(isNow?'color:var(--cyan)':'')+'">'+esc(t.name)+'</div>'+
+            '<div class="lastfm-artist">'+esc(artist)+'</div></div></div>';
+        }
+        return '<div class="lastfm-mini"><b>'+esc(t.name)+'</b> · '+esc(artist)+'</div>';
+      }).join('');
+      synthesizeStatus();
+    }).catch(()=>{const el=document.getElementById('sys-music'); if(el)el.textContent='unavailable';});
+  }
 
   // ── Aurora: the house's REAL light colours (ported from the live home page) ──
   const auroraBlobs=[1,2,3].map(i=>document.getElementById('aurora-'+i));
@@ -354,15 +496,24 @@
   }
   function refreshHouse(){
     fetch('/api/ha/lights-data').then(r=>r.json()).then(d=>{
-      if(d.status==='ok'){paintAurora(d);
+      if(d.status==='ok'){
+        LIVE.lights=d;
+        paintAurora(d);
         const on=flatLights(d).filter(l=>l.state==='on').length;
-        document.getElementById('sys-lights').textContent=on+' lights on';}
+        const lightsEl=document.getElementById('sys-lights');
+        if(lightsEl)lightsEl.textContent=on+' lights on';
+        synthesizeStatus();
+      }
     }).catch(()=>{});
   }
-  refreshHouse();
+
+  refreshXbox(); refreshHouse(); refreshLastfm();
   // Poll only while visible (same discipline as the live home page).
-  setInterval(()=>{if(document.visibilityState==='visible')refreshHouse();},15000);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshHouse();});
+  setInterval(()=>{if(document.visibilityState==='visible'){refreshHouse();refreshXbox();}},15000);
+  setInterval(()=>{if(document.visibilityState==='visible')refreshLastfm();},60000);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){refreshHouse();refreshXbox();refreshLastfm();}
+  });
 
   // ── Cursor spotlight: one delegated, rAF-throttled listener (ported) ──
   if(window.matchMedia('(hover:hover)').matches && !window.matchMedia('(prefers-reduced-motion:reduce)').matches){
