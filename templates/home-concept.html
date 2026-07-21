@@ -15,8 +15,13 @@
 <style>
   :root{
     /* Aliases so the rest of this file (787 lines deep) doesn't need a
-       find/replace pass — same names, values now sourced from tokens.css. */
-    --navy-0: var(--bg); --navy-1: var(--surface); --navy-2: var(--surface-2);
+       find/replace pass. --navy-0/1/2 are NOT re-declared here — tokens.css
+       already defines them directly with identical values, and aliasing them
+       back through --bg/--surface/--surface-2 (which are themselves defined
+       IN TERMS OF --navy-0/1/2 in tokens.css) creates a cyclic custom-property
+       reference, which CSS spec makes invalid — this took every --navy-*
+       background on this page transparent/washed-out. Only alias names that
+       don't already exist verbatim in tokens.css. */
     --cyan: var(--accent);
     --text-dim: var(--text-3);
     /* ONE container for every section. Before this the page had four
