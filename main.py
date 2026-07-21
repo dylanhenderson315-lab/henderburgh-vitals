@@ -339,9 +339,11 @@ async def get_current_steps():
 async def get_current_heart_rate():
     return await vitals.get_current_heart_rate()
 
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """Clean minimalist home page for HENDERBURGH."""
+@app.get("/oldhomepage", response_class=HTMLResponse)
+async def old_homepage(request: Request):
+    """The original home page — kept live at a stable URL for reference after
+    the day-timeline redesign (home-concept -> /) replaced it at "/". Not
+    linked from nav; reachable only by direct URL."""
     steps = None
     latest_hr = None
     hr_age_minutes = None
@@ -458,12 +460,13 @@ async def home(request: Request):
     })
 
 
-@app.get("/home-concept", response_class=HTMLResponse)
-async def home_concept(request: Request):
-    """Preview route for the day-timeline home redesign. NOT wired into nav —
-    reachable only by direct URL while it's being evaluated. Deliberately
-    duplicates home()'s data-gathering rather than sharing it, so iterating on
-    this concept can't destabilize the live home page."""
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """The day-timeline home redesign — promoted from /home-concept to the
+    live front door. Ported the aurora (real house-light colours), the
+    pointer-tracked card spotlight, and the ring-freshness HUD dot from the
+    original home page (still live at /oldhomepage) so the new design keeps
+    that page's signature "the site mirrors the house" feel."""
     metrics = vitals.snapshot_home_metrics()
     if state.oura_client and metrics.get("steps") is None:
         try:

@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HENDERBURGH — home, redesigned</title>
-<meta name="robots" content="noindex">
+<title>HENDERBURGH</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -17,12 +16,28 @@
   *{margin:0;padding:0;box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{background:var(--navy-0);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
-  .bgwash{position:fixed;inset:0;z-index:-2;background:var(--navy-0);transition:background 0.6s ease-out;}
+  .bgwash{position:fixed;inset:0;z-index:-3;background:var(--navy-0);transition:background 0.6s ease-out;}
   .grid{position:fixed;inset:0;z-index:-1;
     background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
     background-size:64px 64px;opacity:0.15;
     mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);
     -webkit-mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);}
+
+  /* Aurora — the house's REAL light colours, ported from the live home page.
+     Each blob is painted from an actual on-bulb's RGB (via /api/ha/lights-data),
+     so the page literally glows the colour of the room. Sits above the bgwash
+     day-tint, below the grid. */
+  #aurora{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;}
+  .aurora-blob{position:absolute;width:52vw;height:52vw;max-width:620px;max-height:620px;
+    border-radius:50%;filter:blur(100px);opacity:0;
+    transition:background 2.5s ease,opacity 2.5s ease;will-change:transform;}
+  #aurora-1{top:-22%;left:-10%;animation:drift1 28s ease-in-out infinite alternate;}
+  #aurora-2{top:-16%;right:-8%;animation:drift2 34s ease-in-out infinite alternate;}
+  #aurora-3{top:14%;left:36%;animation:drift3 40s ease-in-out infinite alternate;}
+  @keyframes drift1{from{transform:translate(0,0) scale(1);}to{transform:translate(6vw,3vh) scale(1.15);}}
+  @keyframes drift2{from{transform:translate(0,0) scale(1.1);}to{transform:translate(-5vw,4vh) scale(0.95);}}
+  @keyframes drift3{from{transform:translate(0,0) scale(0.9);}to{transform:translate(3vw,-3vh) scale(1.1);}}
+  @media(prefers-reduced-motion:reduce){.aurora-blob{animation:none;}}
 
   .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
     padding:14px 32px;background:rgba(10,14,23,0.82);backdrop-filter:blur(10px);
@@ -31,7 +46,8 @@
   .ticker .brand{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;letter-spacing:0.04em;color:var(--text);margin-right:8px;}
   .tick{display:flex;align-items:center;gap:7px;color:var(--text-dim);}
   .tick b{color:var(--cyan);font-weight:500;}
-  .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);animation:beat 0.9s infinite;}
+  .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);animation:beat 0.9s infinite;flex-shrink:0;}
+  .pulse-dot.stale{background:var(--amber);animation:none;}
   @keyframes beat{0%,100%{transform:scale(1);opacity:1;}30%{transform:scale(1.6);opacity:0.6;}}
   .ticker .spacer{flex:1;}
   @media(prefers-reduced-motion:reduce){.pulse-dot{animation:none;}}
@@ -45,8 +61,18 @@
   .systems-wrap{max-width:920px;margin:0 auto;padding:20px 32px 60px;}
   .systems-label{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:16px;border-top:1px solid var(--line);padding-top:28px;}
   .systems{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);}
-  .sys-tile{background:var(--navy-1);padding:20px 18px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:10px;min-height:118px;justify-content:space-between;transition:background 0.25s ease;}
-  .sys-tile:hover{background:var(--navy-2);}
+  .sys-tile{position:relative;isolation:isolate;--mx:50%;--my:50%;background:var(--navy-1);padding:20px 18px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:10px;min-height:118px;justify-content:space-between;transition:background 0.25s ease;}
+  /* Cursor spotlight, ported from the live home page: a pointer-tracked wash
+     plus a gradient hairline that lights up under the cursor, in the concept's
+     cyan. Compositor-only, gated to hover devices, off under reduced-motion. */
+  .sys-tile::before{content:'';position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity 0.38s ease;pointer-events:none;
+    background:radial-gradient(300px circle at var(--mx) var(--my),rgba(94,234,212,0.10),transparent 62%);}
+  .sys-tile::after{content:'';position:absolute;inset:0;padding:1px;opacity:0;transition:opacity 0.38s ease;pointer-events:none;
+    background:radial-gradient(220px circle at var(--mx) var(--my),rgba(94,234,212,0.55),rgba(139,127,255,0.18) 40%,transparent 70%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;}
+  @media(hover:hover){.sys-tile:hover{background:var(--navy-2);}.sys-tile:hover::before,.sys-tile:hover::after{opacity:1;}}
+  @media(prefers-reduced-motion:reduce){.sys-tile::before,.sys-tile::after{display:none;}}
   .sys-tile .top{display:flex;justify-content:space-between;align-items:flex-start;}
   .sys-tile .name{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:14.5px;}
   .sys-tile .arrow{color:var(--text-dim);font-size:13px;transition:transform 0.25s ease,color 0.25s ease;}
@@ -84,6 +110,11 @@
 <body>
 
 <div class="bgwash" id="bgwash"></div>
+<div id="aurora">
+  <div class="aurora-blob" id="aurora-1"></div>
+  <div class="aurora-blob" id="aurora-2"></div>
+  <div class="aurora-blob" id="aurora-3"></div>
+</div>
 <div class="grid"></div>
 
 {# ---- live values pulled straight from the same data home() uses ---- #}
@@ -92,11 +123,14 @@
 {% set steps_n = steps.count if steps and steps.count is not none else None %}
 {% set has_story = replay and replay.has_data %}
 
+{# Cleaned-up HUD strip — same instrument the live home page uses: a ring
+   freshness dot (amber past 30 min, exactly like home.html's threshold) next
+   to the sync age, live vitals kept to a glance, clock on the far right. #}
 <div class="ticker">
   <span class="brand">HENDERBURGH</span>
-  {% if hr %}<div class="tick"><span class="pulse-dot"></span><b>{{ hr }}</b>bpm</div>{% endif %}
-  {% if steps_n is not none %}<div class="tick">{{ '{:,}'.format(steps_n) }} <span style="opacity:0.6">steps</span></div>{% endif %}
-  {% if age is not none %}<div class="tick">ring · {{ age }}m ago</div>{% endif %}
+  {% if age is not none %}<div class="tick"><span class="pulse-dot{{ ' stale' if age > 30 else '' }}"></span>ring · {{ age }}m ago</div>{% endif %}
+  {% if hr %}<div class="tick"><b>{{ hr }}</b>bpm</div>{% endif %}
+  {% if steps_n is not none %}<div class="tick"><b>{{ '{:,}'.format(steps_n) }}</b>steps</div>{% endif %}
   <span class="spacer"></span>
   <div class="tick" id="tk-clock">—</div>
 </div>
@@ -219,7 +253,7 @@
 
 <footer>© HENDERBURGH — PERSONAL OS &middot; CALM &middot; POWERFUL &middot; YOURS</footer>
 
-<div class="preview-flag">PREVIEW · <a href="/">back to live home</a></div>
+{% if not public_mode %}<div class="preview-flag"><a href="/oldhomepage">old homepage →</a></div>{% endif %}
 
 <script>
   const events = document.querySelectorAll('.event');
@@ -275,9 +309,48 @@
     if(d.status==='ok'){const el=document.getElementById('sys-xbox');
       el.textContent=(d.game&&d.game!=='—')?('now · '+d.game):((d.state||'offline').toLowerCase());}
   }).catch(()=>{});
-  fetch('/api/ha/summary').then(r=>r.json()).then(d=>{
-    if(d.status==='ok'){document.getElementById('sys-lights').textContent=(d.lights_on||0)+'/'+(d.total_lights||0)+' lights on';}
-  }).catch(()=>{});
+
+  // ── Aurora: the house's REAL light colours (ported from the live home page) ──
+  const auroraBlobs=[1,2,3].map(i=>document.getElementById('aurora-'+i));
+  function flatLights(d){const out=[];if(!d)return out;
+    Object.values(d.lights_by_room||{}).forEach(a=>a.forEach(l=>out.push(l)));
+    (d.unassigned_lights||[]).forEach(l=>out.push(l));return out;}
+  function paintAurora(data){
+    let lights=flatLights(data).filter(l=>l.state==='on');
+    // Game Room desk lights set the mood when on — the signature command-center lights.
+    const desk=lights.filter(l=>/desk/i.test(l.friendly_name||'')&&/game/i.test(l.room_name||''));
+    if(desk.length)lights=desk;
+    const colors=lights.map(l=>(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)?l.rgb_color:[255,196,120]);
+    const distinct=[];
+    colors.forEach(c=>{if(!distinct.some(d=>Math.abs(d[0]-c[0])+Math.abs(d[1]-c[1])+Math.abs(d[2]-c[2])<90))distinct.push(c);});
+    auroraBlobs.forEach((b,i)=>{if(!b)return;const c=distinct[i%Math.max(1,distinct.length)];
+      if(!lights.length||!c){b.style.opacity=0;return;}
+      b.style.background=`radial-gradient(circle,rgba(${c[0]|0},${c[1]|0},${c[2]|0},0.55) 0%,transparent 70%)`;
+      b.style.opacity=0.5;});
+  }
+  function refreshHouse(){
+    fetch('/api/ha/lights-data').then(r=>r.json()).then(d=>{
+      if(d.status==='ok'){paintAurora(d);
+        const on=flatLights(d).filter(l=>l.state==='on').length;
+        document.getElementById('sys-lights').textContent=on+' lights on';}
+    }).catch(()=>{});
+  }
+  refreshHouse();
+  // Poll only while visible (same discipline as the live home page).
+  setInterval(()=>{if(document.visibilityState==='visible')refreshHouse();},15000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshHouse();});
+
+  // ── Cursor spotlight: one delegated, rAF-throttled listener (ported) ──
+  if(window.matchMedia('(hover:hover)').matches && !window.matchMedia('(prefers-reduced-motion:reduce)').matches){
+    let pend=null;
+    document.addEventListener('pointermove',e=>{
+      const t=e.target.closest&&e.target.closest('.sys-tile');
+      if(!t||pend)return;
+      pend=requestAnimationFrame(()=>{pend=null;const r=t.getBoundingClientRect();
+        t.style.setProperty('--mx',((e.clientX-r.left)/r.width*100)+'%');
+        t.style.setProperty('--my',((e.clientY-r.top)/r.height*100)+'%');});
+    },{passive:true});
+  }
 </script>
 
 </body>
