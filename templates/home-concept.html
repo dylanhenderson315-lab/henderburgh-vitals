@@ -12,7 +12,14 @@
     --navy-0:#0a0e17; --navy-1:#0d131c; --navy-2:#141b26;
     --cyan:#5EEAD4; --amber:#FFB454; --violet:#8B7FFF;
     --text:#E8EDF2; --text-dim:#7A8494; --line:#1E2733;
+    /* ONE container for every section. Before this the page had four
+       different left edges (hero 86, rail 86, event text 142, cards 285 —
+       a 199px spread), which is what read as "doesn't make sense". */
+    --page-max:1080px; --page-pad:24px; --ticker-h:47px;
+    --rail-w:56px;   /* the timeline's HR-trace gutter, an INNER offset */
   }
+  @media(max-width:520px){ :root{ --page-pad:20px; } }
+  .page{width:100%;max-width:var(--page-max);margin-inline:auto;padding-inline:var(--page-pad);}
   *{margin:0;padding:0;box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{background:var(--navy-0);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
@@ -52,8 +59,11 @@
   .ticker .spacer{flex:1;}
   @media(prefers-reduced-motion:reduce){.pulse-dot{animation:none;}}
 
-  /* Hero left-aligned to a page gutter (was a centered narrow column). */
-  .hero{min-height:78vh;display:flex;flex-direction:column;justify-content:center;padding:0 clamp(24px,6vw,88px);max-width:1000px;}
+  /* The hero is a BAND, not a screen. It was min-height:78vh with the content
+     vertically centred, which manufactured ~424px of empty space and pushed
+     the system tiles below the fold. Now it's sized by its content, so the
+     page opens on data instead of on a sentence. */
+  .hero{padding-block:calc(var(--ticker-h) + 56px) 40px;}
   .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.08em;margin-bottom:16px;}
   h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(34px,5.5vw,60px);line-height:1.1;letter-spacing:-0.015em;max-width:18ch;}
   h1 .status{color:var(--cyan);}
@@ -61,23 +71,32 @@
 
   /* Office-lamp poke — ported from /oldhomepage, restyled to the instrument
      look: a small bordered icon button rather than a rounded emerald pill. */
-  .lamp-poke{position:relative;margin-top:28px;width:40px;height:40px;border-radius:10px;
-    border:1px solid var(--line);background:var(--navy-1);color:var(--cyan);
+  /* Office-lamp poke, centred on the page. --lamp is set live from the REAL
+     RGB the office bulb is projecting right now (via /api/ha/lights-data), so
+     the button on screen glows the same colour as the lamp in the room — and
+     goes dark when the lamp is off. */
+  .lamp-poke-wrap{display:flex;justify-content:center;margin-top:36px;}
+  .lamp-poke{position:relative;width:52px;height:52px;border-radius:14px;
+    --lamp:94,234,212;
+    border:1px solid rgba(var(--lamp),0.45);background:var(--navy-1);color:rgb(var(--lamp));
     display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
-    transition:transform 80ms cubic-bezier(0.2,0,0,1),background 0.2s ease,border-color 0.2s ease;}
-  .lamp-poke:hover{background:var(--navy-2);border-color:var(--text-dim);}
+    box-shadow:0 0 22px -4px rgba(var(--lamp),0.45), inset 0 0 14px -6px rgba(var(--lamp),0.5);
+    transition:transform 80ms cubic-bezier(0.2,0,0,1),background 0.25s ease,
+      border-color 0.6s ease,box-shadow 0.6s ease,color 0.6s ease;}
+  .lamp-poke.lamp-off{--lamp:122,132,148;box-shadow:none;border-color:var(--line);}
+  .lamp-poke:hover{background:var(--navy-2);}
   .lamp-poke:active{transform:scale(0.86);}
   .lamp-poke-dot{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--cyan);
     box-shadow:0 0 0 2px var(--navy-0);animation:beat 0.9s infinite;}
   @media(prefers-reduced-motion:reduce){.lamp-poke-dot{animation:none;}}
 
-  .systems-wrap{max-width:920px;margin:0 auto;padding:20px 32px 60px;}
+  .systems-wrap{padding-block:0 64px;}
   .systems-label{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:16px;border-top:1px solid var(--line);padding-top:28px;}
   /* minmax(0,…) + min-width:0 so long tile content (e.g. "PGA TOUR 2K25")
      truncates instead of forcing the grid — and the page — wider than the
      viewport. */
   .systems{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);}
-  .sys-tile{position:relative;isolation:isolate;min-width:0;--mx:50%;--my:50%;background:var(--navy-1);padding:20px 18px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:10px;min-height:118px;justify-content:space-between;transition:background 0.25s ease;}
+  .sys-tile{position:relative;isolation:isolate;min-width:0;--mx:50%;--my:50%;background:var(--navy-1);padding:22px 20px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:12px;min-height:150px;justify-content:space-between;transition:background 0.25s ease;}
   /* Cursor spotlight, ported from the live home page: a pointer-tracked wash
      plus a gradient hairline that lights up under the cursor, in the concept's
      cyan. Compositor-only, gated to hover devices, off under reduced-motion. */
@@ -90,10 +109,10 @@
   @media(hover:hover){.sys-tile:hover{background:var(--navy-2);}.sys-tile:hover::before,.sys-tile:hover::after{opacity:1;}}
   @media(prefers-reduced-motion:reduce){.sys-tile::before,.sys-tile::after{display:none;}}
   .sys-tile .top{display:flex;justify-content:space-between;align-items:flex-start;}
-  .sys-tile .name{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:14.5px;}
+  .sys-tile .name{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:15.5px;}
   .sys-tile .arrow{color:var(--text-dim);font-size:13px;transition:transform 0.25s ease,color 0.25s ease;}
   .sys-tile:hover .arrow{color:var(--cyan);transform:translate(2px,-2px);}
-  .sys-tile .stat{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sys-tile .stat{font-family:'JetBrains Mono',monospace;font-size:13.5px;color:var(--cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .sys-tile .stat.amber{color:var(--amber);}
   .sys-tile .stat.violet{color:var(--violet);}
   .sys-tile .stat.dim{color:var(--text-dim);}
@@ -129,19 +148,54 @@
   h1 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--cyan);
     margin-right:14px;vertical-align:0.12em;animation:beat 1.6s ease-in-out infinite;}
   @media(prefers-reduced-motion:reduce){h1 .dot{animation:none;}}
-  @media(max-width:720px){.systems{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:1024px){.systems{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  @media(max-width:720px){.systems{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .sys-tile{min-height:132px;padding:18px 16px;}}
 
   /* Story header + timeline left-aligned to the page gutter (was centered). */
-  .story-head{padding:20px clamp(24px,6vw,88px) 0;}
-  .timeline{position:relative;max-width:820px;margin:0;padding:36px clamp(24px,6vw,88px) 200px calc(clamp(24px,6vw,88px) + 56px);}
+  .story-head{padding-block:24px 0;}
+
+  /* The story is two columns: the scrolling timeline, and a sticky rail that
+     used to be 691px of dead space (48.5% of the page width on desktop). */
+  .story{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:48px;align-items:start;
+    padding-block:24px 140px;}
+  @media(max-width:1024px){
+    .story{grid-template-columns:1fr;gap:24px;padding-block:20px 100px;}
+    .story-rail{position:static !important;order:-1;}  /* becomes a summary card above the story */
+  }
+
+  /* The rail gutter is now an INNER offset of the timeline, so the timeline's
+     own left edge stays flush with the hero and the cards. */
+  .timeline{position:relative;padding-left:var(--rail-w);}
 
   /* HR rail: the day's heart rate as a vertical trace down the left, drawn by
-     JS from replay.hr_series. The mask sits over the un-scrolled portion so
-     the trace "fills" cyan→violet as you move down the day. */
-  .hr-rail{position:absolute;left:clamp(24px,6vw,88px);top:36px;width:44px;height:calc(100% - 236px);overflow:visible;}
+     JS from replay.hr_series. Always fully visible — no mask, no reveal. */
+  .hr-rail{position:absolute;left:0;top:0;bottom:0;width:44px;overflow:visible;}
   .hr-rail-path{opacity:0.9;}
-  .hr-rail-mask{position:absolute;left:clamp(24px,6vw,88px);top:36px;width:48px;height:0;
-    background:var(--navy-0);opacity:0.7;pointer-events:none;}
+
+  /* Sticky day-summary rail. Every value here is server-rendered real data,
+     visible with no JS; the scroll readout only *changes* text it already has. */
+  .story-rail{position:sticky;top:calc(var(--ticker-h) + 28px);
+    border:1px solid var(--line);background:rgba(13,19,28,0.66);padding:20px;}
+  .rail-head{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.1em;
+    color:var(--text-dim);text-transform:uppercase;padding-bottom:14px;border-bottom:1px solid var(--line);}
+  .rail-now{padding:16px 0;border-bottom:1px solid var(--line);}
+  .rail-now-label{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.12em;color:var(--text-dim);margin-bottom:7px;}
+  .rail-time{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--cyan);margin-bottom:4px;}
+  .rail-name{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:500;line-height:1.25;}
+  .rail-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:16px 0;border-bottom:1px solid var(--line);}
+  .rail-stats div{min-width:0;}
+  .rail-stats dt{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:4px;}
+  .rail-stats dd{font-family:'JetBrains Mono',monospace;font-size:19px;color:var(--text);}
+  .rail-stats dd small{display:block;font-size:9.5px;color:var(--text-dim);margin-top:2px;}
+  .rail-foot{padding-top:16px;display:flex;flex-direction:column;gap:9px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+  .rail-foot .row{display:flex;align-items:center;gap:8px;min-width:0;}
+  .rail-foot .row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* Real bulb colours: one dot per lit room, painted from the light's own RGB. */
+  .rail-dots{display:flex;gap:5px;flex-wrap:wrap;}
+  .rail-dot{width:9px;height:9px;border-radius:50%;background:rgb(var(--c,122,132,148));
+    box-shadow:0 0 7px -1px rgb(var(--c,122,132,148));}
 
   .event{position:relative;padding:34px 0;opacity:0;transform:translateY(18px);transition:opacity 0.6s ease,transform 0.6s ease;}
   .event.in{opacity:1;transform:translateY(0);}
@@ -155,7 +209,7 @@
   .event h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:21px;margin-bottom:7px;}
   .event p{color:var(--text-dim);font-size:14.5px;line-height:1.55;max-width:46ch;}
 
-  .empty{max-width:760px;margin:0;padding:20px clamp(24px,6vw,88px) 120px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px;}
+  .empty{padding-block:20px 120px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px;}
   footer{text-align:center;padding:60px 32px 90px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:0.04em;border-top:1px solid var(--line);}
 
   .preview-flag{position:fixed;bottom:14px;right:14px;z-index:60;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);background:rgba(13,19,28,0.9);border:1px solid var(--line);border-radius:6px;padding:6px 10px;}
@@ -190,7 +244,7 @@
   <div class="tick" id="tk-clock">—</div>
 </div>
 
-<section class="hero">
+<section class="hero page">
   <div class="eyebrow">PERSONAL OS &middot; LIVE</div>
 
   {# The headline IS the live status, ported from the old home page's full
@@ -215,15 +269,17 @@
      endpoint and unread-badge logic; restyled to the concept's instrument
      look instead of the rounded-2xl emerald button. #}
   {% if not public_mode %}
-  <button onclick="triggerOfficeLampNotificationPoke()" class="lamp-poke" id="lamp-poke-btn"
-          title="Poke the office lamp (instant blink)">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"/></svg>
-    {% if blog_unread_count and blog_unread_count > 0 %}<span class="lamp-poke-dot"></span>{% endif %}
-  </button>
+  <div class="lamp-poke-wrap">
+    <button onclick="triggerOfficeLampNotificationPoke()" class="lamp-poke" id="lamp-poke-btn"
+            title="Poke the office lamp (instant blink)">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"/></svg>
+      {% if blog_unread_count and blog_unread_count > 0 %}<span class="lamp-poke-dot"></span>{% endif %}
+    </button>
+  </div>
   {% endif %}
 </section>
 
-<div class="systems-wrap">
+<div class="systems-wrap page">
   <div class="systems-label">SYSTEMS</div>
   <div class="systems">
     <a class="sys-tile" href="/vitals">
@@ -297,39 +353,71 @@
 </div>
 
 {% if has_story and timeline %}
-<div class="story-head">
+<div class="story-head page">
   <div class="systems-label" style="border-top:none;padding-top:0;">TODAY'S STORY &middot; {{ replay.day }} &middot; SCROLL THROUGH THE DAY</div>
 </div>
 
-{# The timeline: real events only, in time order, evenly spaced (no dead
-   space for quiet stretches). The left rail is a live vertical trace of the
-   day's heart rate — "the heart chart, sideways" — drawn by JS from
-   replay.hr_series and revealed as you scroll. Events sit to its right. #}
-<div class="timeline" id="timeline">
-  <svg class="hr-rail" id="hr-rail" preserveAspectRatio="none" aria-hidden="true">
-    <path id="hr-rail-path" fill="none" stroke="url(#hrgrad)" stroke-width="1.5"/>
-    <defs><linearGradient id="hrgrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="var(--cyan)"/><stop offset="100%" stop-color="var(--violet)"/>
-    </linearGradient></defs>
-  </svg>
-  <div class="hr-rail-mask" id="hr-rail-mask"></div>
+{# Two columns: the scrolling timeline, and a sticky day-summary rail that
+   fills what used to be ~691px of dead space on desktop. #}
+<div class="story page">
 
-  {% for e in timeline %}
-  <div class="event event-{{ e.kind }}" data-x="{{ e.x }}">
-    <div class="time{% if e.kind == 'peak' %} amber{% elif e.kind in ('game','media') %} violet{% endif %}">{{ e.clk }}</div>
-    <h2>{{ e.title }}</h2>
-    <p>{{ e.detail }}</p>
+  {# The timeline: real events only, in time order, evenly spaced (no dead
+     space for quiet stretches). The left rail is a live vertical trace of the
+     day's heart rate — "the heart chart, sideways" — drawn by JS from
+     replay.hr_series. Events sit to its right. #}
+  <div class="timeline" id="timeline">
+    <svg class="hr-rail" id="hr-rail" preserveAspectRatio="none" aria-hidden="true">
+      <path id="hr-rail-path" fill="none" stroke="url(#hrgrad)" stroke-width="1.5"/>
+      <defs><linearGradient id="hrgrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--cyan)"/><stop offset="100%" stop-color="var(--violet)"/>
+      </linearGradient></defs>
+    </svg>
+
+    {% for e in timeline %}
+    <div class="event event-{{ e.kind }}" data-x="{{ e.x }}">
+      <div class="time{% if e.kind == 'peak' %} amber{% elif e.kind in ('game','media') %} violet{% endif %}">{{ e.clk }}</div>
+      <h2>{{ e.title }}</h2>
+      <p>{{ e.detail }}</p>
+    </div>
+    {% endfor %}
   </div>
-  {% endfor %}
+
+  {# Sticky rail. Everything below is server-rendered real data and visible
+     with zero JS — the scroll handler only REPLACES the readout text, so a
+     stalled script degrades to "showing the first event", never to blank. #}
+  <aside class="story-rail" id="story-rail">
+    <div class="rail-head">Today &middot; {{ replay.day }}</div>
+
+    <div class="rail-now">
+      <div class="rail-now-label">NOW READING</div>
+      <div class="rail-time" id="rail-time">{{ timeline[0].clk }}</div>
+      <div class="rail-name" id="rail-name">{{ timeline[0].title }}</div>
+    </div>
+
+    <dl class="rail-stats">
+      <div><dt>PEAK</dt><dd>{{ replay.peak.bpm if replay.peak else '—' }}<small>{{ replay.peak.clk if replay.peak else '' }}</small></dd></div>
+      <div><dt>CALM</dt><dd>{{ replay.low.bpm if replay.low else '—' }}<small>{{ replay.low.clk if replay.low else '' }}</small></dd></div>
+      <div><dt>NOW</dt><dd>{{ replay.current.bpm if replay.current else '—' }}<small>{{ replay.current.clk if replay.current else '' }}</small></dd></div>
+    </dl>
+
+    <div class="rail-foot">
+      {% if steps_n is not none %}
+      <div class="row"><span>{{ '{:,}'.format(steps_n) }} steps{% if steps and steps.miles is not none %} &middot; {{ '%.1f' % steps.miles }} mi{% endif %}</span></div>
+      {% endif %}
+      <div class="row"><span>{{ replay.games_count }} game{{ '' if replay.games_count == 1 else 's' }} &middot; {{ replay.media_count }} watching</span></div>
+      <div class="row"><span id="rail-lights">— lights on</span><span class="rail-dots" id="rail-dots"></span></div>
+    </div>
+  </aside>
+
 </div>
 {% elif has_story %}
-<div class="empty">
+<div class="empty page">
   // TODAY'S STORY — {{ replay.day }}. Heart rate is logging but no timed
   events have landed yet. Games, watching, and the day's peak fill in as
   they happen.
 </div>
 {% else %}
-<div class="empty">
+<div class="empty page">
   // TODAY'S STORY — waiting on data. The ring hasn't logged enough of today yet,
   or activity is private during work hours. It fills in as the day goes.
 </div>
@@ -342,7 +430,6 @@
 <script>
   const events = document.querySelectorAll('.event');
   const bgwash = document.getElementById('bgwash');
-  const railMask = document.getElementById('hr-rail-mask');
   const timeline = document.querySelector('.timeline');
   const HR_SERIES = {{ replay.hr_series | tojson if (replay and replay.hr_series) else '[]' }};
 
@@ -397,15 +484,35 @@
     const total=rect.height-window.innerHeight;
     const scrolled=Math.min(Math.max(-rect.top,0),total);
     const frac=total>0?scrolled/total:0;
-    // The mask dims the un-reached (future) part of the rail; as you scroll it
-    // slides down, "lighting up" the heart trace behind you.
-    if(railMask&&railSvg){
-      const railH=railSvg.getBoundingClientRect().height;
-      railMask.style.top=(36+frac*railH)+'px';
-      railMask.style.height=((1-frac)*railH)+'px';
-    }
+    // The heart trace is shown whole, always. (A dimming mask used to slide
+    // over the un-reached part; it read as a black bar sitting on top of the
+    // chart, so it's gone — the trace is data, not a progress meter.)
     bgwash.style.background=colorAtHour(6+frac*(22-6));
+    updateRail();
     ticking=false;
+  }
+
+  // Sticky-rail readout: name the event you're currently beside. Only fires
+  // when the active index CHANGES, and only writes textContent that is already
+  // populated server-side — so it can never blank the rail.
+  const railTime=document.getElementById('rail-time'), railName=document.getElementById('rail-name');
+  const wideMQ=window.matchMedia('(min-width:1025px)');
+  let activeIdx=-1;
+  function updateRail(){
+    if(!railTime||!events.length||!wideMQ.matches)return;   // phone does zero work here
+    const mid=window.innerHeight*0.42;
+    let best=0,bestD=Infinity;
+    events.forEach((el,i)=>{
+      const r=el.getBoundingClientRect();
+      const d=Math.abs((r.top+r.height/2)-mid);
+      if(d<bestD){bestD=d;best=i;}
+    });
+    if(best===activeIdx)return;
+    activeIdx=best;
+    const el=events[best];
+    const t=el.querySelector('.time'), h=el.querySelector('h2');
+    if(t)railTime.textContent=t.textContent;
+    if(h&&railName)railName.textContent=h.textContent;
   }
   window.addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(onScroll);}},{passive:true});
   window.addEventListener('resize',()=>{drawHrRail();onScroll();},{passive:true});
@@ -579,6 +686,36 @@
       b.style.background=`radial-gradient(circle,rgba(${c[0]|0},${c[1]|0},${c[2]|0},0.55) 0%,transparent 70%)`;
       b.style.opacity=0.5;});
   }
+  // The poke button glows the colour the office lamp is ACTUALLY projecting
+  // right now — same RGB the bulb reports — and goes grey/unlit when it's off.
+  function paintLampButton(data){
+    const btn=document.getElementById('lamp-poke-btn');
+    if(!btn)return;
+    const lamp=flatLights(data).find(l=>/office/i.test(l.entity_id||'')&&/lamp/i.test(l.entity_id||''))
+             ||flatLights(data).find(l=>/office lamp/i.test(l.friendly_name||''));
+    if(!lamp||lamp.state!=='on'){btn.classList.add('lamp-off');return;}
+    btn.classList.remove('lamp-off');
+    const c=(Array.isArray(lamp.rgb_color)&&lamp.rgb_color.length>=3)?lamp.rgb_color:[255,196,120];
+    btn.style.setProperty('--lamp',`${c[0]|0},${c[1]|0},${c[2]|0}`);
+  }
+
+  // Rail footer: one dot per lit light, painted its REAL bulb colour.
+  function paintRailLights(data){
+    const label=document.getElementById('rail-lights'), dots=document.getElementById('rail-dots');
+    if(!label||!dots)return;
+    const on=flatLights(data).filter(l=>l.state==='on');
+    label.textContent=on.length+' light'+(on.length===1?'':'s')+' on';
+    dots.textContent='';
+    on.slice(0,10).forEach(l=>{
+      const c=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)?l.rgb_color:[255,196,120];
+      const s=document.createElement('span');
+      s.className='rail-dot';
+      s.style.setProperty('--c',`${c[0]|0},${c[1]|0},${c[2]|0}`);
+      s.title=l.friendly_name||'';
+      dots.appendChild(s);
+    });
+  }
+
   function refreshHouse(){
     fetch('/api/ha/lights-data').then(r=>r.json()).then(d=>{
       if(d.status==='ok'){
@@ -587,6 +724,8 @@
         const on=flatLights(d).filter(l=>l.state==='on').length;
         const lightsEl=document.getElementById('sys-lights');
         if(lightsEl)lightsEl.textContent=on+' lights on';
+        paintLampButton(d);
+        paintRailLights(d);
         synthesizeStatus();
       }
     }).catch(()=>{});
