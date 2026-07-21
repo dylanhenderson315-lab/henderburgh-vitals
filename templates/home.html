@@ -192,32 +192,50 @@
        1) HENDERBURGH IS  — brand anchor, loudest type on the page
        2) WORKING.        — live state, same sentence, quieter / smaller
        Never invert. Never let the state fill the viewport. */
+    /* Brand line and state on SEPARATE lines. Cramming a small tracked-mono
+       word onto the baseline of a tight display-sans headline read as wonky —
+       two clashing fonts fighting for the same line, nudged by a fragile
+       translateY. Stacked, it reads as a clean statement + a status line. */
     #live-headline {
       display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      column-gap: 0.4em;
-      row-gap: 0.12em;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.55rem;
       margin: 0;
       max-width: 40rem;
     }
     #live-headline .hero-brand {
-      font-size: clamp(1.85rem, 5.2vw, 3rem);
+      font-size: clamp(1.85rem, 5.4vw, 3rem);
       font-weight: 650;
       letter-spacing: -0.035em;
-      line-height: 1.05;
+      line-height: 1.02;
       color: #f4f4f5;
     }
+    /* The live state as an instrument status line: mono, tracked, accent-tinted,
+       with a leading tick — unmistakably "the house's current state" rather
+       than a mismatched second half of the title. */
     #live-headline .hero-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
       font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
-      font-size: clamp(0.72rem, 1.55vw, 0.95rem);
+      font-size: clamp(0.78rem, 1.5vw, 0.95rem);
       font-weight: 500;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      line-height: 1.2;
-      color: #8b8b93;
-      /* Optical baseline with the display brand line */
-      transform: translateY(-0.12em);
+      line-height: 1;
+      color: #d4d4d8;
+      padding-left: 0.05em;
+    }
+    #live-headline .hero-state::before {
+      content: '';
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent, #4ade80);
+      box-shadow: 0 0 0 0 rgba(74,222,128,.5);
+      animation: hud-pulse 2.4s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #live-headline .hero-state::before { animation: none; }
     }
     #live-subline {
       font-size: 0.875rem;
