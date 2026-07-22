@@ -61,19 +61,16 @@
     mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);
     -webkit-mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);}
 
-  /* ── House ambient (same data logic as Lighting page #light-strip) ────────
-     Every ON light in the whole house contributes its real RGB, in room
-     order. Three coordinated layers:
-       1) ticker LED strip  — exact paintLightStrip language
-       2) sky wash          — soft full-width gradient of the same palette
-       3) orbs              — one soft glow per on-light, laid L→R in room order
-     Off lights contribute nothing. Idle = dim emerald. */
+  /* ── House ambient (mode-aware) ───────────────────────────────────────────
+     Two layers only: sky wash + orbs. Every ON light contributes (room order).
+     Static → real RGB (or warm white). Dynamic → effect character + speed.
+     Off → skip. None on → dim emerald idle. Black base stays. */
   #house-ambient{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;}
   #ambient-sky{
-    position:absolute;left:-8%;right:-8%;top:-12%;height:62vh;
-    opacity:0;filter:blur(48px);mix-blend-mode:screen;
-    transition:opacity 1.4s ease,background 1.6s ease;
-    transform:translateZ(0);
+    position:absolute;left:-10%;right:-10%;top:-14%;height:64vh;
+    opacity:0;filter:blur(52px);mix-blend-mode:screen;
+    transition:opacity 1.2s ease;
+    transform:translateZ(0);will-change:opacity,background;
   }
   #ambient-orbs{position:absolute;inset:0;}
   .ambient-orb{
@@ -82,20 +79,66 @@
     border-radius:50%;filter:blur(96px);opacity:0;
     transform:translate(-50%,-50%);
     mix-blend-mode:screen;pointer-events:none;
-    transition:background 1.4s ease,opacity 1.2s ease,width 1.3s ease,height 1.3s ease,
-               left 1.6s cubic-bezier(.22,1,.36,1),top 1.6s cubic-bezier(.22,1,.36,1);
-    will-change:transform,opacity,left,top;
+    transition:width 1.2s ease,height 1.2s ease,left 1.5s cubic-bezier(.22,1,.36,1),top 1.5s cubic-bezier(.22,1,.36,1);
+    will-change:transform,opacity,background,filter;
   }
-  .ambient-orb.is-on{
-    animation:orb-breathe var(--drift-dur,30s) ease-in-out infinite alternate;
-    animation-delay:var(--drift-delay,0s);
+  /* Energy classes — motion character; duration from --dyn-ms (speed). */
+  .ambient-orb.is-on[data-energy="static"],
+  .ambient-orb.is-on[data-energy="white"]{
+    animation:orb-still 24s ease-in-out infinite alternate;
   }
-  @keyframes orb-breathe{
+  .ambient-orb.is-on[data-energy="calm"]{
+    animation:orb-calm var(--dyn-ms,12s) ease-in-out infinite alternate;
+  }
+  .ambient-orb.is-on[data-energy="flow"]{
+    animation:orb-flow var(--dyn-ms,7s) ease-in-out infinite alternate;
+  }
+  .ambient-orb.is-on[data-energy="pulse"]{
+    animation:orb-pulse var(--dyn-ms,1.6s) ease-in-out infinite;
+  }
+  .ambient-orb.is-on[data-energy="party"]{
+    animation:orb-party var(--dyn-ms,0.55s) linear infinite;
+    filter:blur(72px) saturate(1.35);
+  }
+  .ambient-orb.is-on[data-energy="alarm"]{
+    animation:orb-alarm var(--dyn-ms,0.45s) steps(2,end) infinite;
+    filter:blur(70px) saturate(1.2);
+  }
+  .ambient-orb.is-on[data-energy="original"],
+  .ambient-orb.is-on[data-energy="tv"]{
+    animation:orb-flow var(--dyn-ms,5s) ease-in-out infinite alternate;
+  }
+  @keyframes orb-still{
     from{transform:translate(-50%,-50%) scale(1);}
-    to{transform:translate(-50%,-50%) scale(1.07) translate(var(--dx,1.5vw),var(--dy,1vh));}
+    to{transform:translate(-50%,-50%) scale(1.04) translate(var(--dx,1vw),var(--dy,.6vh));}
   }
+  @keyframes orb-calm{
+    from{transform:translate(-50%,-50%) scale(1);filter:blur(100px) brightness(0.95);}
+    to{transform:translate(-50%,-50%) scale(1.08) translate(var(--dx,2vw),var(--dy,1.2vh));filter:blur(96px) brightness(1.08);}
+  }
+  @keyframes orb-flow{
+    from{transform:translate(-50%,-50%) scale(0.96) translate(-2%,0);filter:blur(92px) saturate(1.05);}
+    to{transform:translate(-50%,-50%) scale(1.1) translate(3%,1.5%);filter:blur(88px) saturate(1.2);}
+  }
+  @keyframes orb-pulse{
+    0%,100%{transform:translate(-50%,-50%) scale(0.92);opacity:var(--op-lo,.35);}
+    50%{transform:translate(-50%,-50%) scale(1.12);opacity:var(--op-hi,.78);}
+  }
+  @keyframes orb-party{
+    0%{transform:translate(-50%,-50%) scale(1.05) rotate(0deg);filter:blur(68px) saturate(1.5) hue-rotate(0deg);}
+    50%{transform:translate(-50%,-50%) scale(1.18) rotate(3deg);filter:blur(64px) saturate(1.65) hue-rotate(40deg);}
+    100%{transform:translate(-50%,-50%) scale(1.05) rotate(0deg);filter:blur(68px) saturate(1.5) hue-rotate(80deg);}
+  }
+  @keyframes orb-alarm{
+    0%{opacity:var(--op-lo,.25);transform:translate(-50%,-50%) scale(0.95);}
+    50%{opacity:var(--op-hi,.9);transform:translate(-50%,-50%) scale(1.15);}
+    100%{opacity:var(--op-lo,.25);transform:translate(-50%,-50%) scale(0.95);}
+  }
+  #ambient-sky[data-energy="party"]{filter:blur(44px) saturate(1.25);}
+  #ambient-sky[data-energy="alarm"]{filter:blur(40px) contrast(1.1);}
   @media(prefers-reduced-motion:reduce){
     .ambient-orb{animation:none!important;transition:opacity .5s ease,background .5s ease;}
+    #ambient-sky{filter:blur(52px)!important;}
   }
 
   .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
@@ -1166,78 +1209,203 @@
     }).catch(()=>{const el=document.getElementById('sys-music'); if(el)el.textContent='unavailable';});
   }
 
-  // ── Whole-house ambient (mirrors Lighting page paintLightStrip) ─────────
-  // 1. Collect every light: all rooms + unassigned, in room data order
-  // 2. Off → skip. On → real rgb_color, else warm white [255,196,120]
-  // 3. That ordered palette drives: ticker LED strip + sky wash + orbs
-  // 4. No lights → dim emerald idle (same as lighting page)
+  // ── Whole-house ambient (mode-aware) ───────────────────────────────────
+  // Logic:
+  //  1. Every light, room order (+ unassigned)
+  //  2. Off → skip
+  //  3. On + Static → live RGB (else warm white)
+  //  4. On + Dynamic → effect character (Originals / WiZ / TV Sync) + speed
+  //  5. None on → dim emerald idle
+  //  6. Palette drives two layers only: sky wash + orbs (L→R)
+  // Prefer real HA state over invented motion.
   const ambientSky=document.getElementById('ambient-sky');
   const ambientOrbs=document.getElementById('ambient-orbs');
   const lightStrip=document.getElementById('light-strip');
   const orbById=new Map();
+  const WARM_WHITE=[255,196,120];
+  let ambientLive=[];           // last painted on-lights (for rAF palette tick)
+  let ambientFx={running:false,pattern:null,entities:[]};
+  let ambientTv={mode:null,active:false};
+  let ambientRaf=0, ambientT0=0;
+  const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function flatLightsInRoomOrder(d){
-    // Preserve room-map iteration order (same as lighting page strip).
     const out=[];
     if(!d) return out;
-    Object.values(d.lights_by_room||{}).forEach(arr=>{
-      (arr||[]).forEach(l=>out.push(l));
-    });
+    Object.values(d.lights_by_room||{}).forEach(arr=>{(arr||[]).forEach(l=>out.push(l));});
     (d.unassigned_lights||[]).forEach(l=>out.push(l));
     return out;
   }
-  // Alias used by synthesizeStatus / card / rail — MUST exist (broke "checking…"
-  // when ambient rewrite renamed the only flattener).
   function flatLights(d){ return flatLightsInRoomOrder(d); }
 
-  // Resolve a bulb's display RGB: top-level fields first, then attributes
-  // (Wiz often reports rgbw_color / color_temp without rgb_color when "on").
   function lightRgb(l){
     const attrs=(l&&l.attributes&&typeof l.attributes==='object')?l.attributes:{};
-    const candidates=[
-      l&&l.rgb_color,
-      attrs.rgb_color,
-      attrs.rgbw_color, // [r,g,b,w] — take first three
-      attrs.rgbww_color,
-    ];
+    const candidates=[l&&l.rgb_color, attrs.rgb_color, attrs.rgbw_color, attrs.rgbww_color];
     for(const c of candidates){
       if(Array.isArray(c)&&c.length>=3){
         const r=Number(c[0]),g=Number(c[1]),b=Number(c[2]);
         if([r,g,b].every(n=>Number.isFinite(n))) return [r|0,g|0,b|0];
       }
     }
-    // Color-temp only (common for white modes) → warm white ambient
-    if(attrs.color_temp_kelvin||attrs.color_temp||l.color_temp) return [255,196,120];
-    return [255,196,120];
+    return null; // caller decides warm-white fallback
   }
-
   function lightBrightness(l){
     const attrs=(l&&l.attributes&&typeof l.attributes==='object')?l.attributes:{};
     const b=l&&l.brightness!=null?l.brightness:attrs.brightness;
     if(b==null||!Number.isFinite(Number(b))) return 200;
     return Math.max(0,Math.min(255,Number(b)));
   }
+  function lightEffect(l){
+    const attrs=(l&&l.attributes&&typeof l.attributes==='object')?l.attributes:{};
+    return String(l.current_effect||attrs.effect||'').trim();
+  }
+  function lightSpeed(l){
+    // 1–100 if present; Ultra Fast UI uses 100. Default mid for dynamics.
+    const s=l.effect_speed!=null?Number(l.effect_speed)
+      :(l.attributes&&l.attributes.effect_speed!=null?Number(l.attributes.effect_speed):null);
+    if(s==null||!Number.isFinite(s)) return 50;
+    return Math.max(1,Math.min(100,s));
+  }
 
-  // Build the ordered on-palette — ONE source of truth for strip + sky + orbs.
+  // ── Effect taxonomy (character of motion) ──────────────────────────────
+  const WHITE_EFFECTS=new Set([
+    'daylight','cool white','warm white','golden white','white','true colors',
+    'focus','relax','bedtime','night light','plantgrowth','tv time','wake-up','wake up'
+  ]);
+  const PARTY_EFFECTS=new Set(['party']);
+  const PULSE_EFFECTS=new Set(['pulse','rhythm']);
+  const ALARM_EFFECTS=new Set(['alarm']);
+  const FLOW_EFFECTS=new Set([
+    'ocean','forest','jungle','deep dive','deepdive','fireplace','steampunk','mojito'
+  ]);
+  const CALM_EFFECTS=new Set([
+    'candlelight','candle','romance','cozy','sunset','spring','fall','autumn','summer',
+    'pastel colors','pastel','christmas','diwali','halloween'
+  ]);
+  const ORIGINALS={
+    thunderstorm:{energy:'original', palette:[[30,40,70],[215,228,255],[60,75,120]], flash:true},
+    'snowy-sky':{energy:'original', palette:[[225,238,255],[195,215,250],[240,246,255],[175,200,245]]},
+    aurora:{energy:'original', palette:[[20,190,120],[30,160,190],[110,70,200],[20,200,170],[60,120,220]]},
+    'lava-lamp':{energy:'original', palette:[[255,60,10],[255,120,0],[200,20,110],[255,40,60],[230,90,20]]},
+  };
+  const EFFECT_PALETTES={
+    party:[[255,40,80],[255,200,0],[40,255,120],[40,120,255],[200,40,255],[255,80,40]],
+    pulse:[[255,196,120],[255,230,180]],
+    rhythm:[[120,80,255],[255,80,180],[80,220,255]],
+    alarm:[[255,30,30],[255,240,240]],
+    ocean:[[10,80,160],[20,140,200],[30,180,220],[15,100,180]],
+    forest:[[20,90,40],[40,140,60],[30,110,50]],
+    jungle:[[20,120,50],[60,160,40],[30,100,60]],
+    'deep dive':[[5,30,90],[10,60,140],[20,90,160]],
+    fireplace:[[255,80,10],[255,140,20],[200,40,0],[255,100,30]],
+    steampunk:[[180,120,60],[140,90,40],[200,150,80]],
+    mojito:[[80,200,60],[40,160,80],[120,220,100]],
+    candlelight:[[255,170,80],[255,140,50]],
+    romance:[[220,60,120],[180,40,100],[255,100,150]],
+    cozy:[[255,160,90],[240,140,70]],
+    sunset:[[255,90,40],[255,140,60],[200,60,100]],
+    spring:[[160,220,120],[120,200,160]],
+    fall:[[220,120,40],[180,80,30]],
+    summer:[[255,200,60],[255,160,40]],
+    'pastel colors':[[255,180,200],[180,200,255],[200,255,200]],
+    christmas:[[200,20,30],[20,140,50],[255,220,180]],
+    diwali:[[255,160,40],[255,80,20],[255,200,80]],
+    halloween:[[255,100,0],[80,20,120],[20,20,20]],
+  };
+
+  function classifyEffect(effectName, entityId){
+    // Henderburgh Originals win when the orchestrator says this entity is running one.
+    if(ambientFx.running&&ambientFx.pattern&&(ambientFx.entities||[]).includes(entityId)){
+      const o=ORIGINALS[ambientFx.pattern];
+      if(o) return {energy:o.energy, kind:'original', key:ambientFx.pattern, palette:o.palette, flash:!!o.flash};
+    }
+    const n=(effectName||'').toLowerCase().trim();
+    if(!n) return {energy:'static', kind:'static', key:'', palette:null, flash:false};
+    if(ORIGINALS[n]||ORIGINALS[n.replace(/\s+/g,'-')]){
+      const key=ORIGINALS[n]?n:n.replace(/\s+/g,'-');
+      const o=ORIGINALS[key];
+      return {energy:o.energy, kind:'original', key, palette:o.palette, flash:!!o.flash};
+    }
+    if(PARTY_EFFECTS.has(n)) return {energy:'party', kind:'wiz', key:n, palette:EFFECT_PALETTES.party, flash:false};
+    if(PULSE_EFFECTS.has(n)) return {energy:'pulse', kind:'wiz', key:n, palette:EFFECT_PALETTES[n]||EFFECT_PALETTES.pulse, flash:false};
+    if(ALARM_EFFECTS.has(n)) return {energy:'alarm', kind:'wiz', key:n, palette:EFFECT_PALETTES.alarm, flash:true};
+    if(FLOW_EFFECTS.has(n)||FLOW_EFFECTS.has(n.replace(/\s+/g,'')))
+      return {energy:'flow', kind:'wiz', key:n, palette:EFFECT_PALETTES[n]||EFFECT_PALETTES[n.replace('deepdive','deep dive')]||null, flash:false};
+    if(CALM_EFFECTS.has(n)||[...CALM_EFFECTS].some(k=>n.includes(k)))
+      return {energy:'calm', kind:'wiz', key:n, palette:EFFECT_PALETTES[n]||null, flash:false};
+    if(WHITE_EFFECTS.has(n)||[...WHITE_EFFECTS].some(k=>n.includes(k)))
+      return {energy:'white', kind:'white', key:n, palette:null, flash:false};
+    // Unknown dynamic effect: medium flow, prefer live color as anchor
+    return {energy:'flow', kind:'wiz', key:n, palette:null, flash:false};
+  }
+
+  function whiteTintFor(name){
+    const n=(name||'').toLowerCase();
+    if(n.includes('cool')||n.includes('daylight')||n.includes('focus')) return [210,225,255];
+    if(n.includes('golden')) return [255,200,120];
+    if(n.includes('night')||n.includes('bedtime')||n.includes('relax')) return [255,170,100];
+    if(n.includes('plant')) return [200,255,200];
+    if(n.includes('tv')) return [220,230,255];
+    if(n.includes('wake')) return [255,230,190];
+    return [245,245,250];
+  }
+
+  function speedToMs(speed, energy){
+    // Map 1–100 → duration. Higher speed = shorter cycle. Ultra (100) is snappy.
+    const s=Math.max(1,Math.min(100,speed||50))/100;
+    const base={
+      static:24000, white:20000, calm:14000, flow:8000, pulse:2200,
+      party:900, alarm:700, original:6000, tv:5000
+    }[energy]||8000;
+    // speed 50 → base; speed 100 → ~0.28×; speed 1 → ~2.2×
+    const factor=2.2-s*1.92;
+    return Math.max(280, Math.round(base*factor));
+  }
+
   function collectOnLights(data){
     const all=flatLightsInRoomOrder(data);
     const on=[];
     all.forEach(l=>{
-      const st=String(l.state||'').toLowerCase();
-      if(st!=='on') return; // off / unavailable / unknown contribute nothing
-      const rgb=lightRgb(l);
-      const bri=lightBrightness(l);
+      if(String(l.state||'').toLowerCase()!=='on') return;
+      const effect=lightEffect(l);
+      const cls=classifyEffect(effect, l.entity_id||'');
+      // TV Sync mode overlay (if house TV sync is active) — restrained unless video-game/music
+      let energy=cls.energy, palette=cls.palette, kind=cls.kind, flash=cls.flash;
+      if(ambientTv.active&&ambientTv.mode){
+        if(ambientTv.mode==='music-sync'){ energy='pulse'; kind='tv'; palette=[[80,220,160],[40,120,255],[255,80,180]]; }
+        else if(ambientTv.mode==='video-game'){ energy='party'; kind='tv'; palette=[[40,255,120],[255,40,200],[40,160,255],[255,220,40]]; }
+        else { energy='flow'; kind='tv'; /* true-colors: natural, prefer live rgb */ }
+      }
+      const live=lightRgb(l);
+      let rgb;
+      if(energy==='static'){
+        rgb=live||WARM_WHITE.slice();
+      }else if(energy==='white'){
+        rgb=live||whiteTintFor(effect);
+      }else{
+        // Dynamic: prefer palette character; seed from live color if we have one
+        rgb=live||(palette&&palette[0])||WARM_WHITE.slice();
+      }
       on.push({
         id:l.entity_id||(l.friendly_name||'light-'+on.length),
         name:l.friendly_name||l.entity_id||'',
         room:l.room_name||'',
-        rgb, bri
+        rgb, live: live, bri:lightBrightness(l),
+        effect, energy, kind, palette, flash,
+        speed:lightSpeed(l),
+        key:cls.key||effect||''
       });
     });
     return on;
   }
 
+  function gradientFor(rgb, a0, a1){
+    const [r,g,b]=rgb;
+    return `radial-gradient(circle at 50% 50%,rgba(${r},${g},${b},${a0}) 0%,rgba(${r},${g},${b},${a1}) 42%,transparent 76%)`;
+  }
+
   function paintLightStrip(on){
+    // Quiet instrument chrome (not an ambient layer) — still uses same on-set.
     if(!lightStrip) return;
     if(!on.length){
       lightStrip.style.opacity='.35';
@@ -1250,46 +1418,98 @@
     lightStrip.style.background=`linear-gradient(90deg, ${stops.join(', ')})`;
   }
 
-  function paintAmbientSky(on){
-    if(!ambientSky) return;
-    if(!on.length){
-      // Idle: soft emerald breath, matching the strip idle language
-      ambientSky.style.background=
-        'radial-gradient(ellipse 90% 70% at 50% 0%, rgba(16,185,129,0.22) 0%, transparent 70%)';
-      ambientSky.style.opacity='0.35';
-      return;
-    }
-    // Soft multi-stop gradient across the upper field — same palette as strip
-    const stops=on.map(l=>`rgb(${l.rgb[0]},${l.rgb[1]},${l.rgb[2]})`);
-    if(stops.length===1){
-      const [r,g,b]=on[0].rgb;
-      ambientSky.style.background=
-        `radial-gradient(ellipse 100% 80% at 50% 0%, rgba(${r},${g},${b},0.55) 0%, rgba(${r},${g},${b},0.18) 45%, transparent 72%)`;
-    }else{
-      // Horizontal house palette, then fall off downward so content stays readable
-      const band=`linear-gradient(90deg, ${stops.join(', ')})`;
-      ambientSky.style.background=
-        `linear-gradient(180deg, rgba(10,10,11,0) 0%, rgba(10,10,11,0.15) 55%, rgba(10,10,11,0.85) 100%), ${band}`;
-    }
-    // More lights → slightly calmer overall so the page doesn't blow out
-    const op=on.length===1?0.72:on.length<=4?0.62:Math.max(0.42,0.7-on.length*0.012);
-    ambientSky.style.opacity=String(op);
+  function houseEnergy(on){
+    // Strongest signal wins for sky filter (Party > alarm > pulse > flow > …)
+    const rank={party:5,alarm:4,pulse:3,original:3,tv:3,flow:2,calm:1,white:0,static:0};
+    let best='static', score=-1;
+    on.forEach(l=>{const s=rank[l.energy]??0; if(s>score){score=s;best=l.energy;}});
+    return best;
   }
 
-  // Place orbs L→R in room order under the hero — reads as the house's ceiling.
+  function paintAmbientSky(on, t){
+    if(!ambientSky) return;
+    if(!on.length){
+      ambientSky.style.background='radial-gradient(ellipse 90% 70% at 50% 0%, rgba(16,185,129,0.22) 0%, transparent 70%)';
+      ambientSky.style.opacity='0.35';
+      ambientSky.dataset.energy='static';
+      return;
+    }
+    // Sample current display colors (may be mid-animation for dynamics)
+    const colors=on.map(l=>sampleLightColor(l,t));
+    const stops=colors.map(([r,g,b])=>`rgb(${r},${g},${b})`);
+    if(stops.length===1){
+      const [r,g,b]=colors[0];
+      ambientSky.style.background=
+        `radial-gradient(ellipse 100% 80% at 50% 0%, rgba(${r},${g},${b},0.55) 0%, rgba(${r},${g},${b},0.16) 48%, transparent 74%)`;
+    }else{
+      const band=`linear-gradient(90deg, ${stops.join(', ')})`;
+      ambientSky.style.background=
+        `linear-gradient(180deg, rgba(10,10,11,0) 0%, rgba(10,10,11,0.18) 55%, rgba(10,10,11,0.88) 100%), ${band}`;
+    }
+    const e=houseEnergy(on);
+    ambientSky.dataset.energy=e;
+    const baseOp=on.length===1?0.7:on.length<=4?0.6:Math.max(0.4,0.68-on.length*0.012);
+    const boost=e==='party'?0.08:e==='alarm'?0.05:0;
+    ambientSky.style.opacity=String(Math.min(0.82, baseOp+boost));
+  }
+
   function layoutOrb(i,n){
     if(n<=0) return {left:50,top:24,size:1};
     if(n===1) return {left:50,top:26,size:1.15};
     if(n===2) return i===0?{left:34,top:24,size:1}:{left:66,top:26,size:1};
-    // Even spread across the upper band with a gentle wave so it isn't a hard row
     const t=(i+0.5)/n;
-    const left=8+t*84;
-    const top=18+Math.sin(t*Math.PI)*10+(i%2===0?0:3);
-    const size=Math.max(0.42,0.95/Math.sqrt(Math.max(1,n*0.45)));
-    return {left, top, size};
+    return {
+      left:8+t*84,
+      top:18+Math.sin(t*Math.PI)*10+(i%2===0?0:3),
+      size:Math.max(0.42,0.95/Math.sqrt(Math.max(1,n*0.45)))
+    };
   }
 
-  function paintAmbientOrbs(on){
+  // Time-based color for a light — respects mode; anchors on live HA color when present.
+  function sampleLightColor(l, t){
+    const speed=l.speed||50;
+    const phase=(t/1000)*(0.35+speed/100*1.8)+hashId(l.id);
+    if(l.energy==='static'||l.energy==='white'){
+      return l.rgb;
+    }
+    const pal=l.palette;
+    if(pal&&pal.length){
+      if(l.flash&&l.energy==='original'&&l.key==='thunderstorm'){
+        // Mostly storm base; occasional lightning
+        const beat=Math.sin(phase*0.7);
+        if(beat>0.92) return pal[1]||[215,228,255];
+        if(beat>0.85) return pal[2]||pal[0];
+        return pal[0];
+      }
+      if(l.energy==='party'||l.energy==='alarm'){
+        const i=Math.floor(phase* (l.energy==='party'?6:3)) % pal.length;
+        return pal[i];
+      }
+      // Smooth lerp across palette for flow/calm/original/tv
+      const f=((phase%pal.length)+pal.length)%pal.length;
+      const i0=Math.floor(f)%pal.length;
+      const i1=(i0+1)%pal.length;
+      const u=f-Math.floor(f);
+      return lerpRgb(pal[i0], pal[i1], u);
+    }
+    // No palette: gently breathe around live color
+    const base=l.live||l.rgb;
+    const k=0.85+0.15*Math.sin(phase);
+    return [
+      Math.max(0,Math.min(255,base[0]*k)),
+      Math.max(0,Math.min(255,base[1]*k)),
+      Math.max(0,Math.min(255,base[2]*k))
+    ].map(v=>v|0);
+  }
+  function lerpRgb(a,b,t){
+    return [0,1,2].map(i=>Math.round(a[i]+(b[i]-a[i])*t));
+  }
+  function hashId(s){
+    let h=0; for(let i=0;i<(s||'').length;i++) h=(h*31+s.charCodeAt(i))|0;
+    return (h>>>0)%1000/100; // 0–10-ish phase offset
+  }
+
+  function paintAmbientOrbs(on, t){
     if(!ambientOrbs) return;
     const n=on.length;
     const seen=new Set();
@@ -1307,27 +1527,27 @@
         orbById.set(l.id,el);
         requestAnimationFrame(()=>el.classList.add('is-on'));
       }
-      const [r,g,b]=l.rgb;
+      const rgb=sampleLightColor(l, t);
+      l._display=rgb;
       const bri=Math.max(0.2,Math.min(1,l.bri/255));
       const lay=layoutOrb(i,n);
-      const px=Math.round(Math.min(640,Math.max(220,vw*0.42*lay.size*crowd)));
+      const energyBoost=l.energy==='party'?1.12:l.energy==='alarm'?1.08:1;
+      const px=Math.round(Math.min(640,Math.max(220,vw*0.42*lay.size*crowd*energyBoost)));
       const core=0.5+0.4*bri;
-      el.style.background=
-        `radial-gradient(circle at 50% 50%,`+
-        `rgba(${r},${g},${b},${(0.95*core).toFixed(3)}) 0%,`+
-        `rgba(${r},${g},${b},${(0.4*core).toFixed(3)}) 40%,`+
-        `rgba(${r},${g},${b},${(0.1*core).toFixed(3)}) 65%,`+
-        `transparent 78%)`;
+      el.style.background=gradientFor(rgb, 0.95*core, 0.38*core);
       el.style.width=px+'px';
       el.style.height=px+'px';
       el.style.left=lay.left+'%';
       el.style.top=lay.top+'%';
-      el.style.opacity=String(0.38+0.45*bri);
-      el.style.setProperty('--dx',((i%2===0)?1:-1)*(1+i*0.15)+'vw');
-      el.style.setProperty('--dy',((i%3===0)?-1:1)*(0.6+i*0.08)+'vh');
-      el.style.setProperty('--drift-dur',(26+i*2)+'s');
-      el.style.setProperty('--drift-delay',(i*0.35)+'s');
-      el.title=(l.room?l.room+' · ':'')+(l.name||l.id);
+      const op=0.36+0.46*bri+(l.energy==='party'?0.08:0);
+      el.style.opacity=String(Math.min(0.9, op));
+      el.style.setProperty('--op-lo', String(Math.max(0.2, op*0.55)));
+      el.style.setProperty('--op-hi', String(Math.min(0.95, op*1.15)));
+      el.style.setProperty('--dx',((i%2===0)?1:-1)*(1+i*0.12)+'vw');
+      el.style.setProperty('--dy',((i%3===0)?-1:1)*(0.5+i*0.07)+'vh');
+      el.style.setProperty('--dyn-ms', speedToMs(l.speed, l.energy)+'ms');
+      el.dataset.energy=l.energy||'static';
+      el.title=(l.room?l.room+' · ':'')+(l.name||l.id)+(l.effect?' · '+l.effect:'');
       el.classList.add('is-on');
     });
 
@@ -1341,18 +1561,70 @@
           dead.parentNode.removeChild(dead);
           orbById.delete(id);
         }
-      },1300);
+      },1200);
     });
+  }
+
+  function needsAmbientTick(on){
+    if(reduceMotion) return false;
+    return on.some(l=>l.energy!=='static'&&l.energy!=='white');
+  }
+
+  function ambientTick(now){
+    if(!ambientLive.length){ ambientRaf=0; return; }
+    if(!ambientT0) ambientT0=now;
+    const t=now-ambientT0;
+    // Soft update colors without rebuild layout thrash
+    ambientLive.forEach(l=>{
+      const el=orbById.get(l.id);
+      if(!el) return;
+      const rgb=sampleLightColor(l, t);
+      l._display=rgb;
+      const bri=Math.max(0.2,Math.min(1,l.bri/255));
+      const core=0.5+0.4*bri;
+      el.style.background=gradientFor(rgb, 0.95*core, 0.38*core);
+    });
+    paintAmbientSky(ambientLive, t);
+    if(document.visibilityState==='visible'&&needsAmbientTick(ambientLive)){
+      ambientRaf=requestAnimationFrame(ambientTick);
+    }else ambientRaf=0;
+  }
+
+  function startAmbientTick(){
+    if(ambientRaf) cancelAnimationFrame(ambientRaf);
+    ambientRaf=0; ambientT0=0;
+    if(needsAmbientTick(ambientLive)&&document.visibilityState==='visible'){
+      ambientRaf=requestAnimationFrame(ambientTick);
+    }
   }
 
   function paintHouseAmbient(data){
     const on=collectOnLights(data);
+    ambientLive=on;
     paintLightStrip(on);
-    paintAmbientSky(on);
-    paintAmbientOrbs(on);
+    paintAmbientSky(on, 0);
+    paintAmbientOrbs(on, 0);
+    startAmbientTick();
   }
-  // Back-compat name used by refreshHouse
   const paintAurora=paintHouseAmbient;
+
+  // Side channels: orchestrated originals + TV sync mode (best-effort, non-blocking)
+  function refreshAmbientMeta(){
+    fetch('/api/ha/orchestrate').then(r=>r.ok?r.json():null).then(d=>{
+      if(d) ambientFx={running:!!d.running, pattern:d.pattern||null, entities:d.entities||[]};
+    }).catch(()=>{});
+    fetch('/api/ha/tv-sync').then(r=>r.ok?r.json():null).then(d=>{
+      if(!d) return;
+      // Active if a mode is set and something looks engaged — prefer explicit mode field.
+      const mode=d.mode||null;
+      ambientTv={mode, active:!!(mode&&(d.active||d.syncing||d.enabled||d.running))};
+      // If payload only stores mode without flags, still treat as soft context when mode exists
+      // and any light is dynamic — paint path already prefers HA effect first.
+      if(mode&&!ambientTv.active) ambientTv.active=false;
+    }).catch(()=>{});
+  }
+  refreshAmbientMeta();
+  setInterval(()=>{ if(document.visibilityState==='visible') refreshAmbientMeta(); }, 12000);
   // The poke button glows the colour the office lamp is ACTUALLY projecting
   // right now — same RGB the bulb reports — and goes grey/unlit when it's off.
   function paintLampButton(data){
@@ -1371,7 +1643,7 @@
       return;
     }
     btn.classList.remove('lamp-off');
-    const c=lightRgb(lamp);
+    const c=lightRgb(lamp)||WARM_WHITE;
     btn.style.setProperty('--lamp',`${c[0]|0},${c[1]|0},${c[2]|0}`);
   }
 
@@ -1383,7 +1655,7 @@
     label.textContent=on.length+' light'+(on.length===1?'':'s')+' on';
     dots.textContent='';
     on.slice(0,10).forEach(l=>{
-      const c=lightRgb(l);
+      const c=lightRgb(l)||WARM_WHITE;
       const s=document.createElement('span');
       s.className='rail-dot';
       s.style.setProperty('--c',`${c[0]|0},${c[1]|0},${c[2]|0}`);
