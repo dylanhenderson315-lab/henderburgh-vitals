@@ -72,14 +72,14 @@
   --danger:        #f87171;   /* failure, destructive */
 
   /* ── Type ─────────────────────────────────────────────────────────────────
-     One professional sans for UI + identity (Inter). Hierarchy is weight,
-     size, and tracking — not a second geometric face. Space Grotesk was
-     retired: its square letterforms fought the rest of the OS and made the
-     hero/system cards look like a different product. Mono stays for
-     instrument labels, units, timestamps, and live numbers. */
+     Canonical stack (matches /vitals):
+       sans    = Inter — body, card titles, UI chrome
+       display = Space Grotesk — hero / page identity, big stats
+       mono    = system mono — rare code-like bits only
+     Labels on vitals are Inter uppercase + tracking, not mono. */
   --font-sans:    'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono:    'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --t-label: 0.625rem;  /* 10px — MONO UPPERCASE LABELS ONLY, never prose */
   --t-xs:    0.75rem;   /* 12px — smallest readable incidental text */
