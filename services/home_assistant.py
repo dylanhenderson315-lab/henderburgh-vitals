@@ -654,6 +654,43 @@ async def get_ha_lights_data():
         lights_by_room[rname].sort(key=lambda x: x["friendly_name"].lower())
     unassigned_lights.sort(key=lambda x: x["friendly_name"].lower())
 
+    # WiZ effect speed lives on companion number entities:
+    #   number.<light_base>_effect_speed  (HA range typically 10–200)
+    # Lighting UI slider is 1–100 (Ultra Fast = 100). Attach both so home ambient
+    # and the lighting page stay calibrated to the same value.
+    speed_by_light: Dict[str, Dict[str, Any]] = {}
+    for s in states:
+        eid = str(s.get("entity_id", "") or "")
+        if not eid.startswith("number.") or not eid.endswith("_effect_speed"):
+            continue
+        base = eid[len("number.") : -len("_effect_speed")]
+        if not base:
+            continue
+        light_eid = "light." + base
+        try:
+            raw = float(s.get("state"))
+        except (TypeError, ValueError):
+            continue
+        # Map HA raw → lighting-page slider percent (inverse of speedSliderToValue).
+        # speedSliderToValue: 10 + (pct/100)*190
+        if raw <= 10:
+            pct = 1
+        elif raw >= 200:
+            pct = 100
+        else:
+            pct = int(round(((raw - 10) / 190.0) * 100))
+            pct = max(1, min(100, pct))
+        speed_by_light[light_eid] = {
+            "effect_speed": pct,
+            "effect_speed_raw": raw,
+        }
+
+    for l in all_lights:
+        sp = speed_by_light.get(l["entity_id"])
+        if sp:
+            l["effect_speed"] = sp["effect_speed"]
+            l["effect_speed_raw"] = sp["effect_speed_raw"]
+
     # Scenes
     scenes = []
     for s in states:

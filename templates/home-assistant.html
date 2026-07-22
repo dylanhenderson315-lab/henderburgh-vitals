@@ -1601,8 +1601,13 @@
           all.forEach(l => {
             const prev = lightsState[l.entity_id] || {};
             const newEffect = l.current_effect || (l.attributes && l.attributes.effect) || '';
-            // Preserve last-used effect speed across refreshes if the effect is still the same (so speed control feels persistent)
-            const keepSpeed = newEffect && prev.current_effect === newEffect && prev.effect_speed != null ? prev.effect_speed : undefined;
+            // Prefer live HA speed (number.*_effect_speed → effect_speed 1–100 from
+            // lights-data). Fall back to prior client value only if HA didn't report.
+            const keepSpeed = (l.effect_speed != null)
+              ? l.effect_speed
+              : (newEffect && prev.current_effect === newEffect && prev.effect_speed != null
+                  ? prev.effect_speed
+                  : undefined);
 
             if (!lightsState[l.entity_id]) lightsState[l.entity_id] = {};
             lightsState[l.entity_id] = {
