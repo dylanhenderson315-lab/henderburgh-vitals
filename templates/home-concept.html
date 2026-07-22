@@ -141,13 +141,17 @@
      goes dark when the lamp is off. */
   .lamp-poke-wrap{display:flex;justify-content:center;margin-top:36px;}
   .lamp-poke{position:relative;width:52px;height:52px;border-radius:14px;
-    --lamp:74,222,128;
-    border:1px solid rgba(var(--lamp),0.45);background:var(--navy-1);color:rgb(var(--lamp));
+    --lamp:122,132,148; /* default OFF until paintLampButton confirms desk lamp is on */
+    border:1px solid var(--line);background:var(--navy-1);color:rgb(var(--lamp));
     display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
-    box-shadow:0 0 22px -4px rgba(var(--lamp),0.45), inset 0 0 14px -6px rgba(var(--lamp),0.5);
+    box-shadow:none;
     transition:transform 80ms cubic-bezier(0.2,0,0,1),background 0.25s ease,
       border-color 0.6s ease,box-shadow 0.6s ease,color 0.6s ease;}
-  .lamp-poke.lamp-off{--lamp:122,132,148;box-shadow:none;border-color:var(--line);}
+  .lamp-poke.lamp-off{--lamp:122,132,148;box-shadow:none;border-color:var(--line);color:rgb(122,132,148);}
+  .lamp-poke:not(.lamp-off){
+    border-color:rgba(var(--lamp),0.45);
+    box-shadow:0 0 22px -4px rgba(var(--lamp),0.45), inset 0 0 14px -6px rgba(var(--lamp),0.5);
+  }
   .lamp-poke:hover{background:var(--navy-2);}
   .lamp-poke:active{transform:scale(0.86);}
   .lamp-poke-dot{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--cyan);
@@ -417,7 +421,7 @@
      look instead of the rounded-2xl emerald button. #}
   {% if not public_mode %}
   <div class="lamp-poke-wrap">
-    <button onclick="triggerOfficeLampNotificationPoke()" class="lamp-poke" id="lamp-poke-btn"
+    <button onclick="triggerOfficeLampNotificationPoke()" class="lamp-poke lamp-off" id="lamp-poke-btn"
             title="Poke the office lamp (instant blink)">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"/></svg>
       {% if blog_unread_count and blog_unread_count > 0 %}<span class="lamp-poke-dot"></span>{% endif %}
@@ -1047,7 +1051,7 @@
     const subEl=document.getElementById('hero-sub');
     if(!stateEl)return;
     const lights=flatLights(LIVE.lights);
-    const onLights=lights.filter(l=>l.state==='on');
+    const onLights=lights.filter(l=>String(l.state||'').toLowerCase()==='on');
     const hasLightData=lights.length>0;
     const hourF=(()=>{try{const p=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'numeric',hour12:false,timeZone:'America/New_York'}).formatToParts(new Date());const h=+p.find(x=>x.type==='hour').value,m=+p.find(x=>x.type==='minute').value;return h+m/60;}catch(e){return new Date().getHours();}})();
     const hr=window.__HR_BPM;
@@ -1182,17 +1186,47 @@
     (d.unassigned_lights||[]).forEach(l=>out.push(l));
     return out;
   }
+  // Alias used by synthesizeStatus / card / rail — MUST exist (broke "checking…"
+  // when ambient rewrite renamed the only flattener).
+  function flatLights(d){ return flatLightsInRoomOrder(d); }
+
+  // Resolve a bulb's display RGB: top-level fields first, then attributes
+  // (Wiz often reports rgbw_color / color_temp without rgb_color when "on").
+  function lightRgb(l){
+    const attrs=(l&&l.attributes&&typeof l.attributes==='object')?l.attributes:{};
+    const candidates=[
+      l&&l.rgb_color,
+      attrs.rgb_color,
+      attrs.rgbw_color, // [r,g,b,w] — take first three
+      attrs.rgbww_color,
+    ];
+    for(const c of candidates){
+      if(Array.isArray(c)&&c.length>=3){
+        const r=Number(c[0]),g=Number(c[1]),b=Number(c[2]);
+        if([r,g,b].every(n=>Number.isFinite(n))) return [r|0,g|0,b|0];
+      }
+    }
+    // Color-temp only (common for white modes) → warm white ambient
+    if(attrs.color_temp_kelvin||attrs.color_temp||l.color_temp) return [255,196,120];
+    return [255,196,120];
+  }
+
+  function lightBrightness(l){
+    const attrs=(l&&l.attributes&&typeof l.attributes==='object')?l.attributes:{};
+    const b=l&&l.brightness!=null?l.brightness:attrs.brightness;
+    if(b==null||!Number.isFinite(Number(b))) return 200;
+    return Math.max(0,Math.min(255,Number(b)));
+  }
 
   // Build the ordered on-palette — ONE source of truth for strip + sky + orbs.
   function collectOnLights(data){
     const all=flatLightsInRoomOrder(data);
     const on=[];
     all.forEach(l=>{
-      if((l.state||'')!=='on') return;
-      const rgb=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)
-        ? [l.rgb_color[0]|0,l.rgb_color[1]|0,l.rgb_color[2]|0]
-        : [255,196,120];
-      const bri=l.brightness!=null?Math.max(0,Math.min(255,Number(l.brightness))):200;
+      const st=String(l.state||'').toLowerCase();
+      if(st!=='on') return; // off / unavailable / unknown contribute nothing
+      const rgb=lightRgb(l);
+      const bri=lightBrightness(l);
       on.push({
         id:l.entity_id||(l.friendly_name||'light-'+on.length),
         name:l.friendly_name||l.entity_id||'',
@@ -1324,11 +1358,20 @@
   function paintLampButton(data){
     const btn=document.getElementById('lamp-poke-btn');
     if(!btn)return;
-    const lamp=flatLights(data).find(l=>/office/i.test(l.entity_id||'')&&/lamp/i.test(l.entity_id||''))
-             ||flatLights(data).find(l=>/office lamp/i.test(l.friendly_name||''));
-    if(!lamp||lamp.state!=='on'){btn.classList.add('lamp-off');return;}
+    // Desk Lamp entity is light.office_lamp (friendly "Desk Lamp") — not a
+    // free-form office match that could hit the wrong fixture.
+    const lights=flatLights(data);
+    const lamp=lights.find(l=>(l.entity_id||'')==='light.office_lamp')
+             ||lights.find(l=>/desk\s*lamp/i.test(l.friendly_name||'')&&/game/i.test(l.room_name||''))
+             ||lights.find(l=>/office_lamp/i.test(l.entity_id||''));
+    const on=lamp&&String(lamp.state||'').toLowerCase()==='on';
+    if(!on){
+      btn.classList.add('lamp-off');
+      btn.style.removeProperty('--lamp');
+      return;
+    }
     btn.classList.remove('lamp-off');
-    const c=(Array.isArray(lamp.rgb_color)&&lamp.rgb_color.length>=3)?lamp.rgb_color:[255,196,120];
+    const c=lightRgb(lamp);
     btn.style.setProperty('--lamp',`${c[0]|0},${c[1]|0},${c[2]|0}`);
   }
 
@@ -1336,11 +1379,11 @@
   function paintRailLights(data){
     const label=document.getElementById('rail-lights'), dots=document.getElementById('rail-dots');
     if(!label||!dots)return;
-    const on=flatLights(data).filter(l=>l.state==='on');
+    const on=flatLights(data).filter(l=>String(l.state||'').toLowerCase()==='on');
     label.textContent=on.length+' light'+(on.length===1?'':'s')+' on';
     dots.textContent='';
     on.slice(0,10).forEach(l=>{
-      const c=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)?l.rgb_color:[255,196,120];
+      const c=lightRgb(l);
       const s=document.createElement('span');
       s.className='rail-dot';
       s.style.setProperty('--c',`${c[0]|0},${c[1]|0},${c[2]|0}`);
@@ -1350,18 +1393,32 @@
   }
 
   function refreshHouse(){
-    fetch('/api/ha/lights-data').then(r=>r.json()).then(d=>{
-      if(d.status==='ok'){
-        LIVE.lights=d;
-        paintAurora(d);
-        const on=flatLights(d).filter(l=>l.state==='on').length;
-        const lightsEl=document.getElementById('sys-lights');
-        if(lightsEl)lightsEl.textContent=on+' lights on';
-        paintLampButton(d);
-        paintRailLights(d);
-        synthesizeStatus();
+    const lightsEl=document.getElementById('sys-lights');
+    fetch('/api/ha/lights-data').then(r=>{
+      if(!r.ok) throw new Error('ha '+r.status);
+      return r.json();
+    }).then(d=>{
+      // Lighting page treats both ok and degraded as usable structure.
+      if(d.status!=='ok'&&d.status!=='degraded'){
+        if(lightsEl) lightsEl.textContent=d.status==='disabled'?'local only':'unavailable';
+        const btn=document.getElementById('lamp-poke-btn');
+        if(btn){btn.classList.add('lamp-off');btn.style.removeProperty('--lamp');}
+        return;
       }
-    }).catch(()=>{});
+      LIVE.lights=d;
+      try{ paintHouseAmbient(d); }catch(e){ console.error('ambient', e); }
+      const on=flatLights(d).filter(l=>String(l.state||'').toLowerCase()==='on').length;
+      if(lightsEl){
+        lightsEl.textContent=on+' light'+(on===1?'':'s')+' on';
+        lightsEl.classList.toggle('dim', on===0);
+      }
+      try{ paintLampButton(d); }catch(e){ console.error('lamp btn', e); }
+      try{ paintRailLights(d); }catch(e){ console.error('rail lights', e); }
+      try{ synthesizeStatus(); }catch(e){ console.error('status', e); }
+    }).catch(err=>{
+      console.error('refreshHouse', err);
+      if(lightsEl&&/checking/i.test(lightsEl.textContent||'')) lightsEl.textContent='unavailable';
+    });
   }
 
   refreshXbox(); refreshHouse(); refreshLastfm();
