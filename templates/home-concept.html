@@ -383,14 +383,14 @@
       <div class="stat">{% if hr %}{{ hr }} bpm{% endif %}{% if hr and steps_n is not none %} &middot; {% endif %}{% if steps_n is not none %}{{ '{:,}'.format(steps_n) }} steps{% endif %}{% if not hr and steps_n is none %}—{% endif %}</div>
     </a>
 
-    <a class="sys-tile" href="/xbox">
-      <div class="top"><span class="name">Xbox</span><span class="arrow">&#8599;</span></div>
-      <div class="stat violet" id="sys-xbox">checking&hellip;</div>
-    </a>
-
     <a class="sys-tile" href="/home-assistant">
       <div class="top"><span class="name">Lighting</span><span class="arrow">&#8599;</span></div>
       <div class="stat dim" id="sys-lights">checking&hellip;</div>
+    </a>
+
+    <a class="sys-tile" href="/xbox">
+      <div class="top"><span class="name">Xbox</span><span class="arrow">&#8599;</span></div>
+      <div class="stat violet" id="sys-xbox">checking&hellip;</div>
     </a>
 
     {# Weather tile (replaced Model): the real conditions where the house is,
