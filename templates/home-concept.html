@@ -96,17 +96,19 @@
   .ambient-orb.is-on[data-energy="pulse"]{
     animation:orb-pulse var(--dyn-ms,1.6s) ease-in-out infinite;
   }
+  /* Party/alarm: duration MUST come from --dyn-ms (speed bin). Defaults are
+     intentionally SLOW so a missing var never "raves". */
   .ambient-orb.is-on[data-energy="party"]{
-    animation:orb-party var(--dyn-ms,0.55s) linear infinite;
-    filter:blur(72px) saturate(1.35);
+    animation:orb-party var(--dyn-ms,14s) ease-in-out infinite;
+    filter:blur(80px) saturate(1.2);
   }
   .ambient-orb.is-on[data-energy="alarm"]{
-    animation:orb-alarm var(--dyn-ms,0.45s) steps(2,end) infinite;
-    filter:blur(70px) saturate(1.2);
+    animation:orb-alarm var(--dyn-ms,2.4s) ease-in-out infinite;
+    filter:blur(76px) saturate(1.15);
   }
   .ambient-orb.is-on[data-energy="original"],
   .ambient-orb.is-on[data-energy="tv"]{
-    animation:orb-flow var(--dyn-ms,5s) ease-in-out infinite alternate;
+    animation:orb-flow var(--dyn-ms,10s) ease-in-out infinite alternate;
   }
   @keyframes orb-still{
     from{transform:translate(-50%,-50%) scale(1);}
@@ -124,18 +126,20 @@
     0%,100%{transform:translate(-50%,-50%) scale(0.92);opacity:var(--op-lo,.35);}
     50%{transform:translate(-50%,-50%) scale(1.12);opacity:var(--op-hi,.78);}
   }
+  /* Party motion is scale/opacity only — color cycling is driven by JS at the
+     binned speed. No hue-rotate (that always looked like a rave regardless of speed). */
   @keyframes orb-party{
-    0%{transform:translate(-50%,-50%) scale(1.05) rotate(0deg);filter:blur(68px) saturate(1.5) hue-rotate(0deg);}
-    50%{transform:translate(-50%,-50%) scale(1.18) rotate(3deg);filter:blur(64px) saturate(1.65) hue-rotate(40deg);}
-    100%{transform:translate(-50%,-50%) scale(1.05) rotate(0deg);filter:blur(68px) saturate(1.5) hue-rotate(80deg);}
+    0%{transform:translate(-50%,-50%) scale(1.02);opacity:var(--op-lo,.4);}
+    50%{transform:translate(-50%,-50%) scale(1.12);opacity:var(--op-hi,.75);}
+    100%{transform:translate(-50%,-50%) scale(1.02);opacity:var(--op-lo,.4);}
   }
   @keyframes orb-alarm{
-    0%{opacity:var(--op-lo,.25);transform:translate(-50%,-50%) scale(0.95);}
-    50%{opacity:var(--op-hi,.9);transform:translate(-50%,-50%) scale(1.15);}
-    100%{opacity:var(--op-lo,.25);transform:translate(-50%,-50%) scale(0.95);}
+    0%{opacity:var(--op-lo,.3);transform:translate(-50%,-50%) scale(0.98);}
+    50%{opacity:var(--op-hi,.85);transform:translate(-50%,-50%) scale(1.1);}
+    100%{opacity:var(--op-lo,.3);transform:translate(-50%,-50%) scale(0.98);}
   }
-  #ambient-sky[data-energy="party"]{filter:blur(44px) saturate(1.25);}
-  #ambient-sky[data-energy="alarm"]{filter:blur(40px) contrast(1.1);}
+  #ambient-sky[data-energy="party"]{filter:blur(50px) saturate(1.12);}
+  #ambient-sky[data-energy="alarm"]{filter:blur(48px) contrast(1.05);}
   @media(prefers-reduced-motion:reduce){
     .ambient-orb{animation:none!important;transition:opacity .5s ease,background .5s ease;}
     #ambient-sky{filter:blur(52px)!important;}
@@ -1260,39 +1264,51 @@
     return String(l.current_effect||attrs.effect||'').trim();
   }
   function lightSpeed(l){
-    // Prefer lighting-page slider scale (1–100) from lights-data.
-    // Fallback: WiZ number entity raw 10–200 → same map as speedSliderToValue inverse.
-    let s=l.effect_speed!=null?Number(l.effect_speed):null;
-    if(s==null||!Number.isFinite(s)){
+    // Prefer lighting-page slider scale (1–100) from lights-data (HA number.*_effect_speed).
+    // Fallback: raw 10–200 → inverse of speedSliderToValue in home-assistant.html.
+    let s=null;
+    let known=false;
+    if(l.effect_speed!=null&&Number.isFinite(Number(l.effect_speed))){
+      s=Number(l.effect_speed);
+      known=l.effect_speed_known!==false; // true when lights-data attached HA speed
+    }
+    if(s==null){
       const raw=l.effect_speed_raw!=null?Number(l.effect_speed_raw)
         :(l.attributes&&l.attributes.effect_speed!=null?Number(l.attributes.effect_speed):null);
       if(raw!=null&&Number.isFinite(raw)){
+        known=true;
         if(raw<=10) s=1;
         else if(raw>=200) s=100;
         else s=Math.round(((raw-10)/190)*100);
       }
     }
-    if(s==null||!Number.isFinite(s)) return 50; // lighting page default
-    return Math.max(1,Math.min(100,s));
+    // CRITICAL: if HA hasn't reported speed, assume SLOW — never invent "medium"
+    // (default 50 made Party look like a rave while the slider was on Slow).
+    if(s==null||!Number.isFinite(s)) return {pct:12, known:false};
+    return {pct:Math.max(1,Math.min(100,s)), known:known};
   }
 
-  // Discrete speed bins shared by ALL dynamic lights so ambient stays in lockstep
-  // with the lighting-page slider (and with each other). Bins match how the
-  // control feels: Slow / Medium / Fast / Ultra (100 / Ultra Fast button).
+  // Discrete bins — only these tempos exist on the home page.
+  // Slow is the floor; Fast/Ultra are the only "rave" territory.
   function binSpeed(pct){
-    const p=Math.max(1,Math.min(100,Number(pct)||50));
-    if(p>=100) return 100; // Ultra Fast
-    if(p>=76)  return 88;  // Fast
-    if(p>=51)  return 63;  // Medium-fast
-    if(p>=26)  return 38;  // Medium
-    return 13;             // Slow
+    const p=Math.max(1,Math.min(100,Number(pct)||18));
+    if(p>=95) return 100; // Ultra Fast (slider ~95–100 / MAX button)
+    if(p>=70) return 82;  // Fast
+    if(p>=45) return 55;  // Medium
+    if(p>=25) return 32;  // Medium-slow
+    return 12;            // Slow (slider low end)
   }
-  // One house tempo for the page: strongest (fastest) active dynamic light wins,
-  // then everyone bins to that so sky + orbs share a single pulse.
+  // Shared house tempo: among dynamic lights that REPORTED a speed, use the
+  // fastest bin (so a fast light isn't forced slow). If none reported speed,
+  // stay Slow — never invent medium/fast.
   function houseSpeedBin(on){
     const dyn=on.filter(l=>l.energy&&l.energy!=='static'&&l.energy!=='white');
-    if(!dyn.length) return 50;
-    const maxPct=Math.max(...dyn.map(l=>l.speed||50));
+    if(!dyn.length) return 12;
+    const known=dyn.filter(l=>l.speedKnown);
+    const pool=known.length?known:dyn;
+    const maxPct=Math.max(...pool.map(l=>l.speed||12));
+    // If nobody actually reported HA speed, force Slow bin
+    if(!known.length) return 12;
     return binSpeed(maxPct);
   }
 
@@ -1380,22 +1396,26 @@
   }
 
   function speedToMs(speed, energy){
-    // Calibrated to lighting-page bins (1–100 slider / Ultra Fast).
-    // Binned speeds: 13, 38, 63, 88, 100 — not continuous free values.
+    // Bins: 12 Slow · 32 Med-slow · 55 Medium · 82 Fast · 100 Ultra
+    // Slow must feel slow even for Party (was still ~2s = rave before).
     const p=binSpeed(speed);
     const base={
-      static:28000, white:24000, calm:16000, flow:9000, pulse:2400,
-      party:1000, alarm:800, original:7000, tv:5500
-    }[energy]||9000;
-    // Factor table matches bins exactly so home motion tracks the slider.
+      static:32000, white:28000, calm:18000, flow:12000, pulse:4000,
+      party:8000, alarm:3000, original:10000, tv:9000
+    }[energy]||12000;
     const factor={
-      13: 2.05,  // Slow
-      38: 1.35,  // Medium
-      63: 1.00,  // Medium-fast (slider ~50–75)
-      88: 0.55,  // Fast
-      100: 0.28  // Ultra Fast
+      12: 2.4,   // Slow  — Party ≈ 19s cycle
+      32: 1.6,   // Med-slow
+      55: 1.0,   // Medium
+      82: 0.45,  // Fast  — Party ≈ 3.6s
+      100: 0.22  // Ultra — Party ≈ 1.8s
     }[p]||1;
-    return Math.max(260, Math.round(base*factor));
+    return Math.max(800, Math.round(base*factor));
+  }
+
+  // How fast palette colors advance (cycles per second) — hard-bound to bin.
+  function binCycleRate(bin){
+    return ({12:0.08, 32:0.18, 55:0.35, 82:0.85, 100:1.8})[bin]||0.12;
   }
 
   function collectOnLights(data){
@@ -1422,13 +1442,15 @@
         // Dynamic: prefer palette character; seed from live color if we have one
         rgb=live||(palette&&palette[0])||WARM_WHITE.slice();
       }
+      const sp=lightSpeed(l);
       on.push({
         id:l.entity_id||(l.friendly_name||'light-'+on.length),
         name:l.friendly_name||l.entity_id||'',
         room:l.room_name||'',
         rgb, live: live, bri:lightBrightness(l),
         effect, energy, kind, palette, flash,
-        speed:lightSpeed(l),
+        speed:sp.pct,
+        speedKnown:sp.known,
         key:cls.key||effect||''
       });
     });
@@ -1501,37 +1523,37 @@
     };
   }
 
-  // Time-based color for a light — respects mode; anchors on live HA color when present.
+  // Time-based color — house-binned speed only (same tempo for every dynamic orb).
   function sampleLightColor(l, t){
-    // Use binned house speed so multi-orb phase advance stays locked together.
-    const speed=l.houseSpeed!=null?l.houseSpeed:binSpeed(l.speed||50);
-    const phase=(t/1000)*(0.25+speed/100*2.1)+hashId(l.id);
+    const bin=l.houseSpeed!=null?l.houseSpeed:binSpeed(l.speedKnown?l.speed:12);
+    const rate=binCycleRate(bin);
+    const phase=(t/1000)*rate+hashId(l.id);
     if(l.energy==='static'||l.energy==='white'){
       return l.rgb;
     }
     const pal=l.palette;
     if(pal&&pal.length){
       if(l.flash&&l.energy==='original'&&l.key==='thunderstorm'){
-        // Mostly storm base; occasional lightning
-        const beat=Math.sin(phase*0.7);
-        if(beat>0.92) return pal[1]||[215,228,255];
-        if(beat>0.85) return pal[2]||pal[0];
+        const thresh=bin>=82?0.88:bin>=55?0.93:0.97;
+        const beat=Math.sin(phase*0.55);
+        if(beat>thresh) return pal[1]||[215,228,255];
+        if(beat>thresh-0.04) return pal[2]||pal[0];
         return pal[0];
       }
       if(l.energy==='party'||l.energy==='alarm'){
-        const i=Math.floor(phase* (l.energy==='party'?6:3)) % pal.length;
-        return pal[i];
+        // Slow: long dwell on each color. Fast/Ultra: quicker steps only.
+        const steps=l.energy==='party'?(bin>=82?6:bin>=55?4:2):(bin>=82?3:2);
+        const i=Math.floor(phase*steps) % pal.length;
+        return pal[(i+pal.length)%pal.length];
       }
-      // Smooth lerp across palette for flow/calm/original/tv
       const f=((phase%pal.length)+pal.length)%pal.length;
       const i0=Math.floor(f)%pal.length;
       const i1=(i0+1)%pal.length;
       const u=f-Math.floor(f);
       return lerpRgb(pal[i0], pal[i1], u);
     }
-    // No palette: gently breathe around live color
     const base=l.live||l.rgb;
-    const k=0.85+0.15*Math.sin(phase);
+    const k=0.88+0.12*Math.sin(phase);
     return [
       Math.max(0,Math.min(255,base[0]*k)),
       Math.max(0,Math.min(255,base[1]*k)),
@@ -1637,15 +1659,20 @@
 
   function paintHouseAmbient(data){
     const on=collectOnLights(data);
-    // Lock every dynamic light to one shared speed bin (fastest active wins).
-    // Matches lighting-page slider scale (1–100 / Ultra Fast) after binning.
+    // One shared tempo for all dynamic orbs, binned from real HA speeds.
     const shared=houseSpeedBin(on);
     on.forEach(l=>{
       const isDyn=l.energy&&l.energy!=='static'&&l.energy!=='white';
-      l.houseSpeed=isDyn?shared:binSpeed(l.speed);
+      l.houseSpeed=isDyn?shared:binSpeed(l.speedKnown?l.speed:12);
       if(isDyn) l.speed=shared;
     });
     ambientLive=on;
+    // Debug-friendly: expose last tempo on the ambient root for inspection
+    const root=document.getElementById('house-ambient');
+    if(root){
+      root.dataset.speedBin=String(shared);
+      root.dataset.dynamicCount=String(on.filter(l=>l.energy&&l.energy!=='static'&&l.energy!=='white').length);
+    }
     paintLightStrip(on);
     paintAmbientSky(on, 0);
     paintAmbientOrbs(on, 0);

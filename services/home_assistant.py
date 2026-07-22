@@ -654,42 +654,66 @@ async def get_ha_lights_data():
         lights_by_room[rname].sort(key=lambda x: x["friendly_name"].lower())
     unassigned_lights.sort(key=lambda x: x["friendly_name"].lower())
 
-    # WiZ effect speed lives on companion number entities:
-    #   number.<light_base>_effect_speed  (HA range typically 10–200)
-    # Lighting UI slider is 1–100 (Ultra Fast = 100). Attach both so home ambient
-    # and the lighting page stay calibrated to the same value.
+    # WiZ effect speed lives on companion number entities, e.g.
+    #   number.wiz_rgbw_tunable_ef497e_effect_speed  (HA range typically 10–200)
+    # Lighting UI slider is 1–100 (Ultra Fast = 100). Map raw → slider percent
+    # (inverse of templates/home-assistant.html speedSliderToValue).
+    def _raw_speed_to_pct(raw: float) -> int:
+        if raw <= 10:
+            return 1
+        if raw >= 200:
+            return 100
+        return max(1, min(100, int(round(((raw - 10) / 190.0) * 100))))
+
     speed_by_light: Dict[str, Dict[str, Any]] = {}
+    speed_by_base: Dict[str, Dict[str, Any]] = {}  # entity base without domain
     for s in states:
         eid = str(s.get("entity_id", "") or "")
-        if not eid.startswith("number.") or not eid.endswith("_effect_speed"):
+        if not eid.startswith("number."):
             continue
-        base = eid[len("number.") : -len("_effect_speed")]
+        rest = eid[len("number.") :]
+        # Accept …_effect_speed (WiZ) and …_speed when clearly effect-related
+        base = None
+        if rest.endswith("_effect_speed"):
+            base = rest[: -len("_effect_speed")]
+        elif rest.endswith("_effect_speed_value"):
+            base = rest[: -len("_effect_speed_value")]
+        else:
+            continue
         if not base:
             continue
-        light_eid = "light." + base
         try:
             raw = float(s.get("state"))
         except (TypeError, ValueError):
             continue
-        # Map HA raw → lighting-page slider percent (inverse of speedSliderToValue).
-        # speedSliderToValue: 10 + (pct/100)*190
-        if raw <= 10:
-            pct = 1
-        elif raw >= 200:
-            pct = 100
-        else:
-            pct = int(round(((raw - 10) / 190.0) * 100))
-            pct = max(1, min(100, pct))
-        speed_by_light[light_eid] = {
-            "effect_speed": pct,
-            "effect_speed_raw": raw,
-        }
+        # Ignore unavailable / unknown
+        if str(s.get("state", "")).lower() in ("unavailable", "unknown", "none", ""):
+            continue
+        pct = _raw_speed_to_pct(raw)
+        payload = {"effect_speed": pct, "effect_speed_raw": raw, "effect_speed_entity": eid}
+        speed_by_light["light." + base] = payload
+        speed_by_base[base] = payload
+        # Also index by trailing unique token (e.g. ef497e) for odd renames
+        if "_" in base:
+            tail = base.rsplit("_", 1)[-1]
+            if len(tail) >= 4:
+                speed_by_base[tail] = payload
 
     for l in all_lights:
-        sp = speed_by_light.get(l["entity_id"])
+        eid = l.get("entity_id") or ""
+        sp = speed_by_light.get(eid)
+        if not sp and eid.startswith("light."):
+            base = eid[len("light.") :]
+            sp = speed_by_base.get(base)
+            if not sp and "_" in base:
+                sp = speed_by_base.get(base.rsplit("_", 1)[-1])
         if sp:
             l["effect_speed"] = sp["effect_speed"]
             l["effect_speed_raw"] = sp["effect_speed_raw"]
+            l["effect_speed_entity"] = sp.get("effect_speed_entity")
+            l["effect_speed_known"] = True
+        else:
+            l["effect_speed_known"] = False
 
     # Scenes
     scenes = []
