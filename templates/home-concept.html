@@ -6,12 +6,13 @@
 <title>HENDERBURGH</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- Design tokens: one source of truth for colour/type/radius/motion, shared
      with every other page. This page used to fork its own navy/cyan root —
      that fork is now the canonical palette, ported INTO tokens.css, so these
      aliases just point at the shared tokens instead of re-declaring them. -->
-<link rel="stylesheet" href="/static/tokens.css?v=4">
+<link rel="stylesheet" href="/static/tokens.css?v=5">
 <!-- Chart.js powers the bottom "chart view" toggle — the classic horizontal
      line rendering of the SAME selected day (the form the /vitals Day Explorer
      used to own). Deferred: the vertical timeline above is the primary view and
@@ -45,7 +46,8 @@
   html{scroll-behavior:smooth;}
   /* Page base = same charcoal black as /home-assistant and the rest of the OS.
      (--bg is #0a0a0b). Light colour lives in the aurora only — not a navy wash. */
-  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-sans);overflow-x:hidden;
+    font-feature-settings:"cv11","ss01";-webkit-font-smoothing:antialiased;}
   .bgwash{position:fixed;inset:0;z-index:-3;background:var(--bg);/* no day-tint; stay black */}
   .grid{position:fixed;inset:0;z-index:-1;
     background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
@@ -73,9 +75,9 @@
 
   .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
     padding:14px 32px;background:rgba(10,10,11,0.82);backdrop-filter:blur(10px);
-    border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:12.5px;letter-spacing:0.02em;
+    border-bottom:1px solid var(--line);font-family:var(--font-mono);font-size:12.5px;letter-spacing:0.02em;
     overflow-x:auto;white-space:nowrap;}
-  .ticker .brand{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;letter-spacing:0.04em;color:var(--text);margin-right:8px;}
+  .ticker .brand{font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text);margin-right:8px;}
   .tick{display:flex;align-items:center;gap:7px;color:var(--text-dim);}
   .tick b{color:var(--cyan);font-weight:500;}
   .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);animation:beat 0.9s infinite;flex-shrink:0;}
@@ -89,10 +91,10 @@
      the system tiles below the fold. Now it's sized by its content, so the
      page opens on data instead of on a sentence. */
   .hero{padding-block:calc(var(--ticker-h) + 56px) 40px;}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.08em;margin-bottom:16px;}
-  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(34px,5.5vw,60px);line-height:1.1;letter-spacing:-0.015em;max-width:18ch;}
-  h1 .status{color:var(--cyan);}
-  .hero-sub{margin-top:22px;color:var(--text-dim);font-size:15px;max-width:52ch;line-height:1.6;}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;color:var(--cyan);letter-spacing:0.08em;margin-bottom:16px;}
+  h1{font-family:var(--font-display);font-weight:600;font-size:clamp(32px,5vw,52px);line-height:1.12;letter-spacing:-0.025em;max-width:20ch;}
+  h1 .status{color:var(--cyan);font-weight:600;}
+  .hero-sub{margin-top:22px;color:var(--text-dim);font-size:15px;max-width:52ch;line-height:1.6;font-family:var(--font-sans);}
 
   /* Office-lamp poke — ported from /oldhomepage, restyled to the instrument
      look: a small bordered icon button rather than a rounded emerald pill. */
@@ -116,7 +118,7 @@
   @media(prefers-reduced-motion:reduce){.lamp-poke-dot{animation:none;}}
 
   .systems-wrap{padding-block:0 64px;}
-  .systems-label{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:16px;border-top:1px solid var(--line);padding-top:28px;}
+  .systems-label{font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);letter-spacing:0.08em;margin-bottom:16px;border-top:1px solid var(--line);padding-top:28px;}
   /* minmax(0,…) + min-width:0 so long tile content (e.g. "PGA TOUR 2K25")
      truncates instead of forcing the grid — and the page — wider than the
      viewport. */
@@ -144,10 +146,10 @@
     .sys-tile:hover::before,.sys-tile:hover::after{opacity:1;}}
   @media(prefers-reduced-motion:reduce){.sys-tile::before,.sys-tile::after{display:none;}}
   .sys-tile .top{display:flex;justify-content:space-between;align-items:flex-start;}
-  .sys-tile .name{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:15.5px;}
+  .sys-tile .name{font-family:var(--font-display);font-weight:600;font-size:14.5px;letter-spacing:-0.01em;}
   .sys-tile .arrow{color:var(--text-dim);font-size:13px;transition:transform 0.25s ease,color 0.25s ease;}
   .sys-tile:hover .arrow{color:var(--cyan);transform:translate(2px,-2px);}
-  .sys-tile .stat{font-family:'JetBrains Mono',monospace;font-size:13.5px;color:var(--cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sys-tile .stat{font-family:var(--font-mono);font-size:13.5px;color:var(--cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .sys-tile .stat.amber{color:var(--amber);}
   .sys-tile .stat.violet{color:var(--violet);}
   .sys-tile .stat.dim{color:var(--text-dim);}
@@ -157,7 +159,7 @@
   .sys-body{font-size:12.5px;color:var(--text-dim);line-height:1.42;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .sys-body b{color:var(--text);font-weight:500;}
-  .sys-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);display:flex;align-items:center;gap:6px;}
+  .sys-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);display:flex;align-items:center;gap:6px;}
   .sys-meta .reply-badge{color:var(--violet);}
 
   .clip-strip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:1px 0;}
@@ -169,11 +171,11 @@
   .lastfm-art{width:30px;height:30px;border-radius:5px;object-fit:cover;flex:none;background:var(--navy-2);}
   .lastfm-col{min-width:0;flex:1;}
   .lastfm-title{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .lastfm-artist{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lastfm-artist{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .lastfm-mini{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:38px;}
   .lastfm-mini b{color:var(--text-dim);font-weight:400;}
 
-  .wx-temp{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:26px;letter-spacing:-0.02em;color:var(--text);line-height:1;margin-bottom:2px;}
+  .wx-temp{font-family:var(--font-display);font-weight:600;font-size:26px;letter-spacing:-0.03em;color:var(--text);line-height:1;margin-bottom:2px;font-variant-numeric:tabular-nums;}
   .wx-temp span:after{content:'°';color:var(--text-dim);}
   .wx-icon{font-size:18px;line-height:1;}
 
@@ -212,19 +214,19 @@
      visible with no JS; the scroll readout only *changes* text it already has. */
   .story-rail{position:sticky;top:calc(var(--ticker-h) + 28px);
     border:1px solid var(--line);background:rgba(19,19,22,0.72);padding:20px;}
-  .rail-head{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.1em;
+  .rail-head{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.1em;
     color:var(--text-dim);text-transform:uppercase;padding-bottom:14px;border-bottom:1px solid var(--line);}
   .rail-now{padding:16px 0;border-bottom:1px solid var(--line);}
-  .rail-now-label{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.12em;color:var(--text-dim);margin-bottom:7px;}
-  .rail-time{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--cyan);margin-bottom:4px;}
-  .rail-name{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:500;line-height:1.25;}
+  .rail-now-label{font-family:var(--font-mono);font-size:9.5px;letter-spacing:0.12em;color:var(--text-dim);margin-bottom:7px;}
+  .rail-time{font-family:var(--font-mono);font-size:12.5px;color:var(--cyan);margin-bottom:4px;}
+  .rail-name{font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-0.015em;line-height:1.3;}
   .rail-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:16px 0;border-bottom:1px solid var(--line);}
   .rail-stats div{min-width:0;}
-  .rail-stats dt{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:4px;}
-  .rail-stats dd{font-family:'JetBrains Mono',monospace;font-size:19px;color:var(--text);}
+  .rail-stats dt{font-family:var(--font-mono);font-size:9.5px;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:4px;}
+  .rail-stats dd{font-family:var(--font-mono);font-size:19px;color:var(--text);}
   .rail-stats dd small{display:block;font-size:9.5px;color:var(--text-dim);margin-top:2px;}
   .rail-foot{padding-top:16px;display:flex;flex-direction:column;gap:9px;
-    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+    font-family:var(--font-mono);font-size:11px;color:var(--text-dim);}
   .rail-foot .row{display:flex;align-items:center;gap:8px;min-width:0;}
   .rail-foot .row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   /* Real bulb colours: one dot per lit room, painted from the light's own RGB. */
@@ -249,10 +251,10 @@
   .event::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(74,222,128,0.15);}
   .event.event-peak::before{border-color:var(--amber);background:var(--amber);box-shadow:0 0 0 4px rgba(255,180,84,0.15);}
   .event.event-game::before,.event.event-media::before{border-color:var(--violet);background:var(--violet);box-shadow:0 0 0 4px rgba(139,127,255,0.15);}
-  .event .time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.04em;margin-bottom:7px;}
+  .event .time{font-family:var(--font-mono);font-size:12px;color:var(--cyan);letter-spacing:0.04em;margin-bottom:7px;}
   .event .time.amber{color:var(--amber);}
   .event .time.violet{color:var(--violet);}
-  .event h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:21px;margin-bottom:7px;}
+  .event h2{font-family:var(--font-display);font-weight:600;font-size:19px;letter-spacing:-0.02em;margin-bottom:7px;line-height:1.25;}
   .event p{color:var(--text-dim);font-size:14.5px;line-height:1.55;max-width:46ch;}
 
   /* ── Day explorer chrome ────────────────────────────────────────────────
@@ -260,17 +262,17 @@
      furniture. It states which day you're on and gives keyboard/pointer users
      real controls, so drag-and-scroll is an accelerator, never the only way. */
   .day-nav{display:flex;align-items:center;gap:14px;padding:14px 0 4px;flex-wrap:wrap;}
-  .day-nav .daybtn{font-family:'JetBrains Mono',monospace;font-size:15px;line-height:1;
+  .day-nav .daybtn{font-family:var(--font-mono);font-size:15px;line-height:1;
     width:34px;height:34px;display:flex;align-items:center;justify-content:center;
     background:rgba(19,19,22,0.72);border:1px solid var(--line);color:var(--text-dim);
     border-radius:8px;cursor:pointer;transition:color 0.2s,border-color 0.2s,opacity 0.2s;}
   .day-nav .daybtn:hover:not(:disabled){color:var(--cyan);border-color:var(--cyan);}
   .day-nav .daybtn:disabled{opacity:0.3;cursor:default;}
-  .day-nav .daylabel{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:500;
+  .day-nav .daylabel{font-family:var(--font-display);font-size:18px;font-weight:600;letter-spacing:-0.02em;
     min-width:0;flex:1;}
-  .day-nav .daylabel small{display:block;font-family:'JetBrains Mono',monospace;
+  .day-nav .daylabel small{display:block;font-family:var(--font-mono);
     font-size:10.5px;letter-spacing:0.1em;color:var(--text-dim);text-transform:uppercase;margin-top:3px;}
-  .day-nav .dayhint{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.08em;
+  .day-nav .dayhint{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.08em;
     color:var(--text-dim);text-transform:uppercase;}
   @media(max-width:720px){.day-nav .dayhint{display:none;}}
   /* Grab affordance for the drag gesture. */
@@ -278,19 +280,19 @@
   /* Brief loading veil — a dim, never a blank. The day underneath stays on
      screen until the new one is ready, so navigation never flashes empty. */
   .story.loading .timeline,.story.loading .story-rail{opacity:0.35;transition:opacity 0.2s ease;}
-  .day-loading{display:none;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  .day-loading{display:none;font-family:var(--font-mono);font-size:10.5px;
     letter-spacing:0.1em;color:var(--cyan);text-transform:uppercase;}
   .story.loading .day-loading{display:inline;}
   /* Honest empty state — shown only when a real fetch came back with no
      readings for that day. Never a fabricated day. */
   .day-empty{display:none;padding:48px 0 40px;color:var(--text-dim);
-    font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;}
+    font-family:var(--font-mono);font-size:13px;line-height:1.7;}
   .story.no-data .day-empty{display:block;}
   .story.no-data .timeline,.story.no-data .story-rail{display:none;}
 
   /* ── Chart view: the same selected day, rendered the classic horizontal way. */
   .chartview{padding-block:0 90px;}
-  .chartview .toggle{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em;
+  .chartview .toggle{font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em;
     text-transform:uppercase;background:rgba(19,19,22,0.72);border:1px solid var(--line);
     color:var(--text-dim);border-radius:8px;padding:10px 16px;cursor:pointer;
     transition:color 0.2s,border-color 0.2s;}
@@ -301,13 +303,13 @@
   .chart-panel.open{display:block;}
   .chart-panel .chart-box{position:relative;height:300px;}
   @media(max-width:720px){.chart-panel .chart-box{height:220px;}}
-  .chart-panel .cap{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.08em;
+  .chart-panel .cap{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.08em;
     color:var(--text-dim);text-transform:uppercase;margin-bottom:12px;}
 
-  .empty{padding-block:20px 120px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px;}
-  footer{text-align:center;padding:60px 32px 90px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:0.04em;border-top:1px solid var(--line);}
+  .empty{padding-block:20px 120px;color:var(--text-dim);font-family:var(--font-mono);font-size:13px;}
+  footer{text-align:center;padding:60px 32px 90px;color:var(--text-dim);font-family:var(--font-mono);font-size:11.5px;letter-spacing:0.04em;border-top:1px solid var(--line);}
 
-  .preview-flag{position:fixed;bottom:14px;right:14px;z-index:60;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);background:rgba(13,19,28,0.9);border:1px solid var(--line);border-radius:6px;padding:6px 10px;}
+  .preview-flag{position:fixed;bottom:14px;right:14px;z-index:60;font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);background:rgba(13,19,28,0.9);border:1px solid var(--line);border-radius:6px;padding:6px 10px;}
   .preview-flag a{color:var(--cyan);text-decoration:none;}
 </style>
 </head>

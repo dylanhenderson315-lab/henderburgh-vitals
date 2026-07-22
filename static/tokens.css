@@ -72,11 +72,13 @@
   --danger:        #f87171;   /* failure, destructive */
 
   /* ── Type ─────────────────────────────────────────────────────────────────
-     Two families and seven sizes. Display for identity, mono for instrument
-     labels/units/timestamps — that mono/sans split is what makes a dashboard
-     read as an instrument rather than a web page. */
+     One professional sans for UI + identity (Inter). Hierarchy is weight,
+     size, and tracking — not a second geometric face. Space Grotesk was
+     retired: its square letterforms fought the rest of the OS and made the
+     hero/system cards look like a different product. Mono stays for
+     instrument labels, units, timestamps, and live numbers. */
   --font-sans:    'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono:    'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 
   --t-label: 0.625rem;  /* 10px — MONO UPPERCASE LABELS ONLY, never prose */
