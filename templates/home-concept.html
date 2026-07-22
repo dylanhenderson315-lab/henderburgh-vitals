@@ -228,15 +228,23 @@
   .rail-dot{width:9px;height:9px;border-radius:50%;background:rgb(var(--c,122,132,148));
     box-shadow:0 0 7px -1px rgb(var(--c,122,132,148));}
 
-  .event{position:relative;padding:34px 0;transition:opacity 0.6s ease,transform 0.6s ease;}
-  /* Hidden-then-revealed ONLY when scripting is confirmed alive (html.js, set
-     in <head>). No JS → no opacity:0 → the day is readable regardless. */
-  html.js .event{opacity:0;transform:translateY(18px);}
-  html.js .event.in,.event.in{opacity:1;transform:translateY(0);}
+  /* VISIBLE BY DEFAULT — animation may only decorate, never gate visibility.
+     This previously read `html.js .event{opacity:0}` + a scroll handler that
+     added .in, which strands events at opacity:0 forever whenever that handler
+     doesn't run: rAF is paused in background tabs, and it was measured live
+     hiding 7 of 12 events. Now .in triggers a one-shot entrance ANIMATION
+     instead: if .in never arrives, the event is simply already visible. */
+  .event{position:relative;padding:34px 0;}
+  .event.in{animation:event-in 0.6s var(--ease-out) both;}
+  @keyframes event-in{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:none;}}
+  @media(prefers-reduced-motion:reduce){.event.in{animation:none;}}
   .event::before{content:'';position:absolute;left:-40px;top:38px;width:9px;height:9px;border-radius:50%;background:var(--navy-0);border:1.5px solid var(--text-dim);transition:border-color 0.4s,background 0.4s;z-index:2;}
-  .event.in::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(74,222,128,0.15);}
-  .event.event-peak.in::before{border-color:var(--amber);background:var(--amber);box-shadow:0 0 0 4px rgba(255,180,84,0.15);}
-  .event.event-game.in::before,.event.event-media.in::before{border-color:var(--violet);background:var(--violet);box-shadow:0 0 0 4px rgba(139,127,255,0.15);}
+  /* Dot colour is a property of the EVENT, not of having been scrolled past —
+     keyed off the event kind alone so a stalled reveal can't leave the whole
+     timeline grey. (Was .event.in::before, same stranding risk as above.) */
+  .event::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(74,222,128,0.15);}
+  .event.event-peak::before{border-color:var(--amber);background:var(--amber);box-shadow:0 0 0 4px rgba(255,180,84,0.15);}
+  .event.event-game::before,.event.event-media::before{border-color:var(--violet);background:var(--violet);box-shadow:0 0 0 4px rgba(139,127,255,0.15);}
   .event .time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.04em;margin-bottom:7px;}
   .event .time.amber{color:var(--amber);}
   .event .time.violet{color:var(--violet);}
