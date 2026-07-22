@@ -10,7 +10,7 @@
   <meta property="og:type" content="website">
   <meta name="description" content="3D spatial home replica foundation — precise placement of lights, furniture and TVs using real dimensions.">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/tokens.css?v=3">
+  <link rel="stylesheet" href="/static/tokens.css?v=4">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
@@ -46,7 +46,7 @@
     .section-label {
       font-family: var(--font-mono);
       font-size: var(--t-label);
-      letter-spacing: 2.8px;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--text-3);
       font-weight: 600;
@@ -188,33 +188,30 @@
     }
   </style>
   <script defer src="/static/os-command.js"></script>
+  <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
-  <header class="border-b border-zinc-800 bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-[1120px] mx-auto px-6">
-      <div class="h-16 flex items-center justify-between">
-        <a href="/" class="flex items-center gap-x-2.5 group">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
-          </div>
-          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
-        </a>
-
-        <nav class="hidden md:flex items-center gap-x-8 text-sm">
-          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
-          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
-          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
-          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
-          <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
-          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
-          <a href="/model" class="text-white font-medium">Model</a>
-          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
-        </nav>
-
-        <div class="md:hidden">
-          <a href="/" class="hb-tap inline-flex items-center text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">← Home</a>
-        </div>
-      </div>
+<body class="hb-chrome-offset bg-[var(--bg)] text-[var(--text)] antialiased">
+  <!-- Unified chrome. Same bar language as the homepage ticker: fixed slim
+       translucent rail, 1px hairline, Space Grotesk wordmark, mono nav.
+       Styles live in static/tokens.css (.hb-chrome*) so all pages stay identical. -->
+  <header class="hb-chrome">
+    <a href="/" class="hb-chrome-brand">HENDERBURGH</a>
+    <nav class="hb-chrome-nav hidden md:flex">
+      <a href="/">Home</a>
+      <a href="/vitals">Vitals</a>
+      <a href="/home-assistant">Lighting</a>
+      <a href="/model" class="active">Model</a>
+      <a href="/golf">Golf</a>
+      <a href="/clips">Clips</a>
+      <a href="/xbox">Xbox</a>
+      <a href="/blog">Blog</a>
+    </nav>
+    <span class="hb-chrome-spacer"></span>
+    <div class="md:hidden flex items-center -my-2.5 -mr-2">
+      <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-home text-base"></i></a>
+      <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
+      <a href="/home-assistant" aria-label="Lighting" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-lightbulb text-base"></i></a>
+      <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-gamepad text-base"></i></a>
     </div>
   </header>
 
@@ -268,7 +265,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <!-- Viewport -->
       <div class="lg:col-span-8">
-        <div class="card p-4 spatial-card">
+        <div class="hb-spot card p-4 spatial-card">
           <!-- View Switcher -->
           <div class="flex items-center justify-between mb-3 overflow-x-auto gap-3" style="scrollbar-width:none">
             <div class="flex items-center gap-x-2 flex-shrink-0">
@@ -319,7 +316,7 @@
       <!-- Palette + Inspector -->
       <div class="lg:col-span-4 space-y-4">
         <!-- Lock bar: model is read-only until an admin unlocks editing -->
-        <div id="lock-bar" class="card p-3 flex items-center justify-between gap-2">
+        <div id="lock-bar" class="hb-spot card p-3 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 text-xs">
             <i id="lock-icon" class="fa-solid fa-lock text-amber-400"></i>
             <span id="lock-label" class="text-zinc-300">Locked — view only</span>
@@ -328,7 +325,7 @@
         </div>
 
         <!-- Improved Categorized Palette (admin only) -->
-        <div id="palette-card" class="card p-4">
+        <div id="palette-card" class="hb-spot card p-4">
           <div class="section-label mb-2">Add Object</div>
 
           <!-- Lights -->
@@ -353,7 +350,7 @@
         </div>
 
         <!-- Inspector -->
-        <div class="card p-4">
+        <div class="hb-spot card p-4">
           <div class="section-label mb-2">Inspector</div>
           <div id="inspector" class="inspector min-h-[148px]">
             <div class="text-sm text-zinc-400">Select an object in the 3D or 2D view or add a new one.</div>
@@ -361,7 +358,7 @@
         </div>
 
         <!-- Room actions (admin only) -->
-        <div id="roomactions-card" class="card p-4">
+        <div id="roomactions-card" class="hb-spot card p-4">
           <div class="section-label mb-2">Room Actions</div>
           <div class="flex flex-wrap gap-2">
             <button onclick="clearCurrentRoom()" class="hb-tap text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800">Clear Room</button>
@@ -375,7 +372,7 @@
 
     <!-- Legend -->
     <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-      <div class="card p-4">
+      <div class="hb-spot card p-4">
         <div class="font-medium mb-1 text-emerald-400/90">Height Levels</div>
         <div class="flex gap-x-4 text-zinc-400">
           <div><span class="inline-block w-2 h-2 rounded-full bg-sky-400 align-middle mr-1"></span> Floor — low / base</div>
@@ -383,7 +380,7 @@
           <div><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle mr-1"></span> Ceiling — above / recessed</div>
         </div>
       </div>
-      <div class="card p-4">
+      <div class="hb-spot card p-4">
         <div class="font-medium mb-1 text-emerald-400/90">Tips (3D Primary)</div>
         <div class="text-zinc-400">In 3D: Select object to drag (camera orbit on empty). Palette → live green preview → place on release. 2D for precise top-down work. Syncs both ways.</div>
       </div>

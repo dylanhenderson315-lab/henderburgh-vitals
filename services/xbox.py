@@ -922,7 +922,8 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
             pts.append((t, e["bpm"]))
     pts.sort()
     if len(pts) < 12:
-        return {"has_data": False, "day": day.strftime("%A, %b %-d")}
+        return {"has_data": False, "day": day.strftime("%A, %b %-d"),
+                "day_iso": day.isoformat()}
     step = max(1, len(pts) // 288)
     pts = pts[::step]
     points = [{"x": round(mins(t), 1), "y": b} for t, b in pts]
@@ -1137,6 +1138,10 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
     return {
         "has_data": True,
         "day": day.strftime("%A, %b %-d"),
+        # Machine-readable identity for the day, so callers (the home page's
+        # multi-day explorer) can step to the previous/next day and ask for it
+        # by name instead of re-deriving it from the display string.
+        "day_iso": day.isoformat(),
         "points": points, "bands": bands, "moments": moments, "view": view,
         "facts": " · ".join(facts),
         "narration": narration,

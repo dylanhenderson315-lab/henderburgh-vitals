@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <meta name="robots" content="noindex">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/tokens.css?v=3">
+  <link rel="stylesheet" href="/static/tokens.css?v=4">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap');
@@ -16,7 +16,7 @@
        OS again. */
     body { font-family: var(--font-sans); background: var(--bg); color: var(--text); }
     .font-display { font-family: var(--font-display); }
-    .section-label { font-family: var(--font-mono); font-size: var(--t-label); letter-spacing:2.5px; text-transform:uppercase; color: var(--text-3); font-weight:600; }
+    .section-label { font-family: var(--font-mono); font-size: var(--t-label); letter-spacing:0.16em; text-transform:uppercase; color: var(--text-3); font-weight:600; }
     .card { background: var(--surface); border:1px solid var(--line); border-radius: var(--r-lg); }
     .pill { font-size: var(--t-xs); padding:2px 9px; border-radius: var(--r-full); font-weight:600; }
     .heat { width:11px; height:16px; border-radius: var(--r-sm); background: var(--surface-2); display:inline-block; }
@@ -24,8 +24,32 @@
     .swatch { width:14px; height:14px; border-radius: var(--r-sm); display:inline-block; vertical-align:-2px; border:1px solid var(--line-strong); }
     .hb-tap-inline { min-height: var(--tap-min); display: inline-flex; align-items: center; }
   </style>
+  <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="min-h-screen">
+<body class="hb-chrome-offset min-h-screen">
+  <!-- Unified chrome. Same bar language as the homepage ticker: fixed slim
+       translucent rail, 1px hairline, Space Grotesk wordmark, mono nav.
+       Styles live in static/tokens.css (.hb-chrome*) so all pages stay identical. -->
+  <header class="hb-chrome">
+    <a href="/" class="hb-chrome-brand">HENDERBURGH</a>
+    <nav class="hb-chrome-nav hidden md:flex">
+      <a href="/">Home</a>
+      <a href="/vitals">Vitals</a>
+      <a href="/home-assistant" class="active">Lighting</a>
+      <a href="/model">Model</a>
+      <a href="/golf">Golf</a>
+      <a href="/clips">Clips</a>
+      <a href="/xbox">Xbox</a>
+      <a href="/blog">Blog</a>
+    </nav>
+    <span class="hb-chrome-spacer"></span>
+    <div class="md:hidden flex items-center -my-2.5 -mr-2">
+      <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-home text-base"></i></a>
+      <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
+      <a href="/home-assistant" aria-label="Lighting" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-lightbulb text-base"></i></a>
+      <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-gamepad text-base"></i></a>
+    </div>
+  </header>
   <div class="max-w-5xl mx-auto px-4 py-6">
     <div class="flex items-center justify-between mb-6">
       <div>
@@ -35,7 +59,7 @@
       <a href="/home-assistant" class="hb-tap-inline nav text-sm"><i class="fa-solid fa-arrow-left mr-1"></i>Lighting</a>
     </div>
 
-    <div id="lock" class="card p-8 text-center hidden">
+    <div id="lock" class="hb-spot card p-8 text-center hidden">
       <i class="fa-solid fa-lock text-2xl text-[var(--text-2)] mb-3"></i>
       <p class="text-[var(--text)] mb-4">Unlock to see your house's patterns.</p>
       <input id="pin" type="password" inputmode="numeric" placeholder="Admin token"
@@ -96,7 +120,7 @@ function render(d){
   const parts = [];
 
   // Coverage / countdown to a week
-  parts.push(`<div class="card p-5">
+  parts.push(`<div class="hb-spot card p-5">
     <div class="section-label mb-2">Data Collection</div>
     <div class="flex items-end justify-between mb-2">
       <div class="font-display text-3xl font-bold">${c.days_collected}<span class="text-[var(--text-2)] text-lg font-normal"> / ${c.target_days} days</span></div>
@@ -115,7 +139,7 @@ function render(d){
 
   // Candidate automations — the headline
   const cand = d.candidate_automations||[];
-  parts.push(`<div class="card p-5">
+  parts.push(`<div class="hb-spot card p-5">
     <div class="section-label mb-3">Candidate Automations · learned from what you actually do</div>
     ${cand.length ? cand.map(a=>`
       <div class="flex items-center gap-3 py-2 border-b border-[var(--line)] last:border-0">
@@ -129,7 +153,7 @@ function render(d){
 
   // What you set lights TO
   const sp = d.set_preferences||[];
-  if(sp.length) parts.push(`<div class="card p-5">
+  if(sp.length) parts.push(`<div class="hb-spot card p-5">
     <div class="section-label mb-3">What You Set Each Light To</div>
     ${sp.slice(0,10).map(l=>`
       <div class="flex items-center gap-3 py-2 border-b border-[var(--line)] last:border-0">
@@ -141,7 +165,7 @@ function render(d){
 
   // Per-light profiles with hour heatmap
   const L = d.lights||[];
-  parts.push(`<div class="card p-5">
+  parts.push(`<div class="hb-spot card p-5">
     <div class="section-label mb-3">Light Profiles · on-rate by hour (0–23)</div>
     ${L.map(l=>`
       <div class="py-2.5 border-b border-[var(--line)] last:border-0">
@@ -159,7 +183,7 @@ function render(d){
 
   // Unmet requests / scenes you asked for that don't exist
   const un = d.unmet_requests||[];
-  if(un.length) parts.push(`<div class="card p-5">
+  if(un.length) parts.push(`<div class="hb-spot card p-5">
     <div class="section-label mb-3">Scenes You Asked For That Don't Exist Yet</div>
     ${un.map(u=>`<div class="text-sm py-1 text-[var(--warn)]">"${esc(u.text)}" <span class="text-[var(--text-2)] text-xs">· ${esc((u.ts||'').slice(0,10))}</span></div>`).join('')}
     <p class="text-[var(--t-xs)] text-[var(--text-2)] mt-2">Commands the parser didn't understand — each is a scene worth building.</p>

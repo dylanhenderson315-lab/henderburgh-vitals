@@ -9,7 +9,7 @@
   <meta property="og:description" content="Live Xbox status and recently played games.">
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/tokens.css?v=3">
+  <link rel="stylesheet" href="/static/tokens.css?v=4">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -40,12 +40,12 @@
     }
 
     .section-label {
+      font-family: var(--font-mono);
       font-size: var(--t-label);
       letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--text-3);
       font-weight: 600;
-      font-family: var(--font-mono);
     }
 
     .card {
@@ -170,33 +170,29 @@
   <script defer src="/static/os-command.js"></script>
   <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
+<body class="hb-chrome-offset bg-[var(--bg)] text-[var(--text)] antialiased">
   <!-- Header -->
-  <header class="border-b border-zinc-800 bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-[1080px] mx-auto px-6">
-      <div class="h-16 flex items-center justify-between">
-        <a href="/" class="flex items-center gap-x-2.5 group">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
-          </div>
-          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
-        </a>
-
-        <nav class="hidden md:flex items-center gap-x-8 text-sm">
-          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
-          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
-          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
-          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
-          <a href="/xbox" class="hover:text-white text-white font-semibold transition">Xbox</a>
-          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
-          <a href="/model" class="hover:text-white text-zinc-400 transition">Model</a>
-          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
-        </nav>
-
-        <div class="md:hidden">
-          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800">← Home</a>
-        </div>
-      </div>
+  <!-- Unified chrome. Same bar language as the homepage ticker: fixed slim
+       translucent rail, 1px hairline, Space Grotesk wordmark, mono nav.
+       Styles live in static/tokens.css (.hb-chrome*) so all pages stay identical. -->
+  <header class="hb-chrome">
+    <a href="/" class="hb-chrome-brand">HENDERBURGH</a>
+    <nav class="hb-chrome-nav hidden md:flex">
+      <a href="/">Home</a>
+      <a href="/vitals">Vitals</a>
+      <a href="/home-assistant">Lighting</a>
+      <a href="/model">Model</a>
+      <a href="/golf">Golf</a>
+      <a href="/clips">Clips</a>
+      <a href="/xbox" class="active">Xbox</a>
+      <a href="/blog">Blog</a>
+    </nav>
+    <span class="hb-chrome-spacer"></span>
+    <div class="md:hidden flex items-center -my-2.5 -mr-2">
+      <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-home text-base"></i></a>
+      <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
+      <a href="/home-assistant" aria-label="Lighting" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-lightbulb text-base"></i></a>
+      <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-gamepad text-base"></i></a>
     </div>
   </header>
 
@@ -247,7 +243,7 @@
     <!-- Profile -->
     <div class="mb-12">
       <div class="section-label mb-4">Profile</div>
-      <div class="card p-6">
+      <div class="hb-spot card p-6">
         <div class="flex flex-col sm:flex-row items-start gap-6">
           {% if xbox.gamerpic %}
           <img src="{{ xbox.gamerpic }}" alt="{{ xbox.gamertag }} gamerpic" 
@@ -281,7 +277,7 @@
     <!-- Now Playing / Most Played hero -->
     <div class="mb-12">
       <div id="hero-label" class="section-label mb-4">{% if hero.playing_now %}{% if hero.kind == 'media' %}Now Watching{% else %}Now Playing{% endif %}{% else %}Most Played{% endif %}</div>
-      <div class="hero-card" style="background: linear-gradient(135deg, {{ hero.signature.c1 }} 0%, {{ hero.signature.c2 }} 100%);">
+      <div class="hb-spot hero-card" style="background: linear-gradient(135deg, {{ hero.signature.c1 }} 0%, {{ hero.signature.c2 }} 100%);">
         {% if hero.cover %}
         <img src="{{ hero.cover }}" alt="" class="hero-cover" aria-hidden="true">
         <div class="hero-cover-scrim"></div>
@@ -324,7 +320,7 @@
           <button id="rp-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full day</button>
         </div>
       </div>
-      <div class="card p-5 sm:p-6">
+      <div class="hb-spot card p-5 sm:p-6">
         {% if replay.narration %}
         <p class="text-[13.5px] text-zinc-300 leading-relaxed mb-4 pb-4 border-b border-zinc-800/70">{{ replay.narration_html | safe }}</p>
         {% endif %}
@@ -353,7 +349,7 @@
       <div class="section-label mb-4">The Story</div>
       <div class="space-y-3">
         {% if story.week_html %}
-        <div class="card p-5">
+        <div class="hb-spot card p-5">
           <div class="flex items-center gap-2 text-xs text-emerald-400/90 mb-2">
             <i class="fa-solid fa-calendar-week"></i><span class="font-semibold tracking-wide">YOUR WEEK</span>
           </div>
@@ -361,20 +357,20 @@
         </div>
         {% endif %}
         {% for line in story.eras_html %}
-        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
+        <div class="hb-spot card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
           <i class="fa-solid fa-timeline text-sky-400/80 text-xs mt-1 flex-shrink-0"></i>
           <span>{{ line | safe }}</span>
         </div>
         {% endfor %}
         {% for line in story.body_html %}
-        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
+        <div class="hb-spot card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
           <i class="fa-solid fa-heart-pulse text-rose-400/80 text-xs mt-1 flex-shrink-0"></i>
           <span>{{ line | safe }}</span>
         </div>
         {% endfor %}
         {% if insights.has_data %}
         {% for line in insights.insights_html %}
-        <div class="card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
+        <div class="hb-spot card p-4 text-[13.5px] text-zinc-300 leading-relaxed flex items-start gap-3">
           <i class="fa-solid fa-wand-magic-sparkles text-emerald-400/80 text-xs mt-1 flex-shrink-0"></i>
           <span>{{ line | safe }}</span>
         </div>
@@ -393,7 +389,7 @@
     {% if progress and progress.total_gamerscore %}
     <div class="mb-12">
       <div class="section-label mb-4">Gamerscore Progress</div>
-      <div class="card p-6">
+      <div class="hb-spot card p-6">
         <div class="flex flex-wrap items-end gap-x-8 gap-y-4">
           <div>
             <div class="text-xs text-zinc-500">Total Gamerscore</div>
@@ -429,7 +425,7 @@
       <div class="section-label mb-4">
         {% if insights.true_sessions >= 2 %}Most Played · By Real Hours{% else %}Most Launched{% endif %}
       </div>
-      <div class="card p-6 space-y-4">
+      <div class="hb-spot card p-6 space-y-4">
         {% for g in insights.top_games %}
         <div>
           <div class="flex items-baseline justify-between mb-1.5">
@@ -460,7 +456,7 @@
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for g in games %}
-        <div class="game-card">
+        <div class="hb-spot game-card">
           {% if g.image %}<img src="{{ g.image }}" alt="{{ g.name }}" class="game-cover" loading="lazy">{% endif %}
           <div class="game-info">
             <div class="text-sm font-semibold text-zinc-100 truncate">{{ g.name }}</div>
@@ -484,7 +480,7 @@
         <div class="section-label">Recent Unlocks</div>
         <span class="text-xs text-zinc-500">achievement · when · reward</span>
       </div>
-      <div class="card divide-y divide-zinc-800/70">
+      <div class="hb-spot card divide-y divide-zinc-800/70">
         {% for u in unlocks %}
         <div class="flex items-center gap-3 px-5 py-3">
           {% if u.image %}<img src="{{ u.image }}" alt="" class="w-9 h-9 rounded-lg object-cover flex-shrink-0">{% endif %}
@@ -509,7 +505,7 @@
         </div>
         <span class="text-xs text-zinc-500">{{ session_log|length }} sessions</span>
       </div>
-      <div class="card divide-y divide-zinc-800/70">
+      <div class="hb-spot card divide-y divide-zinc-800/70">
         {% for s in session_log %}
         <div class="flex items-center gap-4 px-5 py-3.5">
           <div class="w-6 flex-shrink-0 text-center">
@@ -535,7 +531,7 @@
         <span class="text-xs text-zinc-500">{{ log|length }} entries</span>
       </div>
       {% if log %}
-      <div class="card overflow-hidden">
+      <div class="hb-spot card overflow-hidden">
         <table class="w-full text-sm">
           <thead>
             <tr class="bg-[var(--surface-2)]">
@@ -554,7 +550,7 @@
         </table>
       </div>
       {% else %}
-      <div class="card p-8 text-center">
+      <div class="hb-spot card p-8 text-center">
         <div class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 mb-3">
           <i class="fa-solid fa-clock-rotate-left text-zinc-400"></i>
         </div>
@@ -575,7 +571,7 @@
         </div>
         <span class="text-xs text-zinc-500">last 14 days</span>
       </div>
-      <div class="card p-5 sm:p-6">
+      <div class="hb-spot card p-5 sm:p-6">
         <div class="h-[220px]"><canvas id="pulseChart"></canvas></div>
         {% if not pulse.has_hr %}
         <div class="text-[11px] text-zinc-600 mt-3">
@@ -594,7 +590,7 @@
     {% else %}
     <!-- Fallback when Xbox data is unavailable (not configured, API issue, etc.) -->
     <div class="max-w-md mx-auto">
-      <div class="card p-8 text-center">
+      <div class="hb-spot card p-8 text-center">
         <div class="text-3xl mb-3">🎮</div>
         <h2 class="text-xl font-semibold tracking-tight mb-2">Xbox status unavailable</h2>
         <p class="text-sm text-zinc-400">We couldn't load your profile right now. The page will show gamerpic, gamertag, real name, status, gamerscore, tenure, current game, and the persistent Recently Played log once the OpenXBL connection is available.</p>

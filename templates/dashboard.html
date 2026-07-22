@@ -20,12 +20,9 @@
   {% endif %}
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/tokens.css?v=3">
+  <link rel="stylesheet" href="/static/tokens.css?v=4">
   <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <!-- Day Explorer needs pan/zoom on the minutes-of-day replay chart (same libs as /xbox) -->
-  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
@@ -59,45 +56,6 @@
       background: rgba(255,255,255, 0.03);
       backdrop-filter: blur(20px);
     }
-
-    /* ---- Day Explorer (dx-*) ---- */
-    .dx-section-label {
-      font-size: var(--t-label); letter-spacing: 2.5px; text-transform: uppercase;
-      color: var(--text-3); font-weight: 600;
-    }
-    /* Horizontal day strip: thumb-scrollable on phone, snaps chip-to-chip */
-    .dx-strip {
-      display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden;
-      scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
-      padding: 2px 2px 10px 2px; scrollbar-width: thin;
-      scrollbar-color: var(--line-strong) transparent;
-    }
-    .dx-strip::-webkit-scrollbar { height: 6px; }
-    .dx-strip::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--r-sm); }
-    .dx-chip {
-      flex: 0 0 auto; scroll-snap-align: center; min-width: 72px;
-      background: var(--surface-2); border: 1px solid var(--line);
-      border-radius: var(--r-md); padding: 8px 10px 7px; text-align: center;
-      cursor: pointer; transition: border-color var(--d-fast) ease, background var(--d-fast) ease, transform var(--d-fast) ease;
-      color: var(--text); line-height: 1.15;
-    }
-    .dx-chip:hover:not(.dx-chip-off) { border-color: var(--accent-line); transform: translateY(-1px); }
-    .dx-chip-dow, .dx-chip-day, .dx-chip-mon { display: block; }
-    .dx-chip-dow { font-size: var(--t-label); letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-2); }
-    .dx-chip-day { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin-top: 1px; }
-    .dx-chip-mon { font-size: var(--t-label); letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
-    .dx-chip-dot { display: block; width: 5px; height: 5px; border-radius: var(--r-full); margin: 4px auto 0; background: var(--success); }
-    .dx-chip-dot-off { background: transparent; }
-    .dx-chip-off { opacity: .34; cursor: not-allowed; }
-    .dx-chip-on {
-      border-color: var(--success); background: var(--success-dim);
-      box-shadow: 0 0 0 1px var(--success-line);
-    }
-    .dx-chip-on .dx-chip-dow, .dx-chip-on .dx-chip-mon { color: var(--success); }
-    .dx-bignum { font-family: var(--font-display); font-size: 30px; font-weight: 600; line-height: 1; }
-    .dx-skel { background: linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 37%,var(--surface-2) 63%); background-size: 400% 100%; animation: dxShimmer 1.3s ease infinite; border-radius: var(--r-md); }
-    @keyframes dxShimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
-    @media (prefers-reduced-motion: reduce) { .dx-skel { animation: none; } }
 
     /* Premium dark theme cards matching lighting and home pages */
     .card-bg {
@@ -250,7 +208,7 @@
   <script defer src="/static/os-command.js"></script>
   <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[var(--bg)] text-[var(--text)] min-h-screen">
+<body class="hb-chrome-offset bg-[var(--bg)] text-[var(--text)] min-h-screen">
   {% if setup_mode %}
   <!-- ==================== SETUP SCREEN (local dev only) ==================== -->
   <div class="max-w-xl mx-auto pt-20 px-6">
@@ -264,7 +222,7 @@
       </div>
     </div>
 
-    <div class="card-bg rounded-3xl p-8 shadow-2xl border border-zinc-800">
+    <div class="hb-spot card-bg rounded-3xl p-8 shadow-2xl border border-zinc-800">
       <h1 class="text-3xl font-semibold tracking-tight mb-2">Connect your Oura Ring</h1>
       <p class="text-[var(--text-2)] mb-8">This dashboard pulls all available daily metrics directly from the Oura API v2.</p>
 
@@ -308,45 +266,33 @@
   <!-- ==================== MAIN DASHBOARD ==================== -->
   
   {% if not fragment %}
-  <!-- Top Navigation -->
-  <nav class="border-b border-zinc-800 sticky top-0 z-50 bg-[var(--bg)]/95 backdrop-blur-xl">
-    <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-x-3">
-        <div class="flex items-center gap-x-2.5">
-          <div class="w-8 h-8 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-inner">
-            <i class="fa-solid fa-ring text-white text-xl"></i>
-          </div>
-          <a href="/" class="hb-tap inline-flex items-center font-semibold text-xl tracking-tighter font-display hover:opacity-80 transition">
-            {% if public_mode %}{{ site_name }}{% else %}HENDERBURGH{% endif %}
-          </a>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-x-2">
-        <!-- Page Navigation (top right, consistent with other pages) -->
-        <nav class="hidden md:flex items-center gap-x-5 text-sm mr-3">
-          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
-          <a href="/vitals" class="text-white font-medium">Vitals</a>
-          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
-          <a href="/model" class="hover:text-white text-zinc-400 transition">Model</a>
-          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
-          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
-          <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
-          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
-        </nav>
-
-        <!-- Status info (simple; detailed + countdown + refresh live inside content for HTMX partials) -->
-        <div class="text-xs text-[var(--text-2)] font-medium px-3 py-1.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-x-2">
-          <span>Updated {{ last_updated }}</span>
-          {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}
-          <span class="text-emerald-400 hidden sm:inline">• auto {{ (auto_refresh_seconds // 60) }}m</span>
-          {% endif %}
-        </div>
-
-        <!-- Theme toggle removed for consistent dark theme (matches lighting/home) -->
-      </div>
+  <!-- Unified chrome. Same bar language as the homepage ticker: fixed slim
+       translucent rail, 1px hairline, Space Grotesk wordmark, mono nav.
+       Styles live in static/tokens.css (.hb-chrome*) so all pages stay identical. -->
+  <header class="hb-chrome">
+    <a href="/" class="hb-chrome-brand">{% if public_mode %}{{ site_name }}{% else %}HENDERBURGH{% endif %}</a>
+    <nav class="hb-chrome-nav hidden md:flex">
+      <a href="/">Home</a>
+      <a href="/vitals" class="active">Vitals</a>
+      <a href="/home-assistant">Lighting</a>
+      <a href="/model">Model</a>
+      <a href="/golf">Golf</a>
+      <a href="/clips">Clips</a>
+      <a href="/xbox">Xbox</a>
+      <a href="/blog">Blog</a>
+    </nav>
+    <span class="hb-chrome-spacer"></span>
+    <div class="hb-chrome-stat text-[var(--text-3)] hidden sm:flex items-center gap-x-2">
+      <span>updated {{ last_updated }}</span>
+      {% if auto_refresh_seconds and auto_refresh_seconds > 0 %}<span class="text-[var(--accent)]">auto {{ (auto_refresh_seconds // 60) }}m</span>{% endif %}
     </div>
-  </nav>
+    <div class="md:hidden flex items-center -my-2.5 -mr-2">
+      <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-home text-base"></i></a>
+      <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
+      <a href="/home-assistant" aria-label="Lighting" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-lightbulb text-base"></i></a>
+      <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-gamepad text-base"></i></a>
+    </div>
+  </header>
   {% endif %}
 
   <div id="main-content" class="{% if fragment %}contents{% endif %}">
@@ -374,7 +320,7 @@
           {% if public_mode %}
           <div class="text-emerald-500 text-sm font-semibold tracking-[1.5px] uppercase">{{ time_greeting }}</div>
           <div class="font-semibold text-5xl sm:text-6xl tracking-tighter font-display mt-1">DAILY VITALS</div>
-          <div class="text-xs text-zinc-400 mt-0.5 tracking-[1px]">FROM THE OURA RING</div>
+          <div class="hb-label mt-1">FROM THE OURA RING</div>
           {% else %}
           <div class="text-emerald-500 text-sm font-semibold tracking-[1.5px] uppercase">{{ time_greeting }}</div>
           <div class="font-semibold text-6xl tracking-tighter font-display mt-1">YOUR VITALS</div>
@@ -409,7 +355,7 @@
       <!-- Hero Scores - Prioritized key metrics for scannability (Readiness, Sleep, HRV/RHR/Steps/Activity focus) -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <!-- Readiness -->
-        <div class="card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
+        <div class="hb-spot card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-x-2">
               <i class="fa-solid fa-battery-full text-emerald-400 text-xl"></i>
@@ -432,7 +378,7 @@
         </div>
 
         <!-- Sleep -->
-        <div class="card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
+        <div class="hb-spot card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-x-2">
               <i class="fa-solid fa-bed text-sky-400 text-xl"></i>
@@ -456,7 +402,7 @@
         </div>
 
         <!-- Activity / Steps (prominent) -->
-        <div class="card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
+        <div class="hb-spot card-bg rounded-3xl p-7 border border-zinc-800 flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-x-2">
               <i class="fa-solid fa-running text-orange-400 text-xl"></i>
@@ -477,7 +423,7 @@
       <!-- Additional prioritized: HRV / RHR quick row if data (clean, scannable) -->
       <div class="grid grid-cols-2 gap-4 mb-8">
         {% if hrv is not none %}
-        <div class="card-bg rounded-2xl p-4 border border-zinc-800 flex items-center justify-between">
+        <div class="hb-spot card-bg rounded-2xl p-4 border border-zinc-800 flex items-center justify-between">
           <div>
             <div class="text-xs text-zinc-500">HRV</div>
             <div class="text-2xl font-semibold tabular-nums">{{ hrv }} <span class="text-xs">ms</span></div>
@@ -486,7 +432,7 @@
         </div>
         {% endif %}
         {% if rhr is not none %}
-        <div class="card-bg rounded-2xl p-4 border border-zinc-800 flex items-center justify-between">
+        <div class="hb-spot card-bg rounded-2xl p-4 border border-zinc-800 flex items-center justify-between">
           <div>
             <div class="text-xs text-zinc-500">Resting HR</div>
             <div class="text-2xl font-semibold tabular-nums">{{ rhr }} <span class="text-xs">bpm</span></div>
@@ -524,7 +470,7 @@
         <div class="section-title text-emerald-400 mb-3">LIVE STATUS</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Weather -->
-          <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+          <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
             <div class="flex items-center gap-x-2 mb-2">
               <i class="fa-solid fa-cloud-sun text-emerald-400"></i>
               <span class="text-sm font-medium text-zinc-300">Myrtle Beach, SC</span>
@@ -541,7 +487,7 @@
           </div>
 
           <!-- Steps from Oura -->
-          <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+          <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
             <div class="flex items-center gap-x-2 mb-3">
               <i class="fa-solid fa-shoe-prints text-blue-400"></i>
               <span class="text-sm font-medium text-zinc-300">Steps Today</span>
@@ -591,7 +537,7 @@
         <div class="section-title text-emerald-400 mb-3">RECENT ACTIVITY</div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {% for act in recent_activities %}
-          <div class="metric-card card-bg rounded-3xl p-4 border border-zinc-800">
+          <div class="hb-spot metric-card card-bg rounded-3xl p-4 border border-zinc-800">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-x-2">
                 {% set icon = 'fa-running' if act.type == 'Run' else ('fa-walking' if act.type == 'Walk' else ('fa-bicycle' if act.type == 'Cycle' else ('fa-water' if act.type == 'Swim' else 'fa-dumbbell'))) %}
@@ -625,7 +571,7 @@
         
         <!-- HRV (prominent) -->
         {% if hrv is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -649,7 +595,7 @@
 
         <!-- Resting HR (prominent) -->
         {% if rhr is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -673,7 +619,7 @@
 
         <!-- Live Heart Rate -->
         {% if latest_hr is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -703,7 +649,7 @@
 
         <!-- Respiratory Rate -->
         {% if respiratory_rate is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -722,7 +668,7 @@
 
         <!-- SpO2 -->
         {% if spo2 is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -741,7 +687,7 @@
 
         <!-- Temperature Deviation -->
         {% if temp_deviation is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -760,7 +706,7 @@
 
         <!-- Stress / Recovery -->
         {% if stress_summary is not none %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex justify-between items-start">
             <div>
               <div class="flex items-center gap-x-2 text-sm">
@@ -792,7 +738,7 @@
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
         {% if vascular_age %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex items-center gap-x-2 text-sm">
             <i class="fa-solid fa-heart-circle-check text-rose-400"></i>
             <span class="metric-label">Heart Age</span>
@@ -809,7 +755,7 @@
         </div>
         {% endif %}
         {% if resilience_level %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex items-center gap-x-2 text-sm">
             <i class="fa-solid fa-shield-heart text-emerald-400"></i>
             <span class="metric-label">Resilience</span>
@@ -827,7 +773,7 @@
         </div>
         {% endif %}
         {% if vo2_max %}
-        <div class="metric-card card-bg rounded-3xl p-5 border border-zinc-800">
+        <div class="hb-spot metric-card card-bg rounded-3xl p-5 border border-zinc-800">
           <div class="flex items-center gap-x-2 text-sm">
             <i class="fa-solid fa-lungs text-sky-400"></i>
             <span class="metric-label">VO₂ Max</span>
@@ -848,7 +794,7 @@
         <div class="section-title text-emerald-400">Where Today Went</div>
         {% if walk_equiv_mi %}<div class="text-xs text-zinc-500">≈ {{ walk_equiv_mi }} mi walking-equivalent</div>{% endif %}
       </div>
-      <div class="card-bg rounded-3xl p-6 border border-zinc-800 mb-10">
+      <div class="hb-spot card-bg rounded-3xl p-6 border border-zinc-800 mb-10">
         {% set order = {'High':'#f43f5e','Medium':'#f59e0b','Low':'#4ade80','Sedentary':'#71717a','Resting':'#3f3f46'} %}
         <div class="flex h-3 rounded-full overflow-hidden mb-5">
           {% set total_secs = activity_composition|sum(attribute='seconds') %}
@@ -877,7 +823,7 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-10">
         <!-- HRV Chart -->
-        <div class="card-bg rounded-3xl p-6 border border-zinc-800">
+        <div class="hb-spot card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="flex items-center justify-between mb-5">
             <div>
               <div class="font-semibold flex items-center gap-x-2">
@@ -894,7 +840,7 @@
         </div>
 
         <!-- Sleep Chart -->
-        <div class="card-bg rounded-3xl p-6 border border-zinc-800">
+        <div class="hb-spot card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="flex items-center justify-between mb-5">
             <div>
               <div class="font-semibold flex items-center gap-x-2">
@@ -913,7 +859,7 @@
 
       <!-- Full-day heart-rate curve (data was already fetched, now shown) -->
       {% if hr_curve and ((hr_curve.points and hr_curve.points|length > 3) or (hr_curve.bpm and hr_curve.bpm|length > 3)) %}
-      <div class="card-bg rounded-3xl p-6 border border-zinc-800 mb-10">
+      <div class="hb-spot card-bg rounded-3xl p-6 border border-zinc-800 mb-10">
         <div class="flex items-center justify-between mb-5">
           <div>
             <div class="font-semibold flex items-center gap-x-2">
@@ -960,7 +906,7 @@
         
         <!-- Sleep Stages -->
         {% if total_sleep or deep_sleep or rem_sleep or light_sleep %}
-        <div class="lg:col-span-3 card-bg rounded-3xl p-6 border border-zinc-800">
+        <div class="hb-spot lg:col-span-3 card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="font-semibold mb-1 flex items-center gap-x-2">
             <i class="fa-solid fa-bed text-sky-400"></i>
             {{ sleep_label or "Last night" }} · Sleep Breakdown
@@ -998,7 +944,7 @@
 
         <!-- Quick Stats / Key Contributors (only if data) -->
         {% if readiness_score or rhr or hrv or temp_deviation %}
-        <div class="lg:col-span-2 card-bg rounded-3xl p-6 border border-zinc-800">
+        <div class="hb-spot lg:col-span-2 card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="font-semibold mb-4">Key Contributors (yesterday)</div>
           
           <div class="space-y-3 text-sm">
@@ -1046,7 +992,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {% for pair in [('Readiness', readiness_score, readiness_contributors), ('Sleep', sleep_score, sleep_contributors)] %}
         {% if pair[2] %}
-        <div class="card-bg rounded-3xl p-6 border border-zinc-800">
+        <div class="hb-spot card-bg rounded-3xl p-6 border border-zinc-800">
           <div class="flex items-baseline justify-between mb-4">
             <div class="font-semibold">{{ pair[0] }}</div>
             {% if pair[1] is not none %}<div class="text-2xl font-semibold tabular-nums">{{ pair[1] }}</div>{% endif %}
@@ -1091,437 +1037,18 @@
     {% endif %}
   </div>
 
-  <!-- ================= DAY EXPLORER =================
-       "Pull up last week when I watched a scary movie and show someone."
-       Lives OUTSIDE #main-content on purpose: that div gets swapped wholesale by
-       the HTMX auto-refresh, which would blow away a loaded day mid-show.
-       Guarded on `fragment` so the refresh fragment never emits a duplicate. -->
+  <!-- Day Explorer now lives on the home page, alongside the live day view.
+       This is the doorway to it; nothing here duplicates that work. -->
   {% if not fragment %}
   <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-14 mb-24 md:mb-14" id="day-explorer">
-    <div class="flex items-baseline justify-between mb-4 gap-3">
-      <div class="min-w-0">
-        <div class="dx-section-label">Day Explorer</div>
-        <p class="text-xs text-zinc-500 mt-1">Tap a day to pull up your heart rate and what you were doing.</p>
-      </div>
-      <input type="date" id="dx-date" max="{{ today_iso or '' }}"
-             aria-label="Jump to a specific date"
-             class="hb-tap flex-shrink-0 bg-[var(--surface-2)] border border-white/10 rounded-lg text-xs text-zinc-300 px-2.5 py-1.5 focus:outline-none focus:border-emerald-400/60" />
-    </div>
-
-    <!-- Day picker strip -->
-    <div id="dx-strip" class="dx-strip" role="tablist" aria-label="Recent days">
-      <div class="dx-skel" style="width:72px;height:74px;flex:0 0 auto"></div>
-      <div class="dx-skel" style="width:72px;height:74px;flex:0 0 auto"></div>
-      <div class="dx-skel" style="width:72px;height:74px;flex:0 0 auto"></div>
-      <div class="dx-skel" style="width:72px;height:74px;flex:0 0 auto"></div>
-      <div class="dx-skel" style="width:72px;height:74px;flex:0 0 auto"></div>
-    </div>
-    <div id="dx-strip-error" class="hidden text-xs text-amber-400/80 mt-1"></div>
-
-    <div class="card-bg p-5 sm:p-6 mt-3">
-      <!-- Header: date + headline + the two big numbers they'll point at -->
-      <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
-        <div class="min-w-0 flex-1">
-          <div id="dx-day-title" class="font-display text-lg text-white">Pick a day</div>
-          <p id="dx-headline" class="text-[13px] text-zinc-400 mt-1 leading-relaxed">Your recent days are above — the green dot means there's heart rate data.</p>
-        </div>
-        <div id="dx-stats" class="flex gap-6 flex-shrink-0" style="display:none">
-          <div>
-            <div class="dx-section-label">Peak</div>
-            <div class="dx-bignum text-rose-400 mt-1"><span id="dx-peak">—</span><span class="text-xs text-zinc-500 font-normal ml-1">bpm</span></div>
-          </div>
-          <div>
-            <div class="dx-section-label">Low</div>
-            <div class="dx-bignum text-sky-400 mt-1"><span id="dx-low">—</span><span class="text-xs text-zinc-500 font-normal ml-1">bpm</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Legend + view toggle -->
-      <div id="dx-legend" class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[11px]" style="display:none">
-        <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(var(--success-rgb),.35);border:1px solid rgba(var(--success-rgb),.7)"></span>gaming</span>
-        <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(167,139,250,.3);border:1px solid rgba(167,139,250,.6)"></span>watching</span>
-        <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.25);border:1px solid rgba(245,158,11,.6)"></span>workout</span>
-        <span class="inline-flex items-center gap-1.5 text-zinc-400"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.5)"></span>asleep</span>
-        <span class="ml-auto flex gap-1.5">
-          <button id="dx-view-active" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
-          <button id="dx-view-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Full day</button>
-        </span>
-      </div>
-
-      <!-- States -->
-      <div id="dx-loading" class="hidden">
-        <div class="dx-skel" style="height:240px"></div>
-        <div class="text-[11px] text-zinc-500 mt-2 text-center">Loading that day…</div>
-      </div>
-      <div id="dx-empty" class="hidden text-center py-12">
-        <i class="fa-solid fa-heart-crack text-2xl text-zinc-700"></i>
-        <div class="text-sm text-zinc-400 mt-3" id="dx-empty-msg">No heart rate recorded this day.</div>
-        <div class="text-[11px] text-zinc-600 mt-1">The ring wasn't worn or hadn't synced. Try another day above.</div>
-      </div>
-      <div id="dx-error" class="hidden text-center py-12">
-        <i class="fa-solid fa-triangle-exclamation text-2xl text-amber-500/70"></i>
-        <div class="text-sm text-zinc-400 mt-3">Couldn't load that day.</div>
-        <button id="dx-retry" type="button" class="mt-3 text-xs px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-emerald-400/50">Try again</button>
-      </div>
-      <div id="dx-chart-wrap" class="hidden">
-        <div class="h-[240px] sm:h-[280px]"><canvas id="dxReplayChart"></canvas></div>
-        <div class="text-[11px] text-zinc-600 mt-3 flex flex-wrap gap-x-4 gap-y-1">
-          <span><i class="fa-solid fa-hand-pointer text-[10px] mr-1"></i>drag to move · pinch or scroll to zoom · double-tap to reset</span>
-          <span id="dx-gap-note" class="hidden text-zinc-600"></span>
-        </div>
-        <button id="dx-share" type="button" class="hb-tap mt-4 text-xs px-3.5 py-2 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-300 hover:border-emerald-400/50">
-          <i class="fa-solid fa-link text-[10px] mr-1.5"></i><span id="dx-share-label">Copy link to this day</span>
-        </button>
-      </div>
-    </div>
+    <a href="/" class="hb-card hb-spot hb-tap hb-press flex items-center justify-between gap-4 p-5 no-underline">
+      <span class="min-w-0">
+        <span class="hb-label block">Day Explorer</span>
+        <span class="block text-sm text-[var(--text-2)] mt-1.5">Replay any day’s heart rate and what you were doing — on the home page.</span>
+      </span>
+      <span class="text-[var(--accent)] text-sm font-medium flex-shrink-0 whitespace-nowrap">Open <i class="fa-solid fa-arrow-right ml-1 text-xs"></i></span>
+    </a>
   </div>
-  {% endif %}
-
-  <!-- Day Explorer logic. All symbols namespaced dx*/DX_ to avoid colliding with
-       the existing dashboard script (createCharts, refreshVitals, boot, ...). -->
-  {% if not fragment %}
-  <script>
-    (function () {
-      const strip = document.getElementById('dx-strip');
-      if (!strip) return;
-
-      // Same escape helper pattern as clips.html / insights.html — every value
-      // that reaches innerHTML goes through this.
-      function dxEsc(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-      }
-
-      // "game" = "this was a live/active session" -> the shared --success token,
-      // not the brand --accent. Read at runtime so it stays in sync with tokens.css.
-      const DX_SUCCESS_RGB = (getComputedStyle(document.documentElement).getPropertyValue('--success-rgb') || '74, 222, 128').trim();
-      const DX_BAND = {
-        game:    { fill: `rgba(${DX_SUCCESS_RGB},0.16)`,  edge: `rgba(${DX_SUCCESS_RGB},0.55)`,  text: '#86efac' },
-        media:   { fill: 'rgba(167,139,250,0.16)', edge: 'rgba(167,139,250,0.55)', text: '#c4b5fd' },
-        sleep:   { fill: 'rgba(96,165,250,0.10)',  edge: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
-        workout: { fill: 'rgba(245,158,11,0.14)',  edge: 'rgba(245,158,11,0.45)',  text: '#fcd34d' },
-      };
-      const dxClock = (m) => {
-        let h = Math.floor(m / 60) % 24, mm = Math.round(m % 60);
-        const ap = h < 12 ? 'AM' : 'PM'; h = (h % 12) || 12;
-        return h + (mm ? ':' + String(mm).padStart(2, '0') : '') + ap;
-      };
-      const DX_ISO = /^\d{4}-\d{2}-\d{2}$/;
-
-      const el = (id) => document.getElementById(id);
-      const show = (id, mode) => { const n = el(id); if (n) { n.classList.remove('hidden'); n.style.display = mode || 'block'; } };
-      const hide = (id) => { const n = el(id); if (n) n.style.display = 'none'; };
-
-      let dxChart = null;      // live Chart.js instance (destroyed between days)
-      let dxPayload = null;    // last successful /api/day-replay payload
-      let dxSelected = null;   // currently selected day_iso
-      let dxSeq = 0;           // guards against out-of-order fetch responses
-
-      function dxState(which) {
-        ['dx-loading', 'dx-empty', 'dx-error', 'dx-chart-wrap'].forEach(hide);
-        if (which === 'chart') { show('dx-chart-wrap'); show('dx-legend', 'flex'); }
-        else { hide('dx-legend'); hide('dx-stats'); if (which) show('dx-' + which); }
-      }
-
-      // ---------- Day strip ----------
-      // Defensive: if the index claims NOTHING has data, don't render 60 dead
-      // chips — that's almost certainly an index bug (day-replay may still have
-      // points), and a strip you can't click is worse than an optimistic one.
-      let dxTrustHasData = true;
-      function dxRenderStrip(days) {
-        // Safety net: if a COMPLETE index (nothing marked unknown) still claims not
-        // a single day has data, that's a backend fault, not reality — enable the
-        // chips rather than show 60 dead ones. But when days are `unknown` (Oura
-        // fetch actually failed) keep them dimmed: honest beats guessing.
-        if (days && days.length && !days.some(d => d.has_data) && !days.some(d => d.unknown)) {
-          dxTrustHasData = false;
-        }
-        if (!days || !days.length) {
-          strip.innerHTML = '<div class="text-xs text-zinc-500 py-4">No recent days available yet.</div>';
-          return;
-        }
-        strip.innerHTML = days.map(d => {
-          const iso = String(d.day_iso || '');
-          if (!DX_ISO.test(iso)) return '';
-          // Parse at noon so timezone never shifts the weekday by a day.
-          const dt = new Date(iso + 'T12:00:00');
-          const dow = dt.toLocaleDateString('en-US', { weekday: 'short' });
-          const mon = dt.toLocaleDateString('en-US', { month: 'short' });
-          const num = dt.getDate();
-          const has = dxTrustHasData ? !!d.has_data : true;
-          const title = d.headline ? String(d.headline) : (d.label ? String(d.label) : iso);
-          return '<button type="button" role="tab" class="dx-chip' + (has ? '' : ' dx-chip-off') +
-            '" data-dx-day="' + dxEsc(iso) + '"' + (has ? '' : ' disabled aria-disabled="true"') +
-            ' title="' + dxEsc(title) + '">' +
-            '<span class="dx-chip-dow">' + dxEsc(dow) + '</span>' +
-            '<span class="dx-chip-day">' + dxEsc(num) + '</span>' +
-            '<span class="dx-chip-mon">' + dxEsc(mon) + '</span>' +
-            '<span class="dx-chip-dot' + (has ? '' : ' dx-chip-dot-off') + '"></span>' +
-            '</button>';
-        }).join('');
-      }
-
-      function dxMarkSelected(iso) {
-        strip.querySelectorAll('.dx-chip').forEach(c => {
-          const on = c.getAttribute('data-dx-day') === iso;
-          c.classList.toggle('dx-chip-on', on);
-          c.setAttribute('aria-selected', on ? 'true' : 'false');
-          if (on && c.scrollIntoView) c.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
-        });
-      }
-
-      // ---------- Chart ----------
-      const dxBandPlugin = {
-        id: 'dxDayBands',
-        beforeDatasetsDraw(chart) {
-          const R = dxPayload; if (!R) return;
-          const { ctx, chartArea, scales: { x } } = chart;
-          if (!chartArea) return;
-          const clip = (v) => Math.max(chartArea.left, Math.min(chartArea.right, v));
-          let lane = 0;
-          (R.bands || []).forEach(b => {
-            const c = DX_BAND[b.kind] || DX_BAND.game;
-            const x1 = clip(x.getPixelForValue(b.x0)), x2 = clip(x.getPixelForValue(b.x1));
-            if (x2 - x1 < 1) return;
-            ctx.save();
-            ctx.fillStyle = c.fill;
-            ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
-            ctx.strokeStyle = c.edge; ctx.lineWidth = 1;
-            ctx.strokeRect(x1 + 0.5, chartArea.top + 0.5, x2 - x1 - 1, chartArea.bottom - chartArea.top - 1);
-            if ((b.kind !== 'sleep' || (x2 - x1) > 40) && (x2 - x1) > 26) {
-              ctx.fillStyle = c.text;
-              ctx.font = '10px Inter, sans-serif';
-              ctx.fillText(String(b.label == null ? '' : b.label), x1 + 4, chartArea.top + 12 + (lane % 3) * 12);
-              lane++;
-            }
-            ctx.restore();
-          });
-          (R.moments || []).forEach(m => {
-            const px = x.getPixelForValue(m.x);
-            if (px < chartArea.left || px > chartArea.right) return;
-            ctx.save();
-            ctx.fillStyle = '#fbbf24';
-            ctx.beginPath();
-            ctx.moveTo(px, chartArea.top + 9);
-            ctx.lineTo(px - 4.5, chartArea.top);
-            ctx.lineTo(px + 4.5, chartArea.top);
-            ctx.closePath(); ctx.fill();
-            ctx.restore();
-          });
-        }
-      };
-
-      function dxBuildChart(R) {
-        const cv = el('dxReplayChart');
-        if (!cv || typeof Chart === 'undefined') return;
-        if (dxChart) { dxChart.destroy(); dxChart = null; }
-        // Default the axis to the framed ACTIVE window, never 0..1440 — a full-day
-        // axis leaves the chart mostly empty (that was a real bug on /xbox).
-        // A "day" runs 4am→4am (see _DAY_START_HOUR in services/xbox.py), so the
-        // axis spans 240..1680, not 0..1440 — otherwise the midnight→4am tail
-        // (late-night gaming/watching) gets clipped off the right edge.
-        const v = R.view || {};
-        const vs = Number.isFinite(v.start) ? v.start : 240;
-        const ve = Number.isFinite(v.end) ? v.end : 1680;
-        dxChart = new Chart(cv, {
-          type: 'line',
-          data: {
-            datasets: [{
-              label: 'BPM', data: R.points, parsing: false,
-              borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.08)',
-              borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 4,
-              pointHoverBackgroundColor: '#fb7185', fill: true, tension: 0.3,
-            }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false, animation: { duration: 350 },
-            interaction: { mode: 'nearest', axis: 'x', intersect: false },
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: '#18181b', borderColor: '#3f3f46', borderWidth: 1,
-                callbacks: {
-                  title: (items) => items.length ? dxClock(items[0].parsed.x) : '',
-                  label: (ctx) => ' ' + ctx.parsed.y + ' bpm',
-                  afterLabel: (ctx) => {
-                    const mx = ctx.parsed.x, out = [];
-                    const hit = (dxPayload.bands || []).find(b => mx >= b.x0 && mx <= b.x1 && b.kind !== 'sleep');
-                    if (hit) out.push(String(hit.label == null ? '' : hit.label));
-                    const mm = (dxPayload.moments || []).find(m => Math.abs(m.x - mx) <= 6);
-                    if (mm) out.push(String(mm.label == null ? '' : mm.label));
-                    return out.join('\n');
-                  }
-                }
-              },
-              // One job per gesture: drag = pan, wheel/pinch = zoom.
-              zoom: {
-                zoom: { wheel: { enabled: true, speed: 0.08 }, pinch: { enabled: true }, drag: { enabled: false }, mode: 'x' },
-                pan: { enabled: true, mode: 'x', threshold: 6 },
-                limits: { x: { min: 240, max: 1680, minRange: 20 } }
-              }
-            },
-            scales: {
-              x: {
-                type: 'linear', min: vs, max: ve,
-                grid: { color: 'rgba(255,255,255,0.04)' },
-                ticks: { color: '#52525b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7, stepSize: 60, callback: (val) => dxClock(val) },
-              },
-              y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#52525b', font: { size: 10 }, callback: val => val + ' bpm' } },
-            }
-          },
-          plugins: [dxBandPlugin]
-        });
-
-        const btnA = el('dx-view-active'), btnF = el('dx-view-full');
-        function setView(min, max, activeBtn) {
-          if (!dxChart) return;
-          dxChart.options.scales.x.min = min;
-          dxChart.options.scales.x.max = max;
-          dxChart.update('none');
-          [btnA, btnF].forEach(b => {
-            if (!b) return;
-            b.className = 'hb-tap text-[11px] px-3 py-1.5 rounded-full font-medium ' + (b === activeBtn
-              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
-              : 'bg-zinc-800/80 border border-zinc-700 text-zinc-400');
-          });
-        }
-        dxSetView = setView;
-        setView(vs, ve, btnA);
-      }
-      let dxSetView = null;
-
-      // ---------- Load a day ----------
-      function dxLoadDay(iso, opts) {
-        if (!DX_ISO.test(String(iso || ''))) return;
-        const my = ++dxSeq;
-        dxSelected = iso;
-        dxMarkSelected(iso);
-        const dt = new Date(iso + 'T12:00:00');
-        el('dx-day-title').textContent = dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-        el('dx-headline').textContent = '';
-        dxState('loading');
-        if (!opts || opts.pushUrl !== false) {
-          try {
-            const u = new URL(window.location.href);
-            u.searchParams.set('day', iso);
-            history.replaceState(null, '', u.toString());
-          } catch (e) { /* non-fatal: deep link just won't update */ }
-        }
-
-        fetch('/api/day-replay?day=' + encodeURIComponent(iso), { headers: { 'Accept': 'application/json' } })
-          .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-          .then(R => {
-            if (my !== dxSeq) return; // a newer day was clicked; drop this response
-            if (!R || !R.has_data || !R.points || !R.points.length) {
-              dxPayload = null;
-              if (dxChart) { dxChart.destroy(); dxChart = null; }
-              dxState('empty');
-              return;
-            }
-            dxPayload = R;
-            const ys = R.points.map(p => p.y).filter(y => typeof y === 'number');
-            const peak = ys.length ? Math.max.apply(null, ys) : null;
-            const low = ys.length ? Math.min.apply(null, ys) : null;
-            el('dx-peak').textContent = peak == null ? '—' : peak;
-            el('dx-low').textContent = low == null ? '—' : low;
-            show('dx-stats', 'flex');
-            el('dx-headline').textContent = dxPlain(R.headline || R.narration || dxSummarise(R));
-            const gap = el('dx-gap-note');
-            if (R.hr_gap && R.hr_ends) {
-              gap.textContent = 'Heart rate ends ' + R.hr_ends + ' — ring not worn or synced after that.';
-              gap.classList.remove('hidden');
-            } else { gap.classList.add('hidden'); }
-            dxState('chart');
-            dxBuildChart(R);
-          })
-          .catch(() => {
-            if (my !== dxSeq) return;
-            dxState('error');
-          });
-      }
-
-      // narration comes back as markdown; we render it as TEXT (never innerHTML),
-      // so strip the emphasis markers rather than leaving literal asterisks.
-      function dxPlain(s) {
-        return String(s == null ? '' : s)
-          .replace(/<[^>]*>/g, '')
-          .replace(/\*\*(.+?)\*\*/g, '$1')
-          .replace(/[*_`]/g, '')
-          .trim();
-      }
-
-      // Fallback headline when the payload doesn't carry one.
-      function dxSummarise(R) {
-        const names = [];
-        (R.bands || []).forEach(b => {
-          if (b.kind === 'sleep') return;
-          const l = String(b.label == null ? '' : b.label).trim();
-          if (l && names.indexOf(l) === -1) names.push(l);
-        });
-        if (!names.length) return 'Heart rate for the day.';
-        return names.slice(0, 3).join(' · ');
-      }
-
-      // ---------- Wire up ----------
-      strip.addEventListener('click', (e) => {
-        const chip = e.target.closest ? e.target.closest('.dx-chip') : null;
-        if (!chip || chip.classList.contains('dx-chip-off')) return;
-        dxLoadDay(chip.getAttribute('data-dx-day'));
-      });
-
-      const dateInput = el('dx-date');
-      if (dateInput) dateInput.addEventListener('change', () => {
-        if (DX_ISO.test(dateInput.value)) dxLoadDay(dateInput.value);
-      });
-
-      const retry = el('dx-retry');
-      if (retry) retry.addEventListener('click', () => { if (dxSelected) dxLoadDay(dxSelected, { pushUrl: false }); });
-
-      const btnA = el('dx-view-active'), btnF = el('dx-view-full');
-      if (btnA) btnA.addEventListener('click', () => { if (dxSetView && dxPayload) dxSetView(dxPayload.view.start, dxPayload.view.end, btnA); });
-      if (btnF) btnF.addEventListener('click', () => { if (dxSetView) dxSetView(240, 1680, btnF); });
-      const cvEl = el('dxReplayChart');
-      if (cvEl) cvEl.addEventListener('dblclick', () => { if (dxSetView && dxPayload) dxSetView(dxPayload.view.start, dxPayload.view.end, btnA); });
-
-      const share = el('dx-share');
-      if (share) share.addEventListener('click', () => {
-        const lbl = el('dx-share-label');
-        const done = (msg) => { lbl.textContent = msg; setTimeout(() => { lbl.textContent = 'Copy link to this day'; }, 1800); };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(window.location.href).then(() => done('Link copied'), () => done('Copy failed'));
-        } else { done('Copy not supported'); }
-      });
-
-      // ---------- Boot ----------
-      let dxWanted = null;
-      try { dxWanted = new URL(window.location.href).searchParams.get('day'); } catch (e) {}
-      if (!DX_ISO.test(String(dxWanted || ''))) dxWanted = null;
-
-      fetch('/api/day-index?days=60', { headers: { 'Accept': 'application/json' } })
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(j => {
-          const days = (j && j.days) || [];
-          dxRenderStrip(days);
-          if (dateInput && days.length) {
-            const isos = days.map(d => d.day_iso).filter(s => DX_ISO.test(String(s || ''))).sort();
-            if (isos.length) { dateInput.min = isos[0]; dateInput.max = isos[isos.length - 1]; }
-          }
-          // Deep link wins; otherwise open the newest day that actually has data.
-          let open = dxWanted;
-          if (!open) { const first = days.find(x => x.has_data) || (dxTrustHasData ? null : days[0]); open = first ? first.day_iso : null; }
-          if (open) {
-            if (dateInput) dateInput.value = open;
-            dxLoadDay(open);
-          }
-        })
-        .catch(() => {
-          strip.innerHTML = '';
-          const err = el('dx-strip-error');
-          if (err) { err.textContent = "Couldn't load your recent days. Pick a date above instead."; err.classList.remove('hidden'); }
-          if (dxWanted) { if (dateInput) dateInput.value = dxWanted; dxLoadDay(dxWanted, { pushUrl: false }); }
-        });
-    })();
-  </script>
   {% endif %}
 
   <!-- Mobile bottom navigation (premium app-like OS, consistent across all pages) -->

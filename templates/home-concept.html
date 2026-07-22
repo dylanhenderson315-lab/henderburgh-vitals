@@ -11,7 +11,16 @@
      with every other page. This page used to fork its own navy/cyan root —
      that fork is now the canonical palette, ported INTO tokens.css, so these
      aliases just point at the shared tokens instead of re-declaring them. -->
-<link rel="stylesheet" href="/static/tokens.css?v=3">
+<link rel="stylesheet" href="/static/tokens.css?v=4">
+<!-- Chart.js powers the bottom "chart view" toggle — the classic horizontal
+     line rendering of the SAME selected day (the form the /vitals Day Explorer
+     used to own). Deferred: the vertical timeline above is the primary view and
+     must not wait on it. -->
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Marks that scripting is alive BEFORE first paint. The event cards' fade-in
+     is gated on this class, so with JS off/broken the story renders fully
+     visible instead of being stranded at opacity:0 waiting for a callback. -->
+<script>document.documentElement.classList.add('js');</script>
 <style>
   :root{
     /* Aliases so the rest of this file (787 lines deep) doesn't need a
@@ -107,18 +116,28 @@
   /* minmax(0,…) + min-width:0 so long tile content (e.g. "PGA TOUR 2K25")
      truncates instead of forcing the grid — and the page — wider than the
      viewport. */
-  .systems{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);}
-  .sys-tile{position:relative;isolation:isolate;min-width:0;--mx:50%;--my:50%;background:var(--navy-1);padding:22px 20px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:12px;min-height:150px;justify-content:space-between;transition:background 0.25s ease;}
-  /* Cursor spotlight, ported from the live home page: a pointer-tracked wash
-     plus a gradient hairline that lights up under the cursor, in the concept's
-     cyan. Compositor-only, gated to hover devices, off under reduced-motion. */
-  .sys-tile::before{content:'';position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity 0.38s ease;pointer-events:none;
+  /* Discrete floating cards, matching the lighting page's room cards
+     (rounded-2xl + hairline border + own surface) instead of the old
+     hairline-separated grid, which read as a table rather than a set of
+     objects you can tap. */
+  .systems{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+  .sys-tile{position:relative;isolation:isolate;min-width:0;--mx:50%;--my:50%;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+    box-shadow:var(--shadow-sm);
+    padding:22px 20px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:12px;min-height:150px;justify-content:space-between;
+    transition:background var(--d-fast) ease,border-color var(--d-fast) ease,box-shadow var(--d-fast) ease;}
+  /* Cursor spotlight: a pointer-tracked wash plus a gradient hairline that
+     lights up under the cursor. border-radius:inherit so the lit hairline
+     follows the card's rounded edge instead of cutting a square across it.
+     Compositor-only, gated to hover devices, off under reduced-motion. */
+  .sys-tile::before{content:'';position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity 0.38s ease;pointer-events:none;border-radius:inherit;
     background:radial-gradient(300px circle at var(--mx) var(--my),rgba(74,222,128,0.10),transparent 62%);}
-  .sys-tile::after{content:'';position:absolute;inset:0;padding:1px;opacity:0;transition:opacity 0.38s ease;pointer-events:none;
+  .sys-tile::after{content:'';position:absolute;inset:0;padding:1px;opacity:0;transition:opacity 0.38s ease;pointer-events:none;border-radius:inherit;
     background:radial-gradient(220px circle at var(--mx) var(--my),rgba(74,222,128,0.55),rgba(139,127,255,0.18) 40%,transparent 70%);
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
     mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;}
-  @media(hover:hover){.sys-tile:hover{background:var(--navy-2);}.sys-tile:hover::before,.sys-tile:hover::after{opacity:1;}}
+  @media(hover:hover){.sys-tile:hover{background:var(--surface-2);border-color:var(--line-strong);box-shadow:var(--shadow-md);}
+    .sys-tile:hover::before,.sys-tile:hover::after{opacity:1;}}
   @media(prefers-reduced-motion:reduce){.sys-tile::before,.sys-tile::after{display:none;}}
   .sys-tile .top{display:flex;justify-content:space-between;align-items:flex-start;}
   .sys-tile .name{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:15.5px;}
@@ -209,8 +228,11 @@
   .rail-dot{width:9px;height:9px;border-radius:50%;background:rgb(var(--c,122,132,148));
     box-shadow:0 0 7px -1px rgb(var(--c,122,132,148));}
 
-  .event{position:relative;padding:34px 0;opacity:0;transform:translateY(18px);transition:opacity 0.6s ease,transform 0.6s ease;}
-  .event.in{opacity:1;transform:translateY(0);}
+  .event{position:relative;padding:34px 0;transition:opacity 0.6s ease,transform 0.6s ease;}
+  /* Hidden-then-revealed ONLY when scripting is confirmed alive (html.js, set
+     in <head>). No JS → no opacity:0 → the day is readable regardless. */
+  html.js .event{opacity:0;transform:translateY(18px);}
+  html.js .event.in,.event.in{opacity:1;transform:translateY(0);}
   .event::before{content:'';position:absolute;left:-40px;top:38px;width:9px;height:9px;border-radius:50%;background:var(--navy-0);border:1.5px solid var(--text-dim);transition:border-color 0.4s,background 0.4s;z-index:2;}
   .event.in::before{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 0 4px rgba(74,222,128,0.15);}
   .event.event-peak.in::before{border-color:var(--amber);background:var(--amber);box-shadow:0 0 0 4px rgba(255,180,84,0.15);}
@@ -220,6 +242,55 @@
   .event .time.violet{color:var(--violet);}
   .event h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:21px;margin-bottom:7px;}
   .event p{color:var(--text-dim);font-size:14.5px;line-height:1.55;max-width:46ch;}
+
+  /* ── Day explorer chrome ────────────────────────────────────────────────
+     The vertical day view below is UNCHANGED; this bar is the only new
+     furniture. It states which day you're on and gives keyboard/pointer users
+     real controls, so drag-and-scroll is an accelerator, never the only way. */
+  .day-nav{display:flex;align-items:center;gap:14px;padding:14px 0 4px;flex-wrap:wrap;}
+  .day-nav .daybtn{font-family:'JetBrains Mono',monospace;font-size:15px;line-height:1;
+    width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+    background:rgba(13,19,28,0.66);border:1px solid var(--line);color:var(--text-dim);
+    border-radius:8px;cursor:pointer;transition:color 0.2s,border-color 0.2s,opacity 0.2s;}
+  .day-nav .daybtn:hover:not(:disabled){color:var(--cyan);border-color:var(--cyan);}
+  .day-nav .daybtn:disabled{opacity:0.3;cursor:default;}
+  .day-nav .daylabel{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:500;
+    min-width:0;flex:1;}
+  .day-nav .daylabel small{display:block;font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;letter-spacing:0.1em;color:var(--text-dim);text-transform:uppercase;margin-top:3px;}
+  .day-nav .dayhint{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.08em;
+    color:var(--text-dim);text-transform:uppercase;}
+  @media(max-width:720px){.day-nav .dayhint{display:none;}}
+  /* Grab affordance for the drag gesture. */
+  .story.dragging{cursor:grabbing;user-select:none;}
+  /* Brief loading veil — a dim, never a blank. The day underneath stays on
+     screen until the new one is ready, so navigation never flashes empty. */
+  .story.loading .timeline,.story.loading .story-rail{opacity:0.35;transition:opacity 0.2s ease;}
+  .day-loading{display:none;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+    letter-spacing:0.1em;color:var(--cyan);text-transform:uppercase;}
+  .story.loading .day-loading{display:inline;}
+  /* Honest empty state — shown only when a real fetch came back with no
+     readings for that day. Never a fabricated day. */
+  .day-empty{display:none;padding:48px 0 40px;color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;}
+  .story.no-data .day-empty{display:block;}
+  .story.no-data .timeline,.story.no-data .story-rail{display:none;}
+
+  /* ── Chart view: the same selected day, rendered the classic horizontal way. */
+  .chartview{padding-block:0 90px;}
+  .chartview .toggle{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em;
+    text-transform:uppercase;background:rgba(13,19,28,0.66);border:1px solid var(--line);
+    color:var(--text-dim);border-radius:8px;padding:10px 16px;cursor:pointer;
+    transition:color 0.2s,border-color 0.2s;}
+  .chartview .toggle:hover{color:var(--cyan);border-color:var(--cyan);}
+  .chartview .toggle[aria-expanded="true"]{color:var(--cyan);border-color:var(--cyan);}
+  .chart-panel{display:none;margin-top:18px;border:1px solid var(--line);
+    background:rgba(13,19,28,0.66);padding:18px;}
+  .chart-panel.open{display:block;}
+  .chart-panel .chart-box{position:relative;height:300px;}
+  @media(max-width:720px){.chart-panel .chart-box{height:220px;}}
+  .chart-panel .cap{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.08em;
+    color:var(--text-dim);text-transform:uppercase;margin-bottom:12px;}
 
   .empty{padding-block:20px 120px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px;}
   footer{text-align:center;padding:60px 32px 90px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:0.04em;border-top:1px solid var(--line);}
@@ -366,12 +437,32 @@
 
 {% if has_story and timeline %}
 <div class="story-head page">
-  <div class="systems-label" style="border-top:none;padding-top:0;">TODAY'S STORY &middot; {{ replay.day }} &middot; SCROLL THROUGH THE DAY</div>
+  <div class="systems-label" style="border-top:none;padding-top:0;">THE DAY'S STORY &middot; DRAG, SCROLL SIDEWAYS OR USE &larr; &rarr; TO CHANGE DAY</div>
+
+  {# Day explorer controls. Server-rendered with the real opening day (normally
+     YESTERDAY — a complete day, so the timeline shows its full form). JS only
+     re-labels these; it never has to create them for the page to make sense. #}
+  <div class="day-nav" id="day-nav">
+    <button class="daybtn" id="day-prev" type="button" aria-label="Previous day">&larr;</button>
+    <button class="daybtn" id="day-next" type="button" aria-label="Next day">&rarr;</button>
+    <div class="daylabel" id="day-label">{{ replay.day }}
+      <small><span id="day-rel">{{ day_rel }}</span><span class="day-loading" id="day-loading">loading&hellip;</span></small>
+    </div>
+    <div class="dayhint">&larr; older &middot; newer &rarr;</div>
+  </div>
 </div>
 
 {# Two columns: the scrolling timeline, and a sticky day-summary rail that
    fills what used to be ~691px of dead space on desktop. #}
-<div class="story page">
+<div class="story page" id="story">
+
+  {# Honest empty state. Hidden at first paint (the opening day HAS data, or
+     this whole block wouldn't render) and only revealed when a real fetch for
+     another day comes back with nothing. A day is never invented. #}
+  <div class="day-empty" id="day-empty">
+    // NO READINGS THIS DAY — the ring wasn't worn or hadn't synced.<br>
+    Use &larr; / &rarr; to try another day.
+  </div>
 
   {# The timeline: real events only, in time order, evenly spaced (no dead
      space for quiet stretches). The left rail is a live vertical trace of the
@@ -398,7 +489,7 @@
      with zero JS — the scroll handler only REPLACES the readout text, so a
      stalled script degrades to "showing the first event", never to blank. #}
   <aside class="story-rail" id="story-rail">
-    <div class="rail-head">Today &middot; {{ replay.day }}</div>
+    <div class="rail-head" id="rail-head">{{ day_rel }} &middot; {{ replay.day }}</div>
 
     <div class="rail-now">
       <div class="rail-now-label">NOW READING</div>
@@ -407,16 +498,16 @@
     </div>
 
     <dl class="rail-stats">
-      <div><dt>PEAK</dt><dd>{{ replay.peak.bpm if replay.peak else '—' }}<small>{{ replay.peak.clk if replay.peak else '' }}</small></dd></div>
-      <div><dt>CALM</dt><dd>{{ replay.low.bpm if replay.low else '—' }}<small>{{ replay.low.clk if replay.low else '' }}</small></dd></div>
-      <div><dt>NOW</dt><dd>{{ replay.current.bpm if replay.current else '—' }}<small>{{ replay.current.clk if replay.current else '' }}</small></dd></div>
+      <div><dt>PEAK</dt><dd id="rail-peak">{{ replay.peak.bpm if replay.peak else '—' }}<small>{{ replay.peak.clk if replay.peak else '' }}</small></dd></div>
+      <div><dt>CALM</dt><dd id="rail-calm">{{ replay.low.bpm if replay.low else '—' }}<small>{{ replay.low.clk if replay.low else '' }}</small></dd></div>
+      <div><dt id="rail-last-dt">{{ 'NOW' if day_rel == 'Today' else 'LAST' }}</dt><dd id="rail-last">{{ replay.current.bpm if replay.current else '—' }}<small>{{ replay.current.clk if replay.current else '' }}</small></dd></div>
     </dl>
 
     <div class="rail-foot">
       {% if steps_n is not none %}
       <div class="row"><span>{{ '{:,}'.format(steps_n) }} steps{% if steps and steps.miles is not none %} &middot; {{ '%.1f' % steps.miles }} mi{% endif %}</span></div>
       {% endif %}
-      <div class="row"><span>{{ replay.games_count }} game{{ '' if replay.games_count == 1 else 's' }} &middot; {{ replay.media_count }} watching</span></div>
+      <div class="row"><span id="rail-counts">{{ replay.games_count }} game{{ '' if replay.games_count == 1 else 's' }} &middot; {{ replay.media_count }} watching</span></div>
       <div class="row"><span id="rail-lights">— lights on</span><span class="rail-dots" id="rail-dots"></span></div>
     </div>
   </aside>
@@ -435,15 +526,35 @@
 </div>
 {% endif %}
 
+{% if has_story and timeline %}
+{# The same selected day, the classic way round. This is where the Day
+   Explorer's horizontal Chart.js rendering now lives (it used to sit on
+   /vitals). Collapsed by default — the vertical story above is the page's
+   point; this is the instrument for when you want to read the curve. #}
+<div class="chartview page" id="chartview">
+  <button class="toggle" id="chart-toggle" type="button" aria-expanded="false" aria-controls="chart-panel">
+    Chart view &darr;
+  </button>
+  <div class="chart-panel" id="chart-panel">
+    <div class="cap" id="chart-cap">HEART RATE &middot; {{ replay.day }}</div>
+    <div class="chart-box"><canvas id="day-chart"></canvas></div>
+  </div>
+</div>
+{% endif %}
+
 <footer>© HENDERBURGH — PERSONAL OS &middot; CALM &middot; POWERFUL &middot; YOURS</footer>
 
 {% if not public_mode %}<div class="preview-flag"><a href="/oldhomepage">old homepage →</a></div>{% endif %}
 
 <script>
-  const events = document.querySelectorAll('.event');
+  // `events` and HR_SERIES are re-pointed when the day explorer loads another
+  // day, so they're `let`. Every function below reads them live rather than
+  // capturing a snapshot.
+  let events = document.querySelectorAll('.event');
   const bgwash = document.getElementById('bgwash');
   const timeline = document.querySelector('.timeline');
-  const HR_SERIES = {{ replay.hr_series | tojson if (replay and replay.hr_series) else '[]' }};
+  let HR_SERIES = {{ replay.hr_series | tojson if (replay and replay.hr_series) else '[]' }};
+  let DAY_POINTS = {{ replay.points | tojson if (replay and replay.points) else '[]' }};
 
   const colorStops = [
     {h:6,c:[16,24,37]},{h:12,c:[13,22,33]},{h:17,c:[36,26,18]},{h:20,c:[20,27,38]},{h:22,c:[10,14,23]}
@@ -475,18 +586,107 @@
   // (top→bottom), x = bpm scaled into the 44px rail. Redrawn on resize since
   // the rail height tracks the timeline's content height.
   const railSvg=document.getElementById('hr-rail'), railPath=document.getElementById('hr-rail-path');
+
+  // ── THE axis. One function, two consumers ────────────────────────────────
+  // The old rail spread samples by INDEX, which is why the morning and
+  // afternoon read as dead stretches: the ring samples sparsely, so a fixed
+  // 4 AM→4 AM span leaves big empty gutters, and index-spacing quietly lied
+  // about when readings happened.
+  //
+  // buildAxis() fixes the scale (never the data — no bpm value is invented):
+  //   * the axis spans the day's FIRST real reading to its LAST, not 24h;
+  //   * gaps <= BRIDGE_MIN are carried through as-is, i.e. bridged invisibly
+  //     and treated as one continuous stretch;
+  //   * gaps > DEAD_MIN are COMPRESSED to a small fixed visual gap, so a
+  //     three-hour hole costs a few pixels instead of half the timeline.
+  // The result is "effective minutes", a monotonic re-scaled time coordinate.
+  //
+  // mapTimeToY() then turns any minute-of-day into a pixel row, and it is the
+  // ONLY thing that does so — the trace AND the event markers both go through
+  // it, so they cannot drift apart. Marker rows are the mapping's anchors:
+  // each event's actual laid-out centre pins its own timestamp, and effective
+  // minutes interpolate between them. Move a marker and the trace follows.
+  const BRIDGE_MIN=20, DEAD_MIN=45, DEAD_SQUEEZE=8;
+  let AXIS=null;
+
+  function buildAxis(){
+    const s=HR_SERIES;
+    if(!s||s.length<2){AXIS=null;return;}
+    const xs=new Array(s.length), eff=new Array(s.length);
+    xs[0]=s[0].x; eff[0]=0;
+    for(let i=1;i<s.length;i++){
+      const gap=Math.max(0,s[i].x-s[i-1].x);
+      // <= BRIDGE_MIN: kept verbatim (continuous). > DEAD_MIN: squeezed flat.
+      // In between: kept honest, it's small enough to read as a real pause.
+      xs[i]=s[i].x;
+      eff[i]=eff[i-1]+(gap>DEAD_MIN?DEAD_SQUEEZE:gap);
+    }
+    const total=eff[eff.length-1]||1;
+
+    // Anchors: [effective-minutes, pixel-row] pairs, in order. The endpoints
+    // are the first/last reading pinned to the top/bottom of the rail; the
+    // interior anchors are the event cards where they actually landed.
+    const h=(timeline?timeline.offsetHeight:0)||railSvg.getBoundingClientRect().height||600;
+    const anchors=[[0,0]];
+    events.forEach(el=>{
+      const x=parseFloat(el.dataset.x);
+      if(!isFinite(x))return;
+      const e=effAtRaw(xs,eff,x);
+      const y=el.offsetTop+el.offsetHeight/2;
+      const last=anchors[anchors.length-1];
+      if(e>last[0]+0.01&&y>last[1]+0.5)anchors.push([e,y]);   // strictly monotonic only
+    });
+    const last=anchors[anchors.length-1];
+    if(total>last[0]+0.01&&h>last[1]+0.5)anchors.push([total,h]);
+    else anchors[anchors.length-1]=[total,h];
+    AXIS={xs,eff,total,h,anchors};
+  }
+
+  // Minute-of-day → effective minutes, by interpolating the reading times.
+  function effAtRaw(xs,eff,t){
+    if(t<=xs[0])return eff[0];
+    const n=xs.length;
+    if(t>=xs[n-1])return eff[n-1];
+    let lo=0,hi=n-1;
+    while(hi-lo>1){const mid=(lo+hi)>>1; if(xs[mid]<=t)lo=mid;else hi=mid;}
+    const span=xs[hi]-xs[lo];
+    const f=span>0?(t-xs[lo])/span:0;
+    return eff[lo]+(eff[hi]-eff[lo])*f;
+  }
+
+  // THE mapping: minute-of-day → pixel row inside the timeline/rail.
+  function mapTimeToY(t){
+    if(!AXIS)return 0;
+    const e=effAtRaw(AXIS.xs,AXIS.eff,t), a=AXIS.anchors;
+    for(let i=0;i<a.length-1;i++){
+      if(e<=a[i+1][0]){
+        const d=a[i+1][0]-a[i][0];
+        const f=d>0?(e-a[i][0])/d:0;
+        return a[i][1]+(a[i+1][1]-a[i][1])*f;
+      }
+    }
+    return a[a.length-1][1];
+  }
+
+  // Draw the vertical HR trace: y = mapTimeToY(reading time) so the curve sits
+  // beside the event it belongs to, x = bpm scaled into the 44px rail.
   function drawHrRail(){
     if(!railSvg||!railPath||!HR_SERIES.length)return;
-    const w=44, h=railSvg.getBoundingClientRect().height||600;
+    buildAxis();
+    if(!AXIS){railPath.setAttribute('d','');return;}
+    const w=44, h=AXIS.h;
     railSvg.setAttribute('viewBox',`0 0 ${w} ${h}`);
     const bpms=HR_SERIES.map(p=>p.y), lo=Math.min(...bpms), hi=Math.max(...bpms), span=Math.max(1,hi-lo);
-    const n=HR_SERIES.length;
-    const d=HR_SERIES.map((p,i)=>{
-      const y=(i/(n-1))*h;
+    let d='',prevY=-99;
+    for(let i=0;i<HR_SERIES.length;i++){
+      const p=HR_SERIES[i];
+      const y=mapTimeToY(p.x);
+      if(i&&y-prevY<0.35)continue;      // sub-pixel rows add nothing but path bytes
+      prevY=y;
       const x=6+(1-(p.y-lo)/span)*(w-12); // higher bpm → further left, gentle
-      return (i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);
-    }).join(' ');
-    railPath.setAttribute('d',d);
+      d+=(d?'L':'M')+x.toFixed(1)+' '+y.toFixed(1)+' ';
+    }
+    railPath.setAttribute('d',d.trim());
   }
 
   let ticking=false;
@@ -531,6 +731,241 @@
   // Draw after layout settles (fonts/images can shift the timeline height).
   drawHrRail(); setTimeout(drawHrRail,300); setTimeout(drawHrRail,1200);
   onScroll();
+
+  // ── The day explorer ─────────────────────────────────────────────────────
+  // The vertical day view above is untouched; this only swaps WHICH day it is
+  // showing. The page opens on YESTERDAY (server-rendered, real, visible with
+  // no JS) because a complete day shows the timeline in its full form. Today
+  // is one step RIGHT; older days are LEFT.
+  const story=document.getElementById('story');
+  if(story){
+    const TODAY_ISO={{ today_iso | tojson }};
+    const OLDEST_BACK=45;                       // how far back the explorer offers
+    const DAY_CACHE={};                         // iso -> payload, so revisits are instant
+    let curIso={{ day_iso | tojson }};
+    let busy=false, reqSeq=0;
+
+    // NOTE: the opening day is deliberately NOT seeded into DAY_CACHE. What's
+    // on screen came from Jinja, not from the API, so there is no payload to
+    // seed — faking a partial one made returning to this day repaint it with
+    // an empty rail and no events. It costs one fetch the first time you come
+    // back, and is cached from then on.
+
+    const elPrev=document.getElementById('day-prev'), elNext=document.getElementById('day-next');
+    const elLabel=document.getElementById('day-label'), elRel=document.getElementById('day-rel');
+    const elRailHead=document.getElementById('rail-head');
+
+    function shiftIso(iso,n){
+      const d=new Date(iso+'T12:00:00');        // noon: immune to DST edges
+      d.setDate(d.getDate()+n);
+      const p=x=>String(x).padStart(2,'0');
+      return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+    }
+    function daysBetween(a,b){
+      return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);
+    }
+    function relLabel(iso){
+      const n=daysBetween(iso,TODAY_ISO);
+      return n<=0?'Today':n===1?'Yesterday':n+' days ago';
+    }
+    function canGo(iso){
+      const n=daysBetween(iso,TODAY_ISO);
+      return n>=0&&n<=OLDEST_BACK;
+    }
+    function syncButtons(){
+      elPrev.disabled=!canGo(shiftIso(curIso,-1));
+      elNext.disabled=!canGo(shiftIso(curIso,1));
+    }
+
+    const KIND_TONE={peak:' amber',game:' violet',media:' violet'};
+
+    // Rebuild the event cards for a day. Uses createElement + textContent
+    // throughout — no innerHTML anywhere, so titles coming back from the API
+    // (game names, media names) cannot inject markup.
+    function renderEvents(list){
+      timeline.querySelectorAll('.event').forEach(n=>n.remove());
+      const frag=document.createDocumentFragment();
+      (list||[]).forEach(e=>{
+        const card=document.createElement('div');
+        card.className='event event-'+String(e.kind||'').replace(/[^a-z-]/gi,'');
+        card.dataset.x=e.x;
+        const t=document.createElement('div');
+        t.className='time'+(KIND_TONE[e.kind]||'');
+        t.textContent=e.clk||'';
+        const h=document.createElement('h2'); h.textContent=e.title||'';
+        const p=document.createElement('p'); p.textContent=e.detail||'';
+        card.append(t,h,p);
+        frag.appendChild(card);
+      });
+      timeline.appendChild(frag);
+      events=document.querySelectorAll('.event');
+      // Re-arm the reveal animation for the new cards, then show what's
+      // already on screen so nothing is stranded invisible.
+      events.forEach(el=>io.observe(el));
+      requestAnimationFrame(()=>{unstick();drawHrRail();});
+    }
+
+    function setText(id,txt){const n=document.getElementById(id); if(n)n.textContent=txt;}
+    function statLine(id,bpm,clk){
+      const n=document.getElementById(id); if(!n)return;
+      n.textContent=(bpm===undefined||bpm===null)?'—':String(bpm);
+      const s=document.createElement('small'); s.textContent=clk||'';
+      n.appendChild(s);
+    }
+
+    function paintDay(iso,data){
+      const rel=relLabel(iso), dayName=data.day||'';
+      elLabel.firstChild.textContent=dayName+' ';
+      if(elRel)elRel.textContent=rel;
+      if(elRailHead)elRailHead.textContent=rel+' · '+dayName;
+      setText('chart-cap','HEART RATE · '+dayName);
+      document.title='HENDERBURGH';
+
+      if(!data.has_data){
+        story.classList.add('no-data');
+        HR_SERIES=[]; DAY_POINTS=[]; AXIS=null;
+        renderChart();
+        return;
+      }
+      story.classList.remove('no-data');
+      HR_SERIES=data.hr_series||[];
+      DAY_POINTS=data.points||[];
+      renderEvents(data.timeline);
+      setText('rail-last-dt',rel==='Today'?'NOW':'LAST');
+      statLine('rail-peak',data.peak&&data.peak.bpm,data.peak&&data.peak.clk);
+      statLine('rail-calm',data.low&&data.low.bpm,data.low&&data.low.clk);
+      statLine('rail-last',data.current&&data.current.bpm,data.current&&data.current.clk);
+      const g=data.games_count||0;
+      setText('rail-counts',g+' game'+(g===1?'':'s')+' · '+(data.media_count||0)+' watching');
+      activeIdx=-1; updateRail();
+      renderChart();
+    }
+
+    async function goToDay(iso){
+      if(!canGo(iso)||iso===curIso||busy)return;
+      curIso=iso; syncButtons();
+      const cached=DAY_CACHE[iso];
+      if(cached){paintDay(iso,cached);return;}
+      const seq=++reqSeq;
+      busy=true; story.classList.add('loading');
+      try{
+        const r=await fetch('/api/day-replay?day='+encodeURIComponent(iso));
+        const data=await r.json();
+        DAY_CACHE[iso]=data;
+        if(seq===reqSeq&&curIso===iso)paintDay(iso,data);
+      }catch(e){
+        // A failed fetch must not fabricate a day — say nothing is there.
+        if(seq===reqSeq&&curIso===iso)paintDay(iso,{has_data:false,day:''});
+      }finally{
+        busy=false; story.classList.remove('loading');
+      }
+    }
+    const step=n=>goToDay(shiftIso(curIso,n));
+
+    elPrev.addEventListener('click',()=>step(-1));
+    elNext.addEventListener('click',()=>step(1));
+
+    // Arrow keys, for keyboard users and because it's the fastest way to skim.
+    document.addEventListener('keydown',ev=>{
+      if(ev.metaKey||ev.ctrlKey||ev.altKey)return;
+      const t=ev.target;
+      if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;
+      if(ev.key==='ArrowLeft'){step(-1);}
+      else if(ev.key==='ArrowRight'){step(1);}
+    });
+
+    // Horizontal wheel / trackpad swipe. Accumulates and snaps to a whole day,
+    // then fetches once — never a request per pixel. Passive: this gesture has
+    // nothing to cancel (the page has no horizontal scroll), so we stay off
+    // the browser's scrolling critical path.
+    let wheelAcc=0, wheelLock=0;
+    window.addEventListener('wheel',ev=>{
+      if(Math.abs(ev.deltaX)<=Math.abs(ev.deltaY))return;   // vertical scroll wins
+      const now=performance.now();
+      if(now-wheelLock<420)return;
+      wheelAcc+=ev.deltaX;
+      if(Math.abs(wheelAcc)>=110){
+        wheelLock=now;
+        step(wheelAcc>0?1:-1);                              // swipe left → newer
+        wheelAcc=0;
+      }
+    },{passive:true});
+
+    // Click-and-drag. Only claims the gesture once it's clearly horizontal, so
+    // a vertical flick on a phone still scrolls the story normally. One day per
+    // gesture; the class is the only per-move work (no layout reads in the loop).
+    let dragX=0,dragY=0,dragging=false,claimed=false;
+    story.addEventListener('pointerdown',ev=>{
+      if(ev.button!==0)return;
+      dragX=ev.clientX; dragY=ev.clientY; dragging=true; claimed=false;
+    },{passive:true});
+    story.addEventListener('pointermove',ev=>{
+      if(!dragging||claimed)return;
+      const dx=ev.clientX-dragX, dy=ev.clientY-dragY;
+      if(Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*1.4)return;
+      claimed=true; story.classList.remove('dragging');
+      step(dx<0?1:-1);                                      // drag left → newer
+    },{passive:true});
+    const endDrag=()=>{dragging=false;story.classList.remove('dragging');};
+    story.addEventListener('pointerup',endDrag,{passive:true});
+    story.addEventListener('pointercancel',endDrag,{passive:true});
+    story.addEventListener('pointerleave',endDrag,{passive:true});
+
+    syncButtons();
+
+    // ── Chart view: the SAME selected day, drawn the classic horizontal way.
+    // Built lazily on first open so a page that never expands it pays nothing.
+    let dayChart=null;
+    const panel=document.getElementById('chart-panel'), tgl=document.getElementById('chart-toggle');
+    function clockOf(m){
+      let h=Math.floor(m/60)%24, mm=Math.round(m%60);
+      const ap=h<12?'AM':'PM'; h=h%12||12;
+      return h+':'+String(mm).padStart(2,'0')+' '+ap;
+    }
+    function renderChart(){
+      if(!panel||!panel.classList.contains('open'))return;
+      if(typeof Chart==='undefined')return;
+      const pts=(DAY_POINTS&&DAY_POINTS.length?DAY_POINTS:HR_SERIES)||[];
+      // Break the line across real gaps instead of ruling a straight segment
+      // through them — a 4-hour hole must LOOK like a hole, not like four
+      // hours of smoothly falling heart rate the ring never recorded.
+      const data=[];
+      pts.forEach((p,i)=>{
+        if(i&&p.x-pts[i-1].x>DEAD_MIN)data.push({x:(p.x+pts[i-1].x)/2,y:null});
+        data.push({x:p.x,y:p.y});
+      });
+      if(dayChart){dayChart.data.datasets[0].data=data;dayChart.update('none');return;}
+      const cv=document.getElementById('day-chart'); if(!cv)return;
+      const css=getComputedStyle(document.documentElement);
+      const accent=(css.getPropertyValue('--cyan')||'#4ade80').trim();
+      const dim=(css.getPropertyValue('--text-dim')||'#7a8494').trim();
+      dayChart=new Chart(cv.getContext('2d'),{
+        type:'line',
+        data:{datasets:[{label:'bpm',data:data,borderColor:accent,borderWidth:1.5,
+          pointRadius:0,tension:0.3,fill:false,spanGaps:false}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          parsing:false,normalized:true,
+          interaction:{mode:'nearest',intersect:false},
+          scales:{
+            x:{type:'linear',ticks:{color:dim,font:{size:10},maxTicksLimit:7,
+                 callback:v=>clockOf(v)},
+               grid:{color:'rgba(255,255,255,0.05)'}},
+            y:{ticks:{color:dim,font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'},
+               title:{display:false}}},
+          plugins:{legend:{display:false},
+            tooltip:{callbacks:{title:it=>clockOf(it[0].parsed.x),
+                                label:it=>it.parsed.y+' bpm'}}}}
+      });
+    }
+    if(tgl&&panel){
+      tgl.addEventListener('click',()=>{
+        const open=panel.classList.toggle('open');
+        tgl.setAttribute('aria-expanded',open?'true':'false');
+        tgl.textContent=open?'Chart view ↑':'Chart view ↓';
+        if(open)renderChart();
+      });
+    }
+  }
 
   document.getElementById('tk-clock').textContent=
     new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();

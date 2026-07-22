@@ -9,7 +9,7 @@
   <meta property="og:description" content="Game clips and highlights.">
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/tokens.css?v=3">
+  <link rel="stylesheet" href="/static/tokens.css?v=4">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
@@ -35,7 +35,7 @@
     .section-label {
       font-family: var(--font-mono);
       font-size: var(--t-label);
-      letter-spacing: 2.5px;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--text-3);
       font-weight: 600;
@@ -174,32 +174,28 @@
   <script src="/static/auth.js?v=20260710-guest2"></script>
   <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[var(--bg)] text-[var(--text)] antialiased">
-  <header class="border-b border-zinc-800 bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-[1080px] mx-auto px-6">
-      <div class="h-16 flex items-center justify-between">
-        <a href="/" class="flex items-center gap-x-2.5 group">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
-          </div>
-          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
-        </a>
-
-        <nav class="hidden md:flex items-center gap-x-8 text-sm">
-          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
-          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
-          <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
-          <a href="/model" class="hover:text-white text-zinc-400 transition">Model</a>
-          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
-          <a href="/clips" class="hover:text-white text-white font-semibold transition">Clips</a>
-          <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
-          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
-        </nav>
-
-        <div class="md:hidden">
-          <a href="/" class="text-sm px-4 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800">← Home</a>
-        </div>
-      </div>
+<body class="hb-chrome-offset bg-[var(--bg)] text-[var(--text)] antialiased">
+  <!-- Unified chrome. Same bar language as the homepage ticker: fixed slim
+       translucent rail, 1px hairline, Space Grotesk wordmark, mono nav.
+       Styles live in static/tokens.css (.hb-chrome*) so all pages stay identical. -->
+  <header class="hb-chrome">
+    <a href="/" class="hb-chrome-brand">HENDERBURGH</a>
+    <nav class="hb-chrome-nav hidden md:flex">
+      <a href="/">Home</a>
+      <a href="/vitals">Vitals</a>
+      <a href="/home-assistant">Lighting</a>
+      <a href="/model">Model</a>
+      <a href="/golf">Golf</a>
+      <a href="/clips" class="active">Clips</a>
+      <a href="/xbox">Xbox</a>
+      <a href="/blog">Blog</a>
+    </nav>
+    <span class="hb-chrome-spacer"></span>
+    <div class="md:hidden flex items-center -my-2.5 -mr-2">
+      <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-home text-base"></i></a>
+      <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
+      <a href="/home-assistant" aria-label="Lighting" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-lightbulb text-base"></i></a>
+      <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-gamepad text-base"></i></a>
     </div>
   </header>
 
@@ -414,7 +410,7 @@
 
       clips.forEach(clip => {
         const card = document.createElement('div');
-        card.className = 'clip-card';
+        card.className = 'clip-card hb-spot';
         const media = clip.kind === 'image'
           ? `<a href="${esc(clip.url)}" target="_blank" rel="noopener"><img class="clip-media" src="${esc(clip.url)}" alt="${esc(clip.title)}" loading="lazy"></a>`
           : `<video controls preload="metadata" playsinline class="w-full">

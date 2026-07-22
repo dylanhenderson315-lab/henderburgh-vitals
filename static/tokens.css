@@ -129,6 +129,49 @@
    the existing .card / .live-card rules still in the templates.
    ========================================================================== */
 
+/* ── Pointer-tracked spotlight glow ───────────────────────────────────────────
+   The homepage's signature card hover: a soft wash that follows the cursor
+   plus a gradient hairline that lights up under it. Lives here (not in one
+   page's <style>) so every card on every page gets the identical effect.
+
+   Apply by adding `.hb-spot` to a card. --mx/--my are set by the delegated
+   pointermove listener in static/motion.js; they default to the card centre
+   so a card still looks right before the first pointer event and on touch
+   devices, where the effect never activates at all.
+
+   Compositor-only (opacity), hover-devices only, off under reduced motion.
+   Requires the element to establish a stacking context + non-static position;
+   .hb-spot sets both so it works on a bare <div>. */
+.hb-spot { position: relative; isolation: isolate; --mx: 50%; --my: 50%; }
+.hb-spot::before,
+.hb-spot::after {
+  content: ''; position: absolute; inset: 0;
+  opacity: 0; transition: opacity var(--d-slow) ease;
+  pointer-events: none; border-radius: inherit;
+}
+/* the wash */
+.hb-spot::before {
+  z-index: -1;
+  background: radial-gradient(300px circle at var(--mx) var(--my),
+              rgba(var(--accent-rgb), 0.10), transparent 62%);
+}
+/* the lit hairline — masked to just the 1px border ring */
+.hb-spot::after {
+  padding: 1px;
+  background: radial-gradient(220px circle at var(--mx) var(--my),
+              rgba(var(--accent-rgb), 0.55), rgba(var(--accent-rgb), 0.16) 40%, transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude;
+}
+@media (hover: hover) {
+  .hb-spot:hover::before, .hb-spot:hover::after { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-spot::before, .hb-spot::after { display: none; }
+}
+
 /* Surface -------------------------------------------------------------------*/
 .hb-card {
   background: var(--surface);
@@ -191,7 +234,7 @@
   position: fixed; top: 0; left: 0; right: 0; z-index: 50;
   display: flex; align-items: center; gap: 22px;
   padding: 14px 24px;
-  background: rgba(10, 14, 23, 0.82);
+  background: rgba(10, 10, 11, 0.82);   /* --bg at 82%, neutral (not navy-tinted) */
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
   font-family: var(--font-mono);

@@ -460,6 +460,109 @@ async def old_homepage(request: Request):
     })
 
 
+def _day_relative_label(day_iso: str) -> str:
+    """"Today" / "Yesterday" / "N days ago" for a logical day. Mirrors the JS
+    label in home-concept.html so the server's first paint and the explorer's
+    later paints read identically."""
+    try:
+        d = date.fromisoformat(day_iso)
+    except Exception:
+        return ""
+    n = (xbox._logical_today() - d).days
+    if n <= 0:
+        return "Today"
+    if n == 1:
+        return "Yesterday"
+    return f"{n} days ago"
+
+
+def build_day_timeline(replay: dict) -> list:
+    """Turn ONE day's replay payload into the ordered list of real events the
+    home page's vertical timeline renders (wake / work markers / sessions /
+    peak / latest reading).
+
+    Lifted out of home() unchanged in behaviour so the multi-day explorer's
+    /api/day-replay can hand the browser the exact same event list the server
+    rendered for the initial day — one builder, so a day fetched by JS can
+    never disagree with a day rendered by Jinja.
+
+    Privacy: every session here comes off `replay["sessions"]`, which
+    compute_day_replay already filtered through in_work_hours()/reveal. This
+    function adds no new data source, so it cannot leak anything.
+    """
+    timeline = []
+    if not replay or not replay.get("has_data"):
+        return timeline
+
+    _now_et = datetime.now(ZoneInfo("America/New_York")).replace(tzinfo=None)
+    # The timeline axis is minutes since midnight of the LOGICAL day, which
+    # runs 4 AM → 4 AM (see xbox._DAY_START_HOUR). Before 4 AM we are still in
+    # yesterday's story, so "now" is 1440+ on that day's axis.
+    if _now_et.hour < xbox._DAY_START_HOUR:
+        _now_min = 1440 + _now_et.hour * 60 + _now_et.minute
+        _logical_today = (_now_et - timedelta(days=1)).date()
+    else:
+        _now_min = _now_et.hour * 60 + _now_et.minute
+        _logical_today = _now_et.date()
+
+    try:
+        _day = date.fromisoformat(replay.get("day_iso") or "")
+    except Exception:
+        _day = _logical_today
+    _is_today = (_day == _logical_today)
+    _weekday = _day.weekday() < 5
+
+    if replay.get("wake"):
+        w = replay["wake"]
+        timeline.append({"x": w["x"], "clk": w["clk"], "kind": "wake",
+                         "title": "Woke up", "detail": "The ring's first reading after sleep — the day begins."})
+
+    # Work markers: only on a weekday, and for TODAY only once we're actually
+    # past each threshold. A finished past weekday gets both. Symmetric pair
+    # matching the exact WORKING/RELAXING boundary in time_greeting_now()
+    # (8:30 AM / 5 PM) — the same cascade the hero headline uses.
+    if _weekday and (not _is_today or _now_min >= 510):
+        timeline.append({"x": 510.0, "clk": "8:30 AM", "kind": "work",
+                         "title": "Started work", "detail": "The workday begins — status turns to Working."})
+    if _weekday and (not _is_today or _now_min >= 1020):
+        timeline.append({"x": 1020.0, "clk": "5:00 PM", "kind": "work-end",
+                         "title": "Finished work", "detail": "The workday ends — status turns to Relaxing."})
+
+    for s in replay.get("sessions", []):
+        verb = {"game": "Played", "media": "Watched", "workout": "Worked out —"}.get(s["kind"], "")
+        dur = "<1 min" if s["dur_min"] < 1 else f"{int(s['dur_min'])} min"
+        detail = f"{verb} {s['name']} · {dur}"
+        if s.get("hr"):
+            detail += f" · heart averaged {s['hr']} bpm"
+        timeline.append({"x": s["x0"], "clk": s["clk"], "kind": s["kind"],
+                         "title": s["name"], "detail": detail})
+
+    if replay.get("peak"):
+        p = replay["peak"]
+        above = (f" — {p['bpm'] - replay['low']['bpm']} above the calmest point"
+                 if replay.get("low") else "")
+        timeline.append({"x": p["x"], "clk": p["clk"], "kind": "peak",
+                         "title": "Heart rate peaked", "detail": f"{p['bpm']} bpm{above}."})
+
+    if replay.get("current"):
+        c = replay["current"]
+        label = "Latest reading" if _is_today else "Last reading"
+        timeline.append({"x": c["x"], "clk": c["clk"], "kind": "now",
+                         "title": label, "detail": f"{c['bpm']} bpm — the most recent the ring recorded."})
+
+    timeline.sort(key=lambda e: e["x"])
+    # De-dupe events landing on the same minute+kind (e.g. peak == current).
+    seen = set()
+    deduped = []
+    for e in timeline:
+        key = (round(e["x"]), e["kind"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(e)
+    return deduped
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """The day-timeline home redesign — promoted from /home-concept to the
@@ -490,81 +593,22 @@ async def home(request: Request):
     try:
         _lib = await xbox.get_title_history()
         _ach = await xbox.get_recent_achievements(_lib)
-        replay = await xbox.compute_recent_replay(_ach, reveal=_reveal)
+        # Open on YESTERDAY: it's a COMPLETE day, so the timeline shows its
+        # full form (wake → work → sessions → last reading) instead of today's
+        # half-drawn version. Today is one step to the right in the explorer.
+        # If yesterday genuinely has no ring data, fall back to the old
+        # never-blank walk-back so the page still shows a real day.
+        replay = await xbox.compute_day_replay(_ach, day_offset=1, reveal=_reveal)
+        if not replay.get("has_data"):
+            replay = await xbox.compute_recent_replay(_ach, reveal=_reveal)
     except Exception as e:
         print(f"home-concept replay error: {e}")
         replay = {"has_data": False}
 
     # Build the day's timeline as an ordered list of REAL events only — no
-    # dead space. Start at wake, add a "started work" marker at 8:30 on
-    # weekdays, then the actual game/media/workout sessions, the HR peak, and
-    # the latest reading. Everything is sorted by minute-of-day and rendered
-    # in sequence (evenly spaced), so a quiet afternoon doesn't leave a gap.
-    timeline = []
-    if replay.get("has_data"):
-        _now_et = datetime.now(ZoneInfo("America/New_York"))
-        # The timeline axis is minutes since midnight of the LOGICAL day, which
-        # runs 4 AM → 4 AM (see xbox._DAY_START_HOUR). Before 4 AM we are still
-        # in yesterday's story, so "now" is 1440+ on that day's axis and the
-        # weekday test must ask about yesterday, not the fresh calendar date.
-        _logical_now = _now_et.replace(tzinfo=None)
-        if _logical_now.hour < xbox._DAY_START_HOUR:
-            _now_min = 1440 + _logical_now.hour * 60 + _logical_now.minute
-            _logical_now -= timedelta(days=1)
-        else:
-            _now_min = _logical_now.hour * 60 + _logical_now.minute
-        _is_today = (replay.get("days_ago") == 0)
-        _weekday = _logical_now.weekday() < 5
-
-        if replay.get("wake"):
-            w = replay["wake"]
-            timeline.append({"x": w["x"], "clk": w["clk"], "kind": "wake",
-                             "title": "Woke up", "detail": "The ring's first reading after sleep — the day begins."})
-
-        # Work markers: only on a weekday, only once we're actually past each
-        # threshold, only for today. Symmetric pair matching the exact
-        # WORKING/RELAXING boundary in time_greeting_now() (8:30 AM / 5 PM) —
-        # the same cascade the hero headline uses, so the story agrees with
-        # the greeting instead of only saying "done working" up top.
-        if _is_today and _weekday and _now_min >= 510:
-            timeline.append({"x": 510.0, "clk": "8:30 AM", "kind": "work",
-                             "title": "Started work", "detail": "The workday begins — status turns to Working."})
-        if _is_today and _weekday and _now_min >= 1020:
-            timeline.append({"x": 1020.0, "clk": "5:00 PM", "kind": "work-end",
-                             "title": "Finished work", "detail": "The workday ends — status turns to Relaxing."})
-
-        for s in replay.get("sessions", []):
-            verb = {"game": "Played", "media": "Watched", "workout": "Worked out —"}.get(s["kind"], "")
-            dur = "<1 min" if s["dur_min"] < 1 else f"{int(s['dur_min'])} min"
-            detail = f"{verb} {s['name']} · {dur}"
-            if s.get("hr"):
-                detail += f" · heart averaged {s['hr']} bpm"
-            timeline.append({"x": s["x0"], "clk": s["clk"], "kind": s["kind"],
-                             "title": s["name"], "detail": detail})
-
-        if replay.get("peak"):
-            p = replay["peak"]
-            above = (f" — {p['bpm'] - replay['low']['bpm']} above the calmest point"
-                     if replay.get("low") else "")
-            timeline.append({"x": p["x"], "clk": p["clk"], "kind": "peak",
-                             "title": "Heart rate peaked", "detail": f"{p['bpm']} bpm{above}."})
-
-        if replay.get("current"):
-            c = replay["current"]
-            timeline.append({"x": c["x"], "clk": c["clk"], "kind": "now",
-                             "title": "Latest reading", "detail": f"{c['bpm']} bpm — the most recent the ring recorded."})
-
-        timeline.sort(key=lambda e: e["x"])
-        # De-dupe events landing on the same minute+kind (e.g. peak == current).
-        seen = set()
-        deduped = []
-        for e in timeline:
-            key = (round(e["x"]), e["kind"])
-            if key in seen:
-                continue
-            seen.add(key)
-            deduped.append(e)
-        timeline = deduped
+    # dead space. Shared with /api/day-replay so a day fetched by the
+    # explorer's JS is built by the exact same code as this first paint.
+    timeline = build_day_timeline(replay)
 
     # Unread count for the office-lamp poke badge (same source as the old
     # home page's notifier — see old_homepage() above).
@@ -625,6 +669,13 @@ async def home(request: Request):
         "model_rooms": model_rooms,
         "recent_clips": recent_clips,
         "timeline": timeline,
+        # Day-explorer bounds. `day_iso` is the day this first paint shows
+        # (normally yesterday); `today_iso` is the newest day the explorer may
+        # step to — the LOGICAL today, so before 4 AM we don't offer a day that
+        # hasn't started yet.
+        "day_iso": replay.get("day_iso") or "",
+        "today_iso": xbox._logical_today().isoformat(),
+        "day_rel": _day_relative_label(replay.get("day_iso") or ""),
         "time_greeting": time_greeting_now(),
     })
 
@@ -1204,6 +1255,11 @@ async def api_day_replay(request: Request, day: str = ""):
         print(f"day replay error for {day}: {e}")
         payload = {"has_data": False}
     payload["day_iso"] = d.isoformat()
+    # The home page's day explorer renders the same vertical timeline for every
+    # day, so it needs the same event list the server builds for the first
+    # paint. Built here (not in JS) so both paths share one implementation and
+    # one privacy filter.
+    payload["timeline"] = build_day_timeline(payload)
     return payload
 
 

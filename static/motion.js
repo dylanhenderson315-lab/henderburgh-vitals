@@ -244,3 +244,38 @@
 
   window.__moBoot = boot;   /* let pages re-init after their own DOM updates */
 })();
+
+/* ============================================================================
+   SPOTLIGHT — pointer tracking for .hb-spot cards (see static/tokens.css).
+
+   ONE delegated listener on the document rather than one per card: the pages
+   with the most cards (lighting, vitals) would otherwise attach dozens, and
+   they'd need re-attaching after every HTMX swap and every JS re-render.
+   Delegation means cards added later just work.
+
+   Writes are rAF-throttled and only touch two custom properties, so this stays
+   compositor-only — no layout, no paint of anything but the gradient.
+   Skipped entirely on touch/coarse-pointer devices and under reduced motion,
+   where the effect is hidden by CSS anyway and tracking would be dead work. */
+(function () {
+  var fine = window.matchMedia && window.matchMedia('(hover: hover)').matches;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!fine || still) return;
+
+  var pending = null;
+
+  function paint() {
+    pending = null;
+    var d = paint.d; if (!d) return;
+    d.el.style.setProperty('--mx', d.x + 'px');
+    d.el.style.setProperty('--my', d.y + 'px');
+  }
+
+  document.addEventListener('pointermove', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('.hb-spot');
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    paint.d = { el: el, x: (e.clientX - r.left).toFixed(1), y: (e.clientY - r.top).toFixed(1) };
+    if (pending == null) pending = requestAnimationFrame(paint);
+  }, { passive: true });
+})();

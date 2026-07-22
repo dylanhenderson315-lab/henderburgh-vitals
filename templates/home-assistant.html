@@ -10,7 +10,7 @@
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Design tokens: one source of truth for colour/type/radius/motion. -->
-  <link rel="stylesheet" href="/static/tokens.css?v=3">
+  <link rel="stylesheet" href="/static/tokens.css?v=4">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
@@ -51,8 +51,9 @@
     }
 
     .section-label {
-      font-size: 10px;
-      letter-spacing: 2.5px;
+      font-family: var(--font-mono);
+      font-size: var(--t-label);
+      letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--text-3);
       font-weight: 600;
@@ -764,43 +765,32 @@
   <script defer src="/static/os-command.js?v=20260710-guest1"></script>
   <script defer src="/static/motion.js?v=4"></script>
 </head>
-<body class="bg-[#0a0a0b] text-zinc-200 antialiased">
+<body class="hb-chrome-offset bg-[#0a0a0b] text-zinc-200 antialiased">
   <!-- Header -->
-  <header class="border-b border-zinc-800 bg-[#0a0a0b]/95 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-[1080px] mx-auto px-6">
-      <div class="h-16 flex items-center justify-between">
-        <a href="/" class="flex items-center gap-x-2.5 group">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-            <span class="text-white text-[15px] font-semibold tracking-[-0.5px]">H</span>
-          </div>
-          <span class="font-semibold text-[21px] tracking-[-0.4px] font-display group-hover:opacity-90 transition">HENDERBURGH</span>
-        </a>
-
-        <nav class="hidden md:flex items-center gap-x-8 text-sm">
-          <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
-          <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
-          <a href="/home-assistant" class="hover:text-white text-white font-semibold transition">Lighting</a>
-          <a href="/model" class="hover:text-white text-zinc-400 transition">Model</a>
-          <a href="/golf" class="hover:text-white text-zinc-400 transition">Golf</a>
-          <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
-          <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
-          <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
-        </nav>
-
-        <!-- Mobile: compact global nav. This page's own bottom bar is the section
-             switcher (Rooms/Lights/Scenes...), so the site-wide destinations live
-             up here — before this, entering the most-used page cost you one-tap
-             access to every other page (only a lone "← Home" pill survived). -->
-        <div class="md:hidden flex items-center gap-x-1">
-          <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white active:bg-zinc-800 transition"><i class="fa-solid fa-home text-base"></i></a>
-          <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white active:bg-zinc-800 transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
-          <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white active:bg-zinc-800 transition"><i class="fa-solid fa-gamepad text-base"></i></a>
-        </div>
-      </div>
+  <!-- Unified chrome. Same bar language as the homepage ticker: fixed slim
+       translucent rail, 1px hairline, Space Grotesk wordmark, mono nav.
+       Styles live in static/tokens.css (.hb-chrome*) so all pages stay identical. -->
+  <header class="hb-chrome">
+    <a href="/" class="hb-chrome-brand">HENDERBURGH</a>
+    <nav class="hb-chrome-nav hidden md:flex">
+      <a href="/">Home</a>
+      <a href="/vitals">Vitals</a>
+      <a href="/home-assistant" class="active">Lighting</a>
+      <a href="/model">Model</a>
+      <a href="/golf">Golf</a>
+      <a href="/clips">Clips</a>
+      <a href="/xbox">Xbox</a>
+      <a href="/blog">Blog</a>
+    </nav>
+    <span class="hb-chrome-spacer"></span>
+    <div class="md:hidden flex items-center -my-2.5 -mr-2">
+      <a href="/" aria-label="Home" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-home text-base"></i></a>
+      <a href="/vitals" aria-label="Vitals" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-heart-pulse text-base"></i></a>
+      <a href="/home-assistant" aria-label="Lighting" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-lightbulb text-base"></i></a>
+      <a href="/xbox" aria-label="Xbox" class="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--text)] active:bg-[var(--surface-2)] transition"><i class="fa-solid fa-gamepad text-base"></i></a>
     </div>
-    <!-- Live LED strip: the real current palette of every light that's on, in room order.
-         The house's own status bar — crossfades as bulbs change. -->
-    <div id="light-strip" style="height:3px; opacity:.35; background:linear-gradient(90deg,#065f46,#10b981,#065f46); transition: background 1.6s ease, opacity 1.6s ease;"></div>
+    <!-- Live LED strip: the real current palette of every light that's on, in room order. -->
+    <div id="light-strip" style="position:absolute; left:0; right:0; bottom:0; height:3px; opacity:.35; background:linear-gradient(90deg,#065f46,#10b981,#065f46); transition: background 1.6s ease, opacity 1.6s ease;"></div>
   </header>
 
   <main class="max-w-[1080px] mx-auto px-6 pt-10 pb-16">
@@ -821,7 +811,7 @@
     {% if public_mode or not ha_enabled %}
     <!-- Disabled state (public or no token) -->
     <div class="max-w-xl">
-      <div class="card p-8">
+      <div class="hb-spot card p-8">
         <div class="flex items-start gap-4">
           <i class="fa-solid fa-lock text-2xl text-amber-400 mt-1"></i>
           <div>
@@ -2250,7 +2240,7 @@
       const container = document.getElementById('dashboard-content');
       if (!container) return;
       if (!haData) {
-        container.innerHTML = `<div class="card p-8 text-center text-sm">No lighting data loaded.</div>`;
+        container.innerHTML = `<div class="hb-spot card p-8 text-center text-sm">No lighting data loaded.</div>`;
         return;
       }
 
@@ -2294,11 +2284,11 @@
       let html = `<div class="mb-2 flex items-center justify-between"><div class="section-label">Scenes</div><div class="text-[10px] text-zinc-400">${scenes.length} available</div></div>`;
       html += `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">`;
       if (scenes.length === 0) {
-        html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No scenes found. Create some in Home Assistant.</div>`;
+        html += `<div class="hb-spot col-span-full card p-6 text-center text-sm text-zinc-400">No scenes found. Create some in Home Assistant.</div>`;
       } else {
         scenes.forEach(scene => {
           html += `
-            <div class="card p-4 flex flex-col">
+            <div class="hb-spot card p-4 flex flex-col">
               <div class="font-medium text-sm mb-1 truncate">${scene.friendly_name}</div>
               ${scene.description ? `<div class="text-[10px] text-zinc-400 mb-3 line-clamp-2">${scene.description}</div>` : ''}
               <button onclick="activateScene('${scene.entity_id}', this)"
@@ -2358,7 +2348,7 @@
         <div class="entity-grid">`;
 
       if (filtered.length === 0) {
-        html += `<div class="col-span-full card p-6 text-center text-sm text-zinc-400">No lights match the current filter.</div>`;
+        html += `<div class="hb-spot col-span-full card p-6 text-center text-sm text-zinc-400">No lights match the current filter.</div>`;
       } else {
         // Collapse lights that belong to the same sync group into a single representative card.
         // Only ungrouped lights (and Game Room if special) get individual cards. Group cards use a proxy light's eid
@@ -2842,7 +2832,7 @@
           <div class="grid grid-cols-2 lg:grid-cols-3 gap-2">
             ${Object.entries(HOUSE_MODES).map(([key, m]) => `
               <button onclick="runMode('${key}')"
-                class="mode-card text-left p-4 rounded-2xl border border-zinc-700 bg-[#141518] hover:border-emerald-500/40 active:scale-[0.97] transition min-h-[86px]">
+                class="hb-spot mode-card text-left p-4 rounded-2xl border border-zinc-700 bg-[#141518] hover:border-emerald-500/40 active:scale-[0.97] transition min-h-[86px]">
                 <i class="fa-solid ${m.icon} text-emerald-300/90 text-sm"></i>
                 <div class="text-sm font-semibold text-zinc-100 mt-1.5 leading-tight">${m.name}</div>
                 <div class="text-[10px] text-zinc-400 mt-0.5 leading-snug">${m.desc}</div>
@@ -2870,7 +2860,7 @@
       }
 
       if (rooms.length === 0) {
-        html += `<div class="card p-6 text-sm text-zinc-400">No rooms yet. Create one from the sidebar.</div>`;
+        html += `<div class="hb-spot card p-6 text-sm text-zinc-400">No rooms yet. Create one from the sidebar.</div>`;
       }
 
       // WiZ-style room grid up top: every room's on/off toggle in one screen, no scrolling.
@@ -2885,7 +2875,7 @@
             ? `<button onclick="event.stopPropagation(); roomOrGroupMaster('${room.id}','${action}',false); setTimeout(()=>refreshAllData(),350);" class="wiz-toggle ${anyOn ? 'on' : ''}" aria-label="toggle ${room.name}"><span></span></button>`
             : '';
           html += `
-            <div class="card p-3 cursor-pointer flex flex-col justify-between min-h-[92px]" style="${anyOn ? 'border-color:rgba(16,185,129,0.45)' : ''}"
+            <div class="hb-spot card p-3 cursor-pointer flex flex-col justify-between min-h-[92px]" style="${anyOn ? 'border-color:rgba(16,185,129,0.45)' : ''}"
                  onclick="document.querySelector('[data-room-section=&quot;${room.id}&quot;]')?.scrollIntoView({behavior:'smooth',block:'start'});">
               <div class="flex items-center justify-between">
                 <i class="fa-solid ${roomIcon(room.name)} ${anyOn ? 'text-emerald-300' : 'text-zinc-400'}"></i>
@@ -2937,7 +2927,7 @@
           <div class="text-[11px] text-zinc-400 mb-3 italic">View only — unlock to use room masters</div>`;
 
         html += `
-          <div class="card p-4 mb-4" data-room-section="${room.id}">
+          <div class="hb-spot card p-4 mb-4" data-room-section="${room.id}">
             <div class="flex items-baseline justify-between mb-2">
               <div class="font-semibold text-lg">${room.name}</div>
               <div class="text-xs text-emerald-400/80">${total} lights</div>
@@ -2976,7 +2966,7 @@
       if (searchLower) unLights = unLights.filter(l => (l.friendly_name||'').toLowerCase().includes(searchLower));
       if (unLights.length > 0 || !searchLower) {
         html += `
-          <div class="card p-4 border-amber-900/40">
+          <div class="hb-spot card p-4 border-amber-900/40">
             <div class="flex items-center justify-between mb-2">
               <div class="font-semibold">Unassigned <span class="text-amber-400 text-xs">— new lights from HA land here</span></div>
               <button onclick="setPrimaryView('lights'); lightsFilter='unassigned'; renderPrimaryView();" class="text-xs ha-btn">Manage in Lights →</button>
@@ -3015,7 +3005,7 @@
       let html = `<div class="mb-2"><span class="section-label">Sync Groups</span> <span class="text-xs text-emerald-400/80">— act as one</span></div>`;
 
       if (groups.length === 0) {
-        html += `<div class="card p-6 text-sm">No sync groups configured.</div>`;
+        html += `<div class="hb-spot card p-6 text-sm">No sync groups configured.</div>`;
         container.innerHTML = html;
         return;
       }
@@ -3053,7 +3043,7 @@
           <div class="text-[11px] text-zinc-400 mb-3 italic">View only — unlock to use group masters</div>`;
 
         html += `
-          <div class="card p-4 mb-4">
+          <div class="hb-spot card p-4 mb-4">
             <div class="flex items-baseline justify-between mb-1">
               <div class="font-semibold text-lg flex items-center gap-2"><i class="fa-solid fa-link text-emerald-400"></i> ${group.name}</div>
               <div class="text-xs text-emerald-400/80">${tot} lights • synced</div>
@@ -3182,7 +3172,7 @@
         const active = tvMode === m.id ? 'active' : '';
         const s = tvModeSettings[m.id] || {intensity:70, speed:40, brightnessLimit:85};
         modesHtml += `
-          <div class="tv-mode-card ${active}" onclick="selectTVMode('${m.id}', this)">
+          <div class="hb-spot tv-mode-card ${active}" onclick="selectTVMode('${m.id}', this)">
             <div class="flex items-center gap-2 mb-1">
               <i class="fa-solid ${m.icon} text-emerald-400"></i>
               <div class="font-semibold">${m.label}</div>
@@ -3696,7 +3686,7 @@
       }
 
       return `
-        <div class="card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}" style="${_cardStyle}"
+        <div class="hb-spot card p-3 light-card cursor-pointer transition ${isSkeleton ? 'opacity-80' : ''}" data-eid="${eid}" style="${_cardStyle}"
              onclick="var _ex=(window.innerWidth<640?'button,input,select,.effect-btn':'button,input[type=range],select,.effect-btn');if(!event.target.closest(_ex))openLightDetail('${eid}');">
           <div class="flex items-start justify-between mb-2">
             <div>
@@ -3844,7 +3834,7 @@
       `;
 
       container.innerHTML = `
-        <div class="card p-4">
+        <div class="hb-spot card p-4">
           <div class="mb-2 flex items-center gap-2">
             <i class="fa-solid fa-map text-emerald-400"></i>
             <span class="font-medium">Floor Plan</span>
