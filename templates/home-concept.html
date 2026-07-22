@@ -61,42 +61,54 @@
     mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);
     -webkit-mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);}
 
-  /* Aurora — one soft glow per ON light in the Game Room. Colours are the
-     real bulb RGBs; blob count tracks the room. Screen-blend on black reads
-     as elegant ambient wash, not muddy overlays. */
-  #aurora{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;}
-  .aurora-blob{
-    position:absolute;left:50%;top:30%;
-    width:min(62vw,780px);height:min(62vw,780px);
-    border-radius:50%;
-    filter:blur(110px);
-    opacity:0;
-    transform:translate(-50%,-50%) scale(1);
-    background:transparent;
-    mix-blend-mode:screen;
-    transition:background 1.5s ease,opacity 1.3s ease,width 1.4s ease,height 1.4s ease,
-               left 1.8s cubic-bezier(.22,1,.36,1),top 1.8s cubic-bezier(.22,1,.36,1),
-               transform 1.8s cubic-bezier(.22,1,.36,1);
-    will-change:transform,opacity,left,top;
-    pointer-events:none;
+  /* ── House ambient (same data logic as Lighting page #light-strip) ────────
+     Every ON light in the whole house contributes its real RGB, in room
+     order. Three coordinated layers:
+       1) ticker LED strip  — exact paintLightStrip language
+       2) sky wash          — soft full-width gradient of the same palette
+       3) orbs              — one soft glow per on-light, laid L→R in room order
+     Off lights contribute nothing. Idle = dim emerald. */
+  #house-ambient{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;}
+  #ambient-sky{
+    position:absolute;left:-8%;right:-8%;top:-12%;height:62vh;
+    opacity:0;filter:blur(48px);mix-blend-mode:screen;
+    transition:opacity 1.4s ease,background 1.6s ease;
+    transform:translateZ(0);
   }
-  /* Gentle drift — CSS vars set per-blob so each light breathes independently. */
-  .aurora-blob.is-on{
-    animation:aurora-drift var(--drift-dur,32s) ease-in-out infinite alternate;
+  #ambient-orbs{position:absolute;inset:0;}
+  .ambient-orb{
+    position:absolute;left:50%;top:22%;
+    width:min(42vw,520px);height:min(42vw,520px);
+    border-radius:50%;filter:blur(96px);opacity:0;
+    transform:translate(-50%,-50%);
+    mix-blend-mode:screen;pointer-events:none;
+    transition:background 1.4s ease,opacity 1.2s ease,width 1.3s ease,height 1.3s ease,
+               left 1.6s cubic-bezier(.22,1,.36,1),top 1.6s cubic-bezier(.22,1,.36,1);
+    will-change:transform,opacity,left,top;
+  }
+  .ambient-orb.is-on{
+    animation:orb-breathe var(--drift-dur,30s) ease-in-out infinite alternate;
     animation-delay:var(--drift-delay,0s);
   }
-  @keyframes aurora-drift{
-    from{transform:translate(-50%,-50%) scale(1) translate(0,0);}
-    to{transform:translate(-50%,-50%) scale(1.08) translate(var(--dx,2vw),var(--dy,1.5vh));}
+  @keyframes orb-breathe{
+    from{transform:translate(-50%,-50%) scale(1);}
+    to{transform:translate(-50%,-50%) scale(1.07) translate(var(--dx,1.5vw),var(--dy,1vh));}
   }
   @media(prefers-reduced-motion:reduce){
-    .aurora-blob{animation:none!important;transition:opacity .6s ease,background .6s ease;}
+    .ambient-orb{animation:none!important;transition:opacity .5s ease,background .5s ease;}
   }
 
   .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
     padding:14px 32px;background:rgba(10,10,11,0.82);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);font-family:var(--font-sans);font-size:13px;letter-spacing:0.01em;
     overflow-x:auto;white-space:nowrap;}
+  /* Live LED strip — same instrument as /home-assistant header */
+  .ticker #light-strip{
+    position:absolute;left:0;right:0;bottom:0;height:3px;opacity:.35;
+    background:linear-gradient(90deg,#065f46,#10b981,#065f46);
+    transition:background 1.6s ease,opacity 1.6s ease;
+    pointer-events:none;
+  }
   /* Wordmark like vitals chrome — Space Grotesk, tight tracking */
   .ticker .brand{font-family:var(--font-display);font-feature-settings:"ss02";font-weight:600;font-size:15px;letter-spacing:-0.03em;text-transform:none;color:var(--text);margin-right:8px;}
   .tick{display:flex;align-items:center;gap:7px;color:var(--text-dim);font-size:12.5px;}
@@ -352,8 +364,11 @@
 <body>
 
 <div class="bgwash" id="bgwash"></div>
-<!-- Blobs are created/removed in JS — one per Game Room light that is on. -->
-<div id="aurora" aria-hidden="true"></div>
+<!-- Whole-house ambient: sky wash + one orb per ON light (paintHouseAmbient). -->
+<div id="house-ambient" aria-hidden="true">
+  <div id="ambient-sky"></div>
+  <div id="ambient-orbs"></div>
+</div>
 <div class="grid"></div>
 
 {# ---- live values pulled straight from the same data home() uses ---- #}
@@ -372,6 +387,8 @@
   {% if steps_n is not none %}<div class="tick"><b>{{ '{:,}'.format(steps_n) }}</b>steps</div>{% endif %}
   <span class="spacer"></span>
   <div class="tick" id="tk-clock">—</div>
+  <!-- Same live LED strip logic as the Lighting page header. -->
+  <div id="light-strip" aria-hidden="true"></div>
 </div>
 
 <section class="hero page">
@@ -1145,127 +1162,142 @@
     }).catch(()=>{const el=document.getElementById('sys-music'); if(el)el.textContent='unavailable';});
   }
 
-  // ── Aurora: one glow per ON light in the Game Room ─────────────────────
-  // Logic: ambient = exactly the Game Room lights that are on. One bulb → one
-  // soft wash. Many bulbs → many washes, each painted its real RGB (and scaled
-  // by brightness). No colour-merging, no "desk only" shortcut that dropped
-  // other Game Room fixtures.
-  const auroraRoot=document.getElementById('aurora');
-  const auroraById=new Map(); // entity_id -> element
+  // ── Whole-house ambient (mirrors Lighting page paintLightStrip) ─────────
+  // 1. Collect every light: all rooms + unassigned, in room data order
+  // 2. Off → skip. On → real rgb_color, else warm white [255,196,120]
+  // 3. That ordered palette drives: ticker LED strip + sky wash + orbs
+  // 4. No lights → dim emerald idle (same as lighting page)
+  const ambientSky=document.getElementById('ambient-sky');
+  const ambientOrbs=document.getElementById('ambient-orbs');
+  const lightStrip=document.getElementById('light-strip');
+  const orbById=new Map();
 
-  function flatLights(d){const out=[];if(!d)return out;
-    Object.values(d.lights_by_room||{}).forEach(a=>a.forEach(l=>out.push(l)));
-    (d.unassigned_lights||[]).forEach(l=>out.push(l));return out;}
-
-  function isGameRoomLight(l){
-    const room=(l.room_name||'');
-    if(/game\s*room/i.test(room)||/^game$/i.test(room.trim())) return true;
-    // Fallback: entity/name often encodes the room when area mapping is thin.
-    const hay=((l.entity_id||'')+' '+(l.friendly_name||'')).toLowerCase();
-    return /\bgame[_\s-]*room\b|\bgameroom\b/.test(hay);
-  }
-
-  // Soft lift so dim RGB still reads as glow on OLED — keeps hue honest.
-  function glowColor(rgb){
-    let [r,g,b]=rgb.map(v=>Math.max(0,Math.min(255,Number(v)||0)));
-    const max=Math.max(r,g,b,1);
-    if(max<110){const k=110/max;r=Math.min(255,r*k);g=Math.min(255,g*k);b=Math.min(255,b*k);}
-    const mean=(r+g+b)/3;
-    const sat=1.18; // gentle — too much looks synthetic
-    r=Math.max(0,Math.min(255,mean+(r-mean)*sat));
-    g=Math.max(0,Math.min(255,mean+(g-mean)*sat));
-    b=Math.max(0,Math.min(255,mean+(b-mean)*sat));
-    return [r|0,g|0,b|0];
-  }
-
-  // Elegant placement: one light centres a large soft wash; many lights fan
-  // across an upper ellipse so the page feels lit by the room, not stacked.
-  function layoutFor(i,n){
-    if(n<=0) return {left:50,top:30,size:1};
-    if(n===1) return {left:50,top:32,size:1.12};
-    if(n===2) return i===0
-      ? {left:32,top:28,size:1.0}
-      : {left:70,top:34,size:1.0};
-    if(n===3){
-      const p=[{left:28,top:26,size:0.98},{left:72,top:28,size:0.98},{left:50,top:48,size:0.9}];
-      return p[i]||p[0];
-    }
-    // n >= 4: golden-angle spiral in the upper two-thirds of the viewport
-    const golden=Math.PI*(3-Math.sqrt(5));
-    const angle=i*golden-Math.PI/2;
-    const ring=0.18+0.32*Math.sqrt((i+0.5)/n);
-    const cx=0.50+Math.cos(angle)*ring*1.05;
-    const cy=0.30+Math.sin(angle)*ring*0.85;
-    const size=Math.max(0.52,0.95/Math.sqrt(n*0.55));
-    return {
-      left:Math.max(8,Math.min(92,cx*100)),
-      top:Math.max(10,Math.min(78,cy*100)),
-      size
-    };
-  }
-
-  function paintAurora(data){
-    if(!auroraRoot) return;
-    const all=flatLights(data);
-    // Strict: Game Room lights that are ON only.
-    let lights=all.filter(l=>l.state==='on'&&isGameRoomLight(l));
-    // Stable order so blobs don't jump slots when one toggles.
-    lights=lights.slice().sort((a,b)=>{
-      const an=(a.friendly_name||a.entity_id||'');
-      const bn=(b.friendly_name||b.entity_id||'');
-      return an.localeCompare(bn);
+  function flatLightsInRoomOrder(d){
+    // Preserve room-map iteration order (same as lighting page strip).
+    const out=[];
+    if(!d) return out;
+    Object.values(d.lights_by_room||{}).forEach(arr=>{
+      (arr||[]).forEach(l=>out.push(l));
     });
+    (d.unassigned_lights||[]).forEach(l=>out.push(l));
+    return out;
+  }
 
-    const n=lights.length;
+  // Build the ordered on-palette — ONE source of truth for strip + sky + orbs.
+  function collectOnLights(data){
+    const all=flatLightsInRoomOrder(data);
+    const on=[];
+    all.forEach(l=>{
+      if((l.state||'')!=='on') return;
+      const rgb=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)
+        ? [l.rgb_color[0]|0,l.rgb_color[1]|0,l.rgb_color[2]|0]
+        : [255,196,120];
+      const bri=l.brightness!=null?Math.max(0,Math.min(255,Number(l.brightness))):200;
+      on.push({
+        id:l.entity_id||(l.friendly_name||'light-'+on.length),
+        name:l.friendly_name||l.entity_id||'',
+        room:l.room_name||'',
+        rgb, bri
+      });
+    });
+    return on;
+  }
+
+  function paintLightStrip(on){
+    if(!lightStrip) return;
+    if(!on.length){
+      lightStrip.style.opacity='.35';
+      lightStrip.style.background='linear-gradient(90deg,#065f46,#10b981,#065f46)';
+      return;
+    }
+    const stops=on.map(l=>`rgb(${l.rgb[0]},${l.rgb[1]},${l.rgb[2]})`);
+    if(stops.length===1) stops.push(stops[0]);
+    lightStrip.style.opacity='.95';
+    lightStrip.style.background=`linear-gradient(90deg, ${stops.join(', ')})`;
+  }
+
+  function paintAmbientSky(on){
+    if(!ambientSky) return;
+    if(!on.length){
+      // Idle: soft emerald breath, matching the strip idle language
+      ambientSky.style.background=
+        'radial-gradient(ellipse 90% 70% at 50% 0%, rgba(16,185,129,0.22) 0%, transparent 70%)';
+      ambientSky.style.opacity='0.35';
+      return;
+    }
+    // Soft multi-stop gradient across the upper field — same palette as strip
+    const stops=on.map(l=>`rgb(${l.rgb[0]},${l.rgb[1]},${l.rgb[2]})`);
+    if(stops.length===1){
+      const [r,g,b]=on[0].rgb;
+      ambientSky.style.background=
+        `radial-gradient(ellipse 100% 80% at 50% 0%, rgba(${r},${g},${b},0.55) 0%, rgba(${r},${g},${b},0.18) 45%, transparent 72%)`;
+    }else{
+      // Horizontal house palette, then fall off downward so content stays readable
+      const band=`linear-gradient(90deg, ${stops.join(', ')})`;
+      ambientSky.style.background=
+        `linear-gradient(180deg, rgba(10,10,11,0) 0%, rgba(10,10,11,0.15) 55%, rgba(10,10,11,0.85) 100%), ${band}`;
+    }
+    // More lights → slightly calmer overall so the page doesn't blow out
+    const op=on.length===1?0.72:on.length<=4?0.62:Math.max(0.42,0.7-on.length*0.012);
+    ambientSky.style.opacity=String(op);
+  }
+
+  // Place orbs L→R in room order under the hero — reads as the house's ceiling.
+  function layoutOrb(i,n){
+    if(n<=0) return {left:50,top:24,size:1};
+    if(n===1) return {left:50,top:26,size:1.15};
+    if(n===2) return i===0?{left:34,top:24,size:1}:{left:66,top:26,size:1};
+    // Even spread across the upper band with a gentle wave so it isn't a hard row
+    const t=(i+0.5)/n;
+    const left=8+t*84;
+    const top=18+Math.sin(t*Math.PI)*10+(i%2===0?0:3);
+    const size=Math.max(0.42,0.95/Math.sqrt(Math.max(1,n*0.45)));
+    return {left, top, size};
+  }
+
+  function paintAmbientOrbs(on){
+    if(!ambientOrbs) return;
+    const n=on.length;
     const seen=new Set();
-    // Global size scale: fewer lights → larger, more present wash.
-    const crowd=n<=1?1:n<=3?0.95:Math.max(0.62,1.05/Math.sqrt(n*0.5));
+    const crowd=n<=1?1:n<=5?0.92:Math.max(0.55,1.0/Math.sqrt(n*0.4));
+    const vw=window.innerWidth||1200;
 
-    lights.forEach((l,i)=>{
-      const id=l.entity_id||('anon-'+i);
-      seen.add(id);
-      let el=auroraById.get(id);
+    on.forEach((l,i)=>{
+      seen.add(l.id);
+      let el=orbById.get(l.id);
       if(!el){
         el=document.createElement('div');
-        el.className='aurora-blob';
-        el.dataset.lightId=id;
-        auroraRoot.appendChild(el);
-        auroraById.set(id,el);
-        // Enter from transparent after layout is set (next frame).
+        el.className='ambient-orb';
+        el.dataset.lightId=l.id;
+        ambientOrbs.appendChild(el);
+        orbById.set(l.id,el);
         requestAnimationFrame(()=>el.classList.add('is-on'));
       }
-
-      const raw=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)
-        ? l.rgb_color
-        : [255,196,120]; // warm white when HA has no colour report
-      const [r,g,b]=glowColor(raw);
-      const bri=Math.max(0.15,Math.min(1,(l.brightness!=null?Number(l.brightness):200)/255));
-      const layout=layoutFor(i,n);
-      const px=Math.round(Math.min(820,Math.max(280,(window.innerWidth||1200)*0.55*layout.size*crowd)));
-
-      // Soft radial: bright core that falls off cleanly — elegant, not a hard disc.
-      const core=0.55+0.35*bri;
+      const [r,g,b]=l.rgb;
+      const bri=Math.max(0.2,Math.min(1,l.bri/255));
+      const lay=layoutOrb(i,n);
+      const px=Math.round(Math.min(640,Math.max(220,vw*0.42*lay.size*crowd)));
+      const core=0.5+0.4*bri;
       el.style.background=
         `radial-gradient(circle at 50% 50%,`+
-        `rgba(${r},${g},${b},${(0.92*core).toFixed(3)}) 0%,`+
-        `rgba(${r},${g},${b},${(0.45*core).toFixed(3)}) 38%,`+
-        `rgba(${r},${g},${b},${(0.12*core).toFixed(3)}) 62%,`+
+        `rgba(${r},${g},${b},${(0.95*core).toFixed(3)}) 0%,`+
+        `rgba(${r},${g},${b},${(0.4*core).toFixed(3)}) 40%,`+
+        `rgba(${r},${g},${b},${(0.1*core).toFixed(3)}) 65%,`+
         `transparent 78%)`;
       el.style.width=px+'px';
       el.style.height=px+'px';
-      el.style.left=layout.left+'%';
-      el.style.top=layout.top+'%';
-      el.style.opacity=String(0.42+0.48*bri);
-      el.style.setProperty('--dx',((i%2===0)?1:-1)*(1.2+i*0.35)+'vw');
-      el.style.setProperty('--dy',((i%3===0)?1:-1)*(0.8+i*0.25)+'vh');
-      el.style.setProperty('--drift-dur',(28+i*3)+'s');
-      el.style.setProperty('--drift-delay',(i*0.7)+'s');
-      el.title=l.friendly_name||id; // for debugging / a11y tooling; not visible
+      el.style.left=lay.left+'%';
+      el.style.top=lay.top+'%';
+      el.style.opacity=String(0.38+0.45*bri);
+      el.style.setProperty('--dx',((i%2===0)?1:-1)*(1+i*0.15)+'vw');
+      el.style.setProperty('--dy',((i%3===0)?-1:1)*(0.6+i*0.08)+'vh');
+      el.style.setProperty('--drift-dur',(26+i*2)+'s');
+      el.style.setProperty('--drift-delay',(i*0.35)+'s');
+      el.title=(l.room?l.room+' · ':'')+(l.name||l.id);
       el.classList.add('is-on');
     });
 
-    // Remove glows for lights that turned off (or left the room set).
-    auroraById.forEach((el,id)=>{
+    orbById.forEach((el,id)=>{
       if(seen.has(id)) return;
       el.classList.remove('is-on');
       el.style.opacity='0';
@@ -1273,11 +1305,20 @@
       setTimeout(()=>{
         if(dead.style.opacity==='0'&&dead.parentNode){
           dead.parentNode.removeChild(dead);
-          auroraById.delete(id);
+          orbById.delete(id);
         }
-      },1400);
+      },1300);
     });
   }
+
+  function paintHouseAmbient(data){
+    const on=collectOnLights(data);
+    paintLightStrip(on);
+    paintAmbientSky(on);
+    paintAmbientOrbs(on);
+  }
+  // Back-compat name used by refreshHouse
+  const paintAurora=paintHouseAmbient;
   // The poke button glows the colour the office lamp is ACTUALLY projecting
   // right now — same RGB the bulb reports — and goes grey/unlit when it's off.
   function paintLampButton(data){
