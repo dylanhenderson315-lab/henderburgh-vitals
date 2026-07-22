@@ -55,23 +55,37 @@
     mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);
     -webkit-mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);}
 
-  /* Aurora — REAL on-bulb colours from /api/ha/lights-data. On a true black
-     base these read as room ambiance; size/opacity tuned up so the house is
-     felt, not a faint tint. Below the grid so type stays readable. */
+  /* Aurora — one soft glow per ON light in the Game Room. Colours are the
+     real bulb RGBs; blob count tracks the room. Screen-blend on black reads
+     as elegant ambient wash, not muddy overlays. */
   #aurora{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;}
-  .aurora-blob{position:absolute;width:70vw;height:70vw;max-width:920px;max-height:920px;
-    border-radius:50%;filter:blur(90px);opacity:0;
-    transition:background 2s ease,opacity 1.6s ease;will-change:transform;}
-  #aurora-1{top:-28%;left:-16%;animation:drift1 28s ease-in-out infinite alternate;}
-  #aurora-2{top:-20%;right:-14%;animation:drift2 34s ease-in-out infinite alternate;}
-  #aurora-3{top:18%;left:28%;animation:drift3 40s ease-in-out infinite alternate;}
-  #aurora-4{bottom:-24%;right:8%;width:55vw;height:55vw;max-width:720px;max-height:720px;
-    animation:drift4 36s ease-in-out infinite alternate;}
-  @keyframes drift1{from{transform:translate(0,0) scale(1);}to{transform:translate(7vw,4vh) scale(1.18);}}
-  @keyframes drift2{from{transform:translate(0,0) scale(1.1);}to{transform:translate(-6vw,5vh) scale(0.95);}}
-  @keyframes drift3{from{transform:translate(0,0) scale(0.9);}to{transform:translate(4vw,-4vh) scale(1.12);}}
-  @keyframes drift4{from{transform:translate(0,0) scale(1);}to{transform:translate(-5vw,-3vh) scale(1.1);}}
-  @media(prefers-reduced-motion:reduce){.aurora-blob{animation:none;}}
+  .aurora-blob{
+    position:absolute;left:50%;top:30%;
+    width:min(62vw,780px);height:min(62vw,780px);
+    border-radius:50%;
+    filter:blur(110px);
+    opacity:0;
+    transform:translate(-50%,-50%) scale(1);
+    background:transparent;
+    mix-blend-mode:screen;
+    transition:background 1.5s ease,opacity 1.3s ease,width 1.4s ease,height 1.4s ease,
+               left 1.8s cubic-bezier(.22,1,.36,1),top 1.8s cubic-bezier(.22,1,.36,1),
+               transform 1.8s cubic-bezier(.22,1,.36,1);
+    will-change:transform,opacity,left,top;
+    pointer-events:none;
+  }
+  /* Gentle drift — CSS vars set per-blob so each light breathes independently. */
+  .aurora-blob.is-on{
+    animation:aurora-drift var(--drift-dur,32s) ease-in-out infinite alternate;
+    animation-delay:var(--drift-delay,0s);
+  }
+  @keyframes aurora-drift{
+    from{transform:translate(-50%,-50%) scale(1) translate(0,0);}
+    to{transform:translate(-50%,-50%) scale(1.08) translate(var(--dx,2vw),var(--dy,1.5vh));}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .aurora-blob{animation:none!important;transition:opacity .6s ease,background .6s ease;}
+  }
 
   .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
     padding:14px 32px;background:rgba(10,10,11,0.82);backdrop-filter:blur(10px);
@@ -316,12 +330,8 @@
 <body>
 
 <div class="bgwash" id="bgwash"></div>
-<div id="aurora" aria-hidden="true">
-  <div class="aurora-blob" id="aurora-1"></div>
-  <div class="aurora-blob" id="aurora-2"></div>
-  <div class="aurora-blob" id="aurora-3"></div>
-  <div class="aurora-blob" id="aurora-4"></div>
-</div>
+<!-- Blobs are created/removed in JS — one per Game Room light that is on. -->
+<div id="aurora" aria-hidden="true"></div>
 <div class="grid"></div>
 
 {# ---- live values pulled straight from the same data home() uses ---- #}
@@ -1113,47 +1123,137 @@
     }).catch(()=>{const el=document.getElementById('sys-music'); if(el)el.textContent='unavailable';});
   }
 
-  // ── Aurora: house REAL light colours, amplified on a black base ──
-  const auroraBlobs=[1,2,3,4].map(i=>document.getElementById('aurora-'+i));
+  // ── Aurora: one glow per ON light in the Game Room ─────────────────────
+  // Logic: ambient = exactly the Game Room lights that are on. One bulb → one
+  // soft wash. Many bulbs → many washes, each painted its real RGB (and scaled
+  // by brightness). No colour-merging, no "desk only" shortcut that dropped
+  // other Game Room fixtures.
+  const auroraRoot=document.getElementById('aurora');
+  const auroraById=new Map(); // entity_id -> element
+
   function flatLights(d){const out=[];if(!d)return out;
     Object.values(d.lights_by_room||{}).forEach(a=>a.forEach(l=>out.push(l)));
     (d.unassigned_lights||[]).forEach(l=>out.push(l));return out;}
-  // Nudge pastel/dim bulb RGB toward punchier colour so the wash reads on OLED.
-  function boostColor(rgb){
-    let [r,g,b]=rgb.map(v=>Math.max(0,Math.min(255,v|0)));
-    const max=Math.max(r,g,b)||1;
-    // Lift overall brightness a touch if the bulb is reporting dim.
-    if(max<140){const k=140/max;r=Math.min(255,r*k);g=Math.min(255,g*k);b=Math.min(255,b*k);}
-    // Mild saturation push: pull each channel away from the mean.
+
+  function isGameRoomLight(l){
+    const room=(l.room_name||'');
+    if(/game\s*room/i.test(room)||/^game$/i.test(room.trim())) return true;
+    // Fallback: entity/name often encodes the room when area mapping is thin.
+    const hay=((l.entity_id||'')+' '+(l.friendly_name||'')).toLowerCase();
+    return /\bgame[_\s-]*room\b|\bgameroom\b/.test(hay);
+  }
+
+  // Soft lift so dim RGB still reads as glow on OLED — keeps hue honest.
+  function glowColor(rgb){
+    let [r,g,b]=rgb.map(v=>Math.max(0,Math.min(255,Number(v)||0)));
+    const max=Math.max(r,g,b,1);
+    if(max<110){const k=110/max;r=Math.min(255,r*k);g=Math.min(255,g*k);b=Math.min(255,b*k);}
     const mean=(r+g+b)/3;
-    const sat=1.35;
+    const sat=1.18; // gentle — too much looks synthetic
     r=Math.max(0,Math.min(255,mean+(r-mean)*sat));
     g=Math.max(0,Math.min(255,mean+(g-mean)*sat));
     b=Math.max(0,Math.min(255,mean+(b-mean)*sat));
     return [r|0,g|0,b|0];
   }
+
+  // Elegant placement: one light centres a large soft wash; many lights fan
+  // across an upper ellipse so the page feels lit by the room, not stacked.
+  function layoutFor(i,n){
+    if(n<=0) return {left:50,top:30,size:1};
+    if(n===1) return {left:50,top:32,size:1.12};
+    if(n===2) return i===0
+      ? {left:32,top:28,size:1.0}
+      : {left:70,top:34,size:1.0};
+    if(n===3){
+      const p=[{left:28,top:26,size:0.98},{left:72,top:28,size:0.98},{left:50,top:48,size:0.9}];
+      return p[i]||p[0];
+    }
+    // n >= 4: golden-angle spiral in the upper two-thirds of the viewport
+    const golden=Math.PI*(3-Math.sqrt(5));
+    const angle=i*golden-Math.PI/2;
+    const ring=0.18+0.32*Math.sqrt((i+0.5)/n);
+    const cx=0.50+Math.cos(angle)*ring*1.05;
+    const cy=0.30+Math.sin(angle)*ring*0.85;
+    const size=Math.max(0.52,0.95/Math.sqrt(n*0.55));
+    return {
+      left:Math.max(8,Math.min(92,cx*100)),
+      top:Math.max(10,Math.min(78,cy*100)),
+      size
+    };
+  }
+
   function paintAurora(data){
-    let lights=flatLights(data).filter(l=>l.state==='on');
-    // Prefer Game Room desk lights for the hero mood when they're on; otherwise
-    // use the full set of lit bulbs so multi-room colour still fills the page.
-    const desk=lights.filter(l=>/desk/i.test(l.friendly_name||'')&&/game/i.test(l.room_name||''));
-    if(desk.length)lights=desk;
-    const colors=lights.map(l=>{
-      const raw=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)?l.rgb_color:[255,196,120];
-      return boostColor(raw);
+    if(!auroraRoot) return;
+    const all=flatLights(data);
+    // Strict: Game Room lights that are ON only.
+    let lights=all.filter(l=>l.state==='on'&&isGameRoomLight(l));
+    // Stable order so blobs don't jump slots when one toggles.
+    lights=lights.slice().sort((a,b)=>{
+      const an=(a.friendly_name||a.entity_id||'');
+      const bn=(b.friendly_name||b.entity_id||'');
+      return an.localeCompare(bn);
     });
-    const distinct=[];
-    colors.forEach(c=>{if(!distinct.some(d=>Math.abs(d[0]-c[0])+Math.abs(d[1]-c[1])+Math.abs(d[2]-c[2])<70))distinct.push(c);});
-    // Per-blob opacities: stronger near the top (hero), still present lower.
-    const blobOpacity=[0.78,0.72,0.62,0.55];
-    const coreAlpha=[0.82,0.78,0.70,0.65];
-    auroraBlobs.forEach((b,i)=>{
-      if(!b)return;
-      const c=distinct[i%Math.max(1,distinct.length)];
-      if(!lights.length||!c){b.style.opacity=0;return;}
-      const a=coreAlpha[i]||0.7;
-      b.style.background=`radial-gradient(circle,rgba(${c[0]},${c[1]},${c[2]},${a}) 0%,rgba(${c[0]},${c[1]},${c[2]},${a*0.35}) 42%,transparent 72%)`;
-      b.style.opacity=String(blobOpacity[i]||0.6);
+
+    const n=lights.length;
+    const seen=new Set();
+    // Global size scale: fewer lights → larger, more present wash.
+    const crowd=n<=1?1:n<=3?0.95:Math.max(0.62,1.05/Math.sqrt(n*0.5));
+
+    lights.forEach((l,i)=>{
+      const id=l.entity_id||('anon-'+i);
+      seen.add(id);
+      let el=auroraById.get(id);
+      if(!el){
+        el=document.createElement('div');
+        el.className='aurora-blob';
+        el.dataset.lightId=id;
+        auroraRoot.appendChild(el);
+        auroraById.set(id,el);
+        // Enter from transparent after layout is set (next frame).
+        requestAnimationFrame(()=>el.classList.add('is-on'));
+      }
+
+      const raw=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)
+        ? l.rgb_color
+        : [255,196,120]; // warm white when HA has no colour report
+      const [r,g,b]=glowColor(raw);
+      const bri=Math.max(0.15,Math.min(1,(l.brightness!=null?Number(l.brightness):200)/255));
+      const layout=layoutFor(i,n);
+      const px=Math.round(Math.min(820,Math.max(280,(window.innerWidth||1200)*0.55*layout.size*crowd)));
+
+      // Soft radial: bright core that falls off cleanly — elegant, not a hard disc.
+      const core=0.55+0.35*bri;
+      el.style.background=
+        `radial-gradient(circle at 50% 50%,`+
+        `rgba(${r},${g},${b},${(0.92*core).toFixed(3)}) 0%,`+
+        `rgba(${r},${g},${b},${(0.45*core).toFixed(3)}) 38%,`+
+        `rgba(${r},${g},${b},${(0.12*core).toFixed(3)}) 62%,`+
+        `transparent 78%)`;
+      el.style.width=px+'px';
+      el.style.height=px+'px';
+      el.style.left=layout.left+'%';
+      el.style.top=layout.top+'%';
+      el.style.opacity=String(0.42+0.48*bri);
+      el.style.setProperty('--dx',((i%2===0)?1:-1)*(1.2+i*0.35)+'vw');
+      el.style.setProperty('--dy',((i%3===0)?1:-1)*(0.8+i*0.25)+'vh');
+      el.style.setProperty('--drift-dur',(28+i*3)+'s');
+      el.style.setProperty('--drift-delay',(i*0.7)+'s');
+      el.title=l.friendly_name||id; // for debugging / a11y tooling; not visible
+      el.classList.add('is-on');
+    });
+
+    // Remove glows for lights that turned off (or left the room set).
+    auroraById.forEach((el,id)=>{
+      if(seen.has(id)) return;
+      el.classList.remove('is-on');
+      el.style.opacity='0';
+      const dead=el;
+      setTimeout(()=>{
+        if(dead.style.opacity==='0'&&dead.parentNode){
+          dead.parentNode.removeChild(dead);
+          auroraById.delete(id);
+        }
+      },1400);
     });
   }
   // The poke button glows the colour the office lamp is ACTUALLY projecting
