@@ -43,28 +43,32 @@
   .page{width:100%;max-width:var(--page-max);margin-inline:auto;padding-inline:var(--page-pad);}
   *{margin:0;padding:0;box-sizing:border-box;}
   html{scroll-behavior:smooth;}
-  body{background:var(--navy-0);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
-  .bgwash{position:fixed;inset:0;z-index:-3;background:var(--navy-0);transition:background 0.6s ease-out;}
+  /* Page base = same charcoal black as /home-assistant and the rest of the OS.
+     (--bg is #0a0a0b). Light colour lives in the aurora only — not a navy wash. */
+  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
+  .bgwash{position:fixed;inset:0;z-index:-3;background:var(--bg);/* no day-tint; stay black */}
   .grid{position:fixed;inset:0;z-index:-1;
     background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
-    background-size:64px 64px;opacity:0.15;
+    background-size:64px 64px;opacity:0.12;
     mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);
     -webkit-mask-image:radial-gradient(circle at 50% 30%,black,transparent 75%);}
 
-  /* Aurora — the house's REAL light colours, ported from the live home page.
-     Each blob is painted from an actual on-bulb's RGB (via /api/ha/lights-data),
-     so the page literally glows the colour of the room. Sits above the bgwash
-     day-tint, below the grid. */
+  /* Aurora — REAL on-bulb colours from /api/ha/lights-data. On a true black
+     base these read as room ambiance; size/opacity tuned up so the house is
+     felt, not a faint tint. Below the grid so type stays readable. */
   #aurora{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;}
-  .aurora-blob{position:absolute;width:52vw;height:52vw;max-width:620px;max-height:620px;
-    border-radius:50%;filter:blur(100px);opacity:0;
-    transition:background 2.5s ease,opacity 2.5s ease;will-change:transform;}
-  #aurora-1{top:-22%;left:-10%;animation:drift1 28s ease-in-out infinite alternate;}
-  #aurora-2{top:-16%;right:-8%;animation:drift2 34s ease-in-out infinite alternate;}
-  #aurora-3{top:14%;left:36%;animation:drift3 40s ease-in-out infinite alternate;}
-  @keyframes drift1{from{transform:translate(0,0) scale(1);}to{transform:translate(6vw,3vh) scale(1.15);}}
-  @keyframes drift2{from{transform:translate(0,0) scale(1.1);}to{transform:translate(-5vw,4vh) scale(0.95);}}
-  @keyframes drift3{from{transform:translate(0,0) scale(0.9);}to{transform:translate(3vw,-3vh) scale(1.1);}}
+  .aurora-blob{position:absolute;width:70vw;height:70vw;max-width:920px;max-height:920px;
+    border-radius:50%;filter:blur(90px);opacity:0;
+    transition:background 2s ease,opacity 1.6s ease;will-change:transform;}
+  #aurora-1{top:-28%;left:-16%;animation:drift1 28s ease-in-out infinite alternate;}
+  #aurora-2{top:-20%;right:-14%;animation:drift2 34s ease-in-out infinite alternate;}
+  #aurora-3{top:18%;left:28%;animation:drift3 40s ease-in-out infinite alternate;}
+  #aurora-4{bottom:-24%;right:8%;width:55vw;height:55vw;max-width:720px;max-height:720px;
+    animation:drift4 36s ease-in-out infinite alternate;}
+  @keyframes drift1{from{transform:translate(0,0) scale(1);}to{transform:translate(7vw,4vh) scale(1.18);}}
+  @keyframes drift2{from{transform:translate(0,0) scale(1.1);}to{transform:translate(-6vw,5vh) scale(0.95);}}
+  @keyframes drift3{from{transform:translate(0,0) scale(0.9);}to{transform:translate(4vw,-4vh) scale(1.12);}}
+  @keyframes drift4{from{transform:translate(0,0) scale(1);}to{transform:translate(-5vw,-3vh) scale(1.1);}}
   @media(prefers-reduced-motion:reduce){.aurora-blob{animation:none;}}
 
   .ticker{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:28px;
@@ -207,7 +211,7 @@
   /* Sticky day-summary rail. Every value here is server-rendered real data,
      visible with no JS; the scroll readout only *changes* text it already has. */
   .story-rail{position:sticky;top:calc(var(--ticker-h) + 28px);
-    border:1px solid var(--line);background:rgba(13,19,28,0.66);padding:20px;}
+    border:1px solid var(--line);background:rgba(19,19,22,0.72);padding:20px;}
   .rail-head{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.1em;
     color:var(--text-dim);text-transform:uppercase;padding-bottom:14px;border-bottom:1px solid var(--line);}
   .rail-now{padding:16px 0;border-bottom:1px solid var(--line);}
@@ -258,7 +262,7 @@
   .day-nav{display:flex;align-items:center;gap:14px;padding:14px 0 4px;flex-wrap:wrap;}
   .day-nav .daybtn{font-family:'JetBrains Mono',monospace;font-size:15px;line-height:1;
     width:34px;height:34px;display:flex;align-items:center;justify-content:center;
-    background:rgba(13,19,28,0.66);border:1px solid var(--line);color:var(--text-dim);
+    background:rgba(19,19,22,0.72);border:1px solid var(--line);color:var(--text-dim);
     border-radius:8px;cursor:pointer;transition:color 0.2s,border-color 0.2s,opacity 0.2s;}
   .day-nav .daybtn:hover:not(:disabled){color:var(--cyan);border-color:var(--cyan);}
   .day-nav .daybtn:disabled{opacity:0.3;cursor:default;}
@@ -287,13 +291,13 @@
   /* ── Chart view: the same selected day, rendered the classic horizontal way. */
   .chartview{padding-block:0 90px;}
   .chartview .toggle{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em;
-    text-transform:uppercase;background:rgba(13,19,28,0.66);border:1px solid var(--line);
+    text-transform:uppercase;background:rgba(19,19,22,0.72);border:1px solid var(--line);
     color:var(--text-dim);border-radius:8px;padding:10px 16px;cursor:pointer;
     transition:color 0.2s,border-color 0.2s;}
   .chartview .toggle:hover{color:var(--cyan);border-color:var(--cyan);}
   .chartview .toggle[aria-expanded="true"]{color:var(--cyan);border-color:var(--cyan);}
   .chart-panel{display:none;margin-top:18px;border:1px solid var(--line);
-    background:rgba(13,19,28,0.66);padding:18px;}
+    background:rgba(19,19,22,0.72);padding:18px;}
   .chart-panel.open{display:block;}
   .chart-panel .chart-box{position:relative;height:300px;}
   @media(max-width:720px){.chart-panel .chart-box{height:220px;}}
@@ -310,10 +314,11 @@
 <body>
 
 <div class="bgwash" id="bgwash"></div>
-<div id="aurora">
+<div id="aurora" aria-hidden="true">
   <div class="aurora-blob" id="aurora-1"></div>
   <div class="aurora-blob" id="aurora-2"></div>
   <div class="aurora-blob" id="aurora-3"></div>
+  <div class="aurora-blob" id="aurora-4"></div>
 </div>
 <div class="grid"></div>
 
@@ -564,17 +569,10 @@
   let HR_SERIES = {{ replay.hr_series | tojson if (replay and replay.hr_series) else '[]' }};
   let DAY_POINTS = {{ replay.points | tojson if (replay and replay.points) else '[]' }};
 
-  const colorStops = [
-    {h:6,c:[16,24,37]},{h:12,c:[13,22,33]},{h:17,c:[36,26,18]},{h:20,c:[20,27,38]},{h:22,c:[10,14,23]}
-  ];
-  const lerp=(a,b,t)=>a+(b-a)*t;
-  function colorAtHour(h){
-    for(let i=0;i<colorStops.length-1;i++){
-      const a=colorStops[i],b=colorStops[i+1];
-      if(h>=a.h&&h<=b.h){const t=(h-a.h)/(b.h-a.h);const c=[0,1,2].map(k=>Math.round(lerp(a.c[k],b.c[k],t)));return `rgb(${c[0]},${c[1]},${c[2]})`;}
-    }
-    return `rgb(${colorStops[0].c.join(',')})`;
-  }
+  // Background stays charcoal black (var(--bg) / same as subpages). The old
+  // scroll-driven navy day-tint made the whole OS read blue; light colour is
+  // carried only by the house-light aurora below.
+  if(bgwash) bgwash.style.background = '';
 
   const io=new IntersectionObserver((entries)=>{
     entries.forEach(e=>{if(e.isIntersecting) e.target.classList.add('in');});
@@ -699,15 +697,7 @@
 
   let ticking=false;
   function onScroll(){
-    if(!timeline){bgwash.style.background=colorAtHour(22);return;}
-    const rect=timeline.getBoundingClientRect();
-    const total=rect.height-window.innerHeight;
-    const scrolled=Math.min(Math.max(-rect.top,0),total);
-    const frac=total>0?scrolled/total:0;
-    // The heart trace is shown whole, always. (A dimming mask used to slide
-    // over the un-reached part; it read as a black bar sitting on top of the
-    // chart, so it's gone — the trace is data, not a progress meter.)
-    bgwash.style.background=colorAtHour(6+frac*(22-6));
+    // No bg tint on scroll — page stays black like /vitals / lighting.
     updateRail();
     ticking=false;
   }
@@ -1121,23 +1111,48 @@
     }).catch(()=>{const el=document.getElementById('sys-music'); if(el)el.textContent='unavailable';});
   }
 
-  // ── Aurora: the house's REAL light colours (ported from the live home page) ──
-  const auroraBlobs=[1,2,3].map(i=>document.getElementById('aurora-'+i));
+  // ── Aurora: house REAL light colours, amplified on a black base ──
+  const auroraBlobs=[1,2,3,4].map(i=>document.getElementById('aurora-'+i));
   function flatLights(d){const out=[];if(!d)return out;
     Object.values(d.lights_by_room||{}).forEach(a=>a.forEach(l=>out.push(l)));
     (d.unassigned_lights||[]).forEach(l=>out.push(l));return out;}
+  // Nudge pastel/dim bulb RGB toward punchier colour so the wash reads on OLED.
+  function boostColor(rgb){
+    let [r,g,b]=rgb.map(v=>Math.max(0,Math.min(255,v|0)));
+    const max=Math.max(r,g,b)||1;
+    // Lift overall brightness a touch if the bulb is reporting dim.
+    if(max<140){const k=140/max;r=Math.min(255,r*k);g=Math.min(255,g*k);b=Math.min(255,b*k);}
+    // Mild saturation push: pull each channel away from the mean.
+    const mean=(r+g+b)/3;
+    const sat=1.35;
+    r=Math.max(0,Math.min(255,mean+(r-mean)*sat));
+    g=Math.max(0,Math.min(255,mean+(g-mean)*sat));
+    b=Math.max(0,Math.min(255,mean+(b-mean)*sat));
+    return [r|0,g|0,b|0];
+  }
   function paintAurora(data){
     let lights=flatLights(data).filter(l=>l.state==='on');
-    // Game Room desk lights set the mood when on — the signature command-center lights.
+    // Prefer Game Room desk lights for the hero mood when they're on; otherwise
+    // use the full set of lit bulbs so multi-room colour still fills the page.
     const desk=lights.filter(l=>/desk/i.test(l.friendly_name||'')&&/game/i.test(l.room_name||''));
     if(desk.length)lights=desk;
-    const colors=lights.map(l=>(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)?l.rgb_color:[255,196,120]);
+    const colors=lights.map(l=>{
+      const raw=(Array.isArray(l.rgb_color)&&l.rgb_color.length>=3)?l.rgb_color:[255,196,120];
+      return boostColor(raw);
+    });
     const distinct=[];
-    colors.forEach(c=>{if(!distinct.some(d=>Math.abs(d[0]-c[0])+Math.abs(d[1]-c[1])+Math.abs(d[2]-c[2])<90))distinct.push(c);});
-    auroraBlobs.forEach((b,i)=>{if(!b)return;const c=distinct[i%Math.max(1,distinct.length)];
+    colors.forEach(c=>{if(!distinct.some(d=>Math.abs(d[0]-c[0])+Math.abs(d[1]-c[1])+Math.abs(d[2]-c[2])<70))distinct.push(c);});
+    // Per-blob opacities: stronger near the top (hero), still present lower.
+    const blobOpacity=[0.78,0.72,0.62,0.55];
+    const coreAlpha=[0.82,0.78,0.70,0.65];
+    auroraBlobs.forEach((b,i)=>{
+      if(!b)return;
+      const c=distinct[i%Math.max(1,distinct.length)];
       if(!lights.length||!c){b.style.opacity=0;return;}
-      b.style.background=`radial-gradient(circle,rgba(${c[0]|0},${c[1]|0},${c[2]|0},0.55) 0%,transparent 70%)`;
-      b.style.opacity=0.5;});
+      const a=coreAlpha[i]||0.7;
+      b.style.background=`radial-gradient(circle,rgba(${c[0]},${c[1]},${c[2]},${a}) 0%,rgba(${c[0]},${c[1]},${c[2]},${a*0.35}) 42%,transparent 72%)`;
+      b.style.opacity=String(blobOpacity[i]||0.6);
+    });
   }
   // The poke button glows the colour the office lamp is ACTUALLY projecting
   // right now — same RGB the bulb reports — and goes grey/unlit when it's off.
