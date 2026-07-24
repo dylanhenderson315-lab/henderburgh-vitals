@@ -9,7 +9,7 @@
   <meta property="og:description" content="Live Xbox status and recently played games.">
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/static/tokens.css?v=4">
+  <link rel="stylesheet" href="/static/tokens.css?v=5">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -841,30 +841,20 @@
       // but is marked dashed/faded as an estimate; a genuinely long gap (ring
       // off, asleep, dead) gets an actual break in the line rather than one
       // smooth solid span implying continuous measurement that never happened.
-      const RP_ESTIMATE_MAX_MIN = 20;  // <=20 min: bridge, dashed
-      const RP_BREAK_MIN = 30;         // >30 min: hard break
-      const rpData = [];
-      for (let i = 0; i < R.points.length; i++) {
-        const p = R.points[i];
-        if (i > 0 && (p.x - R.points[i - 1].x) > RP_BREAK_MIN) {
-          rpData.push({ x: R.points[i - 1].x + 0.1, y: null });
-        }
-        rpData.push(p);
-      }
-      const rpIsEstimated = (ctx) => (ctx.p1.parsed.x - ctx.p0.parsed.x) > RP_ESTIMATE_MAX_MIN;
+      // Bridge every gap into one continuous trace (spanGaps below). The ring
+      // records sparsely while you're active — gaming especially — so breaking
+      // the line there made a normal session look like the tracker was broken.
+      // No bpm is invented; we only connect readings the ring actually took.
+      const rpData = R.points.slice();
 
       const chart = new Chart(cv, {
         type: 'line',
         data: {
           datasets: [{
-            label: 'BPM', data: rpData, parsing: false, spanGaps: false,
+            label: 'BPM', data: rpData, parsing: false, spanGaps: true,
             borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.08)',
             borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 4,
             pointHoverBackgroundColor: '#fb7185', fill: true, tension: 0.3,
-            segment: {
-              borderDash: (ctx) => rpIsEstimated(ctx) ? [5, 4] : undefined,
-              borderColor: (ctx) => rpIsEstimated(ctx) ? 'rgba(251,113,133,0.5)' : undefined,
-            },
           }]
         },
         options: {

@@ -875,7 +875,7 @@
               {% if hr_age_minutes is not none and hr_age_minutes > 15 %}
                 Ring last synced {{ hr_age_minutes }}m ago — showing the 24h ending then
               {% else %}
-                Every reading from your ring — solid is real, dashed bridges a short gap
+                Every reading from your ring, connected into one continuous trace
               {% endif %}
             </div>
           </div>
@@ -888,10 +888,6 @@
         <div class="flex gap-1.5 mb-4 items-center">
           <button id="hrc-active" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">Active</button>
           <button id="hrc-full" type="button" class="hb-tap text-[11px] px-3 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-zinc-400 font-medium">Wall-clock 24h</button>
-          <span class="ml-auto flex items-center gap-x-3 text-[10px] text-zinc-600">
-            <span class="flex items-center gap-x-1"><i class="fa-solid fa-minus text-rose-400"></i>real</span>
-            <span class="flex items-center gap-x-1"><i class="fa-solid fa-minus" style="color:rgba(251,113,133,0.5)"></i>estimated</span>
-          </span>
           <span id="hrc-span" class="self-center text-[11px] text-zinc-600"></span>
         </div>
         <div class="chart-container h-[200px]">
@@ -1251,28 +1247,16 @@
         // "estimated across a gap", never mistakable for a real reading. A
         // long gap (ring off, asleep unmonitored, dead battery) gets an actual
         // break: no line at all, exactly like today.
-        const HRC_ESTIMATE_MAX_MS = 20 * 60 * 1000;  // <=20 min: bridge, marked dashed
-        const HRC_BREAK_MS = 30 * 60 * 1000;         // >30 min: hard break, never bridged
         const hrcClock = (ms) => new Date(ms).toLocaleTimeString('en-US', {
           hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York'
         });
 
-        // Only a genuinely long gap gets a null spliced in (Chart.js renders
-        // that as a real hole). Gaps in between stay connected but are styled
-        // dashed via the `segment` callback below.
-        const hrcData = [];
-        for (let i = 0; i < hrCurvePoints.length; i++) {
-          const p = hrCurvePoints[i];
-          if (i > 0 && (p.x - hrCurvePoints[i - 1].x) > HRC_BREAK_MS) {
-            hrcData.push({ x: hrCurvePoints[i - 1].x + 1, y: null });
-          }
-          hrcData.push(p);
-        }
-        // Segment-level styling: fade + dash any connector spanning an
-        // estimated gap. ctx.p0/p1 are null-safe here since null-y segments
-        // are skipped by Chart.js before this callback runs on them.
-        const hrcSegmentGapMs = (ctx) => (ctx.p1.parsed.x - ctx.p0.parsed.x);
-        const hrcIsEstimated = (ctx) => hrcSegmentGapMs(ctx) > HRC_ESTIMATE_MAX_MS;
+        // Bridge every gap: one continuous line connecting the REAL readings,
+        // however far apart. The ring records sparsely during active/daytime
+        // hours, so breaking the line there made a normal day look broken.
+        // No bpm is invented — we only connect points the ring actually
+        // recorded (spanGaps:true below draws straight between them).
+        const hrcData = hrCurvePoints.slice();
 
         const hrcW = hrCurveWindow || {};
         const hrcFallbackStart = hrCurvePoints[0].x;
@@ -1290,11 +1274,7 @@
               borderColor: '#fb7185',
               backgroundColor: 'rgba(251, 113, 133, 0.10)',
               borderWidth: 2, tension: 0.35, fill: true,
-              spanGaps: false,
-              segment: {
-                borderDash: (ctx) => hrcIsEstimated(ctx) ? [5, 4] : undefined,
-                borderColor: (ctx) => hrcIsEstimated(ctx) ? 'rgba(251, 113, 133, 0.5)' : undefined,
-              },
+              spanGaps: true,
               pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: '#fb7185',
             }]
           },

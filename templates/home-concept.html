@@ -1026,14 +1026,12 @@
       if(!panel||!panel.classList.contains('open'))return;
       if(typeof Chart==='undefined')return;
       const pts=(DAY_POINTS&&DAY_POINTS.length?DAY_POINTS:HR_SERIES)||[];
-      // Break the line across real gaps instead of ruling a straight segment
-      // through them — a 4-hour hole must LOOK like a hole, not like four
-      // hours of smoothly falling heart rate the ring never recorded.
-      const data=[];
-      pts.forEach((p,i)=>{
-        if(i&&p.x-pts[i-1].x>DEAD_MIN)data.push({x:(p.x+pts[i-1].x)/2,y:null});
-        data.push({x:p.x,y:p.y});
-      });
+      // Bridge every gap: connect consecutive REAL readings with one continuous
+      // line, however far apart. No bpm value is invented — we only draw a
+      // straight segment between two points the ring actually recorded, so the
+      // day reads as one continuous trace instead of a broken-looking chart.
+      // (A fully dataless day has no points here and shows the empty state.)
+      const data=pts.map(p=>({x:p.x,y:p.y}));
       if(dayChart){dayChart.data.datasets[0].data=data;dayChart.update('none');return;}
       const cv=document.getElementById('day-chart'); if(!cv)return;
       const css=getComputedStyle(document.documentElement);
@@ -1042,7 +1040,7 @@
       dayChart=new Chart(cv.getContext('2d'),{
         type:'line',
         data:{datasets:[{label:'bpm',data:data,borderColor:accent,borderWidth:1.5,
-          pointRadius:0,tension:0.3,fill:false,spanGaps:false}]},
+          pointRadius:0,tension:0.3,fill:false,spanGaps:true}]},
         options:{responsive:true,maintainAspectRatio:false,animation:false,
           parsing:false,normalized:true,
           interaction:{mode:'nearest',intersect:false},
