@@ -996,6 +996,19 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
     if sleep_periods:
         longest = max(sleep_periods, key=lambda p: p["dur"])
         main_sleep = {"dur": longest["dur"], "wake": longest["be"]}
+
+    # The sleep you woke from THIS morning: the longest sleep whose wake time
+    # lands inside the day. Distinct from `longest` above (which can be tonight's
+    # nap-in-progress on a partial day) so the timeline opens with last night's
+    # real sleep → wake → the day. Onset can be the night before; that's the
+    # point — a day owns the sleep it woke out of. Reveal-gated at output.
+    morning_sleep = None
+    _ms = [p for p in sleep_periods
+           if day_start <= p["be"] < day_end and (p["be"] - p["bs"]).total_seconds() >= 2 * 3600]
+    if _ms:
+        ms = max(_ms, key=lambda p: (p["be"] - p["bs"]).total_seconds())
+        morning_sleep = {"start": ms["bs"], "wake": ms["be"],
+                         "dur": ms.get("dur") or int((ms["be"] - ms["bs"]).total_seconds())}
         for p in sleep_periods:
             is_main = p is longest
             if not is_main and (p["be"] - p["bs"]).total_seconds() < 1200:
@@ -1163,6 +1176,19 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
         "wake": ({"x": round(mins(main_sleep["wake"]), 1), "clk": clk(mins(main_sleep["wake"]))}
                  if main_sleep and main_sleep.get("wake") and day_start <= main_sleep["wake"] < day_end
                  else None),
+        # Last night's sleep, shown as the day's opening event (sleep → wake →
+        # day). Private: only the owner (reveal) sees sleep detail; the public
+        # view gets None, exactly like the asleep/nap bands. `x` is pinned just
+        # before wake so it always sorts to the top of the timeline; the label
+        # carries the TRUE onset/wake clock times even when onset predates the
+        # 4 AM axis floor (the position clamps, the fact doesn't).
+        "sleep": ({
+            "x": round(min(mins(morning_sleep["start"]),
+                           mins(morning_sleep["wake"]) - 1), 1),
+            "start_clk": morning_sleep["start"].strftime("%-I:%M %p"),
+            "wake_clk": morning_sleep["wake"].strftime("%-I:%M %p"),
+            "dur": _fmt_duration(int(morning_sleep["dur"])),
+        } if reveal and morning_sleep else None),
         # HR sampled to a compact series for the timeline's vertical trace.
         "hr_series": [{"x": round(m, 1), "y": b} for m, b in zip(tmins, bpm)],
     }

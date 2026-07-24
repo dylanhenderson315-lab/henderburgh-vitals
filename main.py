@@ -512,6 +512,14 @@ def build_day_timeline(replay: dict) -> list:
     _is_today = (_day == _logical_today)
     _weekday = _day.weekday() < 5
 
+    # Last night's sleep opens the day (sleep → wake → work). Owner-only:
+    # compute_day_replay sets replay["sleep"] to None in the public view.
+    if replay.get("sleep"):
+        sl = replay["sleep"]
+        timeline.append({"x": sl["x"], "clk": sl["start_clk"], "kind": "sleep",
+                         "title": "Asleep",
+                         "detail": f"{sl['start_clk']} – {sl['wake_clk']} · {sl['dur']} asleep."})
+
     if replay.get("wake"):
         w = replay["wake"]
         timeline.append({"x": w["x"], "clk": w["clk"], "kind": "wake",
