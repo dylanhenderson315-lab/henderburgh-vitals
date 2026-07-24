@@ -139,10 +139,6 @@ async def _xbox_observer_loop():
                     # Permanently stamp closed sessions with Oura HR for their
                     # window (rate-limited internally; Oura call is cached).
                     await xbox.sweep_session_hr()
-                    # Freeze finalized days into the single-source-of-truth HR
-                    # store so history is never lost to Oura's ~14-day retention
-                    # (rate-limited internally to every few hours).
-                    await xbox.sweep_finalized_days()
                     if game:
                         delay = INTERVALS["playing"]
                     elif str(pstate).lower() == "online":

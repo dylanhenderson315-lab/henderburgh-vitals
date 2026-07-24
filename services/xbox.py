@@ -704,53 +704,6 @@ HR_SWEEP_INTERVAL = 900     # sweep at most every 15 min (client caches the call
 _hr_sweep_last = 0.0
 
 
-_finalize_sweep_last = 0.0
-_FINALIZE_SWEEP_INTERVAL = 6 * 3600   # at most every 6h; days finalize once/day
-
-async def sweep_finalized_days(max_back: int = 12, force: bool = False):
-    """Proactively freeze finalized days into the hr_days store so history is
-    never lost to Oura's ~14-day retention — without waiting for someone to open
-    the day in the explorer. Walks today-2 … today-max_back, pulls any day not
-    already frozen, and stores it. Cheap: frozen days are skipped, so in steady
-    state this pulls at most one new day per run, and only every few hours."""
-    global _finalize_sweep_last
-    now_ts = time.time()
-    if not force and now_ts - _finalize_sweep_last < _FINALIZE_SWEEP_INTERVAL:
-        return
-    _finalize_sweep_last = now_ts
-    if not state.oura_client:
-        return
-    today = _logical_today()
-    for i in range(_FREEZE_AGE_DAYS, max_back + 1):
-        d = today - timedelta(days=i)
-        key = d.isoformat()
-        if persistence.get_hr_day(key):
-            continue
-        midnight = datetime.combine(d, datetime.min.time())
-        ds = midnight + timedelta(hours=_DAY_START_HOUR)
-        de = ds + timedelta(days=1)
-        try:
-            raw = await state.oura_client.get_heartrate_range(_et_iso(ds), _et_iso(de))
-        except Exception:
-            continue
-        kept = []
-        for e in raw or []:
-            if not isinstance(e, dict) or e.get("bpm") is None or not e.get("timestamp"):
-                continue
-            try:
-                t = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
-            except Exception:
-                continue
-            if ds <= t < de:
-                kept.append({"timestamp": e["timestamp"], "bpm": e["bpm"]})
-        if len(kept) >= 12:
-            try:
-                persistence.save_hr_day(key, {"readings": kept, "n": len(kept),
-                                              "frozen_at": _now_et().isoformat()})
-            except Exception:
-                pass
-
-
 async def sweep_session_hr(force: bool = False):
     global _hr_sweep_last
     now_ts = time.time()
@@ -902,11 +855,6 @@ _DAY_START_HOUR = 4
 _DAY_START_MIN = _DAY_START_HOUR * 60          # 240  — first minute on the axis
 _DAY_END_MIN = _DAY_START_MIN + 1440           # 1680 — last minute on the axis
 
-# A logical day this many days old is treated as finalized: Oura has surely
-# finished syncing it, so we freeze its HR curve permanently (see the hr_days
-# store in persistence). today and yesterday stay live (still syncing).
-_FREEZE_AGE_DAYS = 2
-
 
 def _logical_date(dt):
     """The logical day a moment belongs to (its calendar date, rolled back one
@@ -955,48 +903,13 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
         return max(float(_DAY_START_MIN),
                    min(float(_DAY_END_MIN), (dt - midnight).total_seconds() / 60))
 
-    # Full-day HR curve. Single source of truth: a finalized past day is read
-    # from the frozen store (persistence.get_hr_day) and NEVER re-pulled. Only
-    # today / yesterday (still syncing) and not-yet-frozen days hit Oura, via the
-    # datetime endpoint (date params return only a recent slice). A day old
-    # enough that Oura has surely finished syncing it (>= _FREEZE_AGE_DAYS) is
-    # frozen permanently on first pull, so history can't be lost to Oura's
-    # ~14-day retention or drift between views.
-    day_iso_key = day.isoformat()
-    _stored = persistence.get_hr_day(day_iso_key)
-    if _stored and _stored.get("readings") is not None:
-        raw = _stored["readings"]
-    else:
-        try:
-            raw = await state.oura_client.get_heartrate_range(
-                _et_iso(day_start), _et_iso(day_end))
-        except Exception:
-            raw = []
-        # Freeze once the day is safely finalized and the pull actually returned
-        # a real day — never freeze an empty or half-synced curve.
-        try:
-            age_days = (_logical_today() - day).days
-        except Exception:
-            age_days = 0
-        if raw and age_days >= _FREEZE_AGE_DAYS:
-            _kept = []
-            for e in raw:
-                if not isinstance(e, dict) or e.get("bpm") is None or not e.get("timestamp"):
-                    continue
-                try:
-                    _t = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00")).astimezone(_ET).replace(tzinfo=None)
-                except Exception:
-                    continue
-                if day_start <= _t < day_end:
-                    _kept.append({"timestamp": e["timestamp"], "bpm": e["bpm"]})
-            if len(_kept) >= 12:
-                try:
-                    persistence.save_hr_day(day_iso_key, {
-                        "readings": _kept, "n": len(_kept),
-                        "frozen_at": _now_et().isoformat(),
-                    })
-                except Exception:
-                    pass
+    # Full-day HR curve — MUST use the datetime endpoint (date params return only
+    # a recent slice, which is what made the old chart show ~3 evening hours).
+    try:
+        raw = await state.oura_client.get_heartrate_range(
+            _et_iso(day_start), _et_iso(day_end))
+    except Exception:
+        raw = []
     pts = []
     for e in raw or []:
         if not isinstance(e, dict) or e.get("bpm") is None or not e.get("timestamp"):
@@ -1055,19 +968,13 @@ async def compute_day_replay(achievements=None, day_offset=1, reveal=False, day=
             hidden_count += 1               # private during work hours
             continue
         name = _clean_title(s["game"])
+        label = name + (f" · ♥{s['hr_avg']}" if s.get("hr_avg") else "")
         x0, x1 = mins(max(st, day_start)), mins(min(en, day_end))
-        # Per-game HR comes from THIS day's finalized curve (the single source of
-        # truth), not the live-recorded s["hr_avg"]. Average the real readings
-        # that fall inside the session; need a few to be honest, else no HR (the
-        # ring recorded nothing then — never invent a number from the bridge).
-        _seg = [bpm[i] for i in range(len(tmins)) if x0 <= tmins[i] <= x1]
-        hr_game = round(sum(_seg) / len(_seg)) if len(_seg) >= 4 else None
-        label = name + (f" · ♥{hr_game}" if hr_game else "")
         bands.append({"kind": kind, "label": label, "x0": round(x0, 1), "x1": round(x1, 1)})
         activity_spans.append((x0, x1))
         if kind == "game":
             game_facts.append({"name": name, "dur": (min(en, day_end) - max(st, day_start)).total_seconds(),
-                               "hr": hr_game, "start": max(st, day_start)})
+                               "hr": s.get("hr_avg"), "start": max(st, day_start)})
 
     # Sleep (longest = 'asleep', others 'nap').
     try:
