@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
-from storage.json_store import read_json, write_json
+from storage.json_store import read_json, write_json, update_json
 from services import state
 from config import DATA_DIR as _DATA_DIR
 
@@ -402,6 +402,32 @@ def load_xbox_log():
 
 def save_xbox_log(log):
     write_json(XBOX_LOG_FILE, log)
+
+
+# =============================================================================
+# Finalized daily heart-rate curves — the SINGLE SOURCE OF TRUTH for a past day.
+#
+# Oura's heartrate endpoint only retains ~14 days, and reconstructing a day from
+# live samples recorded during it is lossy. So once a completed day has fully
+# synced, we pull its full curve ONCE and freeze it here, permanently. Every
+# view (home timeline, vitals, xbox replay, per-game HR) reads this frozen curve
+# for past days instead of re-deriving anything live. Keyed by logical day
+# (YYYY-MM-DD, the 4 AM→4 AM day). A frozen day never changes and never re-hits
+# Oura, so history is correct, consistent everywhere, and can't be lost.
+# =============================================================================
+HR_DAYS_FILE = _seed("hr_days.json") or (DATA_PATH / "hr_days.json")
+
+def load_hr_days() -> Dict[str, Any]:
+    return read_json(HR_DAYS_FILE, {})
+
+def get_hr_day(day_iso: str):
+    """The frozen record for a day: {"readings": [...], "frozen_at", "n"} or None."""
+    return load_hr_days().get(day_iso)
+
+def save_hr_day(day_iso: str, record: Dict[str, Any]):
+    """Freeze one finalized day permanently. Read-modify-write under lock so a
+    concurrent freeze of a different day can't clobber this one."""
+    update_json(HR_DAYS_FILE, {}, lambda store: {**store, day_iso: record})
 
 
 # =============================================================================
