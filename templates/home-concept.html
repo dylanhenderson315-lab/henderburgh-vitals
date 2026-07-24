@@ -179,6 +179,9 @@
     font-size:clamp(2.5rem,6vw,3.75rem);line-height:1.05;letter-spacing:-0.04em;max-width:18ch;}
   h1 .status{color:var(--accent);font-weight:600;}
   .hero-sub{margin-top:18px;color:var(--text-2);font-size:0.9375rem;max-width:52ch;line-height:1.55;font-family:var(--font-sans);}
+  .hero-nav{display:flex;flex-wrap:wrap;gap:20px;margin-top:22px;font-family:var(--font-sans);font-size:13px;letter-spacing:0.01em;}
+  .hero-nav a{color:var(--text-dim);text-decoration:none;transition:color .15s ease;}
+  .hero-nav a:hover{color:var(--text);}
 
   /* Office-lamp poke — ported from /oldhomepage, restyled to the instrument
      look: a small bordered icon button rather than a rounded emerald pill. */
@@ -444,6 +447,17 @@
 
 <section class="hero page">
   <div class="eyebrow">PERSONAL OS &middot; LIVE</div>
+
+  <nav class="hero-nav">
+    <a href="/vitals">Vitals</a>
+    <a href="/home-assistant">Lighting</a>
+    <a href="/model">Model</a>
+    <a href="/arcade">Arcade</a>
+    <a href="/golf">Golf</a>
+    <a href="/clips">Clips</a>
+    <a href="/xbox">Xbox</a>
+    <a href="/blog">Blog</a>
+  </nav>
 
   {# The headline IS the live status, ported from the old home page's full
      cascade: Xbox presence (playing / watching) beats music (listening)

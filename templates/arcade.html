@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arcade • HENDERBURGH</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <meta property="og:title" content="HENDERBURGH • Arcade">
+  <meta property="og:description" content="A 64x64 LED matrix arcade — Snake, Tetris and self-playing ambient games on a physical panel.">
+  <meta property="og:type" content="website">
+  <meta name="description" content="The HENDERBURGH Arcade: a physical 64x64 LED matrix that plays Snake, Tetris, self-playing demos, and mirrors video.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/tokens.css?v=5">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .display-font { font-family: 'Space Grotesk', sans-serif; }
+    .arcade-card { background:#141416; border:1px solid #27272a; border-radius:1.25rem; }
+    .pixel-dot { width:6px; height:6px; border-radius:1px; }
+  </style>
+</head>
+<body class="bg-[#0a0a0b] text-zinc-100 min-h-screen antialiased">
+
+  <!-- Top bar -->
+  <header class="border-b border-zinc-900 sticky top-0 z-40 bg-[#0a0a0b]/90 backdrop-blur">
+    <div class="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-x-2.5 group">
+        <span class="display-font text-sm tracking-[0.28em] font-semibold">HENDERBURGH</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-x-8 text-sm">
+        <a href="/" class="hover:text-white text-zinc-400 transition">Home</a>
+        <a href="/vitals" class="hover:text-white text-zinc-400 transition">Vitals</a>
+        <a href="/home-assistant" class="hover:text-white text-zinc-400 transition">Lighting</a>
+        <a href="/model" class="hover:text-white text-zinc-400 transition">Model</a>
+        <a href="/arcade" class="text-white transition">Arcade</a>
+        <a href="/clips" class="hover:text-white text-zinc-400 transition">Clips</a>
+        <a href="/xbox" class="hover:text-white text-zinc-400 transition">Xbox</a>
+        <a href="/blog" class="hover:text-white text-zinc-400 transition">Blog</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-5 py-12 md:py-16 pb-28">
+
+    <!-- Hero -->
+    <div class="flex items-center gap-x-3 mb-3">
+      <div class="flex gap-x-1">
+        <span class="pixel-dot bg-emerald-400"></span>
+        <span class="pixel-dot bg-yellow-400"></span>
+        <span class="pixel-dot bg-red-400"></span>
+        <span class="pixel-dot bg-sky-400"></span>
+      </div>
+      <span class="text-xs tracking-[0.2em] text-zinc-500 uppercase">Apollo M-1 · 64 × 64</span>
+    </div>
+    <h1 class="display-font text-4xl md:text-5xl font-semibold tracking-tight mb-4">Arcade</h1>
+    <p class="text-zinc-400 max-w-xl leading-relaxed mb-10">
+      A physical LED matrix on the wall that plays real games — Snake and Tetris you can
+      control, self-playing demos as ambient art, and a live video mirror. It's driven
+      from a little service running on the home network.
+    </p>
+
+    <!-- Launch card -->
+    <div class="arcade-card p-6 md:p-8 mb-10">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div>
+          <h2 class="display-font text-lg font-semibold mb-1">Control Panel</h2>
+          <p class="text-sm text-zinc-500 max-w-md leading-relaxed">
+            Opens the live controller — pick a game, steer with your keyboard or the on-screen
+            pad, and watch it on the panel. Works when you're on the home network.
+          </p>
+        </div>
+        <a href="{{ arcade_url }}" target="_blank" rel="noopener"
+           class="shrink-0 inline-flex items-center justify-center gap-x-2 px-6 py-3 rounded-full
+                  bg-emerald-500 text-emerald-950 font-semibold hover:bg-emerald-400 transition">
+          <i class="fa-solid fa-gamepad"></i> Open Control Panel
+        </a>
+      </div>
+    </div>
+
+    <!-- Modes grid -->
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="arcade-card p-5">
+        <div class="text-emerald-400 mb-2"><i class="fa-solid fa-worm"></i></div>
+        <h3 class="font-semibold mb-1">Snake</h3>
+        <p class="text-sm text-zinc-500">Classic Snake, crisp at 32×32. Arrow keys or WASD.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-sky-400 mb-2"><i class="fa-solid fa-shapes"></i></div>
+        <h3 class="font-semibold mb-1">Tetris</h3>
+        <p class="text-sm text-zinc-500">Full Tetris well with rotation, line clears and hard drop.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-yellow-400 mb-2"><i class="fa-solid fa-robot"></i></div>
+        <h3 class="font-semibold mb-1">Self-play (ambient)</h3>
+        <p class="text-sm text-zinc-500">The games play themselves as living wall art when idle.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-red-400 mb-2"><i class="fa-solid fa-tv"></i></div>
+        <h3 class="font-semibold mb-1">Video mirror</h3>
+        <p class="text-sm text-zinc-500">Mirror any window — emulators, cartoons — downscaled to the panel.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Mobile bottom navigation -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111113] border-t border-zinc-800"
+       style="padding-bottom: env(safe-area-inset-bottom, 0);">
+    <div class="flex items-center justify-around text-[10px] text-zinc-400 py-2">
+      <a href="/" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-home text-base"></i><span>Home</span></a>
+      <a href="/home-assistant" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-lightbulb text-base"></i><span>Lighting</span></a>
+      <a href="/model" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-cube text-base"></i><span>Model</span></a>
+      <a href="/arcade" class="flex flex-col items-center gap-y-0.5 text-white"><i class="fa-solid fa-gamepad text-base"></i><span>Arcade</span></a>
+      <a href="/clips" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-video text-base"></i><span>Clips</span></a>
+      <a href="/blog" class="flex flex-col items-center gap-y-0.5"><i class="fa-solid fa-book text-base"></i><span>Blog</span></a>
+    </div>
+  </nav>
+
+</body>
+</html>

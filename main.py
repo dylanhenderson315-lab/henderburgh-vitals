@@ -1850,6 +1850,17 @@ async def golf_page(request: Request):
     })
 
 
+@app.get("/arcade", response_class=HTMLResponse)
+async def arcade_page(request: Request):
+    """Physical 64x64 LED-matrix arcade. This page launches the local control
+    panel served by wled-m1-arcade/arcade_server.py on the home network.
+    Set ARCADE_URL to the Mac's LAN address (reserve its DHCP IP for stability)."""
+    return _render("arcade.html", {
+        "request": request,
+        "arcade_url": os.getenv("ARCADE_URL", "http://192.168.40.203:7333"),
+    })
+
+
 
 
 @app.get("/clips", response_class=HTMLResponse)
