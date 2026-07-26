@@ -55,19 +55,20 @@
     </div>
     <h1 class="display-font text-4xl md:text-5xl font-semibold tracking-tight mb-4">Arcade</h1>
     <p class="text-zinc-400 max-w-xl leading-relaxed mb-10">
-      A physical LED matrix on the wall that plays real games — Snake and Tetris you can
-      control, self-playing demos as ambient art, and a live video mirror. It's driven
-      from a little service running on the home network.
+      A physical LED matrix on the wall that plays real games — Snake, Tetris, Pong,
+      Breakout, Tron, Flappy, Invaders, Dodge, 2048 and Life — each with a self-playing
+      auto mode for ambient wall art, plus video mirror, file loop and phone cast.
+      Driven from a service on the home network.
     </p>
 
-    <!-- Launch card -->
-    <div class="arcade-card p-6 md:p-8 mb-10">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+    <!-- Launch cards -->
+    <div class="grid sm:grid-cols-2 gap-4 mb-10">
+      <div class="arcade-card p-6 md:p-8 flex flex-col justify-between gap-6">
         <div>
           <h2 class="display-font text-lg font-semibold mb-1">Control Panel</h2>
-          <p class="text-sm text-zinc-500 max-w-md leading-relaxed">
-            Opens the live controller — pick a game, steer with your keyboard or the on-screen
-            pad, and watch it on the panel. Works when you're on the home network.
+          <p class="text-sm text-zinc-500 leading-relaxed">
+            The full desktop dashboard — pick a game, steer with your keyboard, tweak
+            backgrounds and mirror settings. Works on the home network.
           </p>
         </div>
         <a href="{{ arcade_url }}" target="_blank" rel="noopener"
@@ -76,29 +77,83 @@
           <i class="fa-solid fa-gamepad"></i> Open Control Panel
         </a>
       </div>
+      <div class="arcade-card p-6 md:p-8 flex flex-col justify-between gap-6">
+        <div>
+          <h2 class="display-font text-lg font-semibold mb-1">Phone Remote</h2>
+          <p class="text-sm text-zinc-500 leading-relaxed">
+            Hold it sideways like a game controller. Browse and pick games right on the
+            panel — the phone is just the D-pad and buttons. Home WiFi only.
+          </p>
+        </div>
+        <a href="{{ arcade_url }}/remote" target="_blank" rel="noopener"
+           class="shrink-0 inline-flex items-center justify-center gap-x-2 px-6 py-3 rounded-full
+                  bg-sky-500 text-sky-950 font-semibold hover:bg-sky-400 transition">
+          <i class="fa-solid fa-mobile-screen-button"></i> Open Phone Remote
+        </a>
+      </div>
     </div>
 
     <!-- Modes grid -->
-    <div class="grid sm:grid-cols-2 gap-4">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <div class="arcade-card p-5">
         <div class="text-emerald-400 mb-2"><i class="fa-solid fa-worm"></i></div>
         <h3 class="font-semibold mb-1">Snake</h3>
-        <p class="text-sm text-zinc-500">Classic Snake, crisp at 32×32. Arrow keys or WASD.</p>
+        <p class="text-sm text-zinc-500">Classic Snake at 32×32. Play or watch auto hunt food.</p>
       </div>
       <div class="arcade-card p-5">
         <div class="text-sky-400 mb-2"><i class="fa-solid fa-shapes"></i></div>
         <h3 class="font-semibold mb-1">Tetris</h3>
-        <p class="text-sm text-zinc-500">Full Tetris well with rotation, line clears and hard drop.</p>
+        <p class="text-sm text-zinc-500">Full well, rotation, line clears, hard drop + auto stacker.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-white mb-2"><i class="fa-solid fa-table-tennis-paddle-ball"></i></div>
+        <h3 class="font-semibold mb-1">Pong</h3>
+        <p class="text-sm text-zinc-500">You vs CPU. Auto mode runs endless rallies as ambient art.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-orange-400 mb-2"><i class="fa-solid fa-brick"></i></div>
+        <h3 class="font-semibold mb-1">Breakout</h3>
+        <p class="text-sm text-zinc-500">Clear the brick wall. Auto tracks the ball and clears boards.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-cyan-400 mb-2"><i class="fa-solid fa-bolt"></i></div>
+        <h3 class="font-semibold mb-1">Tron</h3>
+        <p class="text-sm text-zinc-500">Light cycles on the full 64×64. Auto weaves trails forever.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-yellow-400 mb-2"><i class="fa-solid fa-dove"></i></div>
+        <h3 class="font-semibold mb-1">Flappy</h3>
+        <p class="text-sm text-zinc-500">Tap to flap through pipes. Auto aims for every gap.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-pink-400 mb-2"><i class="fa-solid fa-jet-fighter"></i></div>
+        <h3 class="font-semibold mb-1">Invaders</h3>
+        <p class="text-sm text-zinc-500">Classic alien march. Auto aims, shoots and dodges bombs.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-red-400 mb-2"><i class="fa-solid fa-person-running"></i></div>
+        <h3 class="font-semibold mb-1">Dodge</h3>
+        <p class="text-sm text-zinc-500">Sidestep falling blocks. Auto picks the safest lane.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-amber-300 mb-2"><i class="fa-solid fa-table-cells"></i></div>
+        <h3 class="font-semibold mb-1">2048</h3>
+        <p class="text-sm text-zinc-500">Colour tiles on a 4×4. Auto merges toward high scores.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-lime-400 mb-2"><i class="fa-solid fa-bacterium"></i></div>
+        <h3 class="font-semibold mb-1">Life</h3>
+        <p class="text-sm text-zinc-500">Conway’s Game of Life. Auto reseeds when the board dies out.</p>
       </div>
       <div class="arcade-card p-5">
         <div class="text-yellow-400 mb-2"><i class="fa-solid fa-robot"></i></div>
         <h3 class="font-semibold mb-1">Self-play (ambient)</h3>
-        <p class="text-sm text-zinc-500">The games play themselves as living wall art when idle.</p>
+        <p class="text-sm text-zinc-500">Every game has an auto mode — leave it on as living wall art.</p>
       </div>
       <div class="arcade-card p-5">
         <div class="text-red-400 mb-2"><i class="fa-solid fa-tv"></i></div>
-        <h3 class="font-semibold mb-1">Video mirror</h3>
-        <p class="text-sm text-zinc-500">Mirror any window — emulators, cartoons — downscaled to the panel.</p>
+        <h3 class="font-semibold mb-1">Video · Mirror · Cast</h3>
+        <p class="text-sm text-zinc-500">Loop a file, mirror a window, or cast from your phone.</p>
       </div>
     </div>
 
