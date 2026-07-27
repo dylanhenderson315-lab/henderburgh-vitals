@@ -1565,6 +1565,18 @@ async def get_access_requests(request: Request):
     return persistence.load_access_requests()
 
 
+@app.delete("/api/ha/access-requests/{req_id}")
+async def delete_access_request(req_id: str, request: Request):
+    """Protected: dismiss a single access request. Same require_admin() session-
+    cookie auth as the GET above (this dropped during the services/ refactor --
+    home-assistant.html's dismiss button was still calling it and 404ing)."""
+    require_admin(request)
+    reqs = persistence.load_access_requests()
+    reqs = [r for r in reqs if r.get("id") != req_id]
+    persistence.save_access_requests(reqs)
+    return {"status": "deleted"}
+
+
 
 
 @app.get("/api/ha/tv-sync")
