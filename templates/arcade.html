@@ -6,9 +6,9 @@
   <title>Arcade • HENDERBURGH</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <meta property="og:title" content="HENDERBURGH • Arcade">
-  <meta property="og:description" content="A 64x64 LED matrix arcade — Snake, Tetris and self-playing ambient games on a physical panel.">
+  <meta property="og:description" content="A 64×64 LED matrix on the wall — 14 games, live flight/ISS/sports/weather data, and a full-panel Game Day takeover.">
   <meta property="og:type" content="website">
-  <meta name="description" content="The HENDERBURGH Arcade: a physical 64x64 LED matrix that plays Snake, Tetris, self-playing demos, and mirrors video.">
+  <meta name="description" content="The HENDERBURGH Arcade: a physical 64×64 LED matrix running 14 games, live data modes (flights, ISS, sports, weather, news), an ambient rotation and a Game Day event takeover.">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/tokens.css?v=5">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -54,11 +54,12 @@
       <span class="text-xs tracking-[0.2em] text-zinc-500 uppercase">Apollo M-1 · 64 × 64</span>
     </div>
     <h1 class="display-font text-4xl md:text-5xl font-semibold tracking-tight mb-4">Arcade</h1>
-    <p class="text-zinc-400 max-w-xl leading-relaxed mb-10">
-      A physical LED matrix on the wall that plays real games — Snake, Tetris, Pong,
-      Breakout, Tron, Flappy, Invaders, Dodge, 2048 and Life — each with a self-playing
-      auto mode for ambient wall art, plus video mirror, file loop and phone cast.
-      Driven from a service on the home network.
+    <p class="text-zinc-400 max-w-2xl leading-relaxed mb-10">
+      A physical LED matrix on the wall. It started as a games console — 14 of them,
+      each with a self-playing auto mode — and grew into a live information panel:
+      aircraft overhead, the next ISS pass, scores across seven leagues, weather with
+      severe-alert takeover, headlines, and a full-panel Game Day mode for one event.
+      Driven by a service on the home network, streaming frames to the panel over DDP.
     </p>
 
     <!-- Launch cards -->
@@ -93,25 +94,26 @@
       </div>
     </div>
 
-    <!-- Modes grid -->
+    <h2 class="display-font text-sm tracking-[0.2em] uppercase text-zinc-500 mt-12 mb-1">Games</h2>
+    <p class="text-sm text-zinc-500 mb-4 max-w-2xl">Fourteen native games, all running headless on the panel itself. Every one has a self-playing auto mode.</p>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <div class="arcade-card p-5">
         <div class="text-emerald-400 mb-2"><i class="fa-solid fa-worm"></i></div>
         <h3 class="font-semibold mb-1">Snake</h3>
-        <p class="text-sm text-zinc-500">Classic Snake at 32×32. Play or watch auto hunt food.</p>
+        <p class="text-sm text-zinc-500">Classic Snake at 32×32. Play, or watch auto hunt food.</p>
       </div>
       <div class="arcade-card p-5">
         <div class="text-sky-400 mb-2"><i class="fa-solid fa-shapes"></i></div>
         <h3 class="font-semibold mb-1">Tetris</h3>
-        <p class="text-sm text-zinc-500">Full well, rotation, line clears, hard drop + auto stacker.</p>
+        <p class="text-sm text-zinc-500">Full well, rotation, line clears, hard drop and a hold slot.</p>
       </div>
       <div class="arcade-card p-5">
         <div class="text-white mb-2"><i class="fa-solid fa-table-tennis-paddle-ball"></i></div>
         <h3 class="font-semibold mb-1">Pong</h3>
-        <p class="text-sm text-zinc-500">You vs CPU. Auto mode runs endless rallies as ambient art.</p>
+        <p class="text-sm text-zinc-500">You vs CPU. Auto runs endless rallies as ambient art.</p>
       </div>
       <div class="arcade-card p-5">
-        <div class="text-orange-400 mb-2"><i class="fa-solid fa-brick"></i></div>
+        <div class="text-orange-400 mb-2"><i class="fa-solid fa-cubes"></i></div>
         <h3 class="font-semibold mb-1">Breakout</h3>
         <p class="text-sm text-zinc-500">Clear the brick wall. Auto tracks the ball and clears boards.</p>
       </div>
@@ -146,14 +148,116 @@
         <p class="text-sm text-zinc-500">Conway’s Game of Life. Auto reseeds when the board dies out.</p>
       </div>
       <div class="arcade-card p-5">
-        <div class="text-yellow-400 mb-2"><i class="fa-solid fa-robot"></i></div>
-        <h3 class="font-semibold mb-1">Self-play (ambient)</h3>
-        <p class="text-sm text-zinc-500">Every game has an auto mode — leave it on as living wall art.</p>
+        <div class="text-green-400 mb-2"><i class="fa-solid fa-hand-fist"></i></div>
+        <h3 class="font-semibold mb-1">Brawler</h3>
+        <p class="text-sm text-zinc-500">Side-scrolling scrap. Auto fights its way across the panel.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-fuchsia-400 mb-2"><i class="fa-solid fa-ghost"></i></div>
+        <h3 class="font-semibold mb-1">Chase</h3>
+        <p class="text-sm text-zinc-500">Maze pursuit. Auto routes around the walls.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-indigo-400 mb-2"><i class="fa-solid fa-circle-notch"></i></div>
+        <h3 class="font-semibold mb-1">Tunnel</h3>
+        <p class="text-sm text-zinc-500">Endless tunnel run — pure motion, good as wall art.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-amber-400 mb-2"><i class="fa-solid fa-hourglass-half"></i></div>
+        <h3 class="font-semibold mb-1">Powder</h3>
+        <p class="text-sm text-zinc-500">A falling-sand sandbox. Draw straight onto the panel.</p>
+      </div>
+    </div>
+    <h2 class="display-font text-sm tracking-[0.2em] uppercase text-zinc-500 mt-12 mb-1">Live data</h2>
+    <p class="text-sm text-zinc-500 mb-4 max-w-2xl">Real sources, no invented numbers — if a feed is down it says so rather than showing something false.</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="arcade-card p-5">
+        <div class="text-sky-300 mb-2"><i class="fa-solid fa-clock"></i></div>
+        <h3 class="font-semibold mb-1">Clock</h3>
+        <p class="text-sm text-zinc-500">The resting state: time, date, temperature, next ISS pass, sunrise.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-emerald-400 mb-2"><i class="fa-solid fa-chart-line"></i></div>
+        <h3 class="font-semibold mb-1">Ticker</h3>
+        <p class="text-sm text-zinc-500">Crypto and stocks on a configurable watchlist. Keyless sources.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-yellow-300 mb-2"><i class="fa-solid fa-satellite"></i></div>
+        <h3 class="font-semibold mb-1">ISS</h3>
+        <p class="text-sm text-zinc-500">Live position and the next visible pass, rated by how good it is.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-teal-300 mb-2"><i class="fa-solid fa-plane"></i></div>
+        <h3 class="font-semibold mb-1">Flights</h3>
+        <p class="text-sm text-zinc-500">ADS-B traffic overhead, plane icon turned to the real heading, and a notable-aircraft flag for heavies, helicopters and emergency squawks.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-orange-400 mb-2"><i class="fa-solid fa-trophy"></i></div>
+        <h3 class="font-semibold mb-1">Sports</h3>
+        <p class="text-sm text-zinc-500">Seven leagues. Pin a team for a full-screen score with live game state — outs and baserunners, down and distance.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-zinc-200 mb-2"><i class="fa-solid fa-newspaper"></i></div>
+        <h3 class="font-semibold mb-1">News</h3>
+        <p class="text-sm text-zinc-500">Headlines from any RSS feed you point it at. Titles only.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-sky-400 mb-2"><i class="fa-solid fa-cloud-sun"></i></div>
+        <h3 class="font-semibold mb-1">Weather</h3>
+        <p class="text-sm text-zinc-500">NWS conditions, today's high/low and sunrise. Severe alerts take over whatever is on screen.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-violet-400 mb-2"><i class="fa-solid fa-comments"></i></div>
+        <h3 class="font-semibold mb-1">Guestbook</h3>
+        <p class="text-sm text-zinc-500">Messages visitors leave on this site, shown on the wall.</p>
+      </div>
+    </div>
+    <h2 class="display-font text-sm tracking-[0.2em] uppercase text-zinc-500 mt-12 mb-1">Game Day</h2>
+    <p class="text-sm text-zinc-500 mb-4 max-w-2xl">A different kind of mode: opt-in, one event, and nothing else competes for the panel while it runs.</p>
+    <div class="arcade-card p-6 md:p-8 border-red-900/60">
+      <div class="text-red-400 mb-3 text-xl"><i class="fa-solid fa-hand-back-fist"></i></div>
+      <h3 class="display-font text-lg font-semibold mb-2">The only thing happening tonight</h3>
+      <p class="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+        Point it at a UFC card or at your team’s game and it takes the whole panel. For a card it
+        tracks where the night stands, who is walking out next with their records, and the moment a
+        fight ends it throws the result up as a highlight — method, round and time, big. Fight
+        statistics too: significant strikes, takedowns, control time.
+        It hands the panel back on its own when the event is over. Only a severe weather alert
+        can interrupt it.
+      </p>
+    </div>
+    <h2 class="display-font text-sm tracking-[0.2em] uppercase text-zinc-500 mt-12 mb-1">The rest</h2>
+    <p class="text-sm text-zinc-500 mb-4 max-w-2xl">The parts that tie it together.</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="arcade-card p-5">
+        <div class="text-violet-300 mb-2"><i class="fa-solid fa-rotate"></i></div>
+        <h3 class="font-semibold mb-1">Ambient rotation</h3>
+        <p class="text-sm text-zinc-500">Cycles the data modes as curated “channel idents” — one fact each, its own colour and entrance, skipping anything with nothing to say.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-rose-400 mb-2"><i class="fa-solid fa-hand-pointer"></i></div>
+        <h3 class="font-semibold mb-1">Browse anything</h3>
+        <p class="text-sm text-zinc-500">Most panels like this are push-only. Tap to step, hold to fast-scroll — the same control in every mode, and over the rotation itself.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-amber-300 mb-2"><i class="fa-solid fa-moon"></i></div>
+        <h3 class="font-semibold mb-1">Night dimming</h3>
+        <p class="text-sm text-zinc-500">Scheduled day/night brightness with a smooth fade, applied to every mode. Severe alerts stay bright.</p>
       </div>
       <div class="arcade-card p-5">
         <div class="text-red-400 mb-2"><i class="fa-solid fa-tv"></i></div>
         <h3 class="font-semibold mb-1">Video · Mirror · Cast</h3>
         <p class="text-sm text-zinc-500">Loop a file, mirror a window, or cast from your phone.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-yellow-400 mb-2"><i class="fa-solid fa-robot"></i></div>
+        <h3 class="font-semibold mb-1">Self-play</h3>
+        <p class="text-sm text-zinc-500">Every game has an auto mode — leave it on as living wall art.</p>
+      </div>
+      <div class="arcade-card p-5">
+        <div class="text-zinc-300 mb-2"><i class="fa-solid fa-lightbulb"></i></div>
+        <h3 class="font-semibold mb-1">Hand-back</h3>
+        <p class="text-sm text-zinc-500">Turn it off and the panel returns to normal WLED lighting.</p>
       </div>
     </div>
 
