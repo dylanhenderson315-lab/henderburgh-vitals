@@ -81,7 +81,11 @@ else:
     if not OURA_TOKEN:
         print("OURA_TOKEN not set. Dashboard will show setup instructions.")
     if not HA_TOKEN:
-        print("HA_TOKEN not set. Home Assistant features will be unavailable.")
+        raise RuntimeError(
+            "HA_TOKEN is not set. Home Assistant integration requires a "
+            "long-lived access token. Set HA_TOKEN as an environment "
+            "variable on your hosting platform (or in .env for local runs)."
+        )
 
 if PUBLIC_MODE and HA_TOKEN:
     print("HA integration loaded but disabled because PUBLIC_MODE=true (controls hidden).")
