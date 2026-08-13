@@ -30,6 +30,7 @@ from config import (
     ADMIN_TOKEN,
     AUTO_REFRESH_SECONDS,
     DISPLAY_NAME,
+    GTM_CONTAINER_ID,
     HA_ENABLED,
     OURA_DAYS,
     OURA_TOKEN,
@@ -40,6 +41,7 @@ from config import (
     SITE_NAME,
     SITE_URL,
 )
+import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
 from services import home_assistant, persistence, state, vitals, xbox
 from services.xbox import fetch_xbox_status
@@ -204,7 +206,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def _render(template_name: str, context: Dict[str, Any]) -> HTMLResponse:
     template = templates.env.get_template(template_name)
-    return HTMLResponse(template.render(**context))
+    html = template.render(**context)
+    return HTMLResponse(gtm.inject(html, GTM_CONTAINER_ID))
 
 
 def client_ip(request: Request) -> str:

@@ -17,6 +17,7 @@ os.environ.setdefault("XBL_API_KEY", "")
 os.environ.setdefault("HA_TOKEN", "")
 
 from clients.oura import compute_trend, process_dashboard_data
+from gtm import inject, normalize_container_id
 from auth import create_admin_session, is_admin_authenticated
 from storage.json_store import read_json, write_json
 
@@ -253,3 +254,23 @@ def test_blog_delete_requires_admin_and_works(tmp_path, monkeypatch):
     ids = {m.get("id") for m in remaining}
     assert parent["id"] not in ids
     assert reply["id"] not in ids
+
+
+def test_gtm_id_must_be_real_container():
+    assert normalize_container_id("GTM-ABC123") == "GTM-ABC123"
+    assert normalize_container_id("gtm-abc123") == "GTM-ABC123"
+    assert normalize_container_id("G-XXXX") == ""
+    assert normalize_container_id("") == ""
+    assert normalize_container_id("not-a-tag") == ""
+
+
+def test_gtm_injects_into_full_page_only():
+    page = "<!DOCTYPE html><html><head><title>x</title></head><body><p>hi</p></body></html>"
+    out = inject(page, "GTM-TEST1")
+    assert "googletagmanager.com/gtm.js" in out
+    assert "GTM-TEST1" in out
+    assert "ns.html?id=GTM-TEST1" in out
+    # fragment / HTMX piece — do not inject
+    assert "gtm.js" not in inject("<div>card</div>", "GTM-TEST1")
+    # already tagged — do not double
+    assert out.count("gtm.js") == inject(out, "GTM-TEST1").count("gtm.js")

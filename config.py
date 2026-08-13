@@ -6,6 +6,8 @@ import os
 
 from dotenv import load_dotenv
 
+from gtm import normalize_container_id
+
 load_dotenv()
 
 OURA_TOKEN = os.getenv("OURA_TOKEN", "").strip()
@@ -16,6 +18,10 @@ PUBLIC_MODE = os.getenv("PUBLIC_MODE", "false").lower() in ("1", "true", "yes")
 DISPLAY_NAME = (os.getenv("DISPLAY_NAME", "HENDERBURGH").strip() or "HENDERBURGH").upper()
 SITE_NAME = (os.getenv("SITE_NAME", "HENDERBURGH").strip() or "HENDERBURGH").upper()
 SITE_URL = os.getenv("SITE_URL", "https://henderburgh.com")
+
+# Google Tag Manager container (GTM-XXXX). GA4 is configured inside GTM,
+# not as a second snippet. Blank = no tag (local/dev default).
+GTM_CONTAINER_ID = normalize_container_id(os.getenv("GTM_CONTAINER_ID", ""))
 
 # Directory for persisted JSON (model, blog, etc.). On Railway, point this at a
 # mounted volume (e.g. DATA_DIR=/data) so saved rooms/furniture survive redeploys.
