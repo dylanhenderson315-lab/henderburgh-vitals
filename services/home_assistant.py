@@ -66,7 +66,13 @@ async def capture_light_snapshot():
         lights.append({
             "id": eid,
             "room": room_of.get(eid),
-            "name": attrs.get("friendly_name"),
+            # Fall back to a title-cased entity id when HA momentarily omits
+            # friendly_name (WLED segment sub-entities, a brief re-registration
+            # after an HA restart). Without this fallback, a light's history
+            # silently forks into two identities the moment one poll comes back
+            # nameless — the raw id and the friendly name never merge back —
+            # which is exactly what happened to ~18 lights before this fix.
+            "name": attrs.get("friendly_name") or eid.split(".", 1)[-1].replace("_", " ").title(),
             "on": on,
             "brightness": attrs.get("brightness"),          # 0-255 or None
             "rgb": attrs.get("rgb_color"),                   # [r,g,b] or None
