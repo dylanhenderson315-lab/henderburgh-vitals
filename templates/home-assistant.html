@@ -2860,7 +2860,7 @@
             <span class="block text-sm text-zinc-200 mt-0.5 font-medium">Tap for ${HOUSE_MODES[sug.key].name} →</span>
           </button>` : ''}
           <div class="grid grid-cols-2 lg:grid-cols-3 gap-2">
-            ${Object.entries(HOUSE_MODES).map(([key, m]) => `
+            ${Object.entries(HOUSE_MODES).filter(([key]) => key !== 'lights-out').map(([key, m]) => `
               <button onclick="runMode('${key}')"
                 class="hb-spot mode-card text-left p-4 rounded-2xl border border-zinc-700 bg-[#141518] hover:border-emerald-500/40 active:scale-[0.97] transition min-h-[86px]">
                 <i class="fa-solid ${m.icon} text-emerald-300/90 text-sm"></i>
