@@ -2413,8 +2413,8 @@
     // bedtime) — split into Evening + Bedtime instead of averaging them into
     // a state nobody actually uses.
     const HOUSE_MODES = {
-      'desk-on':   { icon: 'fa-bolt',        name: 'Desk Lights On', desc: 'Party — Desk Bars + Bookshelf',
-                     run: () => [[[DESK_BARS, 'light.bookshelf_lamp'], { effect: 'Party' }]] },
+      'desk-on':   { icon: 'fa-bolt',        name: 'Desk Lights On', desc: 'Party — Desk Bars, Bookshelf + Desk Lamp',
+                     run: () => [[[DESK_BARS, 'light.bookshelf_lamp', 'light.office_lamp'], { effect: 'Party' }]] },
       'meeting':   { icon: 'fa-video',       name: 'Meeting Mode',   desc: 'Candlelight, dimmed — no colors shifting',
                      run: () => [[[DESK_BARS, 'light.bookshelf_lamp'], { effect: 'Candlelight', brightness_pct: 58 }],
                                  [['light.office_lamp'], { effect: 'Candlelight', brightness_pct: 51 }]] },
