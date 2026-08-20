@@ -10,7 +10,7 @@
   <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Design tokens: one source of truth for colour/type/radius/motion. -->
-  <link rel="stylesheet" href="/static/tokens.css?v=5">
+  <link rel="stylesheet" href="/static/tokens.css?v=6">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
   <style>
@@ -2402,20 +2402,38 @@
     const DESK_BARS = 'light.wiz_rgbw_tunable_ef497e';   // "Desk Light Bars"
     const TV_LIGHTS = 'light.t_v_lights';
 
+    // Rebuilt from 32 days of real usage (see /insights) instead of guessed —
+    // the original six modes were invented and several contradicted actual
+    // behavior outright (Gaming's "rich violet" never once appears in the
+    // data; real gaming sessions run Party, identical to the old Work Mode,
+    // so those two collapsed into one honest button). Movie Time had no real
+    // signal at all and is gone rather than kept as a guess. Wind-Down's
+    // "dim everything to 30%" contradicted TWO separate real behaviors (warm
+    // white at real 76-97% brightness in the evening, then fully OFF at
+    // bedtime) — split into Evening + Bedtime instead of averaging them into
+    // a state nobody actually uses.
     const HOUSE_MODES = {
-      'work':      { icon: 'fa-laptop-code', name: 'Work Mode',   desc: 'Desk bars on Party, lamp neutral',
-                     run: () => [[[DESK_BARS], { effect: 'Party' }],
-                                 [['light.office_lamp'], { color_temp_kelvin: 4500, brightness_pct: 80 }]] },
-      'meeting':   { icon: 'fa-video',       name: 'Meeting Mode', desc: 'Steady white — no colors shifting',
-                     run: () => [[roomLightIds('Game Room'), { color_temp_kelvin: 4200, brightness_pct: 75 }]] },
-      'movie':     { icon: 'fa-film',        name: 'Movie Time',  desc: 'TV lights sync mood, rest dim warm',
-                     run: () => [[[TV_LIGHTS], { effect: 'TV time' }],
-                                 [roomLightIds('Game Room').filter(id => id !== TV_LIGHTS), { color_temp_kelvin: 2700, brightness_pct: 12 }]] },
-      'gaming':    { icon: 'fa-gamepad',     name: 'Gaming',      desc: 'Rich violet game room',
-                     run: () => [[roomLightIds('Game Room'), { rgb_color: [140, 60, 235], brightness_pct: 55 }]] },
-      'wind-down': { icon: 'fa-moon',        name: 'Wind-Down',   desc: 'Whole house warm & dim',
-                     run: () => [[allLightIds(), { color_temp_kelvin: 2700, brightness_pct: 30 }]] },
-      'lights-out':{ icon: 'fa-power-off',   name: 'Lights Out',  desc: 'Everything off, one tap',
+      'desk-on':   { icon: 'fa-bolt',        name: 'Desk Lights On', desc: 'Party — Desk Bars + Bookshelf',
+                     run: () => [[[DESK_BARS, 'light.bookshelf_lamp'], { effect: 'Party' }]] },
+      'meeting':   { icon: 'fa-video',       name: 'Meeting Mode',   desc: 'Candlelight, dimmed — no colors shifting',
+                     run: () => [[[DESK_BARS, 'light.bookshelf_lamp'], { effect: 'Candlelight', brightness_pct: 58 }],
+                                 [['light.office_lamp'], { effect: 'Candlelight', brightness_pct: 51 }]] },
+      'evening':   { icon: 'fa-couch',       name: 'Evening',        desc: 'Warm white — Hallway, Kitchen, Living Room',
+                     run: () => [[['light.hallway_light_1', 'light.hallway_light_2', 'light.hallway_light_3', 'light.hallway_light_4'],
+                                   { effect: 'Warm white', brightness_pct: 76 }],
+                                 [['light.kitchen_light_left', 'light.kitchen_light_right'],
+                                   { effect: 'Warm white', brightness_pct: 97 }],
+                                 [['light.living_room_lamp'], { effect: 'Warm white', brightness_pct: 65 }]] },
+      // The real bedtime state: everything off EXCEPT the two bedroom TV
+      // lamps, which go to dim Fireplace — matches the owner's own
+      // description exactly ("just the 2 lamps in very dim fireplace mode,
+      // the only lights on") and the data (Tv Lamp 1/2 -> Fireplace 99-100%
+      // of the time they're on, at 26-32% brightness).
+      'bedtime':   { icon: 'fa-bed',         name: 'Bedtime',        desc: 'Everything off — Tv Lamps stay on, dim Fireplace',
+                     run: () => [[allLightIds().filter(id => id !== 'light.tv_lamp_1' && id !== 'light.tv_lamp_2'), null, 'turn_off'],
+                                 [['light.tv_lamp_1'], { effect: 'Fireplace', brightness_pct: 32 }],
+                                 [['light.tv_lamp_2'], { effect: 'Fireplace', brightness_pct: 26 }]] },
+      'lights-out':{ icon: 'fa-power-off',   name: 'Lights Out',     desc: 'Everything off, one tap',
                      run: () => [[allLightIds(), null, 'turn_off']] },
     };
 
@@ -2569,12 +2587,15 @@
     // Requires the word "mode"/distinct phrasing so it never steals plain moods
     // like "steady white for work" — only "work mode" triggers the House Mode.
     const MODE_ALIASES = [
-      { re: /\bwork\s*mode\b/i,                          key: 'work' },
-      { re: /\bmeeting\s*mode\b/i,                       key: 'meeting' },
-      { re: /\b(movie|film)\s*(time|mode|night)\b/i,     key: 'movie' },
-      { re: /\bgaming\s*mode\b/i,                        key: 'gaming' },
-      { re: /\bwind[\s-]?down\b/i,                       key: 'wind-down' },
-      { re: /\blights?\s*out\b/i,                        key: 'lights-out' },
+      // Work Mode and Gaming Mode both route here — real data shows no
+      // distinct pattern between them, both are just Party on the desk lights.
+      { re: /\b(desk\s*lights?\s*on|work\s*mode|gaming\s*mode)\b/i, key: 'desk-on' },
+      { re: /\bmeeting\s*mode\b/i,                                  key: 'meeting' },
+      { re: /\bevening\b/i,                                         key: 'evening' },
+      // "wind down" still works as a phrase — it now routes to the real
+      // bedtime state instead of the old invented dim-everything guess.
+      { re: /\b(bed\s*time|wind[\s-]?down)\b/i,                     key: 'bedtime' },
+      { re: /\blights?\s*out\b/i,                                   key: 'lights-out' },
     ];
 
     // Target matcher: ALL matching rooms/groups are unioned ("kitchen and bedroom"
@@ -2726,10 +2747,12 @@
     function modeSuggestion() {
       const hour = new Date().getHours();
       if (osState && osState.os_state && osState.os_state.tone === 'amber') {
-        return { key: 'wind-down', why: `${osState.os_state.title.toLowerCase()} — a warmer, softer palette would feel right` };
+        return { key: 'bedtime', why: `${osState.os_state.title.toLowerCase()} — time to wind the house down` };
       }
-      if (hour >= 21) return { key: 'wind-down', why: 'late evening — the house could wind down' };
-      if (hour >= 17) return { key: 'gaming', why: 'evening — rich game-room atmosphere time' };
+      // Boundaries match the real data: the evening warm-white pattern centers
+      // on 8PM, the off-except-Fireplace-lamps bedtime pattern runs 10PM-12AM+.
+      if (hour >= 22 || hour < 4) return { key: 'bedtime', why: 'late night — the house usually goes quiet now' };
+      if (hour >= 20) return { key: 'evening', why: 'evening — warm white, house-wide' };
       return null;
     }
 
