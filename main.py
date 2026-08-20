@@ -1786,6 +1786,17 @@ async def get_light_history(request: Request, limit: int = 300):
     return {"total": len(log), "snapshots": log[: max(1, min(limit, 1000))]}
 
 
+@app.get("/api/ha/light-transitions")
+async def get_light_transitions_raw(request: Request, limit: int = 2000):
+    """Admin: the raw deliberate-change log (every logged transition, with exact
+    timestamp + which lights changed), for pattern analysis finer-grained than
+    the hour-bucketed candidate_automations in /api/ha/insights — e.g. finding
+    multi-light bursts (several lights changed within the same minute or two)."""
+    require_admin(request)
+    log = persistence.load_light_transitions()
+    return {"total": len(log), "transitions": log[: max(1, min(limit, 5000))]}
+
+
 @app.get("/api/ha/insights")
 async def get_light_insights(request: Request):
     """Admin: the full lighting-intelligence report derived from snapshots +
