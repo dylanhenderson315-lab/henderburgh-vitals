@@ -2416,8 +2416,10 @@
       'desk-on':   { icon: 'fa-bolt',        name: 'Desk Lights On', desc: 'Party — Desk Bars, Bookshelf + Desk Lamp',
                      run: () => [[[DESK_BARS, 'light.bookshelf_lamp', 'light.office_lamp'], { effect: 'Party' }]] },
       'meeting':   { icon: 'fa-video',       name: 'Meeting Mode',   desc: 'Candlelight, dimmed — no colors shifting',
+                     // Exact live values confirmed by the owner (Desk Bars +
+                     // Bookshelf 58%, Desk Lamp 40%) — Candlelight on all three.
                      run: () => [[[DESK_BARS, 'light.bookshelf_lamp'], { effect: 'Candlelight', brightness_pct: 58 }],
-                                 [['light.office_lamp'], { effect: 'Candlelight', brightness_pct: 51 }]] },
+                                 [['light.office_lamp'], { effect: 'Candlelight', brightness_pct: 40 }]] },
       'evening':   { icon: 'fa-couch',       name: 'Evening',        desc: 'Warm white — Hallway, Kitchen, Living Room',
                      run: () => [[['light.hallway_light_1', 'light.hallway_light_2', 'light.hallway_light_3', 'light.hallway_light_4'],
                                    { effect: 'Warm white', brightness_pct: 76 }],
