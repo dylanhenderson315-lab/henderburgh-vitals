@@ -2193,6 +2193,50 @@ async def blog_page(request: Request):
     })
 
 
+# ------------------------------------------------------------------
+# NICOLE'S DATE INVITATION (personal, one-off; see services/dateplan.py).
+# Placed at the very end of the routes for a specific reason: this file
+# has a lifespan() decorator up at line ~182, and editing anywhere near
+# it once broke deploys by stealing the decorator. Everything below sits
+# 2000 lines away from that trap.
+# ------------------------------------------------------------------
+from services import dateplan as _dateplan  # noqa: E402  (bottom-of-file on purpose)
+
+
+@app.get("/date/{secret}", response_class=HTMLResponse)
+async def date_page(secret: str):
+    """Behind a word only she has (obscurity, not auth -- stakes are
+    embarrassment, not compromise). Any other /date/* 404s rather than
+    hinting the real one exists."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    path = Path(__file__).parent / "templates" / "date.html"
+    return HTMLResponse(path.read_bytes())
+
+
+@app.post("/api/date/pick")
+async def api_date_pick(request: Request, background_tasks: BackgroundTasks):
+    """She (or a friend, with ?v=<name>) tapped a card. Append the pick to
+    the jsonl and poke the office lamp so he sees it wherever he is in
+    the room -- same signal path as the manual poke button on the home
+    hub, just fired automatically instead of by a click."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    row = _dateplan.record(
+        movie=body.get("movie"),
+        dinner=body.get("dinner"),
+        heli=bool(body.get("heli")),
+        note=body.get("note"),
+        viewer=body.get("viewer"),
+    )
+    # Fire-and-forget lamp blink so the POST returns instantly. Same
+    # BackgroundTasks pattern /api/ha/poke uses.
+    background_tasks.add_task(home_assistant.perform_poke_blink)
+    return {"ok": True, "row": row}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
