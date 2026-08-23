@@ -109,6 +109,26 @@ body{
 }
 .card.test .foot{border-top-color:#c9b0a5;color:#a07a8a}
 
+/* replies pinned under the pick they belong to */
+.replies{margin-top:16px}
+.reply{
+  background:#fff;border-radius:14px;padding:14px 16px;margin-top:10px;
+  border-left:4px solid var(--coral);
+  box-shadow:0 6px 16px -10px rgba(107,30,58,.2);
+  position:relative;
+}
+.reply:before{
+  content:"💌";position:absolute;top:-8px;left:-8px;
+  font-size:20px;background:#fff;padding:2px 4px;border-radius:50%;
+}
+.reply .who{
+  font:600 10px/1 "Inter",sans-serif;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--mauve);margin-bottom:6px;
+}
+.reply .body{
+  font:500 17px/1.4 "Caveat",cursive;color:var(--plum);white-space:pre-wrap;
+}
+
 /* Empty state */
 .empty{
   text-align:center;padding:60px 20px;
@@ -192,7 +212,28 @@ var FILTER = 'real';
 
 fetch('/api/date/inbox-json/' + TOKEN)
   .then(function(r){ return r.json(); })
-  .then(function(j){ ALL = (j.picks||[]).slice().reverse(); render(); })
+  .then(function(j){
+    // Split rows into picks and replies, then pin each reply under the
+    // most recent preceding pick by the same viewer (or by Nicole if
+    // the reply came from a real, non-rehearsal viewer).
+    var rows = (j.picks || []).slice(); // chronological
+    var picks = [];
+    rows.forEach(function(r){ if (r.kind !== 'reply') picks.push(r); });
+    rows.forEach(function(r){
+      if (r.kind !== 'reply') return;
+      // Match on same test/viewer scope + closest earlier ts
+      var candidates = picks.filter(function(p){
+        return p.ts <= r.ts && (!!p.test === !!r.test);
+      });
+      var parent = candidates[candidates.length - 1];
+      if (parent) {
+        parent.replies = parent.replies || [];
+        parent.replies.push(r);
+      }
+    });
+    ALL = picks.slice().reverse();
+    render();
+  })
   .catch(function(){
     document.getElementById('list').innerHTML =
       '<div class="empty"><div class="big">Couldn\'t load picks</div>' +
@@ -240,6 +281,17 @@ function render(){
 
     var who = p.test ? ('rehearsal by ' + (p.viewer || 'friend')) : 'Nicole';
 
+    var replies = '';
+    if (p.replies && p.replies.length) {
+      replies = '<div class="replies">' + p.replies.map(function(r){
+        var rWho = r.test ? ('from ' + (r.viewer || 'friend')) : 'from Nicole';
+        return '<div class="reply">' +
+          '<div class="who">' + rWho + ' &middot; ' + fmtTime(r.ts) + '</div>' +
+          '<div class="body">' + esc(r.note || '') + '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+
     return '<div class="card' + (p.test ? ' test' : '') + '">' +
       '<div class="chdr">' +
         '<div class="stamp">' + stamp + '</div>' +
@@ -247,6 +299,7 @@ function render(){
         '<div class="who">' + who + ' &middot; ' + fmtTime(p.ts) + '</div>' +
       '</div>' +
       rows +
+      replies +
       '<div class="foot">' + (p.test ? 'not real · logged for testing' : 'confirmed · lamp blinked') + '</div>' +
     '</div>';
   }).join('');
@@ -258,4 +311,7 @@ function row(k, v, isSurprise){
     '<div class="v">' + v + '</div>' +
   '</div>';
 }
+
+function esc(s){return String(s||'').replace(/[&<>]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
 </script>

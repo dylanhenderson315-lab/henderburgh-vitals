@@ -2267,6 +2267,26 @@ async def api_date_pick(request: Request, background_tasks: BackgroundTasks):
     # Fire-and-forget lamp blink so the POST returns instantly. Same
     # BackgroundTasks pattern /api/ha/poke uses.
     background_tasks.add_task(home_assistant.perform_poke_blink)
+    # Total real picks -> drives the "date night #N" badge on the
+    # confirm screen. Rehearsals don't tick the counter, and neither
+    # do future replies (they're their own row kind).
+    total = _dateplan.real_pick_count() if not row.get("test") else None
+    milestone = total in _dateplan.MILESTONES if total else False
+    return {"ok": True, "row": row, "total_real": total, "milestone": milestone}
+
+
+@app.post("/api/date/reply")
+async def api_date_reply(request: Request, background_tasks: BackgroundTasks):
+    """She wrote a message back after locking in the reservation. Same
+    lamp-poke signal so he knows something new landed."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    row = _dateplan.reply(note=body.get("note"), viewer=body.get("viewer"))
+    if row is None:
+        raise HTTPException(status_code=400, detail="empty note")
+    background_tasks.add_task(home_assistant.perform_poke_blink)
     return {"ok": True, "row": row}
 
 

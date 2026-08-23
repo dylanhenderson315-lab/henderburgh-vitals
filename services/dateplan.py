@@ -151,3 +151,61 @@ def picks(limit=50):
             except ValueError:
                 continue
     return out[-limit:]
+
+
+def real_pick_count():
+    """Total real (non-test) picks in the log -- drives the "date night #N"
+    badge on the confirmation screen. Excludes replies (which are their
+    own row kind) and rehearsals."""
+    n = 0
+    if not LOG_PATH.exists():
+        return 0
+    with LOG_PATH.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("kind") == "reply":
+                continue
+            if r.get("test"):
+                continue
+            # A "real pick" row is one that at least named a movie or dinner
+            # -- guards against a stray empty POST inflating the count.
+            if r.get("movie") or r.get("dinner"):
+                n += 1
+    return n
+
+
+# Milestones that get extra confetti + a bigger badge on the confirm screen.
+# Kept intentionally sparse -- every date is special, but pretending every
+# single one is a milestone means none of them are.
+MILESTONES = {1, 5, 10, 25, 52, 100}
+
+
+def reply(note, viewer=None):
+    """She (or a friend, in rehearsal) writes a message back after the
+    reservation is locked in. Stored as its own row kind so the inbox can
+    group it under the nearest preceding pick without confusing the
+    real_pick_count."""
+    if not isinstance(note, str) or not note.strip():
+        return None
+    v = _clean_viewer(viewer)
+    row = {
+        "ts": time.time(),
+        "kind": "reply",
+        "note": note.strip()[:2000],
+        "viewer": v,
+        "test": v is not None,
+    }
+    with _lock:
+        try:
+            LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with LOG_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row

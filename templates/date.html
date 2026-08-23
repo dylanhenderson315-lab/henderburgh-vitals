@@ -421,6 +421,50 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .countdown .lbl{font:500 11px/1.2 "Inter",sans-serif;letter-spacing:.2em;
   text-transform:uppercase;color:var(--mauve);margin-top:4px}
 
+/* streak badge on the confirmation card */
+.streak{
+  display:inline-flex;align-items:center;gap:8px;margin-top:14px;
+  padding:8px 16px;border-radius:999px;
+  background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;
+  font:700 12px/1 "Inter",sans-serif;letter-spacing:.1em;text-transform:uppercase;
+  box-shadow:0 8px 20px -8px var(--coral);
+}
+.streak.milestone{
+  background:linear-gradient(90deg,var(--gold-lite),var(--gold));
+  color:#3d1a2e;font-size:14px;padding:10px 20px;letter-spacing:.14em;
+  animation:pulse 1.6s ease-in-out infinite;
+}
+
+/* message-back panel */
+.msg-back{
+  margin-top:20px;padding:22px 20px;border-radius:20px;
+  background:linear-gradient(135deg,#fffaf3,#fff5ec);
+  border:1px dashed var(--coral);position:relative;overflow:hidden;
+}
+.msg-back:before{
+  content:"💌";position:absolute;top:-12px;right:14px;font-size:32px;
+  filter:drop-shadow(0 4px 8px rgba(249,112,112,.3));
+}
+.msg-back h3{
+  font:600 20px/1.2 "Fraunces",serif;color:var(--plum);margin:0 0 6px;
+}
+.msg-back .lil{color:var(--mauve);font-size:13px;margin-bottom:12px}
+.msg-back textarea{
+  width:100%;min-height:110px;padding:14px 16px;border-radius:14px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+  font:400 17px/1.4 "Caveat",cursive;resize:vertical;
+  transition:border-color .18s,box-shadow .18s;
+}
+.msg-back textarea:focus{outline:none;border-color:var(--coral);
+  box-shadow:0 0 0 3px rgba(249,112,112,.15)}
+.msg-back .send{margin-top:12px;padding:12px 20px;font-size:14px}
+.msg-back .sent{
+  display:none;text-align:center;padding:30px 20px;
+  font:italic 500 18px/1.4 "Fraunces",serif;color:var(--coral);
+}
+.msg-back.done .body{display:none}
+.msg-back.done .sent{display:block}
+
 .love-note{
   margin-top:20px;padding:22px 20px;border-radius:20px;
   background:linear-gradient(135deg,#fffaf3,#fff);
@@ -765,9 +809,22 @@ details summary::-webkit-details-marker{display:none}
       <div class="num" id="cdNum">--:--:--</div>
       <div class="lbl">until you should be ready</div>
     </div>
+    <div style="text-align:center">
+      <div id="streakBadge" class="streak" style="display:none"></div>
+    </div>
   </div>
 
   <div class="shot-nudge">screenshot this ↑ so you don't forget 📸</div>
+
+  <div class="msg-back" id="msgBack">
+    <div class="body">
+      <h3>Anything you want to say back?</h3>
+      <div class="lil">Optional. Whatever you want him to see when he checks. A one-liner, a whole paragraph, an inside joke, a heart.</div>
+      <textarea id="msgText" placeholder="write to him here…" maxlength="2000"></textarea>
+      <button class="btn send" onclick="sendReply()">send it 💌</button>
+    </div>
+    <div class="sent">sent 💌 — the lamp blinked again.</div>
+  </div>
 
   <div class="love-note">
     <p>Okay. Real part now.</p>
@@ -1024,8 +1081,49 @@ function confirmIt(){
     document.getElementById('sent').textContent = j && j.ok
       ? 'he knows — the office lamp just blinked'
       : 'he knows (also text him)';
+    // Streak badge — only shown on real (non-rehearsal) picks
+    if (j && j.total_real) {
+      var b = document.getElementById('streakBadge');
+      var msg = (j.milestone ? '✨ ' : '') + 'date night #' + j.total_real +
+                (j.milestone ? ' ✨' : '');
+      b.textContent = msg;
+      b.classList.toggle('milestone', !!j.milestone);
+      b.style.display = 'inline-flex';
+      if (j.milestone) {
+        // Big sustained confetti for milestones
+        for (var i=0;i<8;i++) setTimeout(function(){
+          burst(Math.random()*window.innerWidth, -20, 40);
+        }, i*250);
+        haptic([50,80,50,80,50,80]);
+      }
+    }
   }).catch(function(){
     document.getElementById('sent').textContent = 'he knows (also text him)';
+  });
+}
+
+function sendReply(){
+  var text = (document.getElementById('msgText').value || '').trim();
+  if (!text) {
+    document.getElementById('msgText').focus();
+    return;
+  }
+  var box = document.getElementById('msgBack');
+  var btn = box.querySelector('.send');
+  btn.disabled = true; btn.textContent = 'sending…';
+  fetch('/api/date/reply', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ note: text, viewer: VIEWER })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if (j && j.ok) {
+      box.classList.add('done');
+      burst(window.innerWidth/2, window.innerHeight/2, 40);
+      haptic([30,60,30]);
+    } else {
+      btn.disabled = false; btn.textContent = 'try again 💌';
+    }
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = 'try again 💌';
   });
 }
 
