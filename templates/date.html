@@ -91,7 +91,12 @@ p{opacity:.92;margin:0 0 14px}
    SCREEN 0 — ENVELOPE
 ============================================================ */
 #s0{text-align:center;padding-top:8vh;padding-bottom:6vh}
-.env-wrap{position:relative;width:min(340px,86vw);aspect-ratio:1.5;margin:0 auto 22px;cursor:pointer}
+/* The whole cover screen is a big tap target -- 3 people (me, Nicole, Shrey)
+   all had trouble clicking the envelope on the first version because taps
+   landed on the wax seal (which was blocking propagation) or on the empty
+   flap corners (which weren't wired). Now: entire hero area opens it. */
+#s0.tappable{cursor:pointer}
+.env-wrap{position:relative;width:min(340px,86vw);aspect-ratio:1.5;margin:0 auto 22px;cursor:pointer;padding:8px}
 .env-wrap:hover .env-body{transform:translateY(-4px)}
 .env-body{
   position:absolute;inset:0;
@@ -462,16 +467,17 @@ details summary::-webkit-details-marker{display:none}
 <div class="wrap">
 
 <!-- 0 ------------------------------------------------------------ -->
-<section class="screen on" id="s0">
+<section class="screen on tappable" id="s0" role="button" tabindex="0"
+         onclick="openEnvelope()" onkeydown="if(event.key==='Enter'||event.key===' ')openEnvelope()">
   <div class="kicker">Private &middot; hand-delivered</div>
-  <div class="env-wrap" id="envelope" onclick="openEnvelope()">
+  <div class="env-wrap" id="envelope">
     <div class="env-shadow"></div>
     <div class="env-body"></div>
     <div class="seal" id="seal">N</div>
     <div class="env-flap"></div>
   </div>
   <div class="for-line">for <b id="forName">Nicole</b></div>
-  <div class="tap-hint">tap to open</div>
+  <div class="tap-hint">tap anywhere to open</div>
 </section>
 
 <!-- 1 ------------------------------------------------------------ -->
@@ -889,6 +895,9 @@ function openEnvelope(){
   var e = document.getElementById('envelope');
   if (e.classList.contains('opened')) return;
   e.classList.add('opened');
+  // Detach the whole-screen click so a stray double-tap doesn't fire twice
+  var s0 = document.getElementById('s0');
+  s0.onclick = null; s0.onkeydown = null; s0.classList.remove('tappable');
   burst(window.innerWidth/2, window.innerHeight/2 - 40, 40);
   haptic(30);
   setTimeout(function(){ go(1); }, 700);
@@ -1176,18 +1185,10 @@ function haptic(pat){
   try { if (navigator.vibrate) navigator.vibrate(pat); } catch(e){}
 }
 
-// ---------- Easter egg: tap the seal 5x quickly for a hidden line ----------
-var sealTaps = 0, sealTimer = null;
-document.getElementById('seal').addEventListener('click', function(e){
-  e.stopPropagation();
-  sealTaps++;
-  clearTimeout(sealTimer);
-  sealTimer = setTimeout(function(){ sealTaps = 0; }, 1500);
-  if (sealTaps >= 5) {
-    sealTaps = 0;
-    burst(window.innerWidth/2, window.innerHeight/2, 60);
-    haptic([50,100,50,100,50]);
-    alert("hi. yes, you found it. i love you.");
-  }
-});
+// (Prior "tap seal 5x for easter egg" was removed -- it called
+// e.stopPropagation() which broke the envelope open-click on the most
+// obvious tap target, and it was never reachable anyway because the
+// first tap advances to screen 1. The whole cover screen is now one
+// big tap target instead; the seal opens the envelope like everything
+// else on that screen.)
 </script>
