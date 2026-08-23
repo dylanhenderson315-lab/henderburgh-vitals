@@ -2,221 +2,615 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>A Proposal For Nicole</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap">
 <style>
 :root{
-  --bg:#140f14; --bg2:#1d151d; --card:#241a24; --line:#3a2b3a;
-  --ink:#f6ece2; --dim:#a4909c; --gold:#e8b04b; --rose:#e2647a;
-  --shadow:0 18px 50px -20px #000;
+  --cream:#fff5ec;
+  --peach:#ffe8dc;
+  --blush:#ffd6d0;
+  --rose:#ffb4b0;
+  --coral:#f97070;
+  --pink:#ec4899;
+  --plum:#3d1a2e;
+  --wine:#6b1e3a;
+  --gold:#c9862f;
+  --gold-lite:#f2c869;
+  --ink:#2a121f;
+  --mauve:#8a5a72;
+  --paper:#fffaf3;
+  --line:#e9c9c2;
+  --shadow:0 22px 60px -25px rgba(107,30,58,.35);
+  --shadow-lg:0 40px 100px -40px rgba(107,30,58,.45);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{overflow-x:hidden}
 body{
-  background:radial-gradient(120% 90% at 50% 0%,var(--bg2),var(--bg));
   color:var(--ink);min-height:100dvh;
-  font:16px/1.55 ui-serif,Georgia,"Times New Roman",serif;
-  padding:24px 18px calc(120px + env(safe-area-inset-bottom));
-  overflow-x:hidden;
+  font:16px/1.55 "Inter",ui-sans-serif,system-ui,sans-serif;
+  padding:0 0 calc(120px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(120% 60% at 20% 0%,#ffd0c8 0%,transparent 60%),
+    radial-gradient(120% 60% at 90% 30%,#ffb8d2 0%,transparent 55%),
+    radial-gradient(120% 60% at 50% 100%,#ffe0b0 0%,transparent 55%),
+    linear-gradient(180deg,#fff2e8 0%,#ffe4e6 55%,#fce7f3 100%);
+  background-attachment:fixed;
 }
-.wrap{max-width:560px;margin:0 auto}
-.screen{display:none;animation:rise .55s cubic-bezier(.2,.8,.25,1) both}
+
+/* --- sparkles / floating hearts --- */
+.sky{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:1}
+.sky i{position:absolute;display:block;font-style:normal;font-size:14px;opacity:0;
+  animation:float 14s linear infinite;filter:drop-shadow(0 2px 4px rgba(236,72,153,.25))}
+@keyframes float{
+  0%{transform:translateY(110vh) translateX(0) rotate(0);opacity:0}
+  10%{opacity:.9}
+  90%{opacity:.7}
+  100%{transform:translateY(-12vh) translateX(var(--drift,20px)) rotate(360deg);opacity:0}
+}
+
+.wrap{max-width:560px;margin:0 auto;padding:24px 18px;position:relative;z-index:2}
+
+/* --- screens --- */
+.screen{display:none;animation:rise .7s cubic-bezier(.2,.8,.25,1) both}
 .screen.on{display:block}
-@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-@keyframes pulse{50%{transform:scale(1.04)}}
-.kicker{font:600 11px/1 ui-sans-serif,system-ui;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);opacity:.85}
-h1{font-size:clamp(30px,9vw,46px);line-height:1.05;letter-spacing:-.02em;margin:14px 0}
-h2{font-size:clamp(22px,6vw,30px);line-height:1.12;margin:14px 0 10px}
-p{opacity:.94;margin:0 0 14px}
-.small{font:13px/1.5 ui-sans-serif,system-ui;color:var(--dim)}
-.center{text-align:center}
-hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+@keyframes rise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@keyframes pulse{50%{transform:scale(1.03)}}
+@keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes wobble{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+@keyframes twinkle{0%,100%{opacity:.4;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
 
-/* ---- envelope ---- */
-#s0{text-align:center;padding-top:12vh}
-.env{
-  width:min(300px,78vw);aspect-ratio:3/2;margin:0 auto 26px;position:relative;
-  background:linear-gradient(#2b1f2b,#201720);border:1px solid var(--line);
-  border-radius:10px;box-shadow:var(--shadow);cursor:pointer;
-  display:grid;place-items:center;animation:pulse 2.6s ease-in-out infinite;
+/* --- typography --- */
+.kicker{
+  font:600 10px/1 "Inter",sans-serif;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--coral);opacity:.85;margin-bottom:14px;
+  display:inline-flex;align-items:center;gap:8px;
 }
-.env:before{content:"";position:absolute;inset:0;
-  background:linear-gradient(160deg,transparent 46%,#00000055 47%);border-radius:10px}
-.seal{width:64px;height:64px;border-radius:50%;background:var(--rose);
-  display:grid;place-items:center;font:700 22px ui-sans-serif,system-ui;color:#2a0e16;
-  box-shadow:0 6px 20px -6px #000;position:relative;z-index:1}
+.kicker:before,.kicker:after{content:"";width:20px;height:1px;background:var(--rose);opacity:.6}
+h1{font:700 clamp(34px,10vw,54px)/1.02 "Fraunces",serif;letter-spacing:-.025em;color:var(--plum);margin:12px 0}
+h1 em{font-style:italic;font-weight:400;color:var(--coral)}
+h2{font:600 clamp(24px,6.5vw,32px)/1.15 "Fraunces",serif;color:var(--plum);margin:14px 0 12px}
+.script{font-family:"Caveat",cursive;font-weight:700;color:var(--coral)}
+p{opacity:.92;margin:0 0 14px}
+.dim{color:var(--mauve);opacity:1;font:14px/1.55 "Inter",sans-serif}
+.small{font:13px/1.55 "Inter",sans-serif;color:var(--mauve)}
+.center{text-align:center}
 
-/* ---- typed letter ---- */
-.line{opacity:0;transform:translateY(10px);animation:rise .7s ease both}
+/* --- test-mode bar --- */
+#testbar{
+  display:none;position:sticky;top:0;z-index:60;
+  background:linear-gradient(90deg,#ec4899,#f97070);
+  color:#fff;text-align:center;padding:9px 12px;
+  font:600 11px/1.3 "Inter",sans-serif;letter-spacing:.05em;
+  box-shadow:0 4px 20px -5px rgba(236,72,153,.4);
+}
+#testbar b{font-weight:700}
+#testbar em{font-style:normal;opacity:.9}
 
-/* ---- buttons ---- */
+/* ============================================================
+   SCREEN 0 — ENVELOPE
+============================================================ */
+#s0{text-align:center;padding-top:8vh;padding-bottom:6vh}
+.env-wrap{position:relative;width:min(340px,86vw);aspect-ratio:1.5;margin:0 auto 22px;cursor:pointer}
+.env-wrap:hover .env-body{transform:translateY(-4px)}
+.env-body{
+  position:absolute;inset:0;
+  background:linear-gradient(140deg,#fff8f0 0%,#ffe8d8 100%);
+  border-radius:14px;box-shadow:var(--shadow-lg);
+  transition:transform .3s ease;
+}
+.env-body:before{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(160deg,transparent 48%,rgba(200,120,110,.15) 49%);
+  border-radius:14px;
+}
+.env-flap{
+  position:absolute;top:0;left:0;right:0;height:60%;
+  background:linear-gradient(160deg,#ffddc8 0%,#ffc9a8 100%);
+  clip-path:polygon(0 0,100% 0,50% 100%);
+  border-radius:14px 14px 0 0;
+  transform-origin:top;
+  transition:transform .9s cubic-bezier(.6,.05,.3,1);
+}
+.env-wrap.opened .env-flap{transform:rotateX(180deg)}
+.seal{
+  position:absolute;top:calc(60% - 34px);left:calc(50% - 34px);
+  width:68px;height:68px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,#ff9ba0,#c93755 70%);
+  display:grid;place-items:center;
+  font:700 26px/1 "Fraunces",serif;color:#fff5ec;
+  box-shadow:0 6px 20px -4px rgba(201,55,85,.6),inset 0 -3px 6px rgba(0,0,0,.15),inset 0 3px 6px rgba(255,255,255,.3);
+  animation:pulse 2.4s ease-in-out infinite;z-index:4;
+  transition:transform .6s cubic-bezier(.4,.1,.6,1.4),opacity .5s;
+}
+.seal:before{
+  content:"";position:absolute;inset:5px;border-radius:50%;
+  border:1.5px dashed rgba(255,245,236,.5);
+}
+.env-wrap.opened .seal{transform:scale(2) rotate(15deg);opacity:0}
+.env-shadow{
+  position:absolute;left:10%;right:10%;bottom:-8px;height:20px;
+  background:radial-gradient(ellipse,rgba(107,30,58,.3),transparent 70%);
+  filter:blur(6px);z-index:0;
+}
+.for-line{
+  font-family:"Caveat",cursive;font-weight:700;
+  font-size:clamp(28px,7vw,36px);color:var(--wine);
+  margin-top:20px;
+}
+.for-line b{color:var(--coral)}
+.tap-hint{
+  margin-top:14px;font:500 12px/1 "Inter",sans-serif;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--mauve);
+  display:inline-flex;align-items:center;gap:8px;
+}
+.tap-hint:before{content:"↓";animation:bounce 1.5s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+
+/* ============================================================
+   SCREEN 1 — LETTER
+============================================================ */
+.paper{
+  background:var(--paper);border-radius:22px;padding:36px 28px 32px;
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.6);
+  border:1px solid rgba(233,201,194,.4);position:relative;overflow:hidden;
+}
+.paper:before,.paper:after{
+  content:"";position:absolute;width:80px;height:80px;
+  background:radial-gradient(circle,rgba(249,112,112,.08),transparent 70%);
+  border-radius:50%;pointer-events:none;
+}
+.paper:before{top:-30px;right:-20px}
+.paper:after{bottom:-30px;left:-20px}
+.line{opacity:0;transform:translateY(12px);animation:rise .8s ease both}
+.line:first-child{font:700 clamp(38px,10vw,52px)/1 "Fraunces",serif;
+  color:var(--plum);margin-bottom:18px;letter-spacing:-.02em}
+.line{font:400 clamp(17px,4.6vw,20px)/1.5 "Fraunces",serif;color:var(--plum);margin-bottom:14px}
+.line.italic{font-style:italic;color:var(--wine)}
+.sig{margin-top:18px;font-family:"Caveat",cursive;font-weight:700;
+  font-size:clamp(24px,6vw,30px);color:var(--coral);
+  opacity:0;animation:rise .8s ease both;animation-delay:5s}
+.sig svg{display:block;height:44px;margin-top:2px}
+.sig path{fill:none;stroke:var(--coral);stroke-width:2;stroke-linecap:round;
+  stroke-linejoin:round;stroke-dasharray:400;stroke-dashoffset:400;
+  animation:draw 2s ease-out both;animation-delay:5.5s}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* ============================================================
+   SCREEN 2 — BOARD OF DIRECTORS
+============================================================ */
+.board-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:18px 0 8px}
+@media (max-width:400px){.board-grid{grid-template-columns:1fr;gap:14px}}
+.polaroid{
+  background:#fffefc;padding:10px 10px 40px;border-radius:6px;
+  box-shadow:var(--shadow);position:relative;
+  transform:rotate(-3deg);animation:wobble-in .7s ease both;
+}
+.polaroid:nth-child(2){transform:rotate(2deg);animation-delay:.15s}
+.polaroid:nth-child(3){transform:rotate(-1deg);animation-delay:.3s}
+@keyframes wobble-in{
+  from{opacity:0;transform:translateY(20px) rotate(0);}
+  to{opacity:1}
+}
+.polaroid:hover{animation:wobble 1s ease-in-out infinite}
+.polaroid svg{width:100%;aspect-ratio:1;display:block;border-radius:4px;background:linear-gradient(135deg,#ffe5cc,#ffd0d5)}
+.polaroid b{
+  display:block;margin-top:8px;text-align:center;
+  font-family:"Caveat",cursive;font-weight:700;font-size:20px;color:var(--plum);
+}
+.polaroid .role{
+  position:absolute;bottom:16px;left:0;right:0;text-align:center;
+  font:600 9px/1 "Inter",sans-serif;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--mauve);
+}
+.vote-strip{
+  margin-top:16px;padding:14px 16px;border-radius:14px;
+  background:linear-gradient(90deg,rgba(249,112,112,.08),rgba(236,72,153,.06));
+  border:1px dashed var(--rose);
+}
+.vote-strip b{color:var(--coral)}
+
+/* ============================================================
+   BUTTONS
+============================================================ */
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .btn{
-  display:block;width:100%;padding:15px 20px;border-radius:999px;
-  background:var(--gold);color:#231402;
-  font:700 16px ui-sans-serif,system-ui;letter-spacing:.01em;margin-top:22px;
-  box-shadow:0 10px 26px -12px var(--gold);
+  display:block;width:100%;padding:16px 22px;border-radius:999px;
+  background:linear-gradient(90deg,var(--coral),var(--pink));
+  color:#fff;font:700 15px/1 "Inter",sans-serif;letter-spacing:.02em;
+  margin-top:22px;box-shadow:0 14px 30px -12px rgba(249,112,112,.6);
+  transition:transform .15s,box-shadow .2s;
 }
-.btn[disabled]{opacity:.4;box-shadow:none}
-.btn.ghost{background:none;color:var(--dim);border:1px solid var(--line);box-shadow:none;font-weight:500}
-.btn:active{transform:translateY(1px)}
+.btn:active{transform:translateY(2px);box-shadow:0 6px 20px -8px rgba(249,112,112,.5)}
+.btn[disabled]{opacity:.4;box-shadow:none;cursor:not-allowed}
+.btn.ghost{background:none;color:var(--mauve);border:1px solid var(--line);
+  box-shadow:none;font-weight:500}
+.btn.ghost:active{background:rgba(233,201,194,.15)}
 
-/* ---- board of directors ---- */
-.board{display:grid;gap:10px;margin:18px 0 6px}
-.dog{display:flex;align-items:center;gap:13px;background:var(--card);
-  border:1px solid var(--line);border-radius:14px;padding:12px 14px}
-.face{width:42px;height:42px;border-radius:50%;background:#37273a;display:grid;
-  place-items:center;font-size:22px;flex:none}
-.dog b{font:600 15px ui-sans-serif,system-ui;display:block}
-.dog .role{font:11px/1.3 ui-sans-serif,system-ui;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
-.vote{margin-left:auto;font:700 11px ui-sans-serif,system-ui;letter-spacing:.1em;
-  color:#7ee0a0;text-align:right;flex:none}
-.vote.cond{color:var(--gold)}
-
-/* ---- selectable cards ---- */
+/* ============================================================
+   OPTIONS (movie + dinner cards)
+============================================================ */
 .opt{
-  width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
-  border-radius:16px;padding:15px 17px;margin-bottom:10px;display:block;
-  transition:border-color .15s,transform .15s,background .15s;
+  width:100%;text-align:left;background:var(--paper);
+  border:1px solid var(--line);border-radius:16px;
+  padding:16px 18px;margin-bottom:10px;display:block;
+  transition:transform .18s,border-color .18s,box-shadow .18s;
+  box-shadow:0 6px 20px -12px rgba(107,30,58,.15);
+  position:relative;
 }
 .opt:active{transform:scale(.985)}
-.opt:hover{border-color:var(--gold)}
-.opt.sel{border-color:var(--gold);background:#2d2028;
-  box-shadow:0 0 0 2px var(--gold) inset, 0 0 40px -20px var(--gold)}
+.opt:hover{border-color:var(--coral);box-shadow:var(--shadow)}
+.opt h3{font:600 18px/1.2 "Fraunces",serif;color:var(--plum);margin:0 0 5px}
+.opt .sub{font:14px/1.5 "Inter",sans-serif;color:var(--mauve)}
+.opt .price{
+  float:right;font:700 10px/1 "Inter",sans-serif;color:var(--coral);
+  letter-spacing:.14em;text-transform:uppercase;
+  background:rgba(249,112,112,.1);padding:5px 8px;border-radius:999px;
+}
+.opt.sel{
+  border-color:var(--coral);background:linear-gradient(135deg,#fff,#fff0eb);
+  box-shadow:0 0 0 3px rgba(249,112,112,.2),var(--shadow-lg);
+  transform:scale(1.01);
+}
 
-/* Gift / surprise-me card. Reads as "the special one" without shouting.
-   A subtle gold shimmer that runs once when the card enters view, so
-   she notices it's different but the page isn't crawling with animation. */
+/* Film-ticket movie cards */
+.opt.ticket{
+  background:linear-gradient(90deg,#fffaf3 0%,#fff5ec 100%);
+  padding:18px 22px;position:relative;
+  border:none;
+  box-shadow:0 10px 24px -12px rgba(107,30,58,.2);
+}
+.opt.ticket:before,.opt.ticket:after{
+  content:"";position:absolute;top:50%;width:16px;height:16px;
+  background:#fce7f3;border-radius:50%;transform:translateY(-50%);
+}
+.opt.ticket:before{left:-8px}
+.opt.ticket:after{right:-8px}
+.opt.ticket .stub{
+  position:absolute;top:0;bottom:0;right:52px;width:1px;
+  background:repeating-linear-gradient(180deg,var(--line) 0,var(--line) 4px,transparent 4px,transparent 8px);
+}
+.opt.ticket .genre{
+  font:700 9px/1 "Inter",sans-serif;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--coral);margin-bottom:6px;
+}
+.opt.ticket.sel{background:linear-gradient(135deg,#fff8f0,#ffe0d0)}
+
+/* Trust-me / surprise card */
 .opt.gift{
-  border-color:var(--gold);
-  background:linear-gradient(135deg,#2a1e29 0%,#3a2626 50%,#2a1e29 100%);
-  background-size:200% 200%;
-  animation:shimmer 3.4s ease-in-out infinite;
+  border:2px solid var(--gold);
+  background:linear-gradient(135deg,#fff9ee 0%,#fce7d0 50%,#fff9ee 100%);
+  background-size:200% 200%;animation:shimmer 4s ease-in-out infinite;
   position:relative;overflow:hidden;
 }
 .opt.gift .tag{
-  display:inline-block;font:700 10px/1 ui-sans-serif,system-ui;
-  letter-spacing:.18em;color:var(--gold);
-  background:#2a0e16;border:1px solid var(--gold);
-  padding:5px 8px;border-radius:999px;margin-bottom:8px;
+  display:inline-block;font:700 10px/1 "Inter",sans-serif;
+  letter-spacing:.2em;color:#7a5410;
+  background:linear-gradient(90deg,var(--gold-lite),var(--gold));
+  padding:6px 10px;border-radius:999px;margin-bottom:8px;
+  box-shadow:0 4px 10px -3px rgba(201,134,47,.4);
 }
-.opt.gift h3{color:#fff}
-.opt.gift .sub{color:#e8d5c8;opacity:.95}
+.opt.gift h3{color:var(--plum)}
 .opt.gift.sel{
-  background:linear-gradient(135deg,#3d2a35,#4a2f2f);
-  box-shadow:0 0 0 2px var(--gold) inset, 0 0 60px -15px var(--gold);
+  border-color:var(--gold);
+  box-shadow:0 0 0 4px rgba(201,134,47,.25),var(--shadow-lg);
 }
-@keyframes shimmer{
-  0%,100%{background-position:0% 50%}
-  50%{background-position:100% 50%}
+
+/* Theater card special */
+.opt.theater{
+  background:linear-gradient(135deg,#2a121f 0%,#4a1d3f 100%);
+  color:#fff5ec;border:none;padding:20px 22px;
+  box-shadow:0 14px 30px -12px rgba(42,18,31,.5);
 }
-.opt h3{font-size:18px;line-height:1.2;margin:0 0 4px;font-family:ui-serif,Georgia,serif}
-.opt .sub{font:13px/1.45 ui-sans-serif,system-ui;color:var(--dim)}
-.opt .price{float:right;font:700 12px ui-sans-serif,system-ui;color:var(--gold);
-  letter-spacing:.08em;text-transform:uppercase}
+.opt.theater h3{color:#fff}
+.opt.theater .sub{color:#f2c869}
+.opt.theater .genre{color:#f2c869}
+.opt.theater .marquee{
+  margin-top:12px;padding:10px 14px;border-radius:10px;
+  background:rgba(255,245,236,.08);border:1px dashed rgba(242,200,105,.4);
+  font:12px/1.4 "Inter",sans-serif;color:#ffe5cc;
+  display:none;
+}
+.opt.theater .marquee a{color:var(--gold-lite);text-decoration:underline;font-weight:600}
+.opt.theater.sel .marquee{display:block;animation:rise .4s ease both}
+.opt.theater.sel{box-shadow:0 0 0 4px rgba(242,200,105,.3),var(--shadow-lg)}
 
-/* ---- dinner slider tiers ---- */
-.tier{position:relative}
-.tier .bar{height:4px;background:var(--line);border-radius:2px;margin:2px 0 10px;overflow:hidden}
-.tier .fill{height:100%;background:var(--gold);width:25%;transition:width .3s}
+/* Dinner candle strip */
+.candles{
+  display:flex;justify-content:center;gap:14px;margin:8px 0 18px;height:56px;
+}
+.candle{
+  width:20px;position:relative;opacity:.25;transition:opacity .4s;
+}
+.candle.lit{opacity:1}
+.candle .wax{position:absolute;bottom:0;left:2px;right:2px;height:44px;
+  background:linear-gradient(180deg,#fff5ec,#f2c869);
+  border-radius:3px 3px 6px 6px;box-shadow:inset -2px 0 3px rgba(0,0,0,.1)}
+.candle .flame{position:absolute;top:-8px;left:50%;transform:translateX(-50%);
+  width:8px;height:14px;
+  background:radial-gradient(ellipse at 50% 60%,#fff5b0,#ff9800 70%,transparent);
+  border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
+  animation:flicker 1.2s ease-in-out infinite;opacity:0;transition:opacity .3s .2s;
+}
+.candle.lit .flame{opacity:1}
+@keyframes flicker{
+  0%,100%{transform:translateX(-50%) scale(1);opacity:.95}
+  50%{transform:translateX(-52%) scale(1.05);opacity:1}
+}
 
-/* ---- helicopter nag ---- */
-#heli{
-  position:fixed;left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));
+/* ============================================================
+   TOBY THE CHAIRMAN (floating narrator, replaces heli nag)
+============================================================ */
+#toby{
+  position:fixed;left:14px;right:14px;bottom:calc(16px + env(safe-area-inset-bottom));
   max-width:532px;margin:0 auto;z-index:40;display:none;
-  background:var(--rose);color:#2a0e16;border-radius:14px;padding:12px 14px;
-  font:600 14px ui-sans-serif,system-ui;align-items:center;gap:10px;
-  box-shadow:0 14px 34px -14px #000;animation:rise .4s ease both;
+  background:linear-gradient(135deg,#fff5ec 0%,#ffe0d0 100%);
+  border:1px solid var(--rose);border-radius:18px;padding:12px 14px 12px 60px;
+  box-shadow:0 18px 40px -14px rgba(107,30,58,.35);
+  animation:rise .5s ease both;
+  position:fixed;
 }
-#heli.on{display:flex}
-#heli span.rotor{font-size:20px;animation:spin 1.4s linear infinite;display:inline-block}
-@keyframes spin{to{transform:rotate(360deg)}}
-#heli b{flex:1;font-weight:600}
-#heli button{background:#2a0e16;color:#ffd9e0;border-radius:999px;padding:7px 13px;
-  font:700 12px ui-sans-serif,system-ui;flex:none}
-#heli .yes{background:#fff;color:#8a1c33}
+#toby.on{display:block}
+#toby .face{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  width:42px;height:42px;border-radius:50%;
+  background:linear-gradient(135deg,#c9862f,#8b5a20);
+  display:grid;place-items:center;
+  box-shadow:0 6px 14px -4px rgba(139,90,32,.4);
+}
+#toby .face svg{width:32px;height:32px}
+#toby .said{font:600 11px/1 "Inter",sans-serif;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--coral);margin-bottom:2px}
+#toby .quote{font:italic 500 14px/1.35 "Fraunces",serif;color:var(--plum)}
+#toby .actions{display:flex;gap:8px;margin-top:8px}
+#toby .actions button{
+  font:700 11px/1 "Inter",sans-serif;letter-spacing:.05em;
+  padding:7px 12px;border-radius:999px;
+  background:var(--paper);color:var(--wine);border:1px solid var(--line);
+}
+#toby .actions .heliyes{background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;border:none}
 
-/* ---- final ---- */
-.final{background:var(--card);border:1px solid var(--gold);border-radius:20px;
-  padding:24px 20px;box-shadow:0 0 60px -30px var(--gold);margin-top:22px}
-.receipt{font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;
-  background:#0e0a0e;border:1px dashed var(--line);border-radius:10px;
-  padding:14px;color:var(--dim);margin:14px 0 4px;white-space:pre-wrap}
-.receipt b{color:var(--ink)}
+/* ============================================================
+   CONFIRM — RESERVATION CARD (screenshot-worthy)
+============================================================ */
+.reservation{
+  background:linear-gradient(135deg,#fffaf3 0%,#fff5ec 60%,#ffe8dc 100%);
+  border-radius:26px;padding:28px 24px;
+  box-shadow:var(--shadow-lg),inset 0 1px 0 rgba(255,255,255,.6);
+  position:relative;overflow:hidden;margin-top:8px;
+}
+.reservation:before{
+  content:"";position:absolute;top:-40px;right:-40px;width:120px;height:120px;
+  background:radial-gradient(circle,rgba(249,112,112,.15),transparent 70%);
+  border-radius:50%;
+}
+.res-hdr{
+  text-align:center;padding-bottom:20px;border-bottom:2px dashed var(--rose);margin-bottom:20px;
+}
+.res-hdr .brand{font:700 10px/1 "Inter",sans-serif;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--coral);margin-bottom:8px}
+.res-hdr h2{font-size:32px;color:var(--plum);margin:0}
+.res-hdr .date{font-family:"Caveat",cursive;font-weight:700;
+  color:var(--wine);font-size:22px;margin-top:4px}
+.res-row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:12px 0;border-bottom:1px dotted var(--line);gap:12px;
+}
+.res-row:last-child{border-bottom:none}
+.res-row .k{font:600 10px/1.2 "Inter",sans-serif;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--mauve);flex:none;min-width:80px}
+.res-row .v{font:600 15px/1.3 "Fraunces",serif;color:var(--plum);text-align:right}
+.res-row.surprise .v{color:var(--coral);font-style:italic}
+.res-footer{
+  margin-top:20px;padding-top:16px;border-top:2px dashed var(--rose);
+  text-align:center;font:600 10px/1.4 "Inter",sans-serif;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--coral);
+}
+.countdown{
+  margin-top:18px;padding:14px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(201,134,47,.12),rgba(249,112,112,.08));
+  border:1px dashed var(--gold);text-align:center;
+}
+.countdown .num{font:700 32px/1 "Fraunces",serif;color:var(--wine);
+  letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.countdown .lbl{font:500 11px/1.2 "Inter",sans-serif;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--mauve);margin-top:4px}
+
+.love-note{
+  margin-top:20px;padding:22px 20px;border-radius:20px;
+  background:linear-gradient(135deg,#fffaf3,#fff);
+  border:1px solid var(--rose);box-shadow:var(--shadow);
+}
+.love-note p{font:italic 400 16px/1.6 "Fraunces",serif;color:var(--plum);margin-bottom:12px}
+.love-note p:last-child{margin-bottom:0}
+.love-note b{font-style:normal;font-weight:700;color:var(--coral)}
+.shot-nudge{
+  margin-top:16px;text-align:center;
+  font-family:"Caveat",cursive;font-weight:500;font-size:18px;color:var(--mauve);
+}
+
+hr.soft{border:0;border-top:1px dashed var(--line);margin:24px 0}
+
+/* progress dots */
+.dots{display:flex;justify-content:center;gap:6px;margin-bottom:14px}
+.dots span{width:6px;height:6px;border-radius:50%;background:var(--rose);opacity:.3}
+.dots span.on{opacity:1;background:var(--coral);transform:scale(1.4)}
+
+/* confetti canvas */
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:100}
+
+/* details/summary — dinner surprise reveal */
+details{margin-top:10px}
+details summary{
+  list-style:none;cursor:pointer;font:500 13px/1 "Inter",sans-serif;
+  color:var(--coral);text-align:center;padding:8px;letter-spacing:.05em;
+}
+details summary::-webkit-details-marker{display:none}
 </style>
 
-<!-- Test-mode strip: appears only when the URL carries ?v=<name>. Friends
-     testing the flow see this so they know their picks are tagged in the
-     log and not going out as Nicole's real answer. The page itself stays
-     unchanged so they can judge the real copy. -->
-<div id="testbar" style="display:none;position:sticky;top:0;z-index:50;
-     background:#3a2b3a;color:#e8b04b;text-align:center;
-     font:600 12px/1 ui-sans-serif,system-ui;letter-spacing:.12em;
-     text-transform:uppercase;padding:8px;border-bottom:1px solid #5a3f5a">
-  &#128300; TEST MODE &middot; VIEWER: <span id="testWho">-</span>
+<!-- ============================================================ -->
+<!-- TEST-MODE STRIP (friend rehearsal) -->
+<!-- ============================================================ -->
+<div id="testbar">
+  <b>🧪 REHEARSAL MODE</b> &middot; you are <b id="testWho">-</b> &middot;
+  <em>everything below is the real page, name swapped. she doesn't see this bar.</em>
 </div>
+
+<!-- Floating sparkles / hearts -->
+<div class="sky" id="sky"></div>
 
 <div class="wrap">
 
 <!-- 0 ------------------------------------------------------------ -->
 <section class="screen on" id="s0">
-  <div class="kicker">Private &middot; Do Not Forward</div>
-  <div class="env" onclick="go(1)"><div class="seal">N</div></div>
-  <p class="small">One (1) sealed proposal for <b style="color:var(--ink)">Nicole</b>.<br>Tap it.</p>
+  <div class="kicker">Private &middot; hand-delivered</div>
+  <div class="env-wrap" id="envelope" onclick="openEnvelope()">
+    <div class="env-shadow"></div>
+    <div class="env-body"></div>
+    <div class="seal" id="seal">N</div>
+    <div class="env-flap"></div>
+  </div>
+  <div class="for-line">for <b id="forName">Nicole</b></div>
+  <div class="tap-hint">tap to open</div>
 </section>
 
 <!-- 1 ------------------------------------------------------------ -->
 <section class="screen" id="s1">
-  <div class="kicker">Welcome Home</div>
-  <div id="letter"></div>
-  <button class="btn" onclick="go(2)">okay, go on</button>
+  <div class="paper">
+    <div id="letter"></div>
+    <div class="sig">— Dylan
+      <svg viewBox="0 0 240 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M10,20 Q20,5 30,20 T50,20 Q60,10 70,25 T90,15 Q100,30 115,15 T140,20 Q155,8 175,22 T210,18 Q220,25 230,18"/>
+      </svg>
+    </div>
+  </div>
+  <button class="btn" onclick="go(2)">okay, go on &rarr;</button>
 </section>
 
 <!-- 2 board -------------------------------------------------------- -->
 <section class="screen" id="s2">
-  <div class="kicker">Minutes of the Meeting</div>
-  <h2>The Board has reviewed and approved this proposal.</h2>
-  <p class="small">Emergency session convened. Quorum reached. One member fell asleep.</p>
-  <div class="board">
-    <div class="dog"><div class="face">&#128021;</div>
-      <div><b>Toby</b><span class="role">Chairman &middot; Law Dog</span></div>
-      <div class="vote cond">APPROVED<br>W/ CONDITIONS</div></div>
-    <div class="dog"><div class="face">&#128054;</div>
-      <div><b>Luna</b><span class="role">Board Member</span></div>
-      <div class="vote">YES<br>YES YES YES</div></div>
-    <div class="dog"><div class="face">&#128021;</div>
-      <div><b>Crosby</b><span class="role">Board Member</span></div>
-      <div class="vote">YES<br>(DID NOT READ)</div></div>
+  <div class="kicker">Minutes of the meeting</div>
+  <h2>The Board has reviewed and <em>approved</em>.</h2>
+  <p class="dim">Emergency session convened. Quorum reached. One member fell asleep.</p>
+
+  <div class="board-grid">
+    <div class="polaroid">
+      <!-- Toby: grumpy little face -->
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <ellipse cx="50" cy="62" rx="34" ry="30" fill="#8b5a2a"/>
+        <ellipse cx="26" cy="42" rx="10" ry="14" fill="#8b5a2a" transform="rotate(-25 26 42)"/>
+        <ellipse cx="74" cy="42" rx="10" ry="14" fill="#8b5a2a" transform="rotate(25 74 42)"/>
+        <circle cx="38" cy="58" r="3" fill="#1a0a05"/>
+        <circle cx="62" cy="58" r="3" fill="#1a0a05"/>
+        <path d="M40,58 Q40,54 44,55" stroke="#1a0a05" stroke-width="1.5" fill="none" opacity=".4"/>
+        <path d="M60,58 Q60,54 56,55" stroke="#1a0a05" stroke-width="1.5" fill="none" opacity=".4"/>
+        <ellipse cx="50" cy="70" rx="5" ry="4" fill="#1a0a05"/>
+        <path d="M50,74 L50,80 M42,80 Q50,84 58,80" stroke="#1a0a05" stroke-width="1.5" fill="none"/>
+        <path d="M35,52 Q40,50 45,53" stroke="#1a0a05" stroke-width="1" fill="none" opacity=".5"/>
+        <path d="M65,52 Q60,50 55,53" stroke="#1a0a05" stroke-width="1" fill="none" opacity=".5"/>
+      </svg>
+      <b>Toby</b>
+      <div class="role">Chairman &middot; Law Dog</div>
+    </div>
+    <div class="polaroid">
+      <!-- Luna: sweet round face -->
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <ellipse cx="50" cy="60" rx="36" ry="32" fill="#f5e6d3"/>
+        <path d="M18,44 Q14,20 30,30 L34,48 Z" fill="#e8d0b0"/>
+        <path d="M82,44 Q86,20 70,30 L66,48 Z" fill="#e8d0b0"/>
+        <ellipse cx="38" cy="56" rx="3.5" ry="4" fill="#2a1810"/>
+        <ellipse cx="62" cy="56" rx="3.5" ry="4" fill="#2a1810"/>
+        <circle cx="37" cy="55" r="1" fill="#fff"/>
+        <circle cx="61" cy="55" r="1" fill="#fff"/>
+        <ellipse cx="50" cy="68" rx="4" ry="3" fill="#2a1810"/>
+        <path d="M50,71 L50,76 M44,76 Q50,80 56,76 M50,76 Q46,82 40,80 M50,76 Q54,82 60,80" stroke="#2a1810" stroke-width="1.5" fill="none"/>
+        <ellipse cx="30" cy="70" rx="6" ry="3" fill="#ffb0b0" opacity=".5"/>
+        <ellipse cx="70" cy="70" rx="6" ry="3" fill="#ffb0b0" opacity=".5"/>
+      </svg>
+      <b>Luna</b>
+      <div class="role">Board Member</div>
+    </div>
+    <div class="polaroid">
+      <!-- Crosby: goofy tongue out -->
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <ellipse cx="50" cy="60" rx="36" ry="32" fill="#3a2818"/>
+        <ellipse cx="22" cy="40" rx="12" ry="18" fill="#3a2818" transform="rotate(-20 22 40)"/>
+        <ellipse cx="78" cy="40" rx="12" ry="18" fill="#3a2818" transform="rotate(20 78 40)"/>
+        <circle cx="38" cy="56" r="4" fill="#000"/>
+        <circle cx="62" cy="56" r="4" fill="#000"/>
+        <circle cx="37" cy="55" r="1.2" fill="#fff"/>
+        <circle cx="61" cy="55" r="1.2" fill="#fff"/>
+        <ellipse cx="50" cy="68" rx="5" ry="4" fill="#000"/>
+        <path d="M50,72 L50,76" stroke="#000" stroke-width="1.5"/>
+        <!-- tongue -->
+        <path d="M44,76 Q46,86 50,86 Q54,86 56,76 Z" fill="#ff7080"/>
+        <path d="M50,78 L50,84" stroke="#c94060" stroke-width="1"/>
+      </svg>
+      <b>Crosby</b>
+      <div class="role">Board Member</div>
+    </div>
   </div>
-  <p class="small" style="margin-top:14px"><b style="color:var(--gold)">Chairman's conditions:</b>
-    he lays the law. The law states you have been gone for two (2) entire weeks,
-    that this was unacceptable, and that tonight belongs to you &mdash; the movie,
-    the dinner, and every single decision in between. Motion carried 3&ndash;0.</p>
-  <button class="btn" onclick="go(3)">okay. let's plan tonight.</button>
+
+  <div class="vote-strip">
+    <p class="small" style="margin:0"><b>Chairman's ruling:</b> he lays the law.
+      The law states you have been gone for <b>two entire weeks</b>, that this
+      was unacceptable, and that <b>tonight belongs to you</b> — the movie,
+      the dinner, every decision in between. Motion carried 3&ndash;0.</p>
+  </div>
+
+  <button class="btn" onclick="go(3)">okay. let's plan tonight &rarr;</button>
 </section>
 
 <!-- 3 movie -------------------------------------------------------- -->
 <section class="screen" id="s3">
+  <div class="dots"><span class="on"></span><span></span></div>
   <div class="kicker">Decision 1 of 2</div>
-  <h2>Tonight is movie night. You pick the vibe.</h2>
-  <p class="small" style="margin-bottom:18px">Not the exact title &mdash; you have better taste than me.
-    Just tell me what mood you're in and I'll cue something up.</p>
+  <h2>What's the <em>movie</em> mood?</h2>
+  <p class="dim" style="margin-bottom:20px">Home vibes, real showtimes near us, or hand it to me — up to you.</p>
 
-  <button class="opt" data-movie="comfort" onclick="pickMovie(this)">
+  <button class="opt ticket" data-movie="comfort" onclick="pickMovie(this,event)">
+    <div class="genre">🏠 At home &middot; cozy</div>
     <h3>A comfort rewatch</h3>
     <div class="sub">Something we've seen a hundred times. No thinking required.</div>
+    <div class="stub"></div>
   </button>
-  <button class="opt" data-movie="dumb" onclick="pickMovie(this)">
+
+  <button class="opt ticket" data-movie="dumb" onclick="pickMovie(this,event)">
+    <div class="genre">🏠 At home &middot; jokes</div>
     <h3>Something dumb and funny</h3>
     <div class="sub">Zero plot. High jokes-per-minute. You laugh, I win.</div>
+    <div class="stub"></div>
   </button>
-  <button class="opt" data-movie="cry" onclick="pickMovie(this)">
+
+  <button class="opt ticket" data-movie="cry" onclick="pickMovie(this,event)">
+    <div class="genre">🏠 At home &middot; feelings</div>
     <h3>Something that'll make me cry</h3>
     <div class="sub">The Notebook energy. I will pretend I don't cry too.</div>
+    <div class="stub"></div>
   </button>
-  <button class="opt" data-movie="boom" onclick="pickMovie(this)">
+
+  <button class="opt ticket" data-movie="boom" onclick="pickMovie(this,event)">
+    <div class="genre">🏠 At home &middot; loud</div>
     <h3>Something with explosions</h3>
     <div class="sub">A helicopter probably crashes. Not our helicopter.</div>
+    <div class="stub"></div>
   </button>
-  <button class="opt gift" data-movie="you" onclick="pickMovie(this)">
-    <span class="tag">&#127873; TRUST ME</span>
+
+  <button class="opt theater" data-movie="theater" onclick="pickMovie(this,event)">
+    <div class="genre">🎬 Out on the town</div>
+    <h3>Actual theater. Actual popcorn.</h3>
+    <div class="sub">Cinemark Coastal Grand — 10 min away. Real showtimes below.</div>
+    <div class="marquee">
+      Tap here to see tonight's showtimes at Cinemark Coastal Grand and pick something:<br>
+      <a href="https://www.fandango.com/cinemark-coastal-grand-mall-and-xd-aacwt/theater-page" target="_blank" rel="noopener">→ Cinemark Coastal Grand (Fandango)</a><br>
+      <a href="https://www.moviefone.com/showtimes/theaters/myrtle-beach-sc/29572/" target="_blank" rel="noopener">→ everything else nearby (Moviefone)</a>
+      <br><br>
+      <em>Pick whatever looks good — I'll book two tickets the second you lock this in.</em>
+    </div>
+  </button>
+
+  <button class="opt gift" data-movie="you" onclick="pickMovie(this,event)">
+    <span class="tag">🎁 TRUST ME</span>
     <h3>Let me surprise you.</h3>
     <div class="sub">Close the app. I've already got one in mind that's exactly for tonight, exactly for you. You'll see when you see.</div>
   </button>
@@ -226,34 +620,41 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 <!-- 4 dinner ------------------------------------------------------- -->
 <section class="screen" id="s4">
+  <div class="dots"><span class="on"></span><span class="on"></span></div>
   <div class="kicker">Decision 2 of 2</div>
-  <h2>How bougie are we tonight?</h2>
-  <p class="small" style="margin-bottom:6px">Slide up as high as you want. There is no wrong answer.
+  <h2>How <em>bougie</em> are we tonight?</h2>
+  <p class="dim" style="margin-bottom:0">Slide up as high as you want. There is no wrong answer.
     (There is one right answer. It's whatever you pick.)</p>
-  <div class="tier"><div class="bar"><div class="fill" id="fill"></div></div></div>
 
-  <button class="opt" data-dinner="gas" data-level="1" onclick="pickDinner(this)">
-    <span class="price">TIER I</span>
-    <h3>Gas Station Legal Minimum</h3>
+  <div class="candles" id="candles">
+    <div class="candle"><div class="wax"></div><div class="flame"></div></div>
+    <div class="candle"><div class="wax"></div><div class="flame"></div></div>
+    <div class="candle"><div class="wax"></div><div class="flame"></div></div>
+    <div class="candle"><div class="wax"></div><div class="flame"></div></div>
+  </div>
+
+  <button class="opt" data-dinner="gas" data-level="1" onclick="pickDinner(this,event)">
+    <span class="price">Tier I</span>
+    <h3>Gas station legal minimum</h3>
     <div class="sub">Taquitos. A slushie. A single mystery hot dog. Full send.</div>
   </button>
-  <button class="opt" data-dinner="takeout" data-level="2" onclick="pickDinner(this)">
-    <span class="price">TIER II</span>
+  <button class="opt" data-dinner="takeout" data-level="2" onclick="pickDinner(this,event)">
+    <span class="price">Tier II</span>
     <h3>Takeout in sweats</h3>
     <div class="sub">The usual, delivered. No pants required. No humans required.</div>
   </button>
-  <button class="opt" data-dinner="nice" data-level="3" onclick="pickDinner(this)">
-    <span class="price">TIER III</span>
+  <button class="opt" data-dinner="nice" data-level="3" onclick="pickDinner(this,event)">
+    <span class="price">Tier III</span>
     <h3>A nice sit-down</h3>
     <div class="sub">Actual restaurant. Real napkins. I put on the shirt with buttons.</div>
   </button>
-  <button class="opt" data-dinner="boujie" data-level="4" onclick="pickDinner(this)">
-    <span class="price">TIER IV &middot; FULL BOUJIE</span>
+  <button class="opt" data-dinner="boujie" data-level="4" onclick="pickDinner(this,event)">
+    <span class="price">Tier IV &middot; Full Boujie</span>
     <h3>Steakhouse. Wine list. The works.</h3>
     <div class="sub">I book the reservation the moment you tap. No looking at prices. You earned it.</div>
   </button>
-  <button class="opt gift" data-dinner="surprise" data-level="4" onclick="pickDinner(this)">
-    <span class="tag">&#127873; TRUST ME</span>
+  <button class="opt gift" data-dinner="surprise" data-level="4" onclick="pickDinner(this,event)">
+    <span class="tag">🎁 TRUST ME</span>
     <h3>Let me surprise you here too.</h3>
     <div class="sub">Don't tell you where, don't tell you when. Just be ready by 7. Wear something you like. That's the only thing you have to do.</div>
   </button>
@@ -264,175 +665,436 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 <!-- 5 confirm ------------------------------------------------------ -->
 <section class="screen" id="s5">
-  <div class="kicker">Confirmed</div>
-  <h1>Tonight, then.</h1>
-  <div class="receipt" id="receipt"></div>
-  <p class="small" id="sent">Telling him&hellip;</p>
-  <div class="final">
+  <div class="reservation">
+    <div class="res-hdr">
+      <div class="brand">Reservation Confirmed</div>
+      <h2 class="script" style="font-family:'Caveat',cursive;color:var(--coral);font-size:38px">Tonight, then.</h2>
+      <div class="date" id="resDate">— tonight —</div>
+    </div>
+    <div class="res-row">
+      <div class="k">Guest of honor</div>
+      <div class="v script" id="resGuest" style="font-family:'Caveat',cursive;font-size:22px;color:var(--wine)">Nicole</div>
+    </div>
+    <div class="res-row" id="rowMovie">
+      <div class="k">The movie</div>
+      <div class="v" id="resMovie">—</div>
+    </div>
+    <div class="res-row" id="rowDinner">
+      <div class="k">Dinner</div>
+      <div class="v" id="resDinner">—</div>
+    </div>
+    <div class="res-row" id="rowHeli" style="display:none">
+      <div class="k">Add-on</div>
+      <div class="v">🚁 $30 helicopter ride</div>
+    </div>
+    <div class="res-row">
+      <div class="k">Effort from you</div>
+      <div class="v" style="color:var(--coral)">Zero</div>
+    </div>
+    <div class="res-footer">🧾 confirmed &middot; <span id="sent">telling him now…</span></div>
+    <div class="countdown" id="cd" style="display:none">
+      <div class="num" id="cdNum">--:--:--</div>
+      <div class="lbl">until you should be ready</div>
+    </div>
+  </div>
+
+  <div class="shot-nudge">screenshot this ↑ so you don't forget 📸</div>
+
+  <div class="love-note">
     <p>Okay. Real part now.</p>
     <p>I built you a whole website with a pulsing envelope and a board of directors
       of our dogs because you deserve the over-the-top version of every ordinary night.
-      Tuesday. Wednesday. A random August 23rd. Whatever it is.</p>
-    <p>This is the man you get now. The one who plans the movie and the dinner and
-      the reservation and thinks it's fun to do it. Who wanted to make you laugh
-      before you'd even finished unpacking. Who is, genuinely, so glad you're home
-      that he spent an afternoon coding a helicopter joke.</p>
-    <p style="margin:0"><b style="color:var(--gold)">You are the most special person in
-      my entire life, Nicole. Now go put on something comfortable &mdash; I'm handling
-      the rest.</b></p>
+      Tuesday. Wednesday. A random <span id="loveDate">August 23rd</span>. Whatever it is.</p>
+    <p><b>This is the man you get now.</b> The one who plans the movie and the dinner
+      and the reservation and thinks it's fun to do it. Who wanted to make you laugh
+      before you'd even finished unpacking. Who is, genuinely, so glad you're home that
+      he spent an afternoon coding a helicopter joke.</p>
+    <p style="margin-bottom:0"><b>You are the most special person in my entire life, <span id="loveName">Nicole</span>.</b>
+      <br>Now go put on something comfortable — I'm handling the rest.</p>
   </div>
+
   <button class="btn ghost" onclick="go(4)">actually, change something</button>
 </section>
 
 </div>
 
-<!-- persistent nag ------------------------------------------------ -->
-<div id="heli">
-  <span class="rotor">&#127749;</span>
-  <b id="heliTxt">psst. $30 helicopter ride?</b>
-  <button onclick="heliNo()">no</button>
-  <button class="yes" onclick="heliYes()">fine</button>
+<!-- Toby the Chairman (narrator, floating pill) -->
+<div id="toby">
+  <div class="face">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <ellipse cx="50" cy="60" rx="34" ry="30" fill="#fff5ec"/>
+      <ellipse cx="26" cy="42" rx="9" ry="13" fill="#fff5ec" transform="rotate(-25 26 42)"/>
+      <ellipse cx="74" cy="42" rx="9" ry="13" fill="#fff5ec" transform="rotate(25 74 42)"/>
+      <circle cx="38" cy="58" r="3" fill="#3d1a2e"/>
+      <circle cx="62" cy="58" r="3" fill="#3d1a2e"/>
+      <ellipse cx="50" cy="70" rx="4" ry="3" fill="#3d1a2e"/>
+      <path d="M50,73 L50,78 M45,78 Q50,81 55,78" stroke="#3d1a2e" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+  <div class="said">🐾 Chairman Toby says…</div>
+  <div class="quote" id="tobyQuote">…</div>
+  <div class="actions" id="tobyActions"></div>
 </div>
 
+<canvas id="confetti"></canvas>
+
 <script>
-var LETTER = [
-  ["Nicole.", 36],
-  ["You were gone for two weeks and I missed you.", 22],
-  ["You're home now. That's the whole thing.", 22],
-  ["Tonight I'm taking you out. You make the two decisions that " +
-   "actually matter — I handle the rest.", 18]
-];
+// ================================================================
+// Nicole's date — beautiful build. Personalized in friend rehearsal.
+// ================================================================
 
-var HELI = [
-  "psst. $30 helicopter ride?",
-  "just saying. $30. helicopter.",
-  "the helicopter is still available.",
-  "you haven't technically said no to the helicopter.",
-  "NICOLE. THIRTY DOLLARS.",
-  "fine. the helicopter waits. it always waits."
-];
-var heliN = 0, heliTimer = null, heliOn = false;
-
-var state = { movie:null, movieLabel:null, dinner:null, dinnerLabel:null, heli:false };
-
-// Viewer tag from ?v=<name>. Anything present flips the page into test
-// mode: the strip up top shows, and every logged pick + panel banner is
-// prefixed with the viewer name so real picks stay distinguishable from
-// friend-test picks in date_log.jsonl. No `v` = real, unadorned page.
+// URL params: ?v=<name> flips into rehearsal mode; the whole page
+// swaps her name for the friend's and the top strip appears.
 var VIEWER = (function(){
   try {
     var v = new URLSearchParams(window.location.search).get('v');
     if (!v) return null;
-    // Same "just enough to be a name" trim -- the server also caps this.
     return v.replace(/[^A-Za-z0-9 _.-]/g,'').slice(0,40).trim() || null;
   } catch(e){ return null; }
 })();
+
+var NAME = VIEWER || 'Nicole';
+var NAME_TITLE = NAME.charAt(0).toUpperCase() + NAME.slice(1);
+var INITIAL = NAME_TITLE.charAt(0);
+
+// Personalize everything with the name
+document.title = 'A Proposal For ' + NAME_TITLE;
+document.getElementById('forName').textContent = NAME_TITLE;
+document.getElementById('seal').textContent = INITIAL;
+document.getElementById('resGuest').textContent = NAME_TITLE;
+document.getElementById('loveName').textContent = NAME_TITLE;
+
 if (VIEWER) {
-  document.getElementById('testWho').textContent = VIEWER;
+  document.getElementById('testWho').textContent = NAME_TITLE;
   document.getElementById('testbar').style.display = 'block';
 }
 
-function go(n){
-  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('on'); });
-  document.getElementById('s'+n).classList.add('on');
-  window.scrollTo(0,0);
-  if(n===1) typeLetter();
-  if(n>=2) armHeli(n===2 ? 3500 : 5500);
+// Date on the love note & reservation
+var TODAY = new Date();
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function ordinal(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+document.getElementById('loveDate').textContent = MONTHS[TODAY.getMonth()] + ' ' + ordinal(TODAY.getDate());
+document.getElementById('resDate').textContent = '— ' + MONTHS[TODAY.getMonth()] + ' ' + ordinal(TODAY.getDate()) + ' —';
+
+// ---------- Letter text (name-swapped) ----------
+var LETTER = [
+  NAME_TITLE + '.',
+  'You were gone for two weeks and I missed you.',
+  "You're home now. That's the whole thing.",
+  "Tonight I'm taking you out. You make the two decisions that actually matter — I handle the rest."
+];
+
+// If it's a friend rehearsal, tweak one line so it lands as the joke
+if (VIEWER) {
+  LETTER[3] = "Tonight I'm taking you out, " + NAME_TITLE +
+              ". You make the two decisions that actually matter — I handle the rest. " +
+              "(Yes, this is exactly what the real page says. Yes, you got the full proposal. Enjoy.)";
 }
 
 function typeLetter(){
   var box = document.getElementById('letter');
   if(box.dataset.done) return;
   box.dataset.done = "1";
-  LETTER.forEach(function(pair,i){
+  LETTER.forEach(function(t,i){
     var p = document.createElement('p');
-    p.className = 'line';
-    p.style.fontSize = pair[1] + 'px';
-    p.style.lineHeight = '1.35';
-    p.style.animationDelay = (i*0.9+0.15) + 's';
-    p.textContent = pair[0];
+    p.className = 'line' + (i===2 ? ' italic' : '');
+    p.style.animationDelay = (i*0.9+0.2) + 's';
+    p.textContent = t;
     box.appendChild(p);
   });
 }
 
-function armHeli(delay){
-  if(heliTimer) clearTimeout(heliTimer);
-  if(heliOn) return;
-  heliTimer = setTimeout(function(){
-    var i = Math.min(heliN, HELI.length-1);
-    document.getElementById('heliTxt').textContent = HELI[i];
-    document.getElementById('heli').classList.add('on');
-  }, delay);
-}
-function heliNo(){
-  document.getElementById('heli').classList.remove('on');
-  heliN = Math.min(heliN+1, HELI.length-1);
-  armHeli(11000);
-}
-function heliYes(){
-  state.heli = true;
-  document.getElementById('heli').classList.remove('on');
-  if(heliTimer) clearTimeout(heliTimer);
-  heliOn = true; // stop bothering her, she said yes
-  // little celebratory flash
-  document.body.animate([{background:'#3a1c2a'},{background:''}],{duration:600});
+// ---------- Sparkles ----------
+var SKY_CHARS = ['♡','✦','✧','♥','·'];
+(function seedSky(){
+  var sky = document.getElementById('sky');
+  for(var i=0;i<24;i++){
+    var s = document.createElement('i');
+    s.textContent = SKY_CHARS[i % SKY_CHARS.length];
+    s.style.left = (Math.random()*100) + 'vw';
+    s.style.fontSize = (10 + Math.random()*18) + 'px';
+    s.style.color = ['#f472b6','#fb7185','#f59e0b','#ec4899'][i%4];
+    s.style.animationDelay = (Math.random()*14) + 's';
+    s.style.animationDuration = (10 + Math.random()*10) + 's';
+    s.style.setProperty('--drift', (Math.random()*80-40) + 'px');
+    sky.appendChild(s);
+  }
+})();
+
+// ---------- Envelope ----------
+function openEnvelope(){
+  var e = document.getElementById('envelope');
+  if (e.classList.contains('opened')) return;
+  e.classList.add('opened');
+  burst(window.innerWidth/2, window.innerHeight/2 - 40, 40);
+  haptic(30);
+  setTimeout(function(){ go(1); }, 700);
 }
 
-function pickMovie(btn){
+// ---------- Screens ----------
+function go(n){
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('on'); });
+  document.getElementById('s'+n).classList.add('on');
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(n===1) typeLetter();
+  if(n>=2) armToby(n===2 ? 4500 : 6500);
+}
+
+// ---------- State + picks ----------
+var state = { movie:null, movieLabel:null, dinner:null, dinnerLabel:null, heli:false };
+
+function pickMovie(btn, ev){
+  // Theater card just expands on first tap; second tap selects it
+  if (btn.dataset.movie === 'theater' && !btn.classList.contains('sel')) {
+    document.querySelectorAll('[data-movie]').forEach(function(b){ b.classList.remove('sel'); });
+    btn.classList.add('sel');
+    state.movie = 'theater';
+    state.movieLabel = 'Actual theater tonight';
+    document.getElementById('toDinner').disabled = false;
+    burst(ev.clientX||200, ev.clientY||400, 18);
+    haptic(20);
+    return;
+  }
+  // Don't hijack link clicks inside the marquee
+  if (ev.target.tagName === 'A') return;
   document.querySelectorAll('[data-movie]').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
   state.movie = btn.dataset.movie;
   state.movieLabel = btn.querySelector('h3').textContent.trim();
   document.getElementById('toDinner').disabled = false;
+  burst(ev.clientX||200, ev.clientY||400, 24);
+  haptic(20);
 }
-function pickDinner(btn){
+
+function pickDinner(btn, ev){
   document.querySelectorAll('[data-dinner]').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
   state.dinner = btn.dataset.dinner;
   state.dinnerLabel = btn.querySelector('h3').textContent.trim();
   var lvl = parseInt(btn.dataset.level,10) || 1;
-  document.getElementById('fill').style.width = (lvl*25) + '%';
+  // Light the candles up to the chosen tier
+  var candles = document.querySelectorAll('#candles .candle');
+  candles.forEach(function(c,i){ c.classList.toggle('lit', i < lvl); });
   document.getElementById('toConfirm').disabled = false;
+  burst(ev.clientX||200, ev.clientY||400, 24 + lvl*4);
+  haptic(20 + lvl*10);
 }
 
 function confirmIt(){
-  // build receipt
-  var r = document.getElementById('receipt');
-  // Surprise picks read as mystery on the receipt, not the backend label
-  // ("SHE TRUSTS YOU TO ...") which is meant for the panel, not her.
-  var mLine = state.movie  === 'you'
-      ? '<b>&#127873; A SURPRISE. TRUSTED.</b>'
-      : '<b>' + esc(state.movieLabel) + '</b>';
-  var dLine = state.dinner === 'surprise'
-      ? '<b>&#127873; A SURPRISE. BE READY BY 7.</b>'
-      : '<b>' + esc(state.dinnerLabel) + '</b>';
-  r.innerHTML =
-    'CUSTOMER . . . . . <b>NICOLE</b>\n' +
-    'DATE . . . . . . . <b>TONIGHT</b>\n' +
-    'MOVIE VIBE . . . . ' + mLine + '\n' +
-    'DINNER . . . . . . ' + dLine + '\n' +
-    (state.heli ? 'ADD-ON . . . . . . <b>$30 HELICOPTER RIDE</b>\n' : '') +
-    '\nTOTAL EFFORT REQUIRED FROM YOU: <b>ZERO</b>';
+  // Populate reservation
+  var mv = state.movie === 'you'
+    ? '🎁 a surprise. trusted.'
+    : state.movie === 'theater'
+      ? '🎬 in theater (Cinemark Coastal Grand)'
+      : state.movieLabel;
+  var dn = state.dinner === 'surprise'
+    ? '🎁 a surprise · be ready by 7'
+    : state.dinnerLabel;
+
+  document.getElementById('resMovie').textContent = mv;
+  document.getElementById('resDinner').textContent = dn;
+  document.getElementById('rowHeli').style.display = state.heli ? 'flex' : 'none';
+
+  // Mark surprise rows for italic styling
+  document.getElementById('rowMovie').classList.toggle('surprise', state.movie === 'you');
+  document.getElementById('rowDinner').classList.toggle('surprise', state.dinner === 'surprise');
+
+  // Countdown to 7pm if dinner is a surprise
+  if (state.dinner === 'surprise') {
+    document.getElementById('cd').style.display = 'block';
+    startCountdown();
+  }
+
   go(5);
-  document.getElementById('sent').textContent = 'Telling him…';
-  if(heliTimer) clearTimeout(heliTimer);
-  document.getElementById('heli').classList.remove('on');
+  document.getElementById('sent').textContent = 'telling him now…';
+  bigConfetti();
+  haptic([30,60,30]);
+
+  hideToby();
+
   fetch('/api/date/pick', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
-      movie: state.movie, dinner: state.dinner, heli: state.heli,
-      viewer: VIEWER
+      movie: state.movie, dinner: state.dinner,
+      heli: state.heli, viewer: VIEWER
     })
   }).then(function(r){ return r.json(); }).then(function(j){
     document.getElementById('sent').textContent = j && j.ok
-      ? 'He knows. It just lit up on the panel in the house.'
-      : 'He knows. (Text him too, the house is being weird.)';
+      ? 'he knows — the office lamp just blinked'
+      : 'he knows (also text him)';
   }).catch(function(){
-    document.getElementById('sent').textContent =
-      'He knows. (Text him too, the house is being weird.)';
+    document.getElementById('sent').textContent = 'he knows (also text him)';
   });
 }
 
-function esc(s){ return String(s||'').replace(/[&<>]/g,function(c){
-  return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+// ---------- Countdown ----------
+function startCountdown(){
+  var target = new Date();
+  target.setHours(19,0,0,0);
+  if (target < new Date()) target.setDate(target.getDate()+1);
+  function tick(){
+    var diff = target - new Date();
+    if (diff < 0) { document.getElementById('cdNum').textContent = "it's time"; return; }
+    var h = Math.floor(diff/3600000);
+    var m = Math.floor((diff%3600000)/60000);
+    var s = Math.floor((diff%60000)/1000);
+    document.getElementById('cdNum').textContent =
+      String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ---------- Toby the Chairman (floating narrator) ----------
+// He escalates the longer she takes; helicopter is now his obsession
+var TOBY_LINES = [
+  { q: 'the chairman is watching. no pressure.', a: null },
+  { q: 'this proposal has been open for a while. some of us have naps to take.', a: null },
+  { q: 'motion to add the $30 helicopter ride to the evening. all in favor?', a: 'heli' },
+  { q: 'chairman requests movement. any movement. even a wrong movement.', a: null },
+  { q: 'the helicopter is still available. i am not saying you have to. but.', a: 'heli' },
+  { q: 'chairman formally objects to further stalling. treats to be issued upon selection.', a: null },
+  { q: 'thirty. dollars. helicopter. final offer. from him. not me. i cannot legally offer things.', a: 'heli' }
+];
+var tobyN = 0, tobyTimer = null, tobyShown = false;
+
+function armToby(delay){
+  if (tobyTimer) clearTimeout(tobyTimer);
+  tobyTimer = setTimeout(showToby, delay);
+}
+function showToby(){
+  var i = Math.min(tobyN, TOBY_LINES.length - 1);
+  var t = TOBY_LINES[i];
+  document.getElementById('tobyQuote').textContent = t.q;
+  var actions = document.getElementById('tobyActions');
+  actions.innerHTML = '';
+  if (t.a === 'heli') {
+    var no = document.createElement('button');
+    no.textContent = 'no chairman'; no.onclick = tobyDismiss;
+    var yes = document.createElement('button');
+    yes.className = 'heliyes'; yes.textContent = '🚁 fine, add it'; yes.onclick = heliYes;
+    actions.appendChild(no); actions.appendChild(yes);
+  } else {
+    var ok = document.createElement('button');
+    ok.textContent = 'noted'; ok.onclick = tobyDismiss;
+    actions.appendChild(ok);
+  }
+  document.getElementById('toby').classList.add('on');
+  tobyShown = true;
+}
+function tobyDismiss(){
+  document.getElementById('toby').classList.remove('on');
+  tobyN = Math.min(tobyN + 1, TOBY_LINES.length - 1);
+  tobyShown = false;
+  armToby(14000);
+}
+function heliYes(){
+  state.heli = true;
+  document.getElementById('toby').classList.remove('on');
+  if (tobyTimer) clearTimeout(tobyTimer);
+  tobyShown = false;
+  burst(window.innerWidth/2, window.innerHeight - 80, 40);
+  haptic([30,50,30]);
+  // Toby comes back once, briefly, to congratulate her
+  setTimeout(function(){
+    document.getElementById('tobyQuote').textContent = 'motion carries. helicopter secured. dismissed.';
+    document.getElementById('tobyActions').innerHTML = '';
+    var ok = document.createElement('button');
+    ok.textContent = '🐾 good'; ok.onclick = function(){
+      document.getElementById('toby').classList.remove('on');
+    };
+    document.getElementById('tobyActions').appendChild(ok);
+    document.getElementById('toby').classList.add('on');
+    setTimeout(function(){
+      document.getElementById('toby').classList.remove('on');
+    }, 3500);
+  }, 900);
+}
+function hideToby(){
+  if (tobyTimer) clearTimeout(tobyTimer);
+  document.getElementById('toby').classList.remove('on');
+}
+
+// ---------- Confetti ----------
+var cvs = document.getElementById('confetti');
+var ctx = cvs.getContext('2d');
+function fitCanvas(){ cvs.width = window.innerWidth; cvs.height = window.innerHeight; }
+window.addEventListener('resize', fitCanvas); fitCanvas();
+
+var particles = [];
+function burst(x, y, n){
+  n = n || 24;
+  var colors = ['#f472b6','#fb7185','#f59e0b','#ec4899','#c9862f','#ffb4b0'];
+  for (var i=0; i<n; i++){
+    particles.push({
+      x:x, y:y,
+      vx: (Math.random()-0.5)*10,
+      vy: (Math.random()*-8) - 3,
+      g: 0.35 + Math.random()*0.2,
+      s: 4 + Math.random()*5,
+      r: Math.random()*Math.PI*2,
+      vr: (Math.random()-0.5)*0.3,
+      c: colors[Math.floor(Math.random()*colors.length)],
+      life: 60 + Math.random()*40,
+      shape: Math.random() < 0.4 ? 'heart' : 'sq'
+    });
+  }
+  if (!running) { running = true; requestAnimationFrame(loop); }
+}
+function bigConfetti(){
+  // sustained burst from top corners
+  for (var i=0;i<4;i++) {
+    setTimeout(function(){
+      burst(Math.random()*window.innerWidth, -20, 30);
+    }, i*200);
+  }
+}
+var running = false;
+function loop(){
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  for (var i = particles.length-1; i >= 0; i--){
+    var p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += p.g; p.r += p.vr; p.life--;
+    if (p.life <= 0 || p.y > cvs.height + 40) { particles.splice(i,1); continue; }
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.r);
+    ctx.fillStyle = p.c;
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life/60));
+    if (p.shape === 'heart'){
+      // simple heart shape via two arcs + triangle
+      ctx.beginPath();
+      var s = p.s;
+      ctx.moveTo(0, s*0.3);
+      ctx.bezierCurveTo(s, -s*0.6, s*1.4, s*0.5, 0, s*1.2);
+      ctx.bezierCurveTo(-s*1.4, s*0.5, -s, -s*0.6, 0, s*0.3);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-p.s/2, -p.s/2, p.s, p.s);
+    }
+    ctx.restore();
+  }
+  if (particles.length > 0) requestAnimationFrame(loop);
+  else running = false;
+}
+
+// ---------- Haptic ----------
+function haptic(pat){
+  try { if (navigator.vibrate) navigator.vibrate(pat); } catch(e){}
+}
+
+// ---------- Easter egg: tap the seal 5x quickly for a hidden line ----------
+var sealTaps = 0, sealTimer = null;
+document.getElementById('seal').addEventListener('click', function(e){
+  e.stopPropagation();
+  sealTaps++;
+  clearTimeout(sealTimer);
+  sealTimer = setTimeout(function(){ sealTaps = 0; }, 1500);
+  if (sealTaps >= 5) {
+    sealTaps = 0;
+    burst(window.innerWidth/2, window.innerHeight/2, 60);
+    haptic([50,100,50,100,50]);
+    alert("hi. yes, you found it. i love you.");
+  }
+});
 </script>
