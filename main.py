@@ -2203,6 +2203,16 @@ async def blog_page(request: Request):
 from services import dateplan as _dateplan  # noqa: E402  (bottom-of-file on purpose)
 
 
+@app.get("/date", response_class=HTMLResponse)
+async def date_hub():
+    """The public brand hub. Elegant landing that reveals nothing on its
+    own -- she types her word into a seal-shaped input to unlock her
+    invitation. Also the shell for future "request a night" and the
+    personal history view, which currently render as sealed ghost cards
+    so the roadmap is visible without over-promising."""
+    return HTMLResponse((Path(__file__).parent / "templates" / "date_hub.html").read_bytes())
+
+
 @app.get("/date/{secret}", response_class=HTMLResponse)
 async def date_page(secret: str):
     """Behind a word only she has (obscurity, not auth -- stakes are
