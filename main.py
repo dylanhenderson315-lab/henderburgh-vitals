@@ -2214,6 +2214,16 @@ async def date_page(secret: str):
     return HTMLResponse(path.read_bytes())
 
 
+@app.get("/api/date/inbox")
+async def api_date_inbox(token: str = ""):
+    """Read-only view of every pick logged so far. Token-gated (ADMIN_TOKEN
+    from env) so only he can read the log. Same log file the poster writes."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="bad or missing token")
+    return {"count": len(_dateplan.picks(limit=500)),
+            "picks": _dateplan.picks(limit=500)}
+
+
 @app.post("/api/date/pick")
 async def api_date_pick(request: Request, background_tasks: BackgroundTasks):
     """She (or a friend, with ?v=<name>) tapped a card. Append the pick to
