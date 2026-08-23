@@ -633,6 +633,12 @@ details summary::-webkit-details-marker{display:none}
     <div class="candle"><div class="wax"></div><div class="flame"></div></div>
   </div>
 
+  <button class="opt gift" data-dinner="cooking" data-level="4" onclick="pickDinner(this,event)">
+    <span class="tag" style="background:linear-gradient(90deg,#fb7185,#ec4899);color:#fff">🦀 tonight's special</span>
+    <h3>Crab legs &amp; shrimp — you're cooking</h3>
+    <div class="sub">You already made tonight special the second you walked through the door with that bag from the store. Kitchen's yours. I'll pour the wine, do every single dish, and stay out of your way (or help, whichever you want).</div>
+  </button>
+
   <button class="opt" data-dinner="gas" data-level="1" onclick="pickDinner(this,event)">
     <span class="price">Tier I</span>
     <h3>Gas station legal minimum</h3>
@@ -673,19 +679,31 @@ details summary::-webkit-details-marker{display:none}
   <button class="opt" data-morning="coffee" onclick="pickMorning(this,event)">
     <span class="price">☕ new to us</span>
     <h3>A brand new coffee shop</h3>
-    <div class="sub">One we've never tried. You pick it in the car on the way. Little corner table, no phones for an hour.</div>
+    <div class="sub">One of the cute ones we've never tried — Beach Hippie, Birchin Lane, Le Bon, or whatever looks right that morning. Corner table. Phones face-down.</div>
+  </button>
+
+  <button class="opt" data-morning="bookworm" onclick="pickMorning(this,event)">
+    <span class="price">📚 + 🍷 books &amp; wine</span>
+    <h3>Bookworm &amp; Vine</h3>
+    <div class="sub">Myrtle Beach's only bookstore that also has a real wine bar. Browse, sip, stay as long as we want. No rush, no plan beyond "this feels nice."</div>
   </button>
 
   <button class="opt" data-morning="books" onclick="pickMorning(this,event)">
     <span class="price">📚 pawleys island</span>
     <h3>Litchfield Books, all morning</h3>
-    <div class="sub">Drive down to Pawleys, wander the whole store, buy something you weren't planning to. I'll read whatever you shove at me.</div>
+    <div class="sub">Drive down to Pawleys, take our time, buy something neither of us planned on. Coffee on the way or after — your call.</div>
   </button>
 
-  <button class="opt" data-morning="both" onclick="pickMorning(this,event)">
+  <button class="opt" data-morning="gardens" onclick="pickMorning(this,event)">
+    <span class="price">🌳 murrells inlet</span>
+    <h3>Brookgreen Gardens, slow</h3>
+    <div class="sub">Live oaks, sculptures, quiet paths. We wander until we feel like leaving. No agenda, just the two of us and a place that always feels a little magical.</div>
+  </button>
+
+  <button class="opt" data-morning="perfect" onclick="pickMorning(this,event)">
     <span class="price">✨ the perfect sunday</span>
-    <h3>Both. Coffee <em>and</em> the bookstore.</h3>
-    <div class="sub">Coffee first, bookstore after. Or the other way around. The whole morning belongs to nowhere in particular.</div>
+    <h3>Coffee, bookstore, and no clock</h3>
+    <div class="sub">New coffee first, then Litchfield or Bookworm &amp; Vine, then whatever the morning wants next. We leave when it feels done.</div>
   </button>
 
   <button class="opt gift" data-morning="surprise" onclick="pickMorning(this,event)">
@@ -891,8 +909,10 @@ var state = { movie:null, movieLabel:null, dinner:null, dinnerLabel:null,
 
 var MORNING_RES = {
   coffee:   '☕ a brand new coffee shop',
+  bookworm: '📚🍷 Bookworm & Vine',
   books:    '📚 Litchfield Books, all morning',
-  both:     '☕📚 coffee + the bookstore',
+  gardens:  '🌳 Brookgreen Gardens, slow',
+  perfect:  '✨ coffee, bookstore, no clock',
   surprise: '🎁 a surprise · wake when you wake',
   skip:     '💤 sleep in · zero plans'
 };
@@ -953,7 +973,9 @@ function confirmIt(){
       : state.movieLabel;
   var dn = state.dinner === 'surprise'
     ? '🎁 a surprise · be ready by 7'
-    : state.dinnerLabel;
+    : state.dinner === 'cooking'
+      ? '🦀 crab legs + shrimp · you\'re cooking'
+      : state.dinnerLabel;
 
   document.getElementById('resMovie').textContent = mv;
   document.getElementById('resDinner').textContent = dn;

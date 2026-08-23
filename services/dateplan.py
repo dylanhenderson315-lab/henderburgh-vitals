@@ -40,6 +40,9 @@ MOVIES = {
 }
 
 DINNERS = {
+    # Tonight's actual front-runner -- she already went to the store and
+    # brought home crab legs + shrimp. Kept at the top of the dinner list.
+    "cooking":  "CRAB LEGS + SHRIMP, SHE'S COOKING",
     "gas":      "GAS STATION LEGAL MINIMUM",
     "takeout":  "TAKEOUT IN SWEATS",
     "nice":     "A NICE SIT DOWN",
@@ -51,9 +54,11 @@ DINNERS = {
 # She loves coffee dates and cute bookstores; the options here are that,
 # plus a trust-me and a totally-honest sleep-in.
 MORNINGS = {
-    "coffee":   "COFFEE AT SOMEWHERE NEW",
+    "coffee":   "BRAND NEW COFFEE SHOP",
+    "bookworm": "BOOKWORM AND VINE, BOOKS AND WINE",
     "books":    "LITCHFIELD BOOKS ALL MORNING",
-    "both":     "COFFEE + BOOKSTORE, THE PERFECT SUNDAY",
+    "gardens":  "BROOKGREEN GARDENS, SLOW",
+    "perfect":  "COFFEE + BOOKSTORE, NO CLOCK",
     "surprise": "SHE TRUSTS YOU TO PLAN THE MORNING",
     "skip":     "SLEEP IN, ZERO PLANS",
 }
