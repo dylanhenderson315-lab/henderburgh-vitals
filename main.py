@@ -2224,6 +2224,28 @@ async def api_date_inbox(token: str = ""):
             "picks": _dateplan.picks(limit=500)}
 
 
+@app.get("/date/inbox/{token}", response_class=HTMLResponse)
+async def date_inbox_page(token: str):
+    """Pretty inbox: every past pick rendered as a stack of reservation cards
+    in the same visual language as the invite. Token in the URL path so a
+    bookmarked link works from any device -- same obscurity discipline as
+    the /date/{secret} page. Real picks are highlighted; test rehearsals
+    are shown but visually deprioritized."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=404)
+    path = Path(__file__).parent / "templates" / "date_inbox.html"
+    return HTMLResponse(path.read_bytes())
+
+
+@app.get("/api/date/inbox-json/{token}")
+async def date_inbox_json(token: str):
+    """JSON feed for the inbox page. Same token-in-path so the page can
+    fetch it without shipping the token as a query string on every asset."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=404)
+    return {"picks": _dateplan.picks(limit=500)}
+
+
 @app.post("/api/date/pick")
 async def api_date_pick(request: Request, background_tasks: BackgroundTasks):
     """She (or a friend, with ?v=<name>) tapped a card. Append the pick to

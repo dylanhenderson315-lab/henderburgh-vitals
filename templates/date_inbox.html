@@ -1,0 +1,261 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Henderburgh Date Nights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --cream:#fff5ec; --peach:#ffe8dc; --blush:#ffd6d0; --rose:#ffb4b0;
+  --coral:#f97070; --pink:#ec4899; --plum:#3d1a2e; --wine:#6b1e3a;
+  --gold:#c9862f; --paper:#fffaf3; --line:#e9c9c2; --mauve:#8a5a72;
+  --ink:#2a121f;
+  --shadow:0 22px 60px -25px rgba(107,30,58,.35);
+  --shadow-lg:0 40px 100px -40px rgba(107,30,58,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  color:var(--ink);min-height:100dvh;
+  font:16px/1.55 "Inter",ui-sans-serif,system-ui,sans-serif;
+  padding:32px 18px 80px;
+  background:
+    radial-gradient(120% 60% at 20% 0%,#ffd0c8 0%,transparent 60%),
+    radial-gradient(120% 60% at 90% 30%,#ffb8d2 0%,transparent 55%),
+    radial-gradient(120% 60% at 50% 100%,#ffe0b0 0%,transparent 55%),
+    linear-gradient(180deg,#fff2e8 0%,#ffe4e6 55%,#fce7f3 100%);
+  background-attachment:fixed;
+}
+.wrap{max-width:640px;margin:0 auto}
+
+.hero{text-align:center;margin-bottom:36px}
+.hero .brand{
+  font:700 10px/1 "Inter",sans-serif;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--coral);margin-bottom:12px;
+  display:inline-flex;align-items:center;gap:10px;
+}
+.hero .brand:before,.hero .brand:after{content:"";width:24px;height:1px;background:var(--rose)}
+.hero h1{font:700 clamp(38px,10vw,58px)/1.02 "Fraunces",serif;letter-spacing:-.025em;color:var(--plum)}
+.hero h1 em{font-style:italic;color:var(--coral);font-weight:400}
+.hero .sub{font-family:"Caveat",cursive;font-weight:700;color:var(--wine);
+  font-size:clamp(20px,5vw,26px);margin-top:6px}
+.hero .stats{
+  display:inline-flex;gap:22px;margin-top:18px;padding:14px 22px;
+  background:var(--paper);border-radius:999px;box-shadow:var(--shadow);
+  border:1px solid var(--line);
+}
+.hero .stats b{font:700 22px "Fraunces",serif;color:var(--coral);display:block;line-height:1}
+.hero .stats span{font:600 10px/1 "Inter",sans-serif;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--mauve);margin-top:4px;display:block}
+
+.filter{
+  display:flex;gap:8px;justify-content:center;margin-bottom:24px;
+}
+.filter button{
+  font:600 12px/1 "Inter",sans-serif;letter-spacing:.05em;
+  padding:9px 16px;border-radius:999px;cursor:pointer;
+  background:var(--paper);color:var(--wine);border:1px solid var(--line);
+  transition:all .18s;
+}
+.filter button.on{background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;border-color:transparent;box-shadow:0 6px 14px -6px var(--coral)}
+
+/* card = same visual language as the invite's reservation card */
+.card{
+  background:linear-gradient(135deg,#fffaf3 0%,#fff5ec 60%,#ffe8dc 100%);
+  border-radius:26px;padding:26px 22px;
+  box-shadow:var(--shadow-lg),inset 0 1px 0 rgba(255,255,255,.6);
+  position:relative;overflow:hidden;margin-bottom:20px;
+  animation:rise .55s cubic-bezier(.2,.8,.25,1) both;
+}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.card.test{
+  background:linear-gradient(135deg,#f7f2ea 0%,#efe4dc 100%);
+  opacity:.78;
+}
+.card:before{
+  content:"";position:absolute;top:-40px;right:-40px;width:120px;height:120px;
+  background:radial-gradient(circle,rgba(249,112,112,.15),transparent 70%);
+  border-radius:50%;
+}
+.card.test:before{background:radial-gradient(circle,rgba(139,90,114,.12),transparent 70%)}
+
+.chdr{text-align:center;padding-bottom:16px;border-bottom:2px dashed var(--rose);margin-bottom:16px}
+.card.test .chdr{border-bottom-color:#c9b0a5}
+.chdr .stamp{
+  font:700 10px/1 "Inter",sans-serif;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--coral);margin-bottom:6px;
+}
+.card.test .chdr .stamp{color:#a07a8a}
+.chdr .date-big{
+  font:600 24px/1 "Fraunces",serif;color:var(--plum);
+  font-family:"Caveat",cursive;font-weight:700;font-size:28px;color:var(--wine);
+}
+.chdr .who{font:italic 500 14px/1.3 "Fraunces",serif;color:var(--mauve);margin-top:4px}
+
+.row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:10px 0;border-bottom:1px dotted var(--line);gap:12px;
+}
+.row:last-child{border-bottom:none}
+.row .k{font:600 10px/1.2 "Inter",sans-serif;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--mauve);flex:none;min-width:88px}
+.row .v{font:600 15px/1.35 "Fraunces",serif;color:var(--plum);text-align:right}
+.row.surprise .v{color:var(--coral);font-style:italic}
+
+.foot{
+  margin-top:14px;padding-top:12px;border-top:2px dashed var(--rose);
+  text-align:center;font:500 11px/1.3 "Inter",sans-serif;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--coral);
+}
+.card.test .foot{border-top-color:#c9b0a5;color:#a07a8a}
+
+/* Empty state */
+.empty{
+  text-align:center;padding:60px 20px;
+  background:var(--paper);border-radius:24px;border:1px dashed var(--line);
+}
+.empty .big{font:600 26px/1.2 "Fraunces",serif;color:var(--plum);margin-bottom:10px}
+.empty .lil{color:var(--mauve);font-size:14px}
+
+.footer{
+  margin-top:40px;text-align:center;
+  font-family:"Caveat",cursive;font-weight:500;color:var(--mauve);font-size:18px;
+}
+</style>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="brand">Henderburgh &middot; Date Nights</div>
+    <h1>Our <em>history</em>.</h1>
+    <div class="sub">every night you said yes</div>
+    <div class="stats">
+      <div><b id="realCount">—</b><span>real dates</span></div>
+      <div><b id="testCount">—</b><span>rehearsals</span></div>
+      <div><b id="firstDate">—</b><span>since</span></div>
+    </div>
+  </div>
+
+  <div class="filter">
+    <button data-f="real" class="on" onclick="setFilter(this)">Real only</button>
+    <button data-f="all" onclick="setFilter(this)">All (with rehearsals)</button>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="footer">built for Nicole &middot; <span id="today">—</span></div>
+</div>
+
+<script>
+// Token is in the URL path -- pull it from window.location and use it to
+// fetch the JSON feed. Everything below is presentation only.
+var TOKEN = (function(){
+  var m = window.location.pathname.match(/\/date\/inbox\/([^\/]+)/);
+  return m ? m[1] : '';
+})();
+
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function ordinal(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function fmtDate(ts){var d=new Date(ts*1000);return MONTHS[d.getMonth()]+' '+ordinal(d.getDate())+' '+d.getFullYear();}
+function fmtTime(ts){var d=new Date(ts*1000);
+  var h=d.getHours(),m=d.getMinutes(),am=h>=12?'pm':'am';
+  h=h%12||12;return h+':'+String(m).padStart(2,'0')+am;}
+
+// Human labels for the enum ids stored in the log
+var MOVIE = {
+  comfort:'A comfort rewatch',
+  dumb:'Something dumb and funny',
+  cry:"Something that'll make me cry",
+  boom:'Something with explosions',
+  theater:'🎬 In theater tonight',
+  you:'🎁 A surprise · trusted'
+};
+var DINNER = {
+  cooking:'🦀 Crab legs + shrimp · she cooked',
+  gas:'Gas station legal minimum',
+  takeout:'Takeout in sweats',
+  nice:'A nice sit-down',
+  boujie:'Full boujie · steakhouse',
+  surprise:'🎁 A surprise · ready by 7'
+};
+var MORNING = {
+  coffee:'☕ A brand new coffee shop',
+  bookworm:'📚🍷 Bookworm & Vine',
+  books:'📚 Litchfield Books all morning',
+  gardens:'🌳 Brookgreen Gardens, slow',
+  perfect:'✨ Coffee, bookstore, no clock',
+  surprise:'🎁 A surprise · wake when you wake',
+  skip:'💤 Sleep in · zero plans'
+};
+
+var ALL = [];
+var FILTER = 'real';
+
+fetch('/api/date/inbox-json/' + TOKEN)
+  .then(function(r){ return r.json(); })
+  .then(function(j){ ALL = (j.picks||[]).slice().reverse(); render(); })
+  .catch(function(){
+    document.getElementById('list').innerHTML =
+      '<div class="empty"><div class="big">Couldn\'t load picks</div>' +
+      '<div class="lil">Check the URL token.</div></div>';
+  });
+
+function setFilter(btn){
+  document.querySelectorAll('.filter button').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  FILTER = btn.dataset.f;
+  render();
+}
+
+function render(){
+  var shown = ALL.filter(function(p){ return FILTER === 'all' ? true : !p.test; });
+  var realCount = ALL.filter(function(p){ return !p.test; }).length;
+  var testCount = ALL.filter(function(p){ return !!p.test; }).length;
+  document.getElementById('realCount').textContent = realCount;
+  document.getElementById('testCount').textContent = testCount;
+  var first = ALL.filter(function(p){ return !p.test; }).slice(-1)[0];
+  document.getElementById('firstDate').textContent = first
+    ? MONTHS[new Date(first.ts*1000).getMonth()] : '—';
+  document.getElementById('today').textContent =
+    fmtDate(Date.now()/1000);
+
+  var list = document.getElementById('list');
+  if (shown.length === 0) {
+    list.innerHTML =
+      '<div class="empty"><div class="big">No dates logged yet</div>' +
+      '<div class="lil">Send her the link, she\'ll show up here.</div></div>';
+    return;
+  }
+
+  list.innerHTML = shown.map(function(p, i){
+    var stamp = p.test ? '🧪 REHEARSAL · ' + (p.viewer || 'friend').toUpperCase() : 'RESERVATION';
+    var mvVal = p.movie ? (MOVIE[p.movie] || p.movie_label || p.movie) : '—';
+    var dnVal = p.dinner ? (DINNER[p.dinner] || p.dinner_label || p.dinner) : '—';
+    var moVal = p.morning ? (MORNING[p.morning] || p.morning_label || p.morning) : null;
+
+    var rows = '';
+    rows += row('The movie', mvVal, p.movie === 'you');
+    rows += row('Dinner', dnVal, p.dinner === 'surprise' || p.dinner === 'cooking');
+    if (moVal) rows += row('Tomorrow AM', moVal, p.morning === 'surprise' || p.morning === 'skip');
+    if (p.heli) rows += row('Add-on', '🚁 $30 helicopter ride', true);
+
+    var who = p.test ? ('rehearsal by ' + (p.viewer || 'friend')) : 'Nicole';
+
+    return '<div class="card' + (p.test ? ' test' : '') + '">' +
+      '<div class="chdr">' +
+        '<div class="stamp">' + stamp + '</div>' +
+        '<div class="date-big">' + fmtDate(p.ts) + '</div>' +
+        '<div class="who">' + who + ' &middot; ' + fmtTime(p.ts) + '</div>' +
+      '</div>' +
+      rows +
+      '<div class="foot">' + (p.test ? 'not real · logged for testing' : 'confirmed · lamp blinked') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function row(k, v, isSurprise){
+  return '<div class="row' + (isSurprise ? ' surprise' : '') + '">' +
+    '<div class="k">' + k + '</div>' +
+    '<div class="v">' + v + '</div>' +
+  '</div>';
+}
+</script>
