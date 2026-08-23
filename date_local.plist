@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>                 <string>com.henderburgh.date-local</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/dylanhenderson/oura-dashboard/.venv/bin/python</string>
+    <string>/Users/dylanhenderson/oura-dashboard/date_local.py</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ADMIN_TOKEN</key>         <string>2824</string>
+    <key>PORT</key>                <string>8899</string>
+    <key>PYTHONUNBUFFERED</key>    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>             <true/>
+  <key>KeepAlive</key>             <true/>
+  <key>StandardOutPath</key>       <string>/Users/dylanhenderson/Library/Logs/henderburgh-date-local.log</string>
+  <key>StandardErrorPath</key>     <string>/Users/dylanhenderson/Library/Logs/henderburgh-date-local.log</string>
+</dict>
+</plist>

@@ -155,13 +155,11 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <script>
-// Token is in the URL path.
-var TOKEN = (function(){
-  var m = window.location.pathname.match(/\/plan\/([^\/]+)/);
-  return m ? m[1] : '';
-})();
-document.getElementById('linkInbox').href = '/date/inbox/' + TOKEN;
-document.getElementById('linkDate').href = '/date/lawdog';
+// Served by the LAN companion (date_local.py). The companion attaches
+// the admin token server-side, so this page never handles it and every
+// fetch is same-origin relative -- /api/context, /api/inbox, /photos/*.
+document.getElementById('linkInbox').href = '/inbox';
+document.getElementById('linkDate').href = 'https://henderburgh.com/date/lawdog';
 
 var TAGS = [];       // filled from /api/context (server returns curated palette)
 var SELECTED = new Set();
@@ -188,7 +186,7 @@ function save(){
   btn.disabled = true; btn.textContent = 'saving…';
   fetch('/api/context', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ token: TOKEN, text: t, tags: Array.from(SELECTED) })
+    body: JSON.stringify({ text: t, tags: Array.from(SELECTED) })
   }).then(function(r){ return r.json(); }).then(function(j){
     btn.disabled = false; btn.textContent = 'save this note';
     if (j && j.ok) {
@@ -209,7 +207,7 @@ function save(){
 
 // --- Render recent notes ---
 function loadNotes(){
-  fetch('/api/context/' + TOKEN + '?days=14')
+  fetch('/api/context')
     .then(function(r){ return r.json(); })
     .then(function(j){
       NOTES = (j.notes || []).slice().reverse();
@@ -252,7 +250,7 @@ function renderNotes(){
 }
 
 // --- Last pick ---
-fetch('/api/date/inbox-json/' + TOKEN).then(function(r){ return r.json(); }).then(function(j){
+fetch('/api/inbox').then(function(r){ return r.json(); }).then(function(j){
   PICKS = (j.picks || []).filter(function(p){ return p.kind !== 'reply' && p.kind !== 'photo' && !p.test; });
   var last = PICKS[PICKS.length-1];
   var line = document.getElementById('lastPickLine');

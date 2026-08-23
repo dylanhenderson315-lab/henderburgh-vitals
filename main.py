@@ -2236,15 +2236,13 @@ async def api_date_inbox(token: str = ""):
 
 @app.get("/date/inbox/{token}", response_class=HTMLResponse)
 async def date_inbox_page(token: str):
-    """Pretty inbox: every past pick rendered as a stack of reservation cards
-    in the same visual language as the invite. Token in the URL path so a
-    bookmarked link works from any device -- same obscurity discipline as
-    the /date/{secret} page. Real picks are highlighted; test rehearsals
-    are shown but visually deprioritized."""
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=404)
-    path = Path(__file__).parent / "templates" / "date_inbox.html"
-    return HTMLResponse(path.read_bytes())
+    """LAN-ONLY. The pretty inbox is served by the local companion
+    (date_local.py) on his home wifi. Public requests always 404 --
+    even with the right token -- so this personal view never leaks off
+    the network, and there is no leak signal from a 401 either. The
+    JSON feed below is still token-gated so the local companion (which
+    presents the admin token itself) can proxy it."""
+    raise HTTPException(status_code=404)
 
 
 @app.get("/api/date/inbox-json/{token}")
@@ -2354,12 +2352,10 @@ async def api_context_get(token: str, days: int = 14):
 
 @app.get("/plan/{token}", response_class=HTMLResponse)
 async def plan_page(token: str):
-    """The planner surface -- his side of the service. Drop weekly notes,
-    see recent context, see recent picks, get ready to build the next
-    week's card. Same token-in-path discipline as /date/inbox/{token}."""
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=404)
-    return HTMLResponse((Path(__file__).parent / "templates" / "plan.html").read_bytes())
+    """LAN-ONLY. Same discipline as /date/inbox/{token} -- the planner
+    page itself is served by the local companion, never off the public
+    origin, so his weekly notes have no path from the internet at all."""
+    raise HTTPException(status_code=404)
 
 
 @app.post("/api/date/reply")

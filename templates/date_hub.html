@@ -167,6 +167,8 @@ body{
   background:var(--paper);color:var(--mauve);border:1px solid var(--line);
 }
 .room.live .tag{background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;border-color:transparent}
+.room.lan .tag{background:linear-gradient(90deg,#0d9488,#0891b2);color:#fff;border-color:transparent}
+.room.lan .icon{background:linear-gradient(135deg,#a5f3fc,#0891b2);color:#083344}
 
 /* footer */
 .foot{
@@ -219,12 +221,12 @@ body{
       <div class="sub">You pick the vibe, he plans the rest. Sends straight to his desk.</div>
     </div>
 
-    <div class="room locked" onclick="glowLocked(this)">
-      <span class="tag">Private</span>
+    <a class="room lan" id="linkInbox" href="http://Dylans-Mac-mini.local:8899/inbox">
+      <span class="tag">On wifi</span>
       <div class="icon">📖</div>
       <h3>Our history</h3>
-      <div class="sub">Every date, every reply, every photo. The scrapbook that keeps itself.</div>
-    </div>
+      <div class="sub">Every date, every reply, every photo. Home wifi only — the scrapbook stays inside the house.</div>
+    </a>
 
     <div class="room locked" onclick="glowLocked(this)">
       <span class="tag">Soon</span>

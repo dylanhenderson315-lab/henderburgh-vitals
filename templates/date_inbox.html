@@ -184,12 +184,8 @@ body{
 </div>
 
 <script>
-// Token is in the URL path -- pull it from window.location and use it to
-// fetch the JSON feed. Everything below is presentation only.
-var TOKEN = (function(){
-  var m = window.location.pathname.match(/\/date\/inbox\/([^\/]+)/);
-  return m ? m[1] : '';
-})();
+// Served by the LAN companion. Feed is same-origin relative; the
+// companion attaches the admin token server-side.
 
 var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function ordinal(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
@@ -228,7 +224,7 @@ var MORNING = {
 var ALL = [];
 var FILTER = 'real';
 
-fetch('/api/date/inbox-json/' + TOKEN)
+fetch('/api/inbox')
   .then(function(r){ return r.json(); })
   .then(function(j){
     // Split rows into picks and replies, then pin each reply under the
