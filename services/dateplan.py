@@ -47,6 +47,17 @@ DINNERS = {
     "surprise": "SHE TRUSTS YOU TO PLAN DINNER, READY BY 7",
 }
 
+# Bonus decision -- extends the evening into a proper weekend gesture.
+# She loves coffee dates and cute bookstores; the options here are that,
+# plus a trust-me and a totally-honest sleep-in.
+MORNINGS = {
+    "coffee":   "COFFEE AT SOMEWHERE NEW",
+    "books":    "LITCHFIELD BOOKS ALL MORNING",
+    "both":     "COFFEE + BOOKSTORE, THE PERFECT SUNDAY",
+    "surprise": "SHE TRUSTS YOU TO PLAN THE MORNING",
+    "skip":     "SLEEP IN, ZERO PLANS",
+}
+
 HELI_LABEL = "THE 30 DOLLAR HELICOPTER RIDE"
 
 _lock = threading.Lock()
@@ -60,6 +71,10 @@ def label_dinner(did):
     return DINNERS.get(did)
 
 
+def label_morning(mid):
+    return MORNINGS.get(mid)
+
+
 def _clean_viewer(v):
     if not isinstance(v, str):
         return None
@@ -68,36 +83,42 @@ def _clean_viewer(v):
     return keep or None
 
 
-def summary(movie=None, dinner=None, heli=False):
+def summary(movie=None, dinner=None, morning=None, heli=False):
     parts = []
     m = label_movie(movie) if movie else None
     d = label_dinner(dinner) if dinner else None
+    mo = label_morning(morning) if morning else None
     if m:
         parts.append("MOVIE: " + m)
     if d:
         parts.append("DINNER: " + d)
+    if mo:
+        parts.append("AM: " + mo)
     if heli:
         parts.append("+ " + HELI_LABEL)
     return " / ".join(parts) if parts else "SHE OPENED IT"
 
 
-def record(movie=None, dinner=None, heli=False, note=None, viewer=None):
+def record(movie=None, dinner=None, morning=None, heli=False, note=None, viewer=None):
     v = _clean_viewer(viewer)
     m = label_movie(movie) if movie else None
     d = label_dinner(dinner) if dinner else None
+    mo = label_morning(morning) if morning else None
     row = {
         "ts": time.time(),
         "movie": movie if m else None,
         "movie_label": m,
         "dinner": dinner if d else None,
         "dinner_label": d,
+        "morning": morning if mo else None,
+        "morning_label": mo,
         "heli": bool(heli),
         "viewer": v,
         "test": v is not None,
     }
     if isinstance(note, str) and note.strip():
         row["note"] = note.strip()[:500]
-    banner = summary(movie, dinner, heli)
+    banner = summary(movie, dinner, morning, heli)
     if v:
         banner = "TEST [" + v.upper() + "] " + banner
     row["banner"] = banner

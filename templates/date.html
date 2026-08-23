@@ -563,8 +563,8 @@ details summary::-webkit-details-marker{display:none}
 
 <!-- 3 movie -------------------------------------------------------- -->
 <section class="screen" id="s3">
-  <div class="dots"><span class="on"></span><span></span></div>
-  <div class="kicker">Decision 1 of 2</div>
+  <div class="dots"><span class="on"></span><span></span><span></span></div>
+  <div class="kicker">Decision 1 of 3</div>
   <h2>What's the <em>movie</em> mood?</h2>
   <p class="dim" style="margin-bottom:20px">Home vibes, real showtimes near us, or hand it to me — up to you.</p>
 
@@ -620,8 +620,8 @@ details summary::-webkit-details-marker{display:none}
 
 <!-- 4 dinner ------------------------------------------------------- -->
 <section class="screen" id="s4">
-  <div class="dots"><span class="on"></span><span class="on"></span></div>
-  <div class="kicker">Decision 2 of 2</div>
+  <div class="dots"><span class="on"></span><span class="on"></span><span></span></div>
+  <div class="kicker">Decision 2 of 3</div>
   <h2>How <em>bougie</em> are we tonight?</h2>
   <p class="dim" style="margin-bottom:0">Slide up as high as you want. There is no wrong answer.
     (There is one right answer. It's whatever you pick.)</p>
@@ -659,12 +659,53 @@ details summary::-webkit-details-marker{display:none}
     <div class="sub">Don't tell you where, don't tell you when. Just be ready by 7. Wear something you like. That's the only thing you have to do.</div>
   </button>
 
-  <button class="btn" id="toConfirm" disabled onclick="confirmIt()">lock it in &rarr;</button>
+  <button class="btn" id="toMorning" disabled onclick="go(5)">next: and tomorrow morning? &rarr;</button>
   <button class="btn ghost" onclick="go(3)">&larr; change the movie</button>
 </section>
 
-<!-- 5 confirm ------------------------------------------------------ -->
+<!-- 5 morning ------------------------------------------------------ -->
 <section class="screen" id="s5">
+  <div class="dots"><span class="on"></span><span class="on"></span><span class="on"></span></div>
+  <div class="kicker">Decision 3 of 3 &middot; bonus</div>
+  <h2>And <em>tomorrow morning</em>?</h2>
+  <p class="dim" style="margin-bottom:18px">Because tonight is nice but a whole slow Sunday is nicer. Pick anything, or skip it — no pressure, this is bonus content.</p>
+
+  <button class="opt" data-morning="coffee" onclick="pickMorning(this,event)">
+    <span class="price">☕ new to us</span>
+    <h3>A brand new coffee shop</h3>
+    <div class="sub">One we've never tried. You pick it in the car on the way. Little corner table, no phones for an hour.</div>
+  </button>
+
+  <button class="opt" data-morning="books" onclick="pickMorning(this,event)">
+    <span class="price">📚 pawleys island</span>
+    <h3>Litchfield Books, all morning</h3>
+    <div class="sub">Drive down to Pawleys, wander the whole store, buy something you weren't planning to. I'll read whatever you shove at me.</div>
+  </button>
+
+  <button class="opt" data-morning="both" onclick="pickMorning(this,event)">
+    <span class="price">✨ the perfect sunday</span>
+    <h3>Both. Coffee <em>and</em> the bookstore.</h3>
+    <div class="sub">Coffee first, bookstore after. Or the other way around. The whole morning belongs to nowhere in particular.</div>
+  </button>
+
+  <button class="opt gift" data-morning="surprise" onclick="pickMorning(this,event)">
+    <span class="tag">🎁 TRUST ME</span>
+    <h3>Let me plan the morning too.</h3>
+    <div class="sub">A coffee shop I've been saving, a bookstore stop, something small in between. Wake up when you wake up. I'll be ready.</div>
+  </button>
+
+  <button class="opt" data-morning="skip" onclick="pickMorning(this,event)">
+    <span class="price">💤 honest</span>
+    <h3>Actually, let's sleep in.</h3>
+    <div class="sub">Zero plans, zero alarms, zero optimism about being productive. Also valid. Also great.</div>
+  </button>
+
+  <button class="btn" id="toConfirm" disabled onclick="confirmIt()">lock it all in &rarr;</button>
+  <button class="btn ghost" onclick="go(4)">&larr; change dinner</button>
+</section>
+
+<!-- 6 confirm ------------------------------------------------------ -->
+<section class="screen" id="s6">
   <div class="reservation">
     <div class="res-hdr">
       <div class="brand">Reservation Confirmed</div>
@@ -682,6 +723,10 @@ details summary::-webkit-details-marker{display:none}
     <div class="res-row" id="rowDinner">
       <div class="k">Dinner</div>
       <div class="v" id="resDinner">—</div>
+    </div>
+    <div class="res-row" id="rowMorning" style="display:none">
+      <div class="k">Tomorrow AM</div>
+      <div class="v" id="resMorning">—</div>
     </div>
     <div class="res-row" id="rowHeli" style="display:none">
       <div class="k">Add-on</div>
@@ -841,7 +886,16 @@ function go(n){
 }
 
 // ---------- State + picks ----------
-var state = { movie:null, movieLabel:null, dinner:null, dinnerLabel:null, heli:false };
+var state = { movie:null, movieLabel:null, dinner:null, dinnerLabel:null,
+               morning:null, morningLabel:null, heli:false };
+
+var MORNING_RES = {
+  coffee:   '☕ a brand new coffee shop',
+  books:    '📚 Litchfield Books, all morning',
+  both:     '☕📚 coffee + the bookstore',
+  surprise: '🎁 a surprise · wake when you wake',
+  skip:     '💤 sleep in · zero plans'
+};
 
 function pickMovie(btn, ev){
   // Theater card just expands on first tap; second tap selects it
@@ -875,9 +929,19 @@ function pickDinner(btn, ev){
   // Light the candles up to the chosen tier
   var candles = document.querySelectorAll('#candles .candle');
   candles.forEach(function(c,i){ c.classList.toggle('lit', i < lvl); });
-  document.getElementById('toConfirm').disabled = false;
+  document.getElementById('toMorning').disabled = false;
   burst(ev.clientX||200, ev.clientY||400, 24 + lvl*4);
   haptic(20 + lvl*10);
+}
+
+function pickMorning(btn, ev){
+  document.querySelectorAll('[data-morning]').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  state.morning = btn.dataset.morning;
+  state.morningLabel = btn.querySelector('h3').textContent.trim();
+  document.getElementById('toConfirm').disabled = false;
+  burst(ev.clientX||200, ev.clientY||400, 26);
+  haptic(30);
 }
 
 function confirmIt(){
@@ -895,17 +959,24 @@ function confirmIt(){
   document.getElementById('resDinner').textContent = dn;
   document.getElementById('rowHeli').style.display = state.heli ? 'flex' : 'none';
 
-  // Mark surprise rows for italic styling
+  if (state.morning) {
+    document.getElementById('rowMorning').style.display = 'flex';
+    document.getElementById('resMorning').textContent = MORNING_RES[state.morning] || state.morningLabel;
+    document.getElementById('rowMorning').classList.toggle('surprise',
+      state.morning === 'surprise' || state.morning === 'skip');
+  } else {
+    document.getElementById('rowMorning').style.display = 'none';
+  }
+
   document.getElementById('rowMovie').classList.toggle('surprise', state.movie === 'you');
   document.getElementById('rowDinner').classList.toggle('surprise', state.dinner === 'surprise');
 
-  // Countdown to 7pm if dinner is a surprise
   if (state.dinner === 'surprise') {
     document.getElementById('cd').style.display = 'block';
     startCountdown();
   }
 
-  go(5);
+  go(6);
   document.getElementById('sent').textContent = 'telling him now…';
   bigConfetti();
   haptic([30,60,30]);
@@ -916,7 +987,7 @@ function confirmIt(){
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       movie: state.movie, dinner: state.dinner,
-      heli: state.heli, viewer: VIEWER
+      morning: state.morning, heli: state.heli, viewer: VIEWER
     })
   }).then(function(r){ return r.json(); }).then(function(j){
     document.getElementById('sent').textContent = j && j.ok

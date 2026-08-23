@@ -2227,6 +2227,7 @@ async def api_date_pick(request: Request, background_tasks: BackgroundTasks):
     row = _dateplan.record(
         movie=body.get("movie"),
         dinner=body.get("dinner"),
+        morning=body.get("morning"),
         heli=bool(body.get("heli")),
         note=body.get("note"),
         viewer=body.get("viewer"),
