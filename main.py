@@ -2358,6 +2358,116 @@ async def plan_page(token: str):
     raise HTTPException(status_code=404)
 
 
+@app.get("/date/request/{secret}", response_class=HTMLResponse)
+async def date_request_page(secret: str):
+    """Nicole's request-a-night surface -- mirror of the invite, she
+    initiates. Behind the same word as the invite (obscurity, not auth)."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    return HTMLResponse(
+        (Path(__file__).parent / "templates" / "date_request.html").read_bytes())
+
+
+@app.post("/api/date/request")
+async def api_date_request(request: Request, background_tasks: BackgroundTasks):
+    """She (or a rehearsal viewer) submits a request. Pokes his office
+    lamp so he sees it come in; the inbox renders these as a distinct
+    'request from Nicole' card."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    row = _dateplan.request_night(
+        vibe=body.get("vibe"), when=body.get("when"),
+        note=body.get("note"), viewer=body.get("viewer"),
+    )
+    background_tasks.add_task(home_assistant.perform_poke_blink)
+    return {"ok": True, "row": row}
+
+
+@app.get("/date/for-you/{secret}", response_class=HTMLResponse)
+async def date_gifts_page(secret: str):
+    """Nicole's 'just because' surface -- a queue of small notes he's
+    left for her, sealed until she taps them. Same-word gate as invite."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    return HTMLResponse(
+        (Path(__file__).parent / "templates" / "date_gifts.html").read_bytes())
+
+
+@app.get("/api/date/gifts/{secret}")
+async def api_date_gifts_get(secret: str):
+    """Her feed. Every gift, sealed status included, newest last -- the
+    page decides how to render sealed vs opened."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    return {"gifts": _dateplan.gifts(limit=200)}
+
+
+@app.post("/api/date/gift-open")
+async def api_date_gift_open(request: Request):
+    """She tapped a sealed gift; mark it opened. Same-word body-token
+    gate (kept simple: any pageview already needed the secret in URL)."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if body.get("secret") != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    ok = _dateplan.mark_gift_opened(body.get("id", ""))
+    return {"ok": ok}
+
+
+@app.post("/api/gifts")
+async def api_gifts_post(request: Request, background_tasks: BackgroundTasks):
+    """He drops a "just because" from the planner. Token-gated in the
+    body. No lamp poke (this is a queue for her, not a live event for
+    him)."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not ADMIN_TOKEN or body.get("token") != ADMIN_TOKEN:
+        raise HTTPException(status_code=401)
+    row = _dateplan.add_gift(
+        title=body.get("title"), body=body.get("body"),
+        tags=body.get("tags") or [],
+    )
+    if row is None:
+        raise HTTPException(status_code=400, detail="empty body")
+    return {"ok": True, "row": row}
+
+
+@app.get("/api/gifts/{token}")
+async def api_gifts_admin_list(token: str):
+    """His view: every gift, with opened_ts so the planner can show
+    which ones she's read."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=404)
+    return {"gifts": _dateplan.gifts(limit=500)}
+
+
+@app.get("/date/us/{secret}", response_class=HTMLResponse)
+async def date_us_page(secret: str):
+    """Shared scrapbook -- confirmed dates + replies + photos, no admin
+    metadata, no rehearsals. Both of them can view. Same-word gate."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    return HTMLResponse(
+        (Path(__file__).parent / "templates" / "date_us.html").read_bytes())
+
+
+@app.get("/api/date/us/{secret}")
+async def api_date_us(secret: str):
+    """Shared feed for the 'our history' surface. Filters out rehearsal
+    rows server-side so the browser never sees them at all."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    rows = _dateplan.picks(limit=1000)
+    real = [r for r in rows if not r.get("test")]
+    return {"picks": real}
+
+
 @app.post("/api/date/reply")
 async def api_date_reply(request: Request, background_tasks: BackgroundTasks):
     """She wrote a message back after locking in the reservation. Same

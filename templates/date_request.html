@@ -1,0 +1,180 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Request a Night</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --coral:#f97070; --pink:#ec4899; --plum:#3d1a2e; --wine:#6b1e3a;
+  --gold:#c9862f; --paper:#fffaf3; --line:#e9c9c2; --mauve:#8a5a72; --ink:#2a121f;
+  --shadow:0 22px 60px -25px rgba(107,30,58,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{overflow-x:hidden}
+body{
+  color:var(--ink);min-height:100dvh;padding:36px 18px 80px;
+  font:16px/1.55 "Inter",ui-sans-serif,system-ui,sans-serif;
+  background:
+    radial-gradient(120% 60% at 20% 0%,#ffd0c8 0%,transparent 60%),
+    radial-gradient(120% 60% at 90% 30%,#ffb8d2 0%,transparent 55%),
+    linear-gradient(180deg,#fff2e8 0%,#ffe4e6 55%,#fce7f3 100%);
+  background-attachment:fixed;
+}
+.wrap{max-width:520px;margin:0 auto}
+.kicker{
+  font:600 10px/1 "Inter",sans-serif;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--coral);opacity:.85;margin-bottom:12px;
+  display:inline-flex;align-items:center;gap:8px;
+}
+.kicker:before{content:"";width:22px;height:1px;background:var(--coral);opacity:.6}
+h1{font:700 clamp(32px,9vw,46px)/1.02 "Fraunces",serif;color:var(--plum);letter-spacing:-.025em;margin-bottom:6px}
+h1 em{font-style:italic;color:var(--coral);font-weight:400}
+.sub{font-family:"Caveat",cursive;font-weight:700;color:var(--wine);font-size:22px;margin-bottom:20px}
+.paper{background:var(--paper);border-radius:24px;padding:24px;box-shadow:var(--shadow);border:1px solid rgba(233,201,194,.5);margin-top:8px}
+h2{font:600 18px/1.2 "Fraunces",serif;color:var(--plum);margin:20px 0 4px}
+h2:first-child{margin-top:0}
+.hint{color:var(--mauve);font-size:13px;margin-bottom:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  font:500 13px/1 "Inter",sans-serif;padding:10px 14px;border-radius:999px;
+  background:#fff;border:1px solid var(--line);color:var(--wine);cursor:pointer;
+  transition:all .15s;user-select:none;
+}
+.chip.on{background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;border-color:transparent;box-shadow:0 8px 18px -8px var(--coral)}
+textarea{
+  width:100%;padding:14px 16px;border-radius:14px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+  font:400 17px/1.5 "Caveat",cursive;resize:vertical;min-height:100px;
+  transition:border-color .15s;
+}
+textarea:focus{outline:none;border-color:var(--coral);box-shadow:0 0 0 3px rgba(249,112,112,.15)}
+.btn{
+  display:block;width:100%;padding:16px 22px;border-radius:999px;margin-top:20px;
+  background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;border:0;cursor:pointer;
+  font:700 15px/1 "Inter",sans-serif;letter-spacing:.02em;
+  box-shadow:0 14px 30px -12px rgba(249,112,112,.6);
+}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.sent{
+  display:none;padding:34px 20px;text-align:center;
+  background:linear-gradient(135deg,#fffaf3,#ffe8dc);border-radius:24px;
+  border:1px dashed var(--coral);box-shadow:var(--shadow);
+}
+.sent.on{display:block;animation:rise .6s ease both}
+.sent h2{font-size:26px;color:var(--plum);margin-bottom:10px}
+.sent p{font:italic 400 15px/1.5 "Fraunces",serif;color:var(--wine)}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.formbox.done{display:none}
+.tiny{margin-top:22px;text-align:center;font-family:"Caveat",cursive;color:var(--mauve);font-size:16px}
+.tiny a{color:var(--coral);text-decoration:none;border-bottom:1px dashed var(--coral)}
+</style>
+
+<div class="wrap">
+  <div class="kicker">for him</div>
+  <h1>Request a <em>night</em>.</h1>
+  <div class="sub">tell me what you're in the mood for — I'll plan it.</div>
+
+  <div class="paper formbox" id="formBox">
+    <h2>The mood</h2>
+    <div class="hint">Pick one. Or none — you can just leave a note.</div>
+    <div class="chips" id="vibeChips"></div>
+
+    <h2>When?</h2>
+    <div class="hint">Optional. If you skip this I'll assume "when you can."</div>
+    <div class="chips" id="whenChips"></div>
+
+    <h2>Anything else?</h2>
+    <div class="hint">A specific thing you've been thinking about, a place you want to try, or a whole plan you already have in your head.</div>
+    <textarea id="note" placeholder="write here…" maxlength="1000"></textarea>
+
+    <button class="btn" id="sendBtn" onclick="submit()">send the request 💌</button>
+  </div>
+
+  <div class="sent" id="sent">
+    <h2 class="script" style="font-family:'Caveat',cursive;color:var(--coral);font-size:34px">it landed on his desk.</h2>
+    <p>His office lamp just blinked. I'll plan it — go do something for you.</p>
+    <div class="tiny" style="margin-top:20px">
+      <a href="/date/for-you/lawdog">← something he left for you</a>
+    </div>
+  </div>
+
+  <div class="tiny">
+    ← <a href="/date">back to the hub</a>
+  </div>
+</div>
+
+<script>
+var VIEWER = (function(){
+  try {
+    var v = new URLSearchParams(window.location.search).get('v');
+    if (!v) return null;
+    return v.replace(/[^A-Za-z0-9 _.-]/g,'').slice(0,40).trim() || null;
+  } catch(e){ return null; }
+})();
+
+var VIBES = [
+  ['coffee',    '☕ coffee shop morning'],
+  ['cozy',      '🕯️ cozy night in'],
+  ['adventure', '✨ something new'],
+  ['dinner',    '🍽️ real dinner out'],
+  ['beach',     '🌊 beach time'],
+  ['outdoors',  '🌳 get outside'],
+  ['surprise',  '🎁 surprise me']
+];
+var WHENS = [
+  ['tonight',  'tonight'],
+  ['tomorrow', 'tomorrow'],
+  ['weekend',  'this weekend'],
+  ['week',     'sometime this week'],
+  ['soon',     'soon']
+];
+
+var state = { vibe:null, when:null };
+
+function renderChips(id, opts, key){
+  document.getElementById(id).innerHTML = opts.map(function(o){
+    return '<span class="chip" data-v="'+o[0]+'" onclick="pick(\''+id+'\',\''+key+'\',this)">'+o[1]+'</span>';
+  }).join('');
+}
+renderChips('vibeChips', VIBES, 'vibe');
+renderChips('whenChips', WHENS, 'when');
+
+function pick(containerId, key, el){
+  var siblings = document.querySelectorAll('#'+containerId+' .chip');
+  var wasOn = el.classList.contains('on');
+  siblings.forEach(function(s){ s.classList.remove('on'); });
+  if (!wasOn) {
+    el.classList.add('on');
+    state[key] = el.dataset.v;
+  } else {
+    state[key] = null;
+  }
+  try { if (navigator.vibrate) navigator.vibrate(15); } catch(e){}
+}
+
+function submit(){
+  var note = (document.getElementById('note').value || '').trim();
+  if (!state.vibe && !state.when && !note) {
+    document.getElementById('note').focus();
+    return;
+  }
+  var btn = document.getElementById('sendBtn');
+  btn.disabled = true; btn.textContent = 'sending…';
+  fetch('/api/date/request', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ vibe: state.vibe, when: state.when, note: note, viewer: VIEWER })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if (j && j.ok) {
+      document.getElementById('formBox').classList.add('done');
+      document.getElementById('sent').classList.add('on');
+      try { if (navigator.vibrate) navigator.vibrate([30,60,30]); } catch(e){}
+    } else {
+      btn.disabled = false; btn.textContent = 'try again 💌';
+    }
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = 'try again 💌';
+  });
+}
+</script>

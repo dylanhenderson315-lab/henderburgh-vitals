@@ -107,6 +107,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._proxy("GET", f"/api/context/{TOKEN}")
         if p == "/api/inbox":
             return self._proxy("GET", f"/api/date/inbox-json/{TOKEN}")
+        if p == "/api/gifts":
+            return self._proxy("GET", f"/api/gifts/{TOKEN}")
         # photos: pass through unchanged (random-UUID names already gate)
         if p.startswith("/photos/") and ".." not in p and "\\" not in p:
             return self._proxy("GET", p)
@@ -118,14 +120,14 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(n) if n else b""
         # Inject the admin token into the body server-side. Browser posts
         # {text, tags}; we add {token} before forwarding.
-        if p == "/api/context":
+        if p in ("/api/context", "/api/gifts"):
             try:
                 obj = json.loads(body or b"{}")
             except ValueError:
                 return self._send(400, "application/json",
                                   b'{"ok":false,"error":"bad body"}')
             obj["token"] = TOKEN
-            return self._proxy("POST", "/api/context",
+            return self._proxy("POST", p,
                                json.dumps(obj).encode(), "application/json")
         self._send(404, "text/plain", b"nope")
 

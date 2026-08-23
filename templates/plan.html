@@ -132,6 +132,17 @@ textarea{resize:vertical;min-height:80px}
     <div id="notes"></div>
   </div>
 
+  <div class="card">
+    <h2>Leave something · <em>just because</em></h2>
+    <div class="sub">Small note that shows up sealed in her "for you" queue. She taps it, it opens, stays there forever.</div>
+    <input type="text" id="giftTitle" placeholder="a title (or leave blank for &quot;just because&quot;)" style="margin-bottom:8px">
+    <textarea id="giftBody" placeholder="the note. anything. short is fine."></textarea>
+    <div class="row-actions">
+      <button class="btn" id="giftBtn" onclick="dropGift()">drop it in her queue 💌</button>
+      <span class="hint" id="giftHint"></span>
+    </div>
+  </div>
+
   <div class="briefing">
     <h2>📋 When you're ready to plan the next date</h2>
 
@@ -340,6 +351,32 @@ function buildBriefing(){
 
 function esc(s){return String(s||'').replace(/[&<>]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+// --- Drop a gift into her "just because" queue (proxied via companion) ---
+function dropGift(){
+  var title = (document.getElementById('giftTitle').value || '').trim();
+  var body = (document.getElementById('giftBody').value || '').trim();
+  if (!body) { document.getElementById('giftBody').focus(); return; }
+  var btn = document.getElementById('giftBtn');
+  btn.disabled = true; btn.textContent = 'dropping…';
+  fetch('/api/gifts', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ title: title, body: body })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    btn.disabled = false; btn.textContent = 'drop it in her queue 💌';
+    if (j && j.ok) {
+      document.getElementById('giftTitle').value = '';
+      document.getElementById('giftBody').value = '';
+      document.getElementById('giftHint').textContent = '✓ sealed and queued';
+      setTimeout(function(){ document.getElementById('giftHint').textContent = ''; }, 2500);
+    } else {
+      document.getElementById('giftHint').textContent = 'try again';
+    }
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = 'drop it in her queue 💌';
+    document.getElementById('giftHint').textContent = 'network issue';
+  });
+}
 
 loadNotes();
 </script>

@@ -129,6 +129,29 @@ body{
   font:500 17px/1.4 "Caveat",cursive;color:var(--plum);white-space:pre-wrap;
 }
 
+/* incoming request cards, hoisted to the top of the inbox */
+.requests-header{
+  font:700 12px/1 "Inter",sans-serif;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--coral);margin:6px 4px 12px;
+}
+.req{
+  background:linear-gradient(135deg,#fff,#ffeee6);
+  border:1px solid var(--coral);border-radius:20px;
+  padding:16px 20px;margin-bottom:12px;
+  box-shadow:0 10px 24px -12px rgba(249,112,112,.35);
+  position:relative;
+}
+.req:before{
+  content:"💌";position:absolute;left:-10px;top:-10px;font-size:22px;
+  background:#fff;padding:4px 6px;border-radius:50%;
+  box-shadow:0 4px 10px -4px rgba(107,30,58,.2);
+}
+.req.test{opacity:.72;background:linear-gradient(135deg,#f7f2ea,#efe4dc)}
+.req-hdr{font:600 10px/1 "Inter",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--mauve);margin-bottom:6px}
+.req-body{font:600 17px/1.35 "Fraunces",serif;color:var(--plum)}
+.req-body b{color:var(--coral);font-style:italic;font-weight:600}
+.req-note{margin-top:8px;font:italic 500 15px/1.4 "Fraunces",serif;color:var(--wine);padding-left:12px;border-left:2px solid var(--rose)}
+
 /* photo tiles pinned under the pick */
 .photos{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
@@ -232,9 +255,13 @@ fetch('/api/inbox')
     // the reply came from a real, non-rehearsal viewer).
     var rows = (j.picks || []).slice(); // chronological
     var picks = [];
+    var requests = [];
     rows.forEach(function(r){
-      if (r.kind !== 'reply' && r.kind !== 'photo') picks.push(r);
+      if (r.kind === 'request') requests.push(r);
+      else if (r.kind !== 'reply' && r.kind !== 'photo') picks.push(r);
     });
+    // Requests hoisted to the top -- newest first, above the historical stack
+    window.__REQUESTS = requests.slice().reverse();
     // Pin every reply / photo to the nearest preceding same-scope pick.
     rows.forEach(function(r){
       if (r.kind !== 'reply' && r.kind !== 'photo') return;
@@ -265,6 +292,24 @@ function setFilter(btn){
   render();
 }
 
+function renderRequests(){
+  var reqs = (window.__REQUESTS || []).filter(function(r){ return FILTER === 'all' ? true : !r.test; });
+  if (!reqs.length) return '';
+  return '<div class="requests-header">💌 Requests from Nicole</div>' + reqs.map(function(r){
+    var d = new Date(r.ts*1000);
+    var when = d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})
+             + ' · ' + d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    var vibe = r.vibe_label || '—';
+    var whenLbl = r.when_label || 'whenever';
+    var note = r.note ? '<div class="req-note">'+esc(r.note)+'</div>' : '';
+    return '<div class="req'+(r.test?' test':'')+'">' +
+      '<div class="req-hdr">' + when + '</div>' +
+      '<div class="req-body"><b>' + esc(vibe) + '</b> · ' + esc(whenLbl) + '</div>' +
+      note +
+    '</div>';
+  }).join('');
+}
+
 function render(){
   var shown = ALL.filter(function(p){ return FILTER === 'all' ? true : !p.test; });
   var realCount = ALL.filter(function(p){ return !p.test; }).length;
@@ -278,14 +323,15 @@ function render(){
     fmtDate(Date.now()/1000);
 
   var list = document.getElementById('list');
+  var reqHtml = renderRequests();
   if (shown.length === 0) {
-    list.innerHTML =
+    list.innerHTML = reqHtml +
       '<div class="empty"><div class="big">No dates logged yet</div>' +
       '<div class="lil">Send her the link, she\'ll show up here.</div></div>';
     return;
   }
 
-  list.innerHTML = shown.map(function(p, i){
+  list.innerHTML = reqHtml + shown.map(function(p, i){
     var stamp = p.test ? '🧪 REHEARSAL · ' + (p.viewer || 'friend').toUpperCase() : 'RESERVATION';
     var mvVal = p.movie ? (MOVIE[p.movie] || p.movie_label || p.movie) : '—';
     var dnVal = p.dinner ? (DINNER[p.dinner] || p.dinner_label || p.dinner) : '—';

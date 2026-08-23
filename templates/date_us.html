@@ -1,0 +1,164 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Us · Henderburgh Date Nights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --coral:#f97070; --pink:#ec4899; --plum:#3d1a2e; --wine:#6b1e3a;
+  --gold:#c9862f; --paper:#fffaf3; --line:#e9c9c2; --mauve:#8a5a72; --ink:#2a121f;
+  --shadow:0 22px 60px -25px rgba(107,30,58,.35);
+  --shadow-lg:0 40px 100px -40px rgba(107,30,58,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  color:var(--ink);min-height:100dvh;padding:36px 18px 80px;
+  font:16px/1.55 "Inter",ui-sans-serif,system-ui,sans-serif;
+  background:
+    radial-gradient(120% 60% at 20% 0%,#ffd0c8 0%,transparent 60%),
+    radial-gradient(120% 60% at 90% 30%,#ffb8d2 0%,transparent 55%),
+    linear-gradient(120% 60% at 50% 100%,#ffe0b0 0%,transparent 55%),
+    linear-gradient(180deg,#fff2e8 0%,#ffe4e6 55%,#fce7f3 100%);
+  background-attachment:fixed;
+}
+.wrap{max-width:640px;margin:0 auto}
+.hero{text-align:center;margin-bottom:34px}
+.hero .brand{font:600 10px/1 "Inter",sans-serif;letter-spacing:.3em;text-transform:uppercase;color:var(--coral)}
+.hero h1{font:700 clamp(38px,10vw,58px)/1 "Fraunces",serif;color:var(--plum);letter-spacing:-.025em;margin-top:10px}
+.hero h1 em{font-style:italic;color:var(--coral);font-weight:400}
+.hero .sub{font-family:"Caveat",cursive;font-weight:700;color:var(--wine);font-size:clamp(20px,5vw,26px);margin-top:4px}
+.hero .count{
+  display:inline-block;margin-top:16px;padding:10px 20px;border-radius:999px;
+  background:var(--paper);border:1px solid var(--line);color:var(--wine);
+  font:600 12px/1 "Inter",sans-serif;letter-spacing:.14em;text-transform:uppercase;
+  box-shadow:var(--shadow);
+}
+.hero .count b{font:700 22px/1 "Fraunces",serif;color:var(--coral);margin-right:6px;font-style:italic}
+
+.card{
+  background:linear-gradient(135deg,#fffaf3 0%,#fff5ec 60%,#ffe8dc 100%);
+  border-radius:26px;padding:26px 22px;
+  box-shadow:var(--shadow-lg),inset 0 1px 0 rgba(255,255,255,.6);
+  position:relative;overflow:hidden;margin-bottom:20px;
+  animation:rise .55s cubic-bezier(.2,.8,.25,1) both;
+}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.card:before{content:"";position:absolute;top:-40px;right:-40px;width:120px;height:120px;background:radial-gradient(circle,rgba(249,112,112,.15),transparent 70%);border-radius:50%}
+.chdr{text-align:center;padding-bottom:16px;border-bottom:2px dashed var(--coral);margin-bottom:16px}
+.chdr .when{font-family:"Caveat",cursive;font-weight:700;color:var(--wine);font-size:24px}
+.chdr .day{font:italic 500 14px/1.3 "Fraunces",serif;color:var(--mauve);margin-top:2px}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px dotted var(--line);gap:12px}
+.row:last-child{border-bottom:none}
+.row .k{font:600 10px/1.2 "Inter",sans-serif;letter-spacing:.15em;text-transform:uppercase;color:var(--mauve);flex:none;min-width:88px}
+.row .v{font:600 15px/1.35 "Fraunces",serif;color:var(--plum);text-align:right}
+.row.surprise .v{color:var(--coral);font-style:italic}
+
+/* reply pinned under pick */
+.replies{margin-top:16px}
+.reply{background:#fff;border-radius:14px;padding:14px 16px;margin-top:10px;border-left:4px solid var(--coral);box-shadow:0 6px 16px -10px rgba(107,30,58,.2);position:relative}
+.reply:before{content:"💌";position:absolute;top:-8px;left:-8px;font-size:20px;background:#fff;padding:2px 4px;border-radius:50%}
+.reply .body{font:500 17px/1.4 "Caveat",cursive;color:var(--plum);white-space:pre-wrap}
+
+/* photo tiles */
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:14px}
+.photo-tile{display:block;position:relative;border-radius:12px;overflow:hidden;box-shadow:0 6px 16px -10px rgba(107,30,58,.3);aspect-ratio:1;background:#fff}
+.photo-tile img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.photo-tile:hover img{transform:scale(1.04)}
+
+.empty{text-align:center;padding:60px 20px;background:var(--paper);border-radius:24px;border:1px dashed var(--line);color:var(--mauve)}
+.empty .big{font:600 22px/1.2 "Fraunces",serif;color:var(--plum);margin-bottom:8px}
+
+.tiny{margin-top:26px;text-align:center;font-family:"Caveat",cursive;color:var(--mauve);font-size:16px}
+.tiny a{color:var(--coral);text-decoration:none;border-bottom:1px dashed var(--coral);margin:0 8px}
+</style>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="brand">Henderburgh · together</div>
+    <h1>Us. <em>every night.</em></h1>
+    <div class="sub">the scrapbook that keeps itself</div>
+    <div class="count"><b id="ct">—</b> date night<span id="ctS"></span></div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="tiny">
+    <a href="/date">← hub</a>
+    <a href="/date/for-you/lawdog">something for you</a>
+    <a href="/date/request/lawdog">request a night</a>
+  </div>
+</div>
+
+<script>
+var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function ordinal(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function fmtDate(ts){var d=new Date(ts*1000);return MONTHS[d.getMonth()]+' '+ordinal(d.getDate())+' '+d.getFullYear();}
+function fmtTime(ts){var d=new Date(ts*1000);var h=d.getHours(),m=d.getMinutes(),am=h>=12?'pm':'am';h=h%12||12;return h+':'+String(m).padStart(2,'0')+am;}
+
+var MOVIE={comfort:'A comfort rewatch',dumb:'Something dumb and funny',cry:"Something that made us cry",boom:'Something with explosions',theater:'🎬 In theater',you:'🎁 A surprise'};
+var DINNER={cooking:'🦀 She cooked',gas:'Gas station legal minimum',takeout:'Takeout in sweats',nice:'A nice sit-down',boujie:'Full boujie',surprise:'🎁 A surprise'};
+var MORNING={coffee:'☕ A new coffee shop',bookworm:'📚🍷 Bookworm & Vine',books:'📚 Litchfield Books',gardens:'🌳 Brookgreen Gardens',perfect:'✨ Coffee, bookstore, no clock',surprise:'🎁 A surprise',skip:'💤 Sleep in'};
+
+fetch('/api/date/us/lawdog').then(function(r){return r.json();}).then(function(j){
+  var rows = (j.picks||[]).slice();
+  var picks = [], replies = [], photos = [];
+  rows.forEach(function(r){
+    if (r.kind === 'reply') replies.push(r);
+    else if (r.kind === 'photo') photos.push(r);
+    else if (r.kind === 'request') {} // shared history hides requests (they're pending, not memories)
+    else picks.push(r);
+  });
+  replies.concat(photos).forEach(function(r){
+    var parents = picks.filter(function(p){ return p.ts <= r.ts; });
+    var parent = parents[parents.length-1];
+    if (!parent) return;
+    if (r.kind === 'reply') (parent.replies = parent.replies || []).push(r);
+    else (parent.photos = parent.photos || []).push(r);
+  });
+  render(picks.reverse());
+});
+
+function render(picks){
+  document.getElementById('ct').textContent = picks.length;
+  document.getElementById('ctS').textContent = picks.length === 1 ? '' : 's';
+  var list = document.getElementById('list');
+  if (!picks.length) {
+    list.innerHTML = '<div class="empty"><div class="big">still writing chapter one</div><div>your first date night will show up here.</div></div>';
+    return;
+  }
+  list.innerHTML = picks.map(function(p){
+    var d = new Date(p.ts*1000);
+    var day = d.toLocaleDateString(undefined,{weekday:'long'});
+    var mv = p.movie ? (MOVIE[p.movie]||p.movie_label||p.movie) : null;
+    var dn = p.dinner ? (DINNER[p.dinner]||p.dinner_label||p.dinner) : null;
+    var mo = p.morning ? (MORNING[p.morning]||p.morning_label||p.morning) : null;
+    var rows = '';
+    if (mv) rows += row('the movie', mv, p.movie === 'you');
+    if (dn) rows += row('dinner', dn, p.dinner === 'surprise' || p.dinner === 'cooking');
+    if (mo) rows += row('tomorrow AM', mo, p.morning === 'surprise' || p.morning === 'skip');
+    if (p.heli) rows += row('add-on', '🚁 $30 helicopter ride', true);
+
+    var photosHtml = '';
+    if (p.photos && p.photos.length) {
+      photosHtml = '<div class="photos">' + p.photos.map(function(ph){
+        return '<a href="/photos/'+encodeURIComponent(ph.filename)+'" target="_blank" class="photo-tile"><img src="/photos/'+encodeURIComponent(ph.filename)+'" alt="" loading="lazy"></a>';
+      }).join('') + '</div>';
+    }
+    var repliesHtml = '';
+    if (p.replies && p.replies.length) {
+      repliesHtml = '<div class="replies">' + p.replies.map(function(r){
+        return '<div class="reply"><div class="body">'+esc(r.note||'')+'</div></div>';
+      }).join('') + '</div>';
+    }
+    return '<div class="card">' +
+      '<div class="chdr"><div class="when">'+fmtDate(p.ts)+'</div>' +
+        '<div class="day">'+day+' &middot; '+fmtTime(p.ts)+'</div></div>' +
+      rows + photosHtml + repliesHtml +
+    '</div>';
+  }).join('');
+}
+function row(k,v,s){return '<div class="row'+(s?' surprise':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';}
+function esc(s){return String(s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+</script>

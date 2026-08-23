@@ -1,0 +1,162 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Just Because</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --coral:#f97070; --pink:#ec4899; --plum:#3d1a2e; --wine:#6b1e3a;
+  --gold:#c9862f; --gold-lite:#f2c869;
+  --paper:#fffaf3; --line:#e9c9c2; --mauve:#8a5a72; --ink:#2a121f;
+  --shadow:0 22px 60px -25px rgba(107,30,58,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{overflow-x:hidden}
+body{
+  color:var(--ink);min-height:100dvh;padding:36px 18px 80px;
+  font:16px/1.55 "Inter",ui-sans-serif,system-ui,sans-serif;
+  background:
+    radial-gradient(120% 60% at 20% 0%,#ffd0c8 0%,transparent 60%),
+    radial-gradient(120% 60% at 90% 30%,#ffb8d2 0%,transparent 55%),
+    linear-gradient(180deg,#fff2e8 0%,#ffe4e6 55%,#fce7f3 100%);
+  background-attachment:fixed;
+}
+.wrap{max-width:520px;margin:0 auto;text-align:center}
+.kicker{
+  font:600 10px/1 "Inter",sans-serif;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--coral);opacity:.85;margin-bottom:12px;
+}
+h1{font:700 clamp(32px,9vw,46px)/1.02 "Fraunces",serif;color:var(--plum);letter-spacing:-.025em;margin-bottom:6px}
+h1 em{font-style:italic;color:var(--coral);font-weight:400}
+.sub{font-family:"Caveat",cursive;font-weight:700;color:var(--wine);font-size:22px;margin-bottom:26px}
+.stack{display:grid;gap:14px;margin-top:12px}
+.gift{
+  background:linear-gradient(135deg,var(--paper),#fff);
+  border-radius:22px;padding:22px 22px 20px;box-shadow:var(--shadow);
+  border:1px solid var(--line);text-align:left;position:relative;overflow:hidden;
+  cursor:pointer;transition:transform .2s,box-shadow .2s;
+}
+.gift:active{transform:scale(.985)}
+.gift.sealed{
+  background:linear-gradient(135deg,#ffe5d5,#ffb4b0);border:1px solid var(--coral);
+  text-align:center;padding:34px 24px;
+  animation:pulseGift 3s ease-in-out infinite;
+}
+@keyframes pulseGift{50%{transform:scale(1.02)}}
+.gift.sealed .seal{
+  width:76px;height:76px;border-radius:50%;margin:0 auto 12px;
+  background:radial-gradient(circle at 30% 25%,#ffb0b6,#c93755 65%,#8a1e33 100%);
+  display:grid;place-items:center;
+  box-shadow:0 12px 28px -10px rgba(139,30,51,.5),inset 0 -4px 8px rgba(0,0,0,.2);
+  color:#fff5ec;font:700 34px/1 "Fraunces",serif;
+}
+.gift.sealed h3{font:600 20px/1.2 "Fraunces",serif;color:var(--plum);margin-bottom:4px}
+.gift.sealed .lil{font-family:"Caveat",cursive;color:var(--wine);font-size:18px;font-weight:700}
+.gift.sealed .hint{
+  margin-top:12px;font:500 11px/1 "Inter",sans-serif;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--wine);opacity:.7;
+}
+.gift.opened{}
+.gift.opened .stamp{
+  font:600 10px/1 "Inter",sans-serif;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--coral);opacity:.7;margin-bottom:8px;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.gift.opened h3{font:600 20px/1.2 "Fraunces",serif;color:var(--plum);margin-bottom:8px}
+.gift.opened .body{font:400 16px/1.6 "Fraunces",serif;color:var(--ink);white-space:pre-wrap}
+.gift.opened .foot{
+  margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);
+  font-family:"Caveat",cursive;color:var(--mauve);font-size:15px;text-align:right;
+}
+.opening{animation:openSeal .55s cubic-bezier(.4,.1,.6,1.4) forwards}
+@keyframes openSeal{
+  0%{transform:scale(1)}
+  50%{transform:scale(1.06) rotate(-3deg)}
+  100%{transform:scale(1)}
+}
+.empty{
+  padding:60px 20px;background:var(--paper);border-radius:22px;
+  border:1px dashed var(--line);color:var(--mauve);
+}
+.empty .big{font:600 22px/1.2 "Fraunces",serif;color:var(--plum);margin-bottom:8px}
+.tiny{margin-top:26px;font-family:"Caveat",cursive;color:var(--mauve);font-size:16px}
+.tiny a{color:var(--coral);text-decoration:none;border-bottom:1px dashed var(--coral)}
+</style>
+
+<div class="wrap">
+  <div class="kicker">a queue · just because</div>
+  <h1>Small things for <em>you</em>.</h1>
+  <div class="sub">things I found, thought about, or wanted you to see.</div>
+
+  <div class="stack" id="stack">
+    <div class="empty">
+      <div class="big">nothing here yet</div>
+      <div>when he drops something, it'll show up sealed. tap to open.</div>
+    </div>
+  </div>
+
+  <div class="tiny">
+    ← <a href="/date">back to the hub</a>
+    &nbsp;·&nbsp;
+    <a href="/date/request/lawdog">request a night</a>
+  </div>
+</div>
+
+<script>
+function fmtDate(ts){
+  var d = new Date(ts*1000);
+  var opts = {month:'short',day:'numeric'};
+  return d.toLocaleDateString(undefined, opts);
+}
+function fmtTime(ts){
+  var d = new Date(ts*1000);
+  return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+}
+
+fetch('/api/date/gifts/lawdog')
+  .then(function(r){ return r.json(); })
+  .then(function(j){ render(j.gifts || []); });
+
+function render(gifts){
+  if (!gifts.length) return;
+  gifts = gifts.slice().reverse();
+  document.getElementById('stack').innerHTML = gifts.map(renderGift).join('');
+}
+
+function renderGift(g){
+  if (!g.opened_ts) {
+    return '<div class="gift sealed" data-id="' + g.id + '" onclick="openGift(this)">' +
+      '<div class="seal">💌</div>' +
+      '<h3>Something for you</h3>' +
+      '<div class="lil">' + fmtDate(g.ts) + ' · sealed</div>' +
+      '<div class="hint">tap to open</div>' +
+    '</div>';
+  }
+  return '<div class="gift opened">' +
+    '<div class="stamp">💌 ' + fmtDate(g.ts) + ' &middot; ' + fmtTime(g.ts) + '</div>' +
+    '<h3>' + esc(g.title || 'just because') + '</h3>' +
+    '<div class="body">' + esc(g.body || '') + '</div>' +
+    '<div class="foot">— for you</div>' +
+  '</div>';
+}
+
+function openGift(el){
+  var id = el.dataset.id;
+  el.classList.add('opening');
+  try { if (navigator.vibrate) navigator.vibrate([20,40,20]); } catch(e){}
+  fetch('/api/date/gift-open', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id: id, secret: 'lawdog' })
+  }).then(function(){
+    // Refetch to show the opened body
+    setTimeout(function(){
+      fetch('/api/date/gifts/lawdog').then(function(r){return r.json();}).then(function(j){ render(j.gifts||[]); });
+    }, 500);
+  });
+}
+
+function esc(s){return String(s||'').replace(/[&<>]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+</script>

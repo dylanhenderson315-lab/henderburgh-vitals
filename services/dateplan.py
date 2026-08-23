@@ -22,6 +22,7 @@ import json
 import os
 import threading
 import time
+import uuid
 from pathlib import Path
 
 # Railway's filesystem is ephemeral -- fine for a one-night notepad, but
@@ -73,6 +74,7 @@ HELI_LABEL = "THE 30 DOLLAR HELICOPTER RIDE"
 _STATE_DIR = LOG_PATH.parent
 PHOTO_DIR = _STATE_DIR / "photos"
 CONTEXT_PATH = _STATE_DIR / "context.jsonl"
+GIFTS_PATH = _STATE_DIR / "gifts.jsonl"
 
 _lock = threading.Lock()
 _context_lock = threading.Lock()
@@ -296,6 +298,121 @@ def context(days=14, limit=200):
             if r.get("ts", 0) >= cutoff:
                 out.append(r)
     return out[-limit:]
+
+
+def request_night(vibe=None, when=None, note=None, viewer=None):
+    """She sends him a request card -- the mirror of the invite. Vibes
+    are curated (like MOVIES/DINNERS ids) so the log stays typed and
+    the inbox can render them cleanly."""
+    v = _clean_viewer(viewer)
+    vibe = vibe if vibe in REQUEST_VIBES else None
+    when = when if when in REQUEST_WHENS else None
+    row = {
+        "ts": time.time(),
+        "kind": "request",
+        "vibe": vibe,
+        "vibe_label": REQUEST_VIBES.get(vibe),
+        "when": when,
+        "when_label": REQUEST_WHENS.get(when),
+        "note": (note.strip()[:1000] if isinstance(note, str) else None) or None,
+        "viewer": v,
+        "test": v is not None,
+    }
+    with _lock:
+        try:
+            LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with LOG_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row
+
+
+# Curated vibe palette for requests. Kept small on purpose -- lets the
+# inbox render clean typed chips instead of freeform strings that drift.
+REQUEST_VIBES = {
+    "coffee":    "a coffee shop morning",
+    "cozy":      "a cozy night in",
+    "adventure": "something new · adventure",
+    "dinner":    "a real dinner out",
+    "beach":     "beach time",
+    "outdoors":  "get outside · farmers market, gardens, walking",
+    "surprise":  "surprise me · you pick everything",
+}
+REQUEST_WHENS = {
+    "tonight":  "tonight",
+    "tomorrow": "tomorrow",
+    "week":     "sometime this week",
+    "weekend":  "this weekend",
+    "soon":     "soon, when you can",
+}
+
+
+def add_gift(title, body, tags=None):
+    """He drops a "just because" -- a small note, a photo caption, an
+    inside joke, whatever. Lives in a separate gifts.jsonl so it never
+    tangles with picks/replies and so unread state has a natural home
+    (unread = ts > last_opened_ts, stored below)."""
+    if not isinstance(title, str) or not title.strip():
+        title = "just because"
+    if not isinstance(body, str) or not body.strip():
+        return None
+    row = {
+        "ts": time.time(),
+        "id": uuid.uuid4().hex[:12],
+        "title": title.strip()[:120],
+        "body": body.strip()[:4000],
+        "tags": tags if isinstance(tags, list) else [],
+        "opened_ts": None,
+    }
+    with _lock:
+        try:
+            GIFTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with GIFTS_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row
+
+
+def gifts(limit=100):
+    """Every gift he's ever left, newest last. Missing file = empty."""
+    if not GIFTS_PATH.exists():
+        return []
+    out = []
+    with GIFTS_PATH.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+    return out[-limit:]
+
+
+def mark_gift_opened(gift_id):
+    """Persist the opened_ts by rewriting the file. Tiny file, one row
+    per gift -- rewrite is cheaper than any real index and it lets us
+    keep the single-file jsonl discipline everywhere else."""
+    if not GIFTS_PATH.exists():
+        return False
+    rows = gifts(limit=10000)
+    changed = False
+    for r in rows:
+        if r.get("id") == gift_id and not r.get("opened_ts"):
+            r["opened_ts"] = time.time()
+            changed = True
+    if not changed:
+        return False
+    with _lock:
+        tmp = GIFTS_PATH.with_suffix(".tmp")
+        with tmp.open("w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        tmp.replace(GIFTS_PATH)
+    return True
 
 
 def reply(note, viewer=None):
