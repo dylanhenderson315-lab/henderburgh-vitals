@@ -464,6 +464,27 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 }
 .msg-back.done .body{display:none}
 .msg-back.done .sent{display:block}
+.photo-picker{margin-top:10px}
+.photo-btn{
+  display:inline-flex;align-items:center;gap:8px;padding:10px 14px;
+  border-radius:12px;background:#fff;border:1px dashed var(--coral);
+  color:var(--wine);cursor:pointer;font:600 13px/1 "Inter",sans-serif;
+  transition:background .15s;
+}
+.photo-btn:hover{background:#fff5ec}
+#photoPreview{
+  display:block;max-width:100%;max-height:220px;margin-top:10px;
+  border-radius:12px;box-shadow:var(--shadow);object-fit:cover;
+}
+
+/* Weather line above the letter */
+.weather{
+  text-align:center;margin-bottom:18px;
+  font:italic 500 15px/1.3 "Fraunces",serif;color:var(--wine);
+  opacity:0;transition:opacity .5s;
+}
+.weather.on{opacity:1}
+.weather b{font-style:normal;font-weight:700;color:var(--coral)}
 
 .love-note{
   margin-top:20px;padding:22px 20px;border-radius:20px;
@@ -526,6 +547,7 @@ details summary::-webkit-details-marker{display:none}
 
 <!-- 1 ------------------------------------------------------------ -->
 <section class="screen" id="s1">
+  <div class="weather" id="weather"></div>
   <div class="paper">
     <div id="letter"></div>
     <div class="sig">— Dylan
@@ -819,8 +841,16 @@ details summary::-webkit-details-marker{display:none}
   <div class="msg-back" id="msgBack">
     <div class="body">
       <h3>Anything you want to say back?</h3>
-      <div class="lil">Optional. Whatever you want him to see when he checks. A one-liner, a whole paragraph, an inside joke, a heart.</div>
+      <div class="lil">Optional. Whatever you want him to see when he checks. A one-liner, a whole paragraph, an inside joke, a heart. Add a photo from the night too — it'll live on his inbox forever.</div>
       <textarea id="msgText" placeholder="write to him here…" maxlength="2000"></textarea>
+      <div class="photo-picker">
+        <label class="photo-btn" for="msgPhoto">
+          <span>📸</span>
+          <span id="photoLabel">add a photo (optional)</span>
+        </label>
+        <input type="file" id="msgPhoto" accept="image/*" capture="environment" style="display:none" onchange="onPhotoPick(this)">
+        <img id="photoPreview" alt="" style="display:none">
+      </div>
       <button class="btn send" onclick="sendReply()">send it 💌</button>
     </div>
     <div class="sent">sent 💌 — the lamp blinked again.</div>
@@ -1102,19 +1132,38 @@ function confirmIt(){
   });
 }
 
+var pickedPhoto = null;
+function onPhotoPick(input){
+  var f = input.files && input.files[0];
+  if (!f) return;
+  pickedPhoto = f;
+  document.getElementById('photoLabel').textContent = '📸 photo ready · tap to change';
+  var img = document.getElementById('photoPreview');
+  img.src = URL.createObjectURL(f);
+  img.style.display = 'block';
+}
+
 function sendReply(){
   var text = (document.getElementById('msgText').value || '').trim();
-  if (!text) {
+  if (!text && !pickedPhoto) {
     document.getElementById('msgText').focus();
     return;
   }
   var box = document.getElementById('msgBack');
   var btn = box.querySelector('.send');
   btn.disabled = true; btn.textContent = 'sending…';
-  fetch('/api/date/reply', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ note: text, viewer: VIEWER })
-  }).then(function(r){ return r.json(); }).then(function(j){
+
+  // If there's a photo, upload it first, then send the text; the two
+  // separate log rows both pin to the same preceding pick on the inbox.
+  var photoP = pickedPhoto ? uploadPhoto(pickedPhoto) : Promise.resolve(true);
+
+  photoP.then(function(){
+    if (!text) return { ok: true };  // photo-only reply
+    return fetch('/api/date/reply', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ note: text, viewer: VIEWER })
+    }).then(function(r){ return r.json(); });
+  }).then(function(j){
     if (j && j.ok) {
       box.classList.add('done');
       burst(window.innerWidth/2, window.innerHeight/2, 40);
@@ -1125,6 +1174,46 @@ function sendReply(){
   }).catch(function(){
     btn.disabled = false; btn.textContent = 'try again 💌';
   });
+}
+
+function uploadPhoto(file){
+  var fd = new FormData();
+  fd.append('file', file);
+  if (VIEWER) fd.append('viewer', VIEWER);
+  return fetch('/api/date/photo', { method:'POST', body: fd })
+    .then(function(r){ return r.json(); });
+}
+
+// -------- Weather line (Open-Meteo, no key, tiny CORS-friendly call) --
+// Myrtle Beach approx coords. Refuses to break the page if it fails --
+// weather is atmosphere, not content.
+(function loadWeather(){
+  var url = 'https://api.open-meteo.com/v1/forecast' +
+    '?latitude=33.6891&longitude=-78.8867' +
+    '&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto';
+  fetch(url).then(function(r){ return r.json(); }).then(function(j){
+    var t = Math.round(j.current.temperature_2m);
+    var code = j.current.weather_code;
+    // Open-Meteo WMO codes -> friendly phrase + emoji
+    var phrase = wmoPhrase(code);
+    var el = document.getElementById('weather');
+    if (!el) return;
+    el.innerHTML = 'tonight in Myrtle Beach · <b>' + t + '° &middot; ' + phrase + '</b>';
+    el.classList.add('on');
+  }).catch(function(){ /* silently ignore */ });
+})();
+
+function wmoPhrase(c){
+  if (c === 0) return 'clear ☀️';
+  if (c === 1 || c === 2) return 'mostly clear ⛅';
+  if (c === 3) return 'overcast ☁️';
+  if (c === 45 || c === 48) return 'foggy 🌫️';
+  if (c >= 51 && c <= 57) return 'drizzling 🌦️';
+  if (c >= 61 && c <= 67) return 'rain 🌧️';
+  if (c >= 71 && c <= 77) return 'snow ❄️';
+  if (c >= 80 && c <= 82) return 'showers 🌧️';
+  if (c >= 95) return 'stormy ⛈️';
+  return 'weather ✨';
 }
 
 // ---------- Countdown ----------

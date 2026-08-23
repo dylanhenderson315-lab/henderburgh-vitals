@@ -2275,6 +2275,83 @@ async def api_date_pick(request: Request, background_tasks: BackgroundTasks):
     return {"ok": True, "row": row, "total_real": total, "milestone": milestone}
 
 
+@app.post("/api/date/photo")
+async def api_date_photo(
+    request: Request, background_tasks: BackgroundTasks,
+    file: UploadFile = File(...), viewer: Optional[str] = Form(None),
+):
+    """She (or a friend, in rehearsal) attaches a photo after the date --
+    a shot from the night, from the coffee shop, whatever. Stored on the
+    persistent volume under photos/ with a random name; a jsonl row pins
+    it to the nearest preceding pick on the inbox."""
+    # Content-type gate + size cap (5 MB per photo is generous for a phone shot).
+    ctype = (file.content_type or "").lower()
+    if not ctype.startswith("image/"):
+        raise HTTPException(status_code=400, detail="only images accepted")
+    ext = {"image/jpeg": ".jpg", "image/png": ".png",
+           "image/webp": ".webp", "image/heic": ".heic",
+           "image/gif": ".gif"}.get(ctype, ".img")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="photo too large (5MB max)")
+    _dateplan.PHOTO_DIR.mkdir(parents=True, exist_ok=True)
+    fn = uuid.uuid4().hex + ext
+    (_dateplan.PHOTO_DIR / fn).write_bytes(data)
+    row = _dateplan.photo(filename=fn, viewer=viewer)
+    background_tasks.add_task(home_assistant.perform_poke_blink)
+    return {"ok": True, "row": row, "filename": fn}
+
+
+@app.get("/photos/{filename}")
+async def get_photo(filename: str):
+    """Serve one uploaded photo. Random UUID filenames are the access
+    control (same obscurity discipline as the date/inbox secret) --
+    good enough for personal shots, not a public gallery."""
+    # Reject any traversal attempt outright; only bare filenames allowed.
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=404)
+    path = _dateplan.PHOTO_DIR / filename
+    if not path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(path)
+
+
+@app.post("/api/context")
+async def api_context_post(request: Request):
+    """He drops a note from the planner surface. Token-gated so nobody
+    else can write into his notepad, but no lamp poke -- these are quiet
+    background writes throughout the week, not events."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not ADMIN_TOKEN or body.get("token") != ADMIN_TOKEN:
+        raise HTTPException(status_code=401)
+    row = _dateplan.add_context(text=body.get("text"), tags=body.get("tags") or [])
+    if row is None:
+        raise HTTPException(status_code=400, detail="empty note")
+    return {"ok": True, "row": row}
+
+
+@app.get("/api/context/{token}")
+async def api_context_get(token: str, days: int = 14):
+    """Read the recent context notes. Path-tokened so a bookmarked link
+    works on any device."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=404)
+    return {"notes": _dateplan.context(days=days), "tags": _dateplan.CONTEXT_TAGS}
+
+
+@app.get("/plan/{token}", response_class=HTMLResponse)
+async def plan_page(token: str):
+    """The planner surface -- his side of the service. Drop weekly notes,
+    see recent context, see recent picks, get ready to build the next
+    week's card. Same token-in-path discipline as /date/inbox/{token}."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=404)
+    return HTMLResponse((Path(__file__).parent / "templates" / "plan.html").read_bytes())
+
+
 @app.post("/api/date/reply")
 async def api_date_reply(request: Request, background_tasks: BackgroundTasks):
     """She wrote a message back after locking in the reservation. Same

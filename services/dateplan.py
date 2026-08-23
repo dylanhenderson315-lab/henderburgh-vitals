@@ -65,7 +65,17 @@ MORNINGS = {
 
 HELI_LABEL = "THE 30 DOLLAR HELICOPTER RIDE"
 
+# --- Storage paths ---------------------------------------------------
+# All persistent state lives under LOG_PATH.parent so a single Railway
+# Volume covers pick log, replies, uploaded photos, and the context
+# notepad. Older deploys used /tmp; the DATE_LOG_PATH env var swings
+# everything to /data/... on the Volume.
+_STATE_DIR = LOG_PATH.parent
+PHOTO_DIR = _STATE_DIR / "photos"
+CONTEXT_PATH = _STATE_DIR / "context.jsonl"
+
 _lock = threading.Lock()
+_context_lock = threading.Lock()
 
 
 def label_movie(mid):
@@ -184,6 +194,108 @@ def real_pick_count():
 # Kept intentionally sparse -- every date is special, but pretending every
 # single one is a milestone means none of them are.
 MILESTONES = {1, 5, 10, 25, 52, 100}
+
+
+def photo(filename, viewer=None):
+    """Register that a photo was uploaded and stored to PHOTO_DIR/<filename>.
+    The file itself was saved by the endpoint; this just puts a row in the
+    log so the inbox can pin it under the nearest preceding pick, exactly
+    like replies. Kept as its own row kind so it never inflates the pick
+    counter."""
+    v = _clean_viewer(viewer)
+    row = {
+        "ts": time.time(),
+        "kind": "photo",
+        "filename": filename,
+        "viewer": v,
+        "test": v is not None,
+    }
+    with _lock:
+        try:
+            LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with LOG_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row
+
+
+# --- Context notepad ---------------------------------------------------
+# He drops notes throughout the week ("she walked the beach Wednesday",
+# "she wants to try that new coffee place", "work has been rough") so
+# that when it's time to plan the next date, everything he was paying
+# attention to is right there in one place. Rows are append-only jsonl,
+# same discipline as the pick log; nothing is ever mutated in place.
+
+# A curated tag palette. Kept small so he actually uses them -- freeform
+# tag entry always drifts into typos and near-duplicates over time.
+CONTEXT_TAGS = [
+    "she-said",     # something she wanted / mentioned wanting
+    "we-did",       # something we did together this week
+    "win",          # thing that went well
+    "rough",        # something hard she went through
+    "beach",        # any beach-adjacent context
+    "food",         # restaurants tried, meals cooked, cravings
+    "coffee",       # coffee shops / coffee wants
+    "books",        # bookstore / reading
+    "outdoors",     # farmers market, gardens, hikes, park
+    "cozy",         # in-the-house energy
+    "work",         # her job context, useful for tone
+    "plan",         # explicit "we should do X"
+    "note",         # generic
+]
+
+
+def add_context(text, tags=None):
+    """Append one note to the weekly context log. Tags outside the
+    curated palette are silently dropped rather than stored -- they
+    drift and become near-duplicates otherwise."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    clean_tags = []
+    if isinstance(tags, list):
+        seen = set()
+        for t in tags:
+            if not isinstance(t, str):
+                continue
+            t = t.strip().lower()
+            if t in CONTEXT_TAGS and t not in seen:
+                clean_tags.append(t)
+                seen.add(t)
+    row = {
+        "ts": time.time(),
+        "text": text.strip()[:2000],
+        "tags": clean_tags,
+    }
+    with _context_lock:
+        try:
+            CONTEXT_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with CONTEXT_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row
+
+
+def context(days=14, limit=200):
+    """Recent context notes, newest last. Defaults cover about two weeks
+    (enough for a planning session) without dumping the full history."""
+    if not CONTEXT_PATH.exists():
+        return []
+    cutoff = time.time() - (days * 86400)
+    out = []
+    with CONTEXT_PATH.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("ts", 0) >= cutoff:
+                out.append(r)
+    return out[-limit:]
 
 
 def reply(note, viewer=None):

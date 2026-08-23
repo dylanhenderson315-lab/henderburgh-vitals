@@ -129,6 +129,24 @@ body{
   font:500 17px/1.4 "Caveat",cursive;color:var(--plum);white-space:pre-wrap;
 }
 
+/* photo tiles pinned under the pick */
+.photos{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  gap:8px;margin-top:14px;
+}
+.photo-tile{
+  display:block;position:relative;border-radius:12px;overflow:hidden;
+  box-shadow:0 6px 16px -10px rgba(107,30,58,.3);
+  aspect-ratio:1;background:#fff;
+}
+.photo-tile img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.photo-tile:hover img{transform:scale(1.04)}
+.photo-tile span{
+  position:absolute;bottom:0;left:0;right:0;padding:6px 8px;
+  background:linear-gradient(transparent,rgba(0,0,0,.6));
+  color:#fff;font:600 10px/1 "Inter",sans-serif;letter-spacing:.1em;
+}
+
 /* Empty state */
 .empty{
   text-align:center;padding:60px 20px;
@@ -218,17 +236,21 @@ fetch('/api/date/inbox-json/' + TOKEN)
     // the reply came from a real, non-rehearsal viewer).
     var rows = (j.picks || []).slice(); // chronological
     var picks = [];
-    rows.forEach(function(r){ if (r.kind !== 'reply') picks.push(r); });
     rows.forEach(function(r){
-      if (r.kind !== 'reply') return;
-      // Match on same test/viewer scope + closest earlier ts
+      if (r.kind !== 'reply' && r.kind !== 'photo') picks.push(r);
+    });
+    // Pin every reply / photo to the nearest preceding same-scope pick.
+    rows.forEach(function(r){
+      if (r.kind !== 'reply' && r.kind !== 'photo') return;
       var candidates = picks.filter(function(p){
         return p.ts <= r.ts && (!!p.test === !!r.test);
       });
       var parent = candidates[candidates.length - 1];
-      if (parent) {
-        parent.replies = parent.replies || [];
-        parent.replies.push(r);
+      if (!parent) return;
+      if (r.kind === 'reply') {
+        (parent.replies = parent.replies || []).push(r);
+      } else if (r.kind === 'photo') {
+        (parent.photos = parent.photos || []).push(r);
       }
     });
     ALL = picks.slice().reverse();
@@ -292,6 +314,17 @@ function render(){
       }).join('') + '</div>';
     }
 
+    var photos = '';
+    if (p.photos && p.photos.length) {
+      photos = '<div class="photos">' + p.photos.map(function(ph){
+        return '<a href="/photos/' + encodeURIComponent(ph.filename) +
+          '" target="_blank" class="photo-tile">' +
+          '<img src="/photos/' + encodeURIComponent(ph.filename) + '" alt="" loading="lazy">' +
+          '<span>' + fmtTime(ph.ts) + '</span>' +
+        '</a>';
+      }).join('') + '</div>';
+    }
+
     return '<div class="card' + (p.test ? ' test' : '') + '">' +
       '<div class="chdr">' +
         '<div class="stamp">' + stamp + '</div>' +
@@ -299,6 +332,7 @@ function render(){
         '<div class="who">' + who + ' &middot; ' + fmtTime(p.ts) + '</div>' +
       '</div>' +
       rows +
+      photos +
       replies +
       '<div class="foot">' + (p.test ? 'not real · logged for testing' : 'confirmed · lamp blinked') + '</div>' +
     '</div>';

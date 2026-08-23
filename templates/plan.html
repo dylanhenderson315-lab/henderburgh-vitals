@@ -1,0 +1,347 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Henderburgh Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --cream:#fff5ec; --peach:#ffe8dc; --blush:#ffd6d0; --rose:#ffb4b0;
+  --coral:#f97070; --pink:#ec4899; --plum:#3d1a2e; --wine:#6b1e3a;
+  --gold:#c9862f; --paper:#fffaf3; --line:#e9c9c2; --mauve:#8a5a72;
+  --ink:#2a121f;
+  --shadow:0 14px 40px -18px rgba(107,30,58,.28);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  color:var(--ink);min-height:100dvh;
+  font:15px/1.55 "Inter",ui-sans-serif,system-ui,sans-serif;
+  padding:26px 16px 60px;
+  background:
+    radial-gradient(120% 60% at 20% 0%,#ffd0c8 0%,transparent 60%),
+    radial-gradient(120% 60% at 90% 30%,#ffb8d2 0%,transparent 55%),
+    linear-gradient(180deg,#fff2e8 0%,#ffe4e6 55%,#fce7f3 100%);
+  background-attachment:fixed;
+}
+.wrap{max-width:720px;margin:0 auto}
+.hero{margin-bottom:22px}
+.hero .brand{
+  font:700 10px/1 "Inter",sans-serif;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--coral);margin-bottom:6px;
+}
+.hero h1{font:700 clamp(28px,7vw,40px)/1.05 "Fraunces",serif;color:var(--plum);letter-spacing:-.02em}
+.hero h1 em{font-style:italic;color:var(--coral);font-weight:400}
+.hero .sub{font-family:"Caveat",cursive;font-weight:700;color:var(--wine);font-size:20px;margin-top:2px}
+
+.card{
+  background:var(--paper);border-radius:20px;padding:20px;
+  box-shadow:var(--shadow);border:1px solid var(--line);margin-bottom:16px;
+}
+.card h2{font:600 18px/1.2 "Fraunces",serif;color:var(--plum);margin-bottom:6px}
+.card .sub{color:var(--mauve);font-size:13px;margin-bottom:14px}
+
+textarea, input[type=text]{
+  width:100%;padding:12px 14px;border-radius:12px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+  font:15px/1.5 "Inter",sans-serif;transition:border-color .15s;
+}
+textarea:focus, input:focus{outline:none;border-color:var(--coral)}
+textarea{resize:vertical;min-height:80px}
+
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.tag{
+  font:600 11px/1 "Inter",sans-serif;letter-spacing:.03em;
+  padding:7px 11px;border-radius:999px;cursor:pointer;
+  background:#fff;color:var(--mauve);border:1px solid var(--line);
+  transition:all .12s;user-select:none;
+}
+.tag.on{background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;border-color:transparent}
+
+.btn{
+  padding:11px 18px;border-radius:999px;border:0;cursor:pointer;
+  font:700 13px/1 "Inter",sans-serif;
+  background:linear-gradient(90deg,var(--coral),var(--pink));color:#fff;
+  box-shadow:0 8px 20px -8px var(--coral);
+}
+.btn.ghost{background:none;color:var(--wine);border:1px solid var(--line);box-shadow:none}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.row-actions{display:flex;gap:8px;margin-top:8px;align-items:center}
+.hint{color:var(--mauve);font-size:12px}
+
+.day{margin:18px 0 8px;font:600 11px/1 "Inter",sans-serif;letter-spacing:.15em;text-transform:uppercase;color:var(--coral)}
+.note{
+  background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:8px;
+  border-left:3px solid var(--coral);position:relative;
+}
+.note .txt{color:var(--ink);white-space:pre-wrap}
+.note .meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.note .meta .t{font:11px/1 "JetBrains Mono",monospace;color:var(--mauve)}
+.note .meta .chip{
+  font:600 10px/1 "Inter",sans-serif;letter-spacing:.05em;
+  padding:4px 8px;border-radius:999px;background:#fff5ec;color:var(--wine);
+  border:1px solid var(--rose);
+}
+
+.briefing{
+  background:linear-gradient(135deg,#fffaf3,#fff5ec);
+  border:1px dashed var(--coral);border-radius:20px;padding:20px;margin-top:22px;
+}
+.briefing h2{font:600 20px/1.2 "Fraunces",serif;color:var(--plum);margin-bottom:10px}
+.briefing .k{font:600 10px/1 "Inter",sans-serif;letter-spacing:.15em;text-transform:uppercase;color:var(--mauve);margin-top:14px;margin-bottom:4px}
+.briefing .v{color:var(--ink);font-size:14px}
+.briefing details{margin-top:12px}
+.briefing summary{cursor:pointer;color:var(--coral);font-size:13px;font-weight:600}
+.briefing pre{
+  margin-top:8px;padding:12px;border-radius:10px;background:#fff;
+  border:1px solid var(--line);font:12px/1.4 "JetBrains Mono",monospace;
+  color:var(--ink);white-space:pre-wrap;max-height:400px;overflow:auto;
+}
+.briefing .weather-line{color:var(--wine);font-weight:600;font-size:14px}
+.briefing .empty{color:var(--mauve);font-style:italic;font-size:13px}
+
+.nav-links{
+  display:flex;gap:10px;margin-top:22px;justify-content:center;flex-wrap:wrap;
+  font-size:13px;
+}
+.nav-links a{color:var(--coral);text-decoration:none;border-bottom:1px dashed var(--coral)}
+</style>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="brand">Henderburgh · Planner</div>
+    <h1>What are you <em>noticing</em>?</h1>
+    <div class="sub">drop stuff all week · pull it up when it's time to plan</div>
+  </div>
+
+  <div class="card">
+    <h2>Drop a note</h2>
+    <div class="sub">One thing she said, one thing you did, one thing worth remembering when you build the next date.</div>
+    <textarea id="noteText" placeholder="she mentioned wanting to try that new coffee place downtown..."></textarea>
+    <div class="tags" id="tagBar"></div>
+    <div class="row-actions">
+      <button class="btn" id="saveBtn" onclick="save()">save this note</button>
+      <span class="hint" id="saveHint"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Recent (last 14 days)</h2>
+    <div class="sub" id="noteCountLbl">—</div>
+    <div id="notes"></div>
+  </div>
+
+  <div class="briefing">
+    <h2>📋 When you're ready to plan the next date</h2>
+
+    <div class="k">weather · myrtle beach · next 3 days</div>
+    <div class="v weather-line" id="weatherLine">loading…</div>
+
+    <div class="k">last date she picked</div>
+    <div class="v" id="lastPickLine">—</div>
+
+    <div class="k">context, ready to copy</div>
+    <details open><summary>show / hide the full briefing text</summary>
+    <pre id="briefingText">building briefing…</pre>
+    </details>
+    <div class="sub" style="margin-top:10px">Copy that block, drop it into a new prompt, and ask me to build this week's date card from it. Everything you noted this week, weather, last pick — all in one paste.</div>
+  </div>
+
+  <div class="nav-links">
+    <a href="#" id="linkDate">the current invite →</a>
+    <a href="#" id="linkInbox">the history inbox →</a>
+  </div>
+</div>
+
+<script>
+// Token is in the URL path.
+var TOKEN = (function(){
+  var m = window.location.pathname.match(/\/plan\/([^\/]+)/);
+  return m ? m[1] : '';
+})();
+document.getElementById('linkInbox').href = '/date/inbox/' + TOKEN;
+document.getElementById('linkDate').href = '/date/lawdog';
+
+var TAGS = [];       // filled from /api/context (server returns curated palette)
+var SELECTED = new Set();
+var NOTES = [];
+var PICKS = [];
+
+// --- Tag chips ---
+function renderTags(){
+  var bar = document.getElementById('tagBar');
+  bar.innerHTML = TAGS.map(function(t){
+    return '<span class="tag'+(SELECTED.has(t)?' on':'')+'" onclick="toggleTag(\''+t+'\')">'+t+'</span>';
+  }).join('');
+}
+function toggleTag(t){
+  if (SELECTED.has(t)) SELECTED.delete(t); else SELECTED.add(t);
+  renderTags();
+}
+
+// --- Save a note ---
+function save(){
+  var t = document.getElementById('noteText').value.trim();
+  if (!t) { document.getElementById('noteText').focus(); return; }
+  var btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'saving…';
+  fetch('/api/context', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ token: TOKEN, text: t, tags: Array.from(SELECTED) })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    btn.disabled = false; btn.textContent = 'save this note';
+    if (j && j.ok) {
+      document.getElementById('noteText').value = '';
+      SELECTED.clear();
+      renderTags();
+      document.getElementById('saveHint').textContent = '✓ saved';
+      setTimeout(function(){ document.getElementById('saveHint').textContent = ''; }, 1800);
+      loadNotes();
+    } else {
+      document.getElementById('saveHint').textContent = 'nope, try again';
+    }
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = 'save this note';
+    document.getElementById('saveHint').textContent = 'network issue';
+  });
+}
+
+// --- Render recent notes ---
+function loadNotes(){
+  fetch('/api/context/' + TOKEN + '?days=14')
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      NOTES = (j.notes || []).slice().reverse();
+      TAGS = j.tags || [];
+      renderTags();
+      renderNotes();
+      buildBriefing();
+    });
+}
+
+function renderNotes(){
+  var box = document.getElementById('notes');
+  document.getElementById('noteCountLbl').textContent =
+    NOTES.length + ' note' + (NOTES.length===1?'':'s');
+  if (!NOTES.length){
+    box.innerHTML = '<div class="hint">nothing yet. drop your first note above.</div>';
+    return;
+  }
+  // Group by day (local)
+  var buckets = {};
+  NOTES.forEach(function(n){
+    var d = new Date(n.ts*1000);
+    var key = d.toLocaleDateString(undefined, {weekday:'long', month:'short', day:'numeric'});
+    (buckets[key] = buckets[key] || []).push(n);
+  });
+  var html = '';
+  Object.keys(buckets).forEach(function(day){
+    html += '<div class="day">' + day + '</div>';
+    buckets[day].forEach(function(n){
+      var d = new Date(n.ts*1000);
+      var time = d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+      var chips = (n.tags||[]).map(function(t){return '<span class="chip">'+t+'</span>';}).join('');
+      html += '<div class="note">' +
+        '<div class="txt">' + esc(n.text) + '</div>' +
+        '<div class="meta"><span class="t">' + time + '</span>' + chips + '</div>' +
+      '</div>';
+    });
+  });
+  box.innerHTML = html;
+}
+
+// --- Last pick ---
+fetch('/api/date/inbox-json/' + TOKEN).then(function(r){ return r.json(); }).then(function(j){
+  PICKS = (j.picks || []).filter(function(p){ return p.kind !== 'reply' && p.kind !== 'photo' && !p.test; });
+  var last = PICKS[PICKS.length-1];
+  var line = document.getElementById('lastPickLine');
+  if (!last){ line.textContent = 'none yet'; buildBriefing(); return; }
+  var d = new Date(last.ts*1000);
+  var when = d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
+  var parts = [];
+  if (last.movie) parts.push('🎬 '+(last.movie_label || last.movie));
+  if (last.dinner) parts.push('🍽️ '+(last.dinner_label || last.dinner));
+  if (last.morning) parts.push('🌅 '+(last.morning_label || last.morning));
+  line.textContent = when + ' — ' + parts.join(' · ');
+  buildBriefing();
+});
+
+// --- Weather (3-day forecast, same Open-Meteo call as the invite) ---
+var WEATHER_LINES = ['loading…'];
+(function(){
+  var url = 'https://api.open-meteo.com/v1/forecast' +
+    '?latitude=33.6891&longitude=-78.8867' +
+    '&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max' +
+    '&temperature_unit=fahrenheit&timezone=auto&forecast_days=3';
+  fetch(url).then(function(r){ return r.json(); }).then(function(j){
+    var days = j.daily.time.map(function(t,i){
+      var d = new Date(t + 'T12:00:00');
+      var name = d.toLocaleDateString(undefined,{weekday:'short'});
+      var hi = Math.round(j.daily.temperature_2m_max[i]);
+      var lo = Math.round(j.daily.temperature_2m_min[i]);
+      var code = j.daily.weather_code[i];
+      var precip = j.daily.precipitation_probability_max[i];
+      return name + ': ' + hi + '°/' + lo + '° · ' + wmo(code) +
+        (precip>30 ? ' · '+precip+'% rain' : '');
+    });
+    WEATHER_LINES = days;
+    document.getElementById('weatherLine').textContent = days.join(' • ');
+    buildBriefing();
+  }).catch(function(){
+    WEATHER_LINES = ['(weather unavailable)'];
+    document.getElementById('weatherLine').textContent = '(weather unavailable)';
+    buildBriefing();
+  });
+})();
+function wmo(c){
+  if (c===0) return '☀️';
+  if (c<=2) return '⛅';
+  if (c===3) return '☁️';
+  if (c<=48) return '🌫️';
+  if (c<=57) return '🌦️';
+  if (c<=67) return '🌧️';
+  if (c<=77) return '❄️';
+  if (c<=82) return '🌧️';
+  return '⛈️';
+}
+
+// --- Briefing block (copy-paste ready) ---
+function buildBriefing(){
+  var lines = ['# Weekly briefing for Nicole\'s next date card',
+               '# Generated ' + new Date().toLocaleString(), ''];
+  lines.push('## Weather (Myrtle Beach, next 3 days)');
+  WEATHER_LINES.forEach(function(l){ lines.push('- '+l); });
+  lines.push('');
+  lines.push('## Last real date');
+  if (PICKS.length){
+    var last = PICKS[PICKS.length-1];
+    var d = new Date(last.ts*1000);
+    lines.push('- when: ' + d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}));
+    lines.push('- movie: ' + (last.movie_label || '—'));
+    lines.push('- dinner: ' + (last.dinner_label || '—'));
+    lines.push('- morning: ' + (last.morning_label || '—'));
+  } else lines.push('- (none yet)');
+  lines.push('');
+  lines.push('## Notes from this week (' + NOTES.length + ' total, newest first)');
+  if (!NOTES.length) lines.push('- (nothing dropped yet)');
+  NOTES.forEach(function(n){
+    var d = new Date(n.ts*1000);
+    var when = d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' +
+               d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    var tags = (n.tags||[]).length ? ' [' + n.tags.join(', ') + ']' : '';
+    lines.push('- ' + when + tags + ': ' + n.text);
+  });
+  lines.push('');
+  lines.push('## Standing preferences');
+  lines.push('- love the beach, farmers markets, coffee shops, cute bookstores');
+  lines.push('- love just doing stuff — hangout > event');
+  lines.push('- surprise-me cards land well; anything reframing what she already did lands even better');
+  document.getElementById('briefingText').textContent = lines.join('\n');
+}
+
+function esc(s){return String(s||'').replace(/[&<>]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+loadNotes();
+</script>
