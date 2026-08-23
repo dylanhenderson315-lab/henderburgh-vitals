@@ -479,12 +479,55 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* Weather line above the letter */
 .weather{
-  text-align:center;margin-bottom:18px;
-  font:italic 500 15px/1.3 "Fraunces",serif;color:var(--wine);
+  text-align:center;margin-bottom:12px;
+  font:italic 500 14px/1.4 "Fraunces",serif;color:var(--wine);
   opacity:0;transition:opacity .5s;
 }
 .weather.on{opacity:1}
 .weather b{font-style:normal;font-weight:700;color:var(--coral)}
+.weather .dot{color:var(--rose);margin:0 8px;opacity:.6}
+
+/* Chapter badge -- the "Vol. N" collectible identity above the letter */
+.vol{
+  display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;
+  padding:6px 14px;border-radius:999px;
+  background:var(--paper);border:1px solid var(--line);
+  font:700 10px/1 "Inter",sans-serif;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--wine);box-shadow:0 6px 16px -10px rgba(107,30,58,.25);
+}
+.vol .num{color:var(--coral);font-family:"Fraunces",serif;font-size:14px;font-style:italic;letter-spacing:0}
+
+/* Chairman recommends -- a small live-suggestion pill above movie decisions */
+.rec{
+  margin:0 0 16px;padding:12px 14px;border-radius:16px;
+  background:linear-gradient(135deg,rgba(201,134,47,.1),rgba(249,112,112,.08));
+  border:1px dashed var(--gold);
+  display:flex;align-items:center;gap:10px;font:14px/1.35 "Inter",sans-serif;color:var(--wine);
+  animation:rise .6s ease both;
+}
+.rec .face-mini{width:34px;height:34px;border-radius:50%;flex:none;background:linear-gradient(135deg,#c9862f,#8b5a20);display:grid;place-items:center;font-size:16px}
+.rec b{color:var(--coral);font-weight:700}
+.rec:empty{display:none}
+
+/* Rating row on the confirm screen */
+.rate{
+  margin-top:22px;padding:18px 16px;border-radius:20px;
+  background:linear-gradient(135deg,#fffaf3,#fff);
+  border:1px dashed var(--rose);text-align:center;
+}
+.rate .q{font:600 12px/1 "Inter",sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--mauve);margin-bottom:14px}
+.rate .row5{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.rate button{
+  font-size:28px;padding:10px 12px;border-radius:14px;
+  background:#fff;border:1px solid var(--line);cursor:pointer;
+  transition:transform .15s,border-color .15s,box-shadow .15s;
+  min-width:56px;
+}
+.rate button:hover{transform:translateY(-2px);border-color:var(--coral);box-shadow:0 8px 18px -8px var(--coral)}
+.rate button:active{transform:scale(.94)}
+.rate button.chosen{border-color:var(--coral);background:linear-gradient(135deg,#fff,#ffeee6);box-shadow:0 0 0 3px rgba(249,112,112,.18)}
+.rate .lil{font:italic 500 14px/1.4 "Fraunces",serif;color:var(--wine);margin-top:12px;min-height:20px;opacity:0;transition:opacity .3s}
+.rate .lil.on{opacity:1}
 
 .love-note{
   margin-top:20px;padding:22px 20px;border-radius:20px;
@@ -547,6 +590,11 @@ details summary::-webkit-details-marker{display:none}
 
 <!-- 1 ------------------------------------------------------------ -->
 <section class="screen" id="s1">
+  <div style="text-align:center">
+    <div class="vol" id="volBadge" style="display:none">
+      <span>Chapter</span><span class="num" id="volNum">—</span>
+    </div>
+  </div>
   <div class="weather" id="weather"></div>
   <div class="paper">
     <div id="letter"></div>
@@ -637,6 +685,7 @@ details summary::-webkit-details-marker{display:none}
 <section class="screen" id="s3">
   <div class="dots"><span class="on"></span><span></span><span></span></div>
   <div class="kicker">Decision 1 of 3</div>
+  <div class="rec" id="rec"></div>
   <h2>What's the <em>movie</em> mood?</h2>
   <p class="dim" style="margin-bottom:20px">Home vibes, real showtimes near us, or hand it to me — up to you.</p>
 
@@ -838,6 +887,18 @@ details summary::-webkit-details-marker{display:none}
 
   <div class="shot-nudge">screenshot this ↑ so you don't forget 📸</div>
 
+  <div class="rate" id="rateBox">
+    <div class="q">how was it? (tap after the night)</div>
+    <div class="row5" id="rateRow">
+      <button data-r="fire"    title="top-tier · do this again" onclick="rateIt(this)">🔥</button>
+      <button data-r="warm"    title="loved it"                  onclick="rateIt(this)">🙌</button>
+      <button data-r="sparkle" title="something magic happened"  onclick="rateIt(this)">💫</button>
+      <button data-r="calm"    title="exactly what I needed"     onclick="rateIt(this)">🌊</button>
+      <button data-r="quiet"   title="low-key, low-energy"       onclick="rateIt(this)">💤</button>
+    </div>
+    <div class="lil" id="rateLil"></div>
+  </div>
+
   <div class="msg-back" id="msgBack">
     <div class="body">
       <h3>Anything you want to say back?</h3>
@@ -932,12 +993,40 @@ function ordinal(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||
 document.getElementById('loveDate').textContent = MONTHS[TODAY.getMonth()] + ' ' + ordinal(TODAY.getDate());
 document.getElementById('resDate').textContent = '— ' + MONTHS[TODAY.getMonth()] + ' ' + ordinal(TODAY.getDate()) + ' —';
 
-// ---------- Letter text (name-swapped) ----------
+// ---------- Time-adaptive letter ----------
+// The letter greets the moment she opens it, not the moment it was
+// written. Sunday afternoon vs Wednesday morning read very differently
+// and the copy should feel like it knew when she'd land.
+var NOW = new Date();
+var HR = NOW.getHours();
+var DAY = NOW.getDay(); // 0=Sun,6=Sat
+var IS_WEEKEND = (DAY === 0 || DAY === 5 || DAY === 6);
+var WHEN_LINE = (function(){
+  // Late night → tomorrow / this weekend
+  if (HR >= 22) return "It's late. Sleep on it — this is here in the morning.";
+  if (IS_WEEKEND && HR < 12) {
+    return "It's Saturday-morning energy already. You make the two decisions that actually matter — I handle the rest.";
+  }
+  if (IS_WEEKEND && HR < 17) {
+    return "The whole weekend is still open in front of us. You make the two decisions that actually matter — I handle the rest.";
+  }
+  if (IS_WEEKEND) {
+    return "Tonight is yours. You make the two decisions that actually matter — I handle the rest.";
+  }
+  if (HR < 12) {
+    return "This afternoon or tonight, whichever fits — you pick. You make the two decisions that actually matter, I handle the rest.";
+  }
+  if (HR < 17) {
+    return "Tonight is right there. You make the two decisions that actually matter — I handle the rest.";
+  }
+  return "Tonight I'm taking you out. You make the two decisions that actually matter — I handle the rest.";
+})();
+
 var LETTER = [
   NAME_TITLE + '.',
   'You were gone for two weeks and I missed you.',
   "You're home now. That's the whole thing.",
-  "Tonight I'm taking you out. You make the two decisions that actually matter — I handle the rest."
+  WHEN_LINE
 ];
 
 // If it's a friend rehearsal, tweak one line so it lands as the joke
@@ -1184,23 +1273,41 @@ function uploadPhoto(file){
     .then(function(r){ return r.json(); });
 }
 
-// -------- Weather line (Open-Meteo, no key, tiny CORS-friendly call) --
-// Myrtle Beach approx coords. Refuses to break the page if it fails --
-// weather is atmosphere, not content.
+// -------- Weather + sunset (Open-Meteo, no key) --
+// Now pulls today's sunset too because they live at the beach and
+// sunset is the deciding factor for outdoor plans. Also seeds the
+// Chairman-Recommends pill on the movie screen based on conditions.
+var WEATHER_CACHE = null;
 (function loadWeather(){
   var url = 'https://api.open-meteo.com/v1/forecast' +
     '?latitude=33.6891&longitude=-78.8867' +
-    '&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto';
+    '&current=temperature_2m,weather_code' +
+    '&daily=sunset,weather_code,precipitation_probability_max' +
+    '&temperature_unit=fahrenheit&timezone=auto&forecast_days=1';
   fetch(url).then(function(r){ return r.json(); }).then(function(j){
     var t = Math.round(j.current.temperature_2m);
     var code = j.current.weather_code;
-    // Open-Meteo WMO codes -> friendly phrase + emoji
     var phrase = wmoPhrase(code);
+    var sunset = j.daily && j.daily.sunset && j.daily.sunset[0];
+    var precip = j.daily && j.daily.precipitation_probability_max
+                 && j.daily.precipitation_probability_max[0];
+    WEATHER_CACHE = { t: t, code: code, phrase: phrase,
+                      sunset: sunset, precip: precip };
     var el = document.getElementById('weather');
-    if (!el) return;
-    el.innerHTML = 'tonight in Myrtle Beach · <b>' + t + '° &middot; ' + phrase + '</b>';
-    el.classList.add('on');
-  }).catch(function(){ /* silently ignore */ });
+    if (el) {
+      var parts = ['<b>' + t + '° &middot; ' + phrase + '</b>'];
+      if (sunset) {
+        var s = new Date(sunset);
+        var h = s.getHours(), m = s.getMinutes();
+        var ampm = h >= 12 ? 'pm' : 'am';
+        h = h % 12 || 12;
+        parts.push('sunset ' + h + ':' + String(m).padStart(2,'0') + ampm);
+      }
+      el.innerHTML = 'in Myrtle Beach · ' + parts.join('<span class="dot">·</span>');
+      el.classList.add('on');
+    }
+    seedRecommendation();
+  }).catch(function(){ seedRecommendation(); });
 })();
 
 function wmoPhrase(c){
@@ -1214,6 +1321,67 @@ function wmoPhrase(c){
   if (c >= 80 && c <= 82) return 'showers 🌧️';
   if (c >= 95) return 'stormy ⛈️';
   return 'weather ✨';
+}
+
+// ---------- Chapter badge (Vol. N) ----------
+fetch('/api/date/vol/lawdog').then(function(r){ return r.json(); }).then(function(j){
+  if (!j || !j.vol) return;
+  var b = document.getElementById('volNum');
+  if (b) b.textContent = 'Vol. ' + j.vol;
+  document.getElementById('volBadge').style.display = 'inline-flex';
+}).catch(function(){});
+
+// ---------- Chairman recommends ----------
+// A small suggestion pill above the movie deck. Uses weather + time
+// + weekday to pick ONE thing to nudge, in Toby's voice. Silent if
+// nothing obvious jumps out.
+function seedRecommendation(){
+  var el = document.getElementById('rec');
+  if (!el) return;
+  var w = WEATHER_CACHE || {};
+  var line = null;
+  // Rain / storm → cozy
+  if (w.code !== undefined && ((w.code >= 51 && w.code <= 67) ||
+      (w.code >= 80 && w.code <= 82) || w.code >= 95 ||
+      (w.precip !== undefined && w.precip > 60))) {
+    line = 'Chairman notes rain. He recommends <b>a comfort rewatch</b> and <b>you cooking</b>. Cozy defeats weather.';
+  } else if (IS_WEEKEND && HR < 14) {
+    line = 'Chairman notes it is <b>weekend, still early</b>. Full day ahead — the <b>theater option</b> pairs well with dinner out.';
+  } else if (w.sunset) {
+    var s = new Date(w.sunset);
+    var sh = s.getHours(), sm = s.getMinutes();
+    var stimeStr = (sh%12||12) + ':' + String(sm).padStart(2,'0') + (sh>=12?'pm':'am');
+    line = 'Chairman recommends: get outside before <b>sunset at ' + stimeStr + '</b>. Beach or bookstore then dinner. Motion pending.';
+  } else if (HR >= 17) {
+    line = 'Chairman recommends the <b>surprise-me</b> tier tonight. You have had a day.';
+  }
+  if (!line) return;
+  el.innerHTML =
+    '<div class="face-mini">🐾</div>' +
+    '<div><b>Chairman recommends</b> · ' + line + '</div>';
+}
+
+// ---------- Rating (after the night) ----------
+var RATE_LABELS = {
+  fire:'🔥 top-tier · do this again',
+  warm:'🙌 loved it',
+  sparkle:'💫 something magic happened',
+  calm:'🌊 exactly what you needed',
+  quiet:'💤 low-key, low-energy'
+};
+function rateIt(btn){
+  var r = btn.dataset.r;
+  document.querySelectorAll('#rateRow button').forEach(function(b){ b.classList.remove('chosen'); });
+  btn.classList.add('chosen');
+  var lil = document.getElementById('rateLil');
+  lil.textContent = RATE_LABELS[r] || 'noted';
+  lil.classList.add('on');
+  burst(btn.getBoundingClientRect().left + 24, btn.getBoundingClientRect().top + 20, 22);
+  haptic([20,40,20]);
+  fetch('/api/date/rate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rating: r, viewer: VIEWER })
+  }).catch(function(){});
 }
 
 // ---------- Countdown ----------

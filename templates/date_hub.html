@@ -190,6 +190,11 @@ body{
     <div class="rule">est. 2026</div>
     <h1 class="wordmark">Hender<em>burgh</em>.</h1>
     <div class="tagline">— date nights —</div>
+    <div id="volTag" style="display:none;margin-top:8px;
+         font:600 10px/1 'Inter',sans-serif;letter-spacing:.28em;
+         text-transform:uppercase;color:var(--mauve)">
+      <span id="volTagTxt">—</span>
+    </div>
     <div class="for-two">a private place made <b>for two people</b></div>
   </div>
 
@@ -241,6 +246,18 @@ body{
 </div>
 
 <script>
+// Chapter badge on the hub -- signals "you have N chapters together"
+fetch('/date/lawdog').then(function(){}).catch(function(){});
+fetch('/api/date/vol/lawdog').then(function(r){return r.json();}).then(function(j){
+  if (!j || !j.vol) return;
+  var already = Math.max(0, j.vol - 1);
+  var line = already === 0
+    ? '★ Vol. 1 · your first chapter awaits'
+    : '★ Volume ' + already + ' complete · Vol. ' + j.vol + ' is next';
+  document.getElementById('volTagTxt').textContent = line;
+  document.getElementById('volTag').style.display = 'block';
+}).catch(function(){});
+
 // Sparkles
 var GLYPHS = ['♡','✦','✧','·','♥'];
 (function(){

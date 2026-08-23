@@ -2358,6 +2358,16 @@ async def plan_page(token: str):
     raise HTTPException(status_code=404)
 
 
+@app.get("/api/date/vol/{secret}")
+async def api_date_vol(secret: str):
+    """Chapter number for the next invite = real picks so far + 1.
+    Public (secret-gated) so the invite page can show the badge without
+    the admin token. Returns nothing else -- no leakage."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    return {"vol": _dateplan.real_pick_count() + 1}
+
+
 @app.get("/date/request/{secret}", response_class=HTMLResponse)
 async def date_request_page(secret: str):
     """Nicole's request-a-night surface -- mirror of the invite, she
@@ -2466,6 +2476,21 @@ async def api_date_us(secret: str):
     rows = _dateplan.picks(limit=1000)
     real = [r for r in rows if not r.get("test")]
     return {"picks": real}
+
+
+@app.post("/api/date/rate")
+async def api_date_rate(request: Request, background_tasks: BackgroundTasks):
+    """One-tap post-date rating from her. Pokes the lamp so he sees it
+    land; the inbox pins it under the pick it belongs to, like replies."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    row = _dateplan.rate(rating=body.get("rating"), viewer=body.get("viewer"))
+    if row is None:
+        raise HTTPException(status_code=400, detail="bad rating")
+    background_tasks.add_task(home_assistant.perform_poke_blink)
+    return {"ok": True, "row": row}
 
 
 @app.post("/api/date/reply")

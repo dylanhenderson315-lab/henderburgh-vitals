@@ -415,6 +415,42 @@ def mark_gift_opened(gift_id):
     return True
 
 
+def rate(rating, viewer=None):
+    """One-tap emotional read on last night. Curated palette so the
+    inbox can render typed chips instead of freeform strings; anything
+    else silently drops rather than store a garbage value."""
+    if rating not in RATINGS:
+        return None
+    v = _clean_viewer(viewer)
+    row = {
+        "ts": time.time(),
+        "kind": "rating",
+        "rating": rating,
+        "rating_label": RATINGS[rating],
+        "viewer": v,
+        "test": v is not None,
+    }
+    with _lock:
+        try:
+            LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with LOG_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row
+
+
+# Emojis and their meaning. Small palette on purpose -- forced choice
+# gives a signal, freeform ratings become "it was nice" every time.
+RATINGS = {
+    "fire":    "🔥 top-tier · do this again",
+    "warm":    "🙌 loved it",
+    "sparkle": "💫 something magic happened",
+    "calm":    "🌊 exactly what I needed",
+    "quiet":   "💤 low-key, low-energy",
+}
+
+
 def reply(note, viewer=None):
     """She (or a friend, in rehearsal) writes a message back after the
     reservation is locked in. Stored as its own row kind so the inbox can

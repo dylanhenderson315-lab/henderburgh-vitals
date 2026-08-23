@@ -49,6 +49,7 @@ body{
 .chdr{text-align:center;padding-bottom:16px;border-bottom:2px dashed var(--coral);margin-bottom:16px}
 .chdr .when{font-family:"Caveat",cursive;font-weight:700;color:var(--wine);font-size:24px}
 .chdr .day{font:italic 500 14px/1.3 "Fraunces",serif;color:var(--mauve);margin-top:2px}
+.rating-chip{display:inline-block;margin-top:12px;padding:8px 14px;border-radius:999px;background:linear-gradient(90deg,#fff5ec,#ffe0d0);border:1px solid var(--gold);color:var(--wine);font:600 12px/1 "Inter",sans-serif;box-shadow:0 4px 12px -4px rgba(201,134,47,.4)}
 .row{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px dotted var(--line);gap:12px}
 .row:last-child{border-bottom:none}
 .row .k{font:600 10px/1.2 "Inter",sans-serif;letter-spacing:.15em;text-transform:uppercase;color:var(--mauve);flex:none;min-width:88px}
@@ -104,18 +105,21 @@ var MORNING={coffee:'☕ A new coffee shop',bookworm:'📚🍷 Bookworm & Vine',
 fetch('/api/date/us/lawdog').then(function(r){return r.json();}).then(function(j){
   var rows = (j.picks||[]).slice();
   var picks = [], replies = [], photos = [];
+  var ratings = [];
   rows.forEach(function(r){
     if (r.kind === 'reply') replies.push(r);
     else if (r.kind === 'photo') photos.push(r);
-    else if (r.kind === 'request') {} // shared history hides requests (they're pending, not memories)
+    else if (r.kind === 'rating') ratings.push(r);
+    else if (r.kind === 'request') {} // hide pending in the memory view
     else picks.push(r);
   });
-  replies.concat(photos).forEach(function(r){
+  replies.concat(photos).concat(ratings).forEach(function(r){
     var parents = picks.filter(function(p){ return p.ts <= r.ts; });
     var parent = parents[parents.length-1];
     if (!parent) return;
     if (r.kind === 'reply') (parent.replies = parent.replies || []).push(r);
-    else (parent.photos = parent.photos || []).push(r);
+    else if (r.kind === 'photo') (parent.photos = parent.photos || []).push(r);
+    else if (r.kind === 'rating') (parent.ratings = parent.ratings || []).push(r);
   });
   render(picks.reverse());
 });
@@ -152,9 +156,14 @@ function render(picks){
         return '<div class="reply"><div class="body">'+esc(r.note||'')+'</div></div>';
       }).join('') + '</div>';
     }
+    var ratingHtml = '';
+    if (p.ratings && p.ratings.length) {
+      var latest = p.ratings[p.ratings.length-1];
+      ratingHtml = '<div class="rating-chip">' + esc(latest.rating_label || latest.rating) + '</div>';
+    }
     return '<div class="card">' +
       '<div class="chdr"><div class="when">'+fmtDate(p.ts)+'</div>' +
-        '<div class="day">'+day+' &middot; '+fmtTime(p.ts)+'</div></div>' +
+        '<div class="day">'+day+' &middot; '+fmtTime(p.ts)+'</div>' + ratingHtml + '</div>' +
       rows + photosHtml + repliesHtml +
     '</div>';
   }).join('');
