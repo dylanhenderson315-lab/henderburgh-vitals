@@ -43,7 +43,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import home_assistant, persistence, state, vitals, xbox
+from services import home_assistant, persistence, push, state, vitals, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -2272,12 +2272,20 @@ async def api_date_pick(request: Request, background_tasks: BackgroundTasks):
         note=body.get("note"),
         viewer=body.get("viewer"),
     )
-    # Fire-and-forget lamp blink so the POST returns instantly. Same
-    # BackgroundTasks pattern /api/ha/poke uses.
     background_tasks.add_task(home_assistant.perform_poke_blink)
-    # Total real picks -> drives the "date night #N" badge on the
-    # confirm screen. Rehearsals don't tick the counter, and neither
-    # do future replies (they're their own row kind).
+    # Push. Only for real (non-rehearsal) picks -- friend tests would
+    # ping his phone every time and that would poison the signal.
+    if not row.get("test"):
+        parts = []
+        if row.get("movie_label"): parts.append(row["movie_label"])
+        if row.get("dinner_label"): parts.append(row["dinner_label"])
+        if row.get("morning_label"): parts.append(row["morning_label"])
+        background_tasks.add_task(
+            push.notify,
+            title="Nicole picked",
+            message=" · ".join(parts) if parts else "she confirmed",
+            priority="high", tags=["heart"],
+        )
     total = _dateplan.real_pick_count() if not row.get("test") else None
     milestone = total in _dateplan.MILESTONES if total else False
     return {"ok": True, "row": row, "total_real": total, "milestone": milestone}
@@ -2358,6 +2366,38 @@ async def plan_page(token: str):
     raise HTTPException(status_code=404)
 
 
+@app.get("/api/date/edition/{secret}")
+async def api_date_edition_get(secret: str):
+    """Current published edition -- letter override and star card for
+    this week's invite. Public (secret-gated); the invite page reads
+    this at load time and layers it over its hardcoded defaults."""
+    if secret != _dateplan.SECRET:
+        raise HTTPException(status_code=404)
+    return {"edition": _dateplan.current_edition()}
+
+
+@app.post("/api/date/edition")
+async def api_date_edition_post(request: Request):
+    """He publishes this week's invite overrides from the planner.
+    Token-gated; posts a new row to weekly.jsonl. Latest one wins."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not ADMIN_TOKEN or body.get("token") != ADMIN_TOKEN:
+        raise HTTPException(status_code=401)
+    row = _dateplan.set_edition(
+        star_title=body.get("star_title"),
+        star_body=body.get("star_body"),
+        star_emoji=body.get("star_emoji"),
+        star_tag=body.get("star_tag"),
+        letter_override=body.get("letter_override"),
+    )
+    if row is None:
+        raise HTTPException(status_code=400, detail="empty edition")
+    return {"ok": True, "row": row}
+
+
 @app.get("/api/date/vol/{secret}")
 async def api_date_vol(secret: str):
     """Chapter number for the next invite = real picks so far + 1.
@@ -2392,6 +2432,17 @@ async def api_date_request(request: Request, background_tasks: BackgroundTasks):
         note=body.get("note"), viewer=body.get("viewer"),
     )
     background_tasks.add_task(home_assistant.perform_poke_blink)
+    if not row.get("test"):
+        bits = [row.get("vibe_label") or "no vibe",
+                row.get("when_label") or "whenever"]
+        if row.get("note"):
+            bits.append('"' + row["note"][:80] + '"')
+        background_tasks.add_task(
+            push.notify,
+            title="Nicole asked for a night",
+            message=" · ".join(bits),
+            priority="high", tags=["envelope_with_arrow"],
+        )
     return {"ok": True, "row": row}
 
 
@@ -2425,6 +2476,12 @@ async def api_date_gift_open(request: Request):
     if body.get("secret") != _dateplan.SECRET:
         raise HTTPException(status_code=404)
     ok = _dateplan.mark_gift_opened(body.get("id", ""))
+    if ok:
+        # Small nudge -- she opened one of his gifts. Lower priority so
+        # this doesn't compete with real invite events.
+        push.notify(title="Nicole opened one",
+                    message="a gift from your queue just got unsealed",
+                    priority="low", tags=["gift"])
     return {"ok": ok}
 
 
@@ -2490,6 +2547,13 @@ async def api_date_rate(request: Request, background_tasks: BackgroundTasks):
     if row is None:
         raise HTTPException(status_code=400, detail="bad rating")
     background_tasks.add_task(home_assistant.perform_poke_blink)
+    if not row.get("test"):
+        background_tasks.add_task(
+            push.notify,
+            title="Nicole rated the night",
+            message=row.get("rating_label") or row.get("rating") or "",
+            priority="default", tags=["star"],
+        )
     return {"ok": True, "row": row}
 
 
@@ -2505,6 +2569,14 @@ async def api_date_reply(request: Request, background_tasks: BackgroundTasks):
     if row is None:
         raise HTTPException(status_code=400, detail="empty note")
     background_tasks.add_task(home_assistant.perform_poke_blink)
+    if not row.get("test"):
+        preview = (row.get("note") or "")[:120]
+        background_tasks.add_task(
+            push.notify,
+            title="Nicole wrote back",
+            message=preview,
+            priority="high", tags=["love_letter"],
+        )
     return {"ok": True, "row": row}
 
 

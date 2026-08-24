@@ -75,6 +75,7 @@ _STATE_DIR = LOG_PATH.parent
 PHOTO_DIR = _STATE_DIR / "photos"
 CONTEXT_PATH = _STATE_DIR / "context.jsonl"
 GIFTS_PATH = _STATE_DIR / "gifts.jsonl"
+WEEKLY_PATH = _STATE_DIR / "weekly.jsonl"
 
 _lock = threading.Lock()
 _context_lock = threading.Lock()
@@ -413,6 +414,52 @@ def mark_gift_opened(gift_id):
                 f.write(json.dumps(r) + "\n")
         tmp.replace(GIFTS_PATH)
     return True
+
+
+def set_edition(star_title=None, star_body=None, star_emoji=None,
+                star_tag=None, letter_override=None):
+    """He publishes THIS WEEK's invite overrides from the planner. Simple
+    for now -- one edition row per publish, latest one wins. jsonl kept
+    append-only so history is preserved if he wants to look back at
+    which weeks had which star cards."""
+    row = {
+        "ts": time.time(),
+        "star_title": (star_title or "").strip()[:120] or None,
+        "star_body": (star_body or "").strip()[:600] or None,
+        "star_emoji": (star_emoji or "").strip()[:8] or None,
+        "star_tag": (star_tag or "").strip()[:40] or None,
+        "letter_override": (letter_override or "").strip()[:400] or None,
+    }
+    # No-op if every field is empty -- refuses to save an edition that
+    # would change nothing on the invite.
+    if not any([row["star_title"], row["star_body"], row["letter_override"]]):
+        return None
+    with _lock:
+        try:
+            WEEKLY_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with WEEKLY_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row
+
+
+def current_edition():
+    """The latest published edition, or None. If nothing published, the
+    invite falls back to its hardcoded defaults."""
+    if not WEEKLY_PATH.exists():
+        return None
+    latest = None
+    with WEEKLY_PATH.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                latest = json.loads(line)
+            except ValueError:
+                continue
+    return latest
 
 
 def rate(rating, viewer=None):

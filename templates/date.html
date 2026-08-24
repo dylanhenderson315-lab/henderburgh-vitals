@@ -689,6 +689,13 @@ details summary::-webkit-details-marker{display:none}
   <h2>What's the <em>movie</em> mood?</h2>
   <p class="dim" style="margin-bottom:20px">Home vibes, real showtimes near us, or hand it to me — up to you.</p>
 
+  <!-- Star card: injected at the very top of the movie deck by JS
+       when the current edition (services/dateplan.py::current_edition)
+       has one published. Same visual treatment as the trust-me/gift
+       cards, but with configurable emoji/tag/copy so any week's headline
+       card can be first-class without a code change. -->
+  <div id="starMount"></div>
+
   <button class="opt ticket" data-movie="comfort" onclick="pickMovie(this,event)">
     <div class="genre">🏠 At home &middot; cozy</div>
     <h3>A comfort rewatch</h3>
@@ -1155,7 +1162,9 @@ function confirmIt(){
     ? '🎁 a surprise. trusted.'
     : state.movie === 'theater'
       ? '🎬 in theater (Cinemark Coastal Grand)'
-      : state.movieLabel;
+      : state.movie === 'star'
+        ? ('⭐ ' + (window.__STAR_LABEL || 'this week\'s special'))
+        : state.movieLabel;
   var dn = state.dinner === 'surprise'
     ? '🎁 a surprise · be ready by 7'
     : state.dinner === 'cooking'
@@ -1322,6 +1331,40 @@ function wmoPhrase(c){
   if (c >= 95) return 'stormy ⛈️';
   return 'weather ✨';
 }
+
+// ---------- This week's published edition (star card + letter override) ----------
+// Fetched once at page load and applied before the letter animates.
+// Silently falls back to defaults if no edition exists.
+fetch('/api/date/edition/lawdog').then(function(r){ return r.json(); }).then(function(j){
+  var e = j && j.edition;
+  if (!e) return;
+  // Star card injected at the top of the movie deck. Uses .gift styling
+  // so it inherits the shimmer + gold border treatment.
+  if (e.star_title || e.star_body) {
+    var mount = document.getElementById('starMount');
+    if (mount) {
+      var tag = e.star_tag ? ('<span class="tag" style="background:linear-gradient(90deg,#fb7185,#ec4899);color:#fff">' +
+                              (e.star_emoji ? e.star_emoji + ' ' : '') +
+                              esc(e.star_tag) + '</span>') : '';
+      mount.innerHTML =
+        '<button class="opt gift" data-movie="star" onclick="pickMovie(this,event)">' +
+          tag +
+          '<h3>' + esc(e.star_title || '') + '</h3>' +
+          (e.star_body ? '<div class="sub">' + esc(e.star_body) + '</div>' : '') +
+        '</button>';
+      // Register this id so pickMovie handles it exactly like any other card
+      window.__STAR_LABEL = e.star_title || 'star card';
+    }
+  }
+  // Letter last-line override -- only applied if the letter hasn't
+  // been typed yet.
+  if (e.letter_override) {
+    LETTER[LETTER.length - 1] = e.letter_override;
+  }
+}).catch(function(){});
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
 // ---------- Chapter badge (Vol. N) ----------
 fetch('/api/date/vol/lawdog').then(function(r){ return r.json(); }).then(function(j){

@@ -116,6 +116,22 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <div class="card">
+    <h2>⭐ This week's edition</h2>
+    <div class="sub">The star card on top of her invite. Emoji + tag + title + a one-liner. If you leave it blank, the invite runs with its defaults. Any change goes live the next time she opens the link.</div>
+    <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;margin-bottom:8px">
+      <input type="text" id="edEmoji" placeholder="🦀" maxlength="8" style="text-align:center;font-size:22px">
+      <input type="text" id="edTag" placeholder="tonight's special" maxlength="40">
+    </div>
+    <input type="text" id="edTitle" placeholder="Star card title (e.g. Crab legs & shrimp — you're cooking)" maxlength="120" style="margin-bottom:8px">
+    <textarea id="edBody" placeholder="One-liner under the title. Why it lands, what you noticed, what you're doing about it." maxlength="600"></textarea>
+    <div class="hint" style="margin-top:8px" id="edCurrent">—</div>
+    <div class="row-actions">
+      <button class="btn" id="edBtn" onclick="publishEdition()">publish this week's edition</button>
+      <span class="hint" id="edHint"></span>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Drop a note</h2>
     <div class="sub">One thing she said, one thing you did, one thing worth remembering when you build the next date.</div>
     <textarea id="noteText" placeholder="she mentioned wanting to try that new coffee place downtown..."></textarea>
@@ -378,5 +394,56 @@ function dropGift(){
   });
 }
 
+// --- Current edition ---
+function loadEdition(){
+  fetch('/api/edition').then(function(r){return r.json();}).then(function(j){
+    var e = j.edition;
+    var cur = document.getElementById('edCurrent');
+    if (!e) { cur.textContent = '(no edition published — invite runs on defaults)'; return; }
+    var when = new Date(e.ts*1000).toLocaleString();
+    var bits = [];
+    if (e.star_emoji) bits.push(e.star_emoji);
+    if (e.star_tag) bits.push('['+e.star_tag+']');
+    if (e.star_title) bits.push(e.star_title);
+    cur.textContent = 'live · ' + when + ' · ' + (bits.join(' ') || '(letter override only)');
+    document.getElementById('edEmoji').value = e.star_emoji || '';
+    document.getElementById('edTag').value = e.star_tag || '';
+    document.getElementById('edTitle').value = e.star_title || '';
+    document.getElementById('edBody').value = e.star_body || '';
+  });
+}
+
+function publishEdition(){
+  var payload = {
+    star_emoji: document.getElementById('edEmoji').value.trim(),
+    star_tag:   document.getElementById('edTag').value.trim(),
+    star_title: document.getElementById('edTitle').value.trim(),
+    star_body:  document.getElementById('edBody').value.trim(),
+  };
+  if (!payload.star_title && !payload.star_body) {
+    document.getElementById('edHint').textContent = 'need at least a title or body';
+    return;
+  }
+  var btn = document.getElementById('edBtn');
+  btn.disabled = true; btn.textContent = 'publishing…';
+  fetch('/api/edition', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  }).then(function(r){return r.json();}).then(function(j){
+    btn.disabled = false; btn.textContent = "publish this week's edition";
+    if (j && j.ok) {
+      document.getElementById('edHint').textContent = '✓ live';
+      setTimeout(function(){ document.getElementById('edHint').textContent = ''; }, 2500);
+      loadEdition();
+    } else {
+      document.getElementById('edHint').textContent = 'try again';
+    }
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = "publish this week's edition";
+    document.getElementById('edHint').textContent = 'network issue';
+  });
+}
+
+loadEdition();
 loadNotes();
 </script>
