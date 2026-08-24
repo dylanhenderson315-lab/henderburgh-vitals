@@ -2318,6 +2318,60 @@ async def api_date_photo(
     return {"ok": True, "row": row, "filename": fn}
 
 
+@app.post("/api/date/audio")
+async def api_date_audio(
+    request: Request, background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    viewer: Optional[str] = Form(None),
+    duration_ms: Optional[int] = Form(None),
+):
+    """Voice note upload from her reply flow. Same discipline as photos:
+    5 MB cap, image/*-equivalent gate on audio/*, path-traversal safe
+    UUID filename, jsonl row pinned to the nearest preceding pick."""
+    ctype = (file.content_type or "").lower()
+    if not ctype.startswith("audio/"):
+        raise HTTPException(status_code=400, detail="only audio accepted")
+    ext = {"audio/webm": ".webm", "audio/mp4": ".m4a",
+           "audio/mpeg": ".mp3", "audio/ogg": ".ogg",
+           "audio/wav": ".wav"}.get(ctype, ".bin")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="audio too large (5MB max)")
+    _dateplan.AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    fn = uuid.uuid4().hex + ext
+    (_dateplan.AUDIO_DIR / fn).write_bytes(data)
+    row = _dateplan.audio(filename=fn, duration_ms=duration_ms, viewer=viewer)
+    background_tasks.add_task(home_assistant.perform_poke_blink)
+    if not row.get("test"):
+        background_tasks.add_task(
+            push.notify, title="Nicole sent a voice note",
+            message="tap to open the inbox and listen",
+            priority="high", tags=["microphone"],
+        )
+    return {"ok": True, "row": row, "filename": fn}
+
+
+@app.get("/audio/{filename}")
+async def get_audio(filename: str):
+    """Serve one uploaded voice note. Same random-UUID-as-obscurity
+    stance as photos."""
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=404)
+    path = _dateplan.AUDIO_DIR / filename
+    if not path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(path)
+
+
+@app.get("/api/date/suggest-edition/{token}")
+async def api_date_suggest_edition(token: str):
+    """Draft a star card from context + recent history. Token-gated:
+    only he sees suggestions, and the raw context notes stay private."""
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=404)
+    return {"draft": _dateplan.suggest_edition()}
+
+
 @app.get("/photos/{filename}")
 async def get_photo(filename: str):
     """Serve one uploaded photo. Random UUID filenames are the access

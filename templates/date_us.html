@@ -105,20 +105,22 @@ var MORNING={coffee:'☕ A new coffee shop',bookworm:'📚🍷 Bookworm & Vine',
 fetch('/api/date/us/lawdog').then(function(r){return r.json();}).then(function(j){
   var rows = (j.picks||[]).slice();
   var picks = [], replies = [], photos = [];
-  var ratings = [];
+  var ratings = [], audios = [];
   rows.forEach(function(r){
     if (r.kind === 'reply') replies.push(r);
     else if (r.kind === 'photo') photos.push(r);
+    else if (r.kind === 'audio') audios.push(r);
     else if (r.kind === 'rating') ratings.push(r);
-    else if (r.kind === 'request') {} // hide pending in the memory view
+    else if (r.kind === 'request') {}
     else picks.push(r);
   });
-  replies.concat(photos).concat(ratings).forEach(function(r){
+  replies.concat(photos).concat(ratings).concat(audios).forEach(function(r){
     var parents = picks.filter(function(p){ return p.ts <= r.ts; });
     var parent = parents[parents.length-1];
     if (!parent) return;
     if (r.kind === 'reply') (parent.replies = parent.replies || []).push(r);
     else if (r.kind === 'photo') (parent.photos = parent.photos || []).push(r);
+    else if (r.kind === 'audio') (parent.audios = parent.audios || []).push(r);
     else if (r.kind === 'rating') (parent.ratings = parent.ratings || []).push(r);
   });
   render(picks.reverse());
@@ -161,10 +163,16 @@ function render(picks){
       var latest = p.ratings[p.ratings.length-1];
       ratingHtml = '<div class="rating-chip">' + esc(latest.rating_label || latest.rating) + '</div>';
     }
+    var audiosHtml = '';
+    if (p.audios && p.audios.length) {
+      audiosHtml = '<div style="margin-top:12px">' + p.audios.map(function(a){
+        return '<audio controls preload="none" style="width:100%;margin-top:6px" src="/audio/'+encodeURIComponent(a.filename)+'"></audio>';
+      }).join('') + '</div>';
+    }
     return '<div class="card">' +
       '<div class="chdr"><div class="when">'+fmtDate(p.ts)+'</div>' +
         '<div class="day">'+day+' &middot; '+fmtTime(p.ts)+'</div>' + ratingHtml + '</div>' +
-      rows + photosHtml + repliesHtml +
+      rows + photosHtml + audiosHtml + repliesHtml +
     '</div>';
   }).join('');
 }

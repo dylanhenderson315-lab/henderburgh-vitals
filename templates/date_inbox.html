@@ -152,6 +152,11 @@ body{
 .req-body b{color:var(--coral);font-style:italic;font-weight:600}
 .req-note{margin-top:8px;font:italic 500 15px/1.4 "Fraunces",serif;color:var(--wine);padding-left:12px;border-left:2px solid var(--rose)}
 
+.audios{margin-top:12px}
+.audio{background:#fff;border-radius:14px;padding:12px 14px;border-left:4px solid var(--gold);margin-top:8px;box-shadow:0 4px 12px -8px rgba(107,30,58,.2)}
+.audio .who{font:600 10px/1 "Inter",sans-serif;letter-spacing:.15em;text-transform:uppercase;color:var(--mauve);margin-bottom:8px}
+.audio audio{width:100%;height:36px}
+
 /* the one-tap rating chip on a pick card */
 .rating-chip{
   display:inline-block;margin-top:10px;padding:8px 14px;border-radius:999px;
@@ -267,14 +272,16 @@ fetch('/api/inbox')
     var requests = [];
     rows.forEach(function(r){
       if (r.kind === 'request') requests.push(r);
-      else if (r.kind !== 'reply' && r.kind !== 'photo' && r.kind !== 'rating') picks.push(r);
+      else if (!r.kind) picks.push(r);
     });
-    // Pin ratings to nearest preceding pick
+    // Pin ratings and audio to nearest preceding pick
     rows.forEach(function(r){
-      if (r.kind !== 'rating') return;
+      if (r.kind !== 'rating' && r.kind !== 'audio') return;
       var cs = picks.filter(function(p){ return p.ts <= r.ts && (!!p.test === !!r.test); });
       var parent = cs[cs.length-1];
-      if (parent) (parent.ratings = parent.ratings || []).push(r);
+      if (!parent) return;
+      if (r.kind === 'rating') (parent.ratings = parent.ratings || []).push(r);
+      else if (r.kind === 'audio') (parent.audios = parent.audios || []).push(r);
     });
     // Requests hoisted to the top -- newest first, above the historical stack
     window.__REQUESTS = requests.slice().reverse();
@@ -382,6 +389,14 @@ function render(){
         '</a>';
       }).join('') + '</div>';
     }
+    var audios = '';
+    if (p.audios && p.audios.length) {
+      audios = '<div class="audios">' + p.audios.map(function(a){
+        var secs = a.duration_ms ? ' · ' + Math.round(a.duration_ms/1000) + 's' : '';
+        return '<div class="audio"><div class="who">🎙️ voice note &middot; ' + fmtTime(a.ts) + secs + '</div>' +
+               '<audio controls preload="none" src="/audio/' + encodeURIComponent(a.filename) + '"></audio></div>';
+      }).join('') + '</div>';
+    }
 
     var ratingChip = '';
     if (p.ratings && p.ratings.length) {
@@ -398,6 +413,7 @@ function render(){
       '</div>' +
       rows +
       photos +
+      audios +
       replies +
       '<div class="foot">' + (p.test ? 'not real · logged for testing' : 'confirmed · lamp blinked') + '</div>' +
     '</div>';

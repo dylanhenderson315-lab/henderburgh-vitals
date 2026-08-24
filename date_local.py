@@ -111,8 +111,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._proxy("GET", f"/api/gifts/{TOKEN}")
         if p == "/api/edition":
             return self._proxy("GET", "/api/date/edition/lawdog")
-        # photos: pass through unchanged (random-UUID names already gate)
-        if p.startswith("/photos/") and ".." not in p and "\\" not in p:
+        if p == "/api/suggest-edition":
+            return self._proxy("GET", f"/api/date/suggest-edition/{TOKEN}")
+        # photos + audio: pass through unchanged
+        if (p.startswith("/photos/") or p.startswith("/audio/")) and ".." not in p and "\\" not in p:
             return self._proxy("GET", p)
         self._send(404, "text/plain", b"nope")
 

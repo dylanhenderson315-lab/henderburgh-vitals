@@ -127,8 +127,10 @@ textarea{resize:vertical;min-height:80px}
     <div class="hint" style="margin-top:8px" id="edCurrent">—</div>
     <div class="row-actions">
       <button class="btn" id="edBtn" onclick="publishEdition()">publish this week's edition</button>
+      <button class="btn ghost" onclick="suggestEdition()">✨ suggest from context</button>
       <span class="hint" id="edHint"></span>
     </div>
+    <div id="edReason" class="hint" style="margin-top:8px;font-style:italic"></div>
   </div>
 
   <div class="card">
@@ -441,6 +443,23 @@ function publishEdition(){
   }).catch(function(){
     btn.disabled = false; btn.textContent = "publish this week's edition";
     document.getElementById('edHint').textContent = 'network issue';
+  });
+}
+
+function suggestEdition(){
+  document.getElementById('edReason').textContent = 'reading context…';
+  fetch('/api/suggest-edition').then(function(r){return r.json();}).then(function(j){
+    var d = j && j.draft;
+    if (!d) {
+      document.getElementById('edReason').textContent = '(no obvious draft — write it yourself or drop more she-said notes)';
+      return;
+    }
+    document.getElementById('edEmoji').value = d.star_emoji || '';
+    document.getElementById('edTag').value = d.star_tag || '';
+    document.getElementById('edTitle').value = d.star_title || '';
+    document.getElementById('edBody').value = d.star_body || '';
+    document.getElementById('edReason').textContent =
+      '✨ draft loaded · reason: ' + (d.reason || 'context') + ' · edit anything, then publish';
   });
 }
 

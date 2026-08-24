@@ -73,6 +73,7 @@ HELI_LABEL = "THE 30 DOLLAR HELICOPTER RIDE"
 # everything to /data/... on the Volume.
 _STATE_DIR = LOG_PATH.parent
 PHOTO_DIR = _STATE_DIR / "photos"
+AUDIO_DIR = _STATE_DIR / "audio"
 CONTEXT_PATH = _STATE_DIR / "context.jsonl"
 GIFTS_PATH = _STATE_DIR / "gifts.jsonl"
 WEEKLY_PATH = _STATE_DIR / "weekly.jsonl"
@@ -197,6 +198,144 @@ def real_pick_count():
 # Kept intentionally sparse -- every date is special, but pretending every
 # single one is a milestone means none of them are.
 MILESTONES = {1, 5, 10, 25, 52, 100}
+
+
+def audio(filename, duration_ms=None, viewer=None):
+    """Voice-note counterpart to photo(). Pins to the nearest preceding
+    pick on the inbox/history views. duration_ms is optional metadata
+    the recorder client sends so the player can render a duration chip
+    without probing the file."""
+    v = _clean_viewer(viewer)
+    row = {
+        "ts": time.time(),
+        "kind": "audio",
+        "filename": filename,
+        "duration_ms": int(duration_ms) if isinstance(duration_ms, (int, float)) else None,
+        "viewer": v,
+        "test": v is not None,
+    }
+    with _lock:
+        try:
+            LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with LOG_PATH.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            row["log_error"] = str(e)
+    return row
+
+
+def suggest_edition():
+    """Draft a star-card edition from recent context + weather-agnostic
+    rules. Rule engine, not an LLM -- lives close to the data so the
+    planner UI can hit it directly. Returns None if nothing obvious.
+
+    Priority order (first hit wins):
+      1. Any recent "she-said" note -> honor what she mentioned wanting
+      2. Any recent "plan" note -> lift the plan directly
+      3. Any "she-said" tagged with a specific area (coffee/beach/etc)
+      4. Recent 🔥 rating -> repeat structure
+      5. Recent 💤 rating -> shake it up
+      6. Long time since last date -> go big
+      7. Otherwise None -- let him write it himself
+    """
+    notes = context(days=10)
+    # Newest first
+    notes_r = list(reversed(notes))
+
+    def pick(pred):
+        for n in notes_r:
+            if pred(n):
+                return n
+        return None
+
+    # 1. explicit "she-said"
+    she_said = pick(lambda n: "she-said" in (n.get("tags") or []))
+    if she_said:
+        return {
+            "star_emoji": "💌",
+            "star_tag": "she mentioned it",
+            "star_title": "That thing you said this week",
+            "star_body": she_said["text"],
+            "reason": "you tagged this she-said on " +
+                      _fmt_when(she_said["ts"]),
+        }
+    # 2. explicit "plan"
+    plan = pick(lambda n: "plan" in (n.get("tags") or []))
+    if plan:
+        return {
+            "star_emoji": "📌",
+            "star_tag": "the plan",
+            "star_title": "The one we already talked about",
+            "star_body": plan["text"],
+            "reason": "you tagged this plan on " + _fmt_when(plan["ts"]),
+        }
+    # 3. coffee / beach / books / outdoors specific tags
+    for tag, emoji, title in [
+        ("coffee",   "☕", "A coffee shop morning"),
+        ("beach",    "🌊", "Beach time"),
+        ("books",    "📚", "Bookstore morning"),
+        ("outdoors", "🌳", "Get outside · farmers market / gardens"),
+        ("food",     "🍽️", "A meal we've been meaning to make"),
+    ]:
+        n = pick(lambda x: tag in (x.get("tags") or []))
+        if n:
+            return {
+                "star_emoji": emoji,
+                "star_tag": "picked up on this",
+                "star_title": title,
+                "star_body": n["text"],
+                "reason": "you tagged this " + tag + " on " + _fmt_when(n["ts"]),
+            }
+
+    # 4/5. Recent rating tilt
+    rows = picks(limit=200)
+    last_rating = None
+    last_pick = None
+    days_since = None
+    for r in reversed(rows):
+        if r.get("test"): continue
+        if r.get("kind") == "rating" and not last_rating:
+            last_rating = r.get("rating")
+        if r.get("kind") is None and not last_pick and (r.get("movie") or r.get("dinner")):
+            last_pick = r
+        if last_rating and last_pick: break
+    if last_pick:
+        days_since = int((time.time() - last_pick["ts"]) // 86400)
+
+    if last_rating == "fire" and last_pick:
+        return {
+            "star_emoji": "🔥",
+            "star_tag": "encore",
+            "star_title": "Do that one again",
+            "star_body": "Last time you rated it 🔥 -- honor the formula: " +
+                         (last_pick.get("dinner_label") or "dinner") + " and " +
+                         (last_pick.get("movie_label") or "a movie") + ".",
+            "reason": "last real pick rated 🔥",
+        }
+    if last_rating == "quiet":
+        return {
+            "star_emoji": "✨",
+            "star_tag": "shake it up",
+            "star_title": "Something a little bigger tonight",
+            "star_body": "Last one landed low-key. Go out this time -- theater option or the boujie dinner.",
+            "reason": "last real pick rated 💤",
+        }
+    if days_since is not None and days_since >= 10:
+        return {
+            "star_emoji": "🎁",
+            "star_tag": "long overdue",
+            "star_title": "It's been " + str(days_since) + " days. Let's go big.",
+            "star_body": "Pick the surprise-me tier for both. Ready by 7. I've got the rest.",
+            "reason": "gap of " + str(days_since) + " days since last date",
+        }
+    return None
+
+
+def _fmt_when(ts):
+    try:
+        return time.strftime("%b %-d %-I:%M%p", time.localtime(ts)).lower()
+    except (ValueError, TypeError):
+        return "recently"
 
 
 def photo(filename, viewer=None):

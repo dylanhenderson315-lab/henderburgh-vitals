@@ -929,6 +929,13 @@ details summary::-webkit-details-marker{display:none}
         <input type="file" id="msgPhoto" accept="image/*" capture="environment" style="display:none" onchange="onPhotoPick(this)">
         <img id="photoPreview" alt="" style="display:none">
       </div>
+      <div class="photo-picker">
+        <button type="button" class="photo-btn" id="voiceBtn" onclick="toggleVoice()">
+          <span id="voiceIcon">🎤</span>
+          <span id="voiceLabel">record a voice note</span>
+        </button>
+        <audio id="voicePreview" controls style="display:none;width:100%;margin-top:10px"></audio>
+      </div>
       <button class="btn send" onclick="sendReply()">send it 💌</button>
     </div>
     <div class="sent">sent 💌 — the lamp blinked again.</div>
@@ -1240,6 +1247,51 @@ function confirmIt(){
   });
 }
 
+// ---------- Voice recorder ----------
+// MediaRecorder to webm; capped to 60s by an auto-stop timer. Recorded
+// blob rides along with sendReply() as multipart, exactly like photos.
+var pickedAudio = null, pickedAudioMs = 0;
+var mediaRec = null, chunks = [], recStart = 0, recTimer = null;
+
+async function toggleVoice(){
+  var icon = document.getElementById('voiceIcon');
+  var lbl  = document.getElementById('voiceLabel');
+  var pv   = document.getElementById('voicePreview');
+  if (mediaRec && mediaRec.state === 'recording') {
+    mediaRec.stop();
+    return;
+  }
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    lbl.textContent = 'your browser doesn\'t support recording';
+    return;
+  }
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    mediaRec = new MediaRecorder(stream);
+    recStart = Date.now();
+    mediaRec.ondataavailable = function(e){ if (e.data.size) chunks.push(e.data); };
+    mediaRec.onstop = function(){
+      pickedAudioMs = Date.now() - recStart;
+      pickedAudio = new Blob(chunks, { type: 'audio/webm' });
+      pv.src = URL.createObjectURL(pickedAudio);
+      pv.style.display = 'block';
+      icon.textContent = '🎤';
+      lbl.textContent = '✓ voice note ready · tap to re-record';
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      if (recTimer) { clearTimeout(recTimer); recTimer = null; }
+    };
+    mediaRec.start();
+    icon.textContent = '⏺';
+    lbl.textContent = 'recording… tap again to stop (max 60s)';
+    recTimer = setTimeout(function(){
+      if (mediaRec && mediaRec.state === 'recording') mediaRec.stop();
+    }, 60000);
+  } catch (e) {
+    lbl.textContent = 'need mic access — check browser permission';
+  }
+}
+
 var pickedPhoto = null;
 function onPhotoPick(input){
   var f = input.files && input.files[0];
@@ -1253,7 +1305,7 @@ function onPhotoPick(input){
 
 function sendReply(){
   var text = (document.getElementById('msgText').value || '').trim();
-  if (!text && !pickedPhoto) {
+  if (!text && !pickedPhoto && !pickedAudio) {
     document.getElementById('msgText').focus();
     return;
   }
@@ -1261,12 +1313,14 @@ function sendReply(){
   var btn = box.querySelector('.send');
   btn.disabled = true; btn.textContent = 'sending…';
 
-  // If there's a photo, upload it first, then send the text; the two
-  // separate log rows both pin to the same preceding pick on the inbox.
+  // Sequential: photo -> audio -> text. Each is its own log row.
   var photoP = pickedPhoto ? uploadPhoto(pickedPhoto) : Promise.resolve(true);
+  var audioP = photoP.then(function(){
+    return pickedAudio ? uploadAudio(pickedAudio, pickedAudioMs) : Promise.resolve(true);
+  });
 
-  photoP.then(function(){
-    if (!text) return { ok: true };  // photo-only reply
+  audioP.then(function(){
+    if (!text) return { ok: true };
     return fetch('/api/date/reply', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ note: text, viewer: VIEWER })
@@ -1289,6 +1343,14 @@ function uploadPhoto(file){
   fd.append('file', file);
   if (VIEWER) fd.append('viewer', VIEWER);
   return fetch('/api/date/photo', { method:'POST', body: fd })
+    .then(function(r){ return r.json(); });
+}
+function uploadAudio(blob, ms){
+  var fd = new FormData();
+  fd.append('file', blob, 'voice.webm');
+  if (VIEWER) fd.append('viewer', VIEWER);
+  if (ms) fd.append('duration_ms', String(ms));
+  return fetch('/api/date/audio', { method:'POST', body: fd })
     .then(function(r){ return r.json(); });
 }
 
