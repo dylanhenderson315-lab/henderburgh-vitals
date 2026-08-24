@@ -487,6 +487,16 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .weather b{font-style:normal;font-weight:700;color:var(--coral)}
 .weather .dot{color:var(--rose);margin:0 8px;opacity:.6}
 
+/* Anniversary week bar -- appears at top of body when we're within 7 days */
+.anniv-bar{
+  position:sticky;top:0;z-index:60;text-align:center;padding:9px 12px;
+  background:linear-gradient(90deg,#c9862f,#ec4899,#c9862f);
+  background-size:200% 200%;animation:shimmer 4s ease-in-out infinite;
+  color:#fff;font:700 12px/1 "Inter",sans-serif;letter-spacing:.14em;
+  text-transform:uppercase;box-shadow:0 4px 14px -4px rgba(201,134,47,.5);
+}
+body.anniv{ /* extra sparkle density hooked here if desired */ }
+
 /* Chapter badge -- the "Vol. N" collectible identity above the letter */
 .vol{
   display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;
@@ -1366,12 +1376,54 @@ fetch('/api/date/edition/lawdog').then(function(r){ return r.json(); }).then(fun
 function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
-// ---------- Chapter badge (Vol. N) ----------
+// ---------- Chapter badge + color signature + history for Toby ----------
+// Chapter palette. Each vol gets its own accent color signature so
+// every date is visually its own collectible. Rotates every 7.
+var VOL_PALETTES = [
+  { primary:'#f97070', deep:'#c93755', tag:'coral',    name:'coral'    },
+  { primary:'#ec4899', deep:'#831843', tag:'rose',     name:'rose'     },
+  { primary:'#c9862f', deep:'#7a5410', tag:'amber',    name:'amber'    },
+  { primary:'#059669', deep:'#064e3b', tag:'sage',     name:'sage'     },
+  { primary:'#8b5cf6', deep:'#4c1d95', tag:'lavender', name:'lavender' },
+  { primary:'#ea580c', deep:'#7c2d12', tag:'sunset',   name:'sunset'   },
+  { primary:'#0891b2', deep:'#164e63', tag:'ocean',    name:'ocean'    },
+];
+
+window.__HISTORY = { vol: 1, last_rating: null, days_since: null,
+                     last_pick: null, anniversary: null, palette: VOL_PALETTES[0] };
+
 fetch('/api/date/vol/lawdog').then(function(r){ return r.json(); }).then(function(j){
-  if (!j || !j.vol) return;
+  if (!j) return;
+  var vol = j.vol || 1;
+  var palette = VOL_PALETTES[(vol - 1) % VOL_PALETTES.length];
+  window.__HISTORY = { vol: vol, last_rating: j.last_rating,
+                       days_since: j.days_since, last_pick: j.last_pick,
+                       anniversary: j.anniversary, palette: palette };
+
   var b = document.getElementById('volNum');
-  if (b) b.textContent = 'Vol. ' + j.vol;
+  if (b) b.textContent = 'Vol. ' + vol + ' · ' + palette.name;
   document.getElementById('volBadge').style.display = 'inline-flex';
+
+  // Chapter color injects into the seal + a couple of accent moments.
+  // Kept restrained -- we tint identity, not everything.
+  var s = document.getElementById('seal');
+  if (s) s.style.background =
+    'radial-gradient(circle at 30% 30%,' + palette.primary + ',' + palette.deep + ' 70%)';
+
+  // Anniversary sparkle mode
+  if (j.anniversary && j.anniversary.in_week) {
+    document.body.classList.add('anniv');
+    var line = j.anniversary.on_day
+      ? '💫 today is your anniversary'
+      : ('💫 ' + j.anniversary.days_until + ' days to your anniversary');
+    if (j.anniversary.year_number) line += ' · year ' + j.anniversary.year_number;
+    var anniBar = document.createElement('div');
+    anniBar.className = 'anniv-bar';
+    anniBar.innerHTML = line;
+    document.body.prepend(anniBar);
+  }
+
+  refreshTobyLines();
 }).catch(function(){});
 
 // ---------- Chairman recommends ----------
@@ -1445,17 +1497,65 @@ function startCountdown(){
   setInterval(tick, 1000);
 }
 
-// ---------- Toby the Chairman (floating narrator) ----------
-// He escalates the longer she takes; helicopter is now his obsession
-var TOBY_LINES = [
-  { q: 'the chairman is watching. no pressure.', a: null },
-  { q: 'this proposal has been open for a while. some of us have naps to take.', a: null },
-  { q: 'motion to add the $30 helicopter ride to the evening. all in favor?', a: 'heli' },
-  { q: 'chairman requests movement. any movement. even a wrong movement.', a: null },
-  { q: 'the helicopter is still available. i am not saying you have to. but.', a: 'heli' },
-  { q: 'chairman formally objects to further stalling. treats to be issued upon selection.', a: null },
-  { q: 'thirty. dollars. helicopter. final offer. from him. not me. i cannot legally offer things.', a: 'heli' }
-];
+// ---------- Toby the Chairman (adaptive narrator) ----------
+// His line pool is rebuilt from window.__HISTORY once /api/date/vol
+// resolves -- adapts to chapter number, streak, last rating, and
+// anniversary week. Helicopter kept but diluted so it stays funny.
+var TOBY_LINES = [{q:'chairman is watching. no pressure.'}];
+
+function refreshTobyLines(){
+  var h = window.__HISTORY || {};
+  var lines = [];
+
+  if (h.anniversary && h.anniversary.in_week) {
+    lines.push({ q: 'chairman notes the anniversary is upon us. every card matters. no pressure.' });
+    lines.push({ q: 'anniversary week edition. history is watching. chairman is watching.' });
+  }
+
+  if (h.vol === 1) {
+    lines.push({ q: 'chairman notes: this is chapter one. of many. get comfortable.' });
+  } else if (h.vol === 5) {
+    lines.push({ q: 'volume five. chairman remembers volume one. you two have gotten annoyingly cute.' });
+  } else if (h.vol === 10) {
+    lines.push({ q: 'chapter ten. chairman is impressed. treats have been requested on your behalf.' });
+  } else if (h.vol >= 2) {
+    lines.push({ q: 'chapter ' + h.vol + '. chairman was around for the last ' + (h.vol - 1) + '. keeps them all.' });
+  }
+
+  if (h.days_since !== null && h.days_since !== undefined) {
+    if (h.days_since <= 3) {
+      lines.push({ q: 'last one was only ' + h.days_since + ' day' + (h.days_since === 1 ? '' : 's') + ' ago. chairman approves the pace.' });
+    } else if (h.days_since >= 14) {
+      lines.push({ q: h.days_since + ' days since the last one. chairman is displeased. this is your redemption arc.' });
+    } else if (h.days_since >= 7) {
+      lines.push({ q: 'a week since the last one. chairman recommends you make this one count.' });
+    }
+  }
+
+  if (h.last_rating && h.last_rating.rating) {
+    var r = h.last_rating.rating;
+    if (r === 'fire')    lines.push({ q: 'chairman recalls last time you rated it 🔥. bar has been set. no pressure.' });
+    if (r === 'quiet')   lines.push({ q: 'last one was 💤 low-key. chairman recommends a little more oomph tonight.' });
+    if (r === 'calm')    lines.push({ q: 'last time you said 🌊 calm. good streak. or break it. either is legal.' });
+    if (r === 'sparkle') lines.push({ q: 'chairman recalls 💫 last time. something is definitely working around here.' });
+  }
+
+  if (h.last_pick && h.last_pick.dinner === 'cooking') {
+    lines.push({ q: 'last time you cooked. maybe tonight he handles it. just a suggestion. from a dog.' });
+  }
+  if (h.last_pick && h.last_pick.morning === 'skip') {
+    lines.push({ q: 'you slept in last time. bookstore is calling this weekend. chairman notes this.' });
+  }
+
+  // Universal filler + diluted heli bit
+  lines.push({ q: 'chairman is watching. no pressure.' });
+  lines.push({ q: 'motion to add the $30 helicopter ride to the evening. all in favor?', a: 'heli' });
+  lines.push({ q: 'chairman requests movement. any movement. even a wrong movement.' });
+  lines.push({ q: 'this proposal has been open for a while. some of us have naps to take.' });
+  lines.push({ q: 'the helicopter is still available. i am not saying you have to. but.', a: 'heli' });
+
+  TOBY_LINES = lines;
+}
 var tobyN = 0, tobyTimer = null, tobyShown = false;
 
 function armToby(delay){

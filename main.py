@@ -2400,12 +2400,75 @@ async def api_date_edition_post(request: Request):
 
 @app.get("/api/date/vol/{secret}")
 async def api_date_vol(secret: str):
-    """Chapter number for the next invite = real picks so far + 1.
-    Public (secret-gated) so the invite page can show the badge without
-    the admin token. Returns nothing else -- no leakage."""
+    """Chapter number + light history-derived signals so the invite can
+    adapt copy (Toby's mood, anniversary sparkle, star-card suggestions)
+    without leaking any admin metadata. Secret-gated. Anniversary date
+    comes from an env var ("MM-DD" or "YYYY-MM-DD") so it's persistent
+    across deploys without hardcoding a personal date in the repo."""
     if secret != _dateplan.SECRET:
         raise HTTPException(status_code=404)
-    return {"vol": _dateplan.real_pick_count() + 1}
+    from datetime import date, datetime
+    import os as _os
+    # Anniversary handling -- accepts "MM-DD" (year-agnostic) or full
+    # "YYYY-MM-DD" (with a "since" year for the count).
+    ann_raw = (_os.getenv("ANNIVERSARY", "") or "").strip()
+    ann = None
+    if ann_raw:
+        try:
+            parts = ann_raw.split("-")
+            if len(parts) == 2:
+                m, d = int(parts[0]), int(parts[1])
+                since_year = None
+            else:
+                y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                since_year = y
+            today = date.today()
+            this_year = date(today.year, m, d)
+            next_ann = this_year if this_year >= today else date(today.year + 1, m, d)
+            delta = (next_ann - today).days
+            ann = {
+                "days_until": delta,
+                "in_week": delta <= 7,
+                "on_day": delta == 0,
+                "year_number": (
+                    today.year - since_year + (1 if next_ann.year == today.year else 0)
+                    if since_year else None
+                ),
+            }
+        except (ValueError, TypeError):
+            ann = None
+
+    # Last real pick + last rating -- for Toby's adaptive lines.
+    rows = _dateplan.picks(limit=200)
+    last_pick = None
+    last_rating = None
+    for r in reversed(rows):
+        if r.get("test"):
+            continue
+        if r.get("kind") == "rating" and not last_rating:
+            last_rating = {"rating": r.get("rating"),
+                           "label": r.get("rating_label"),
+                           "ts": r.get("ts")}
+        if r.get("kind") in (None,) and not last_pick and (r.get("movie") or r.get("dinner")):
+            last_pick = {
+                "ts": r.get("ts"),
+                "movie": r.get("movie"), "movie_label": r.get("movie_label"),
+                "dinner": r.get("dinner"), "dinner_label": r.get("dinner_label"),
+                "morning": r.get("morning"), "morning_label": r.get("morning_label"),
+            }
+        if last_pick and last_rating:
+            break
+    days_since = None
+    if last_pick and last_pick.get("ts"):
+        import time as _time
+        days_since = int((_time.time() - last_pick["ts"]) // 86400)
+    return {
+        "vol": _dateplan.real_pick_count() + 1,
+        "last_pick": last_pick,
+        "last_rating": last_rating,
+        "days_since": days_since,
+        "anniversary": ann,
+    }
 
 
 @app.get("/date/request/{secret}", response_class=HTMLResponse)
