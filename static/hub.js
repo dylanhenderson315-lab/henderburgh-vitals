@@ -56,20 +56,37 @@
   }
   tabs.forEach((t) => t.addEventListener('click', () => { userMoved = true; goTo(t.dataset.space); }));
   document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { userMoved = true; goTo(b.dataset.go); }));
+  // Only a real swipe moves the tab highlight — never the page settling itself
+  // on load or after a rotation (that's what kept lighting up the wrong tab).
+  let lastUserInput = 0;
+  ['pointerdown', 'touchstart', 'wheel'].forEach((ev) => track.addEventListener(ev, () => { lastUserInput = Date.now(); }, { passive: true }));
   let scrollT = null;
   track.addEventListener('scroll', () => {
     clearTimeout(scrollT);
     scrollT = setTimeout(() => {
-      if (settling) return;
+      if (settling || Date.now() - lastUserInput > 1500) return;
       const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
       if (spaces[i]) markTab(spaces[i].dataset.space);
     }, 80);
   }, { passive: true });
   track.addEventListener('pointerdown', () => { userMoved = true; }, { passive: true });
-  // Rotation changes the track width: keep the same space in view.
+  // Rotation changes the track width: freeze transitions while the layout
+  // re-flows and pin the same space in view, so the turn is one clean step.
+  let resizeT = null;
   window.addEventListener('resize', () => {
+    document.documentElement.classList.add('resizing');
     const cur = tabs.find((t) => t.getAttribute('aria-current') === 'true');
-    if (cur) goTo(cur.dataset.space, true);
+    if (cur) {
+      const i = indexOf(cur.dataset.space);
+      settling = true;
+      track.scrollLeft = i * track.clientWidth;
+    }
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => {
+      if (cur) track.scrollLeft = indexOf(cur.dataset.space) * track.clientWidth;
+      document.documentElement.classList.remove('resizing');
+      settling = false;
+    }, 260);
   });
 
   // Open where you were if it was recent; otherwise Now (context may move it
@@ -483,8 +500,11 @@
 
     // Body
     const v = d.vitals || {};
-    $('tick-bpm').textContent = v.hr != null ? String(v.hr) : (heartDay && seriesOf(heartDay).length ? String(seriesOf(heartDay).slice(-1)[0].y) : '—');
+    const bpmVal = v.hr != null ? String(v.hr) : (heartDay && seriesOf(heartDay).length ? String(seriesOf(heartDay).slice(-1)[0].y) : null);
+    $('tick-bpm').textContent = bpmVal || '—';
+    $('tick-hr').classList.toggle('empty', !bpmVal);
     $('tick-steps').textContent = v.steps != null ? Number(v.steps).toLocaleString() : '—';
+    document.querySelector('.tick-steps').classList.toggle('empty', v.steps == null);
     const vs = $('vitals-stats');
     vs.replaceChildren();
     [['Heart', v.hr != null ? `${v.hr}` : '—'], ['Steps', v.steps != null ? Number(v.steps).toLocaleString() : '—'],

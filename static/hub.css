@@ -141,7 +141,7 @@ button.card:active, a.card:active{ transform:scale(0.985); transition-duration:v
 .hero{ grid-column:1 / -1; padding:var(--s-6) var(--s-2) var(--s-4); }
 .hero-eyebrow{ margin-bottom:var(--s-3); }
 .hero-line{ font-family:var(--font-display); font-weight:600; letter-spacing:-0.02em;
-  font-size:clamp(1.9rem, 5.6vw, 3.4rem); line-height:var(--lh-tight); }
+  font-size:clamp(1.9rem, 5.6vw, 3.4rem); line-height:1.16; padding-bottom:2px; }
 .hero-state{ color:var(--accent); }
 .hero-dot{ display:inline-block; width:10px; height:10px; border-radius:var(--r-full); background:var(--accent);
   margin-right:12px; vertical-align:0.2em; animation:hb-pulse 2.4s ease-in-out infinite; }
@@ -188,28 +188,40 @@ button.card:active, a.card:active{ transform:scale(0.985); transition-duration:v
   .now-grid{ grid-template-columns:minmax(0,1fr); grid-auto-rows:auto; }
 }
 
-/* Portrait iPad Now: the statement on top, three rows of cards sharing the
-   rest of the screen exactly — no dead band at the bottom, no scroll. */
+/* Portrait iPad Now: a composed header — the statement across the top, the
+   heartline under it, then the clock beside the weather (not stacked, which
+   ate half the screen) — and cards that size to their content. Rows share any
+   spare height (minmax(min-content, 1fr)) but can never clip what's inside;
+   if a tall day needs more room the space scrolls instead of overflowing. */
 @media (orientation: portrait) and (min-width: 700px){
-  #space-now{ overflow:hidden; }
-  .now-grid{ height:100%; grid-template-rows:auto repeat(3, minmax(0,1fr)); grid-auto-rows:auto; }
-  .hero{ padding-top:var(--s-4); }
+  .now-grid{ min-height:100%; grid-template-rows:auto repeat(3, minmax(min-content, 1fr)); grid-auto-rows:auto; }
+  .hero{ display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:var(--s-8); align-items:end;
+    grid-template-areas:"eye eye" "line line" "sub sub" "heart heart" "clock wx" "date wx"; padding:var(--s-2) var(--s-1) var(--s-2); }
+  .hero-eyebrow{ grid-area:eye; } .hero-line{ grid-area:line; } .hero-sub{ grid-area:sub; }
+  .heartline{ grid-area:heart; margin-top:var(--s-4); } .hero-clock{ grid-area:clock; font-size:clamp(4rem, 11vw, 6rem); margin-top:var(--s-4); }
+  .hero-date{ grid-area:date; }
+  .wx-row{ grid-area:wx; align-self:end; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--s-4) var(--s-6);
+    margin:0 0 4px; padding:0 0 0 var(--s-6); border-top:0; border-left:1px solid var(--line); }
 }
 
-/* Landscape Now: the statement holds the left; six live cards on the right,
-   all on one screen. */
+/* Landscape Now: the statement holds the left; six live cards on the right.
+   Same rule: rows fill the screen but never clip their content. */
 @media (orientation: landscape) and (min-width: 960px){
-  #space-now{ overflow:hidden; }
   .now-grid{
-    height:100%;
+    min-height:100%;
     grid-template-columns:minmax(0,1.25fr) repeat(2, minmax(0,1fr));
-    grid-template-rows:repeat(3, minmax(0,1fr));
+    grid-template-rows:repeat(3, minmax(min-content, 1fr));
     grid-auto-rows:auto;
   }
   .hero{ grid-column:1; grid-row:1 / span 3; display:flex; flex-direction:column; justify-content:center; padding:var(--s-4) var(--s-6) var(--s-4) var(--s-2); }
   .hero-clock{ font-size:clamp(5rem, 9.5vw, 8.5rem); }
   .wx-row{ display:grid; grid-template-columns:repeat(2, auto); justify-content:start; }
 }
+
+/* Rotation: freeze every transition/animation while the layout re-flows, so
+   the iPad swaps orientation in one clean step instead of a cascade of fades. */
+html.resizing *, html.resizing *::before, html.resizing *::after{ transition:none !important; animation-play-state:paused !important; }
+html.resizing .spaces{ scroll-snap-type:none; }
 
 /* ═════════════════════════ DAY ═════════════════════════ */
 .day-grid{ display:flex; flex-direction:column; gap:var(--s-6); }
@@ -673,3 +685,60 @@ button.card-go{ min-height:32px; padding:0 2px; }
 .bug.mine{ border-color:rgba(255,182,18,0.55); }
 .bug-flag.mine{ background:#ffb612; color:#101820; }
 .mine-tag{ font-family:var(--font-mono); font-size:var(--t-label); letter-spacing:0.1em; text-transform:uppercase; color:#101820; background:#ffb612; padding:1px 6px; border-radius:var(--r-sm); margin-left:var(--s-2); }
+
+/* ═════════ Polish pass (2026-10-26): one calm system, no spill ═════════ */
+/* Watch top: search beside the scene buttons; results drop full width. */
+.watch-top{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--s-3); align-items:stretch; }
+.watch-top .find{ display:contents; }
+.watch-top .find-input{ grid-column:1; grid-row:1; }
+.watch-top .scenes{ grid-column:2; grid-row:1; }
+.watch-top .find-results{ grid-column:1 / -1; grid-row:2; }
+.watch-top .scene-btn{ min-height:52px; min-width:0; padding:var(--s-2) var(--s-4); justify-content:center; }
+.watch-top .scene-sub{ display:none; }
+@media (max-width: 559px){ .watch-top{ grid-template-columns:1fr; } .watch-top .scenes{ grid-column:1; grid-row:3; } }
+.watch-tv{ display:flex; flex-direction:column; gap:var(--s-3); }
+.watch-tv > .wsec{ margin-top:var(--s-4); }
+.watch-tv .apps{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+@media (orientation: landscape) and (min-width: 960px){
+  .tvs{ grid-template-columns:1fr; }
+  .watch-tv{ padding-right:var(--s-1); }
+}
+.tv-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Team cards: neutral surface, team colour as a thin accent — not a neon tile. */
+.fav{ background:rgba(19,19,22,0.9); border:1px solid var(--line); position:relative; overflow:hidden; }
+.fav::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--tc); opacity:0.9; }
+.fav::after{ content:''; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--tc) 14%, transparent), transparent 60%); }
+.fav > *{ position:relative; z-index:1; }
+
+/* Header ticker: hidden until there's a real reading (no "— bpm"). */
+.tick.empty{ display:none; }
+
+/* Cards: one rhythm everywhere. */
+.card{ padding:var(--s-5); gap:var(--s-3); }
+.card-head{ min-height:20px; }
+.card .hb-label{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Stacked Watch (portrait / phone): what's on first, controls next, the app
+   grid last — the two columns flatten into one ordered list. */
+@media not ((orientation: landscape) and (min-width: 960px)){
+  .watch-grid{ display:flex; flex-direction:column; gap:var(--s-5); }
+  .watch-tv, .watch-guide{ display:contents; }
+  .watch-top{ order:1; } #pick{ order:2; } #split{ order:3; }
+  .screens-head{ order:4; } #tvs{ order:5; } #remote{ order:6; } #watch-lock{ order:7; }
+  #live-sec{ order:8; } #fav-sec{ order:9; } #tonight-sec{ order:10; } #new-sec{ order:11; }
+  .watch-tv > .wsec{ order:12; margin-top:0; } .credit{ order:13; }
+  .tvs{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .watch-tv .apps{ grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
+}
+
+/* Lights: modes are a grid that fits the width (no row running off the edge);
+   on iPad the rooms grow to use the screen. Phones keep the swipeable row. */
+@media (min-width: 700px){
+  .modes{ grid-auto-flow:row; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); overflow:visible; }
+}
+@media (orientation: portrait) and (min-width: 700px){
+  .rooms{ grid-auto-rows:minmax(150px, auto); }
+  .mode{ min-height:112px; }
+}
