@@ -385,10 +385,13 @@ def test_media_launch_is_gated_and_validated(monkeypatch):
 def test_watch_maps_networks_to_owned_apps():
     from services import watch
 
-    assert watch.apps_for(["ESPN", "ABC", "Disney+"]) == ["espn", "disney"]
+    assert watch.apps_for(["ESPN", "ABC", "Disney+"]) == ["disney"]    # MNF: ESPN+ isn't ESPN; Disney+ simulcasts
+    assert watch.apps_for(["ESPN+"]) == ["espn"]
+    assert watch.apps_for(["ESPN"]) == []
     assert watch.apps_for(["Fox"]) == []                        # not in his apps -> live channels
     assert watch.apps_for(["TNT"]) == ["max"]
-    assert watch.apps_for(["ABC"], sports=False) == []          # ABC shows aren't in the ESPN app
+    assert watch.apps_for(["Prime Video"]) == ["prime"]         # Thursday Night Football
+    assert watch.apps_for(["ABC"], sports=False) == []
     assert watch.apps_for(["NBC"], sports=False) == ["peacock"]
 
 
@@ -439,7 +442,7 @@ def _close_game():
     def team(abbr, score):
         return {"abbr": abbr, "name": abbr, "color": "112233", "score": score, "home": abbr == "PHI", "record": None, "logo": None, "alt": None}
     return {"id": "401", "league": "NFL", "start": "2026-10-27T00:15Z", "state": "in", "detail": "Q4 2:01", "period": 4,
-            "clock": "2:01", "teams": [team("DAL", "20"), team("PHI", "24")], "networks": ["ESPN", "ABC"], "apps": ["espn"],
+            "clock": "2:01", "teams": [team("DAL", "20"), team("PHI", "24")], "networks": ["ESPN+"], "apps": ["espn"],
             "national": True, "postseason": False, "note": None, "series": None, "situation": "3rd & 4 at DAL 30",
             "win": None, "close": "Close · late", "score": 160}
 
@@ -461,9 +464,9 @@ def test_close_game_alert_has_tv_buttons():
            {"entity_id": "remote.smart_tv", "name": "Theater TV", "on": True, "available": True}]
     al = watch.build_alert(_close_game(), tvs, "https://henderburgh.com")
     assert al["title"] == "Close & late: DAL 20-24 PHI"
-    assert al["body"] == "Q4 2:01 · 3rd & 4 at DAL 30 · in ESPN"
+    assert al["body"] == "Q4 2:01 · 3rd & 4 at DAL 30 · in ESPN+"
     labels = [a["label"] for a in al["actions"]]
-    assert labels == ["ESPN on Theater TV", "ESPN on Living Room TV", "Open Watch"]   # the TV that's on comes first
+    assert labels == ["ESPN+ on Theater TV", "ESPN+ on Living Room TV", "Open Watch"]   # the TV that's on comes first
     assert al["actions"][0]["method"] == "POST" and "/api/watch/put?t=" in al["actions"][0]["url"]
 
 

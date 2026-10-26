@@ -385,7 +385,7 @@
   function renderApps() {
     const wrap = $('apps');
     wrap.replaceChildren();
-    (window.HBStreaming || []).filter((s) => s.key !== 'applemusic').forEach((s) => {
+    (window.HBStreaming || []).forEach((s) => {
       const b = el('button', 'app');
       b.type = 'button';
       b.style.setProperty('--tint', s.tint);
@@ -407,6 +407,35 @@
     reschedule();
     // Let the rest of the hub (Now's On-TV card, context opening) know.
     if (tonight) { window.HBLastTonight = tonight; window.dispatchEvent(new CustomEvent('hb:tonight', { detail: tonight })); }
+  }
+
+  // ═══════════════ New on your apps ═══════════════
+  async function loadNew() {
+    let d = null;
+    try { d = await (await fetch('/api/watch/new')).json(); } catch (e) { return; }
+    const items = (d && d.items) || [];
+    $('new-sec').hidden = !items.length;
+    const row = $('new-row');
+    row.replaceChildren();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    items.forEach((i) => {
+      const s = SVC[i.app];
+      const card = el('button', 'poster');
+      card.type = 'button';
+      if (s) card.style.setProperty('--tint', s.tint);
+      const art = el('span', 'poster-art');
+      if (i.image && /^https:\/\//.test(i.image)) art.style.backgroundImage = `url("${i.image.replace(/"/g, '')}")`;
+      const day = new Date(`${i.date}T12:00:00`);
+      const diff = Math.round((new Date(`${i.date}T00:00:00`) - today) / 86400000);
+      const when = diff <= 0 ? 'Out now' : diff === 1 ? 'Tomorrow' : day.toLocaleDateString(undefined, { weekday: 'short' });
+      art.appendChild(el('span', 'poster-when' + (diff <= 0 ? ' now' : ''), when));
+      card.append(art, el('b', 'poster-title', i.title), el('span', 'poster-sub', `${i.kind} · ${s ? s.name : i.network}`));
+      card.addEventListener('click', () => {
+        const tv = selectedTv();
+        if (s && tv && canControl && s.tv) launch(s.key, tv); else if (s) window.location.href = s.open;
+      });
+      row.appendChild(card);
+    });
   }
 
   // ═══════════════ Find anything ═══════════════
@@ -473,7 +502,7 @@
   // A scene is one button that opens everything for an activity. Sports
   // gathers live bugs, tonight's games, the sports apps, and the TVs + the
   // real remote (moved in while open, moved back on close — one remote).
-  const SCENE_APPS = { sports: ['espn', 'disney', 'peacock', 'paramount', 'max', 'youtube', 'pluto', 'tubi'] };
+  const SCENE_APPS = { sports: ['espn', 'disney', 'prime', 'peacock', 'paramount', 'max', 'youtube', 'pluto', 'tubi'] };
   let openScene = null;
   const remoteHome = { parent: null, next: null };
 
@@ -583,5 +612,7 @@
 
   renderApps();
   loadAuth();
+  loadNew();
+  setInterval(() => { if (document.visibilityState === 'visible') loadNew(); }, 6 * 3600 * 1000);
   if (document.visibilityState === 'visible') start();
 })();

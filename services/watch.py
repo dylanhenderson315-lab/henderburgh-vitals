@@ -45,15 +45,19 @@ LEAGUES = {   # the arcade's default four + college football
 # Broadcast / network name -> the owner's app (keys match static/streaming-services.js).
 # Matched case-insensitively against ESPN broadcast names and TVmaze networks.
 WHERE = [
+    # The owner's services (2026-10-26): Netflix, Prime Video, Hulu, ESPN+,
+    # HBO Max, Paramount+, Peacock, Disney+, Plex, Tubi.
+    # ESPN+ is NOT the ESPN channel: linear ESPN/ESPN2/ABC games are only in
+    # his apps when Disney+ is listed as a simulcast (e.g. Monday Night Football).
     (r"^disney\+$", "disney"),
-    (r"^(espn|espn2|espnu|espnews|espn\+|espn deportes|abc|acc ?network|acc ?n|sec ?network|sec ?n)$", "espn"),
+    (r"^(espn\+|espn plus)$", "espn"),
     (r"^(tnt|tbs|trutv|tnt sports|max|hbo max|hbo)$", "max"),
     (r"^(nbc|peacock|nbc\.com)$", "peacock"),
     (r"^(cbs|paramount\+|cbs sports network|cbssn)$", "paramount"),
     (r"^hulu$", "hulu"),
     (r"^netflix$", "netflix"),
-    (r"^(apple tv\+?|apple tv|mls season pass)$", "appletv"),
-    (r"^(youtube|youtube tv)$", "youtube"),
+    (r"^(prime video|amazon prime video|amazon prime|prime)$", "prime"),
+    (r"^(youtube)$", "youtube"),
     # free + legal (ad-supported)
     (r"^tubi$", "tubi"),
     (r"^pluto ?tv$", "pluto"),
@@ -77,8 +81,8 @@ def _store(key: str, data: Any) -> Any:
     return data
 
 
-# ABC's SPORTS simulcast in the ESPN app; ABC's regular shows aren't there.
-SPORTS_ONLY = {("abc", "espn")}
+# Pairs that only hold for sports broadcasts (none today; kept for the rule).
+SPORTS_ONLY: set = set()
 
 
 def apps_for(networks: List[str], sports: bool = True) -> List[str]:
@@ -352,14 +356,14 @@ async def tonight() -> Dict[str, Any]:
 # never packages: the TVs ignore bare package names).
 APP_LINKS = {
     "netflix": ("Netflix", "https://www.netflix.com/title"),
-    "max": ("Max", "https://play.max.com"),
+    "max": ("HBO Max", "https://play.max.com"),
     "disney": ("Disney+", "https://www.disneyplus.com"),
     "hulu": ("Hulu", "https://www.hulu.com"),
-    "espn": ("ESPN", "https://www.espn.com/watch/"),
+    "espn": ("ESPN+", "https://www.espn.com/watch/"),
     "peacock": ("Peacock", "https://www.peacocktv.com"),
     "paramount": ("Paramount+", "https://www.paramountplus.com"),
     "youtube": ("YouTube", "https://www.youtube.com"),
-    "appletv": ("Apple TV+", "https://tv.apple.com"),
+    "prime": ("Prime Video", "https://app.primevideo.com"),
     "tubi": ("Tubi", "https://tubitv.com"),
     "pluto": ("Pluto TV", "https://pluto.tv"),
     "roku": ("The Roku Channel", "https://therokuchannel.roku.com"),
@@ -592,3 +596,44 @@ async def find(q: str) -> Dict[str, Any]:
             t["next"] = n
     return _store(key, {"q": q, "teams": teams, "shows": shows,
                         "note": "Shows: TVmaze · Teams: ESPN · Movies aren't covered by these sources yet"})
+
+
+# ── New on your apps ──────────────────────────────────────────────────────
+# Season premieres and brand-new shows landing this week on services the owner
+# actually has — the "a new season is out" moment, without checking each app.
+
+async def new_this_week(days: int = 7) -> Dict[str, Any]:
+    hit = _cached("new_week", 6 * 3600)
+    if hit is not None:
+        return hit
+    start = (datetime.now(ET) - timedelta(hours=4)).date()
+    dates = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+    async with httpx.AsyncClient(timeout=8.0, headers={"User-Agent": "henderburgh-hub/1.0"}) as client:
+        async def day(d):
+            try:
+                r = await client.get("https://api.tvmaze.com/schedule/web", params={"date": d})
+                return d, (r.json() if r.status_code == 200 else [])
+            except Exception:
+                return d, []
+        results = await asyncio.gather(*[day(d) for d in dates])
+    seen, items = set(), []
+    for d, eps in results:
+        for e in eps or []:
+            sh = (e.get("_embedded") or {}).get("show") or {}
+            ch = (sh.get("webChannel") or {}).get("name")
+            apps = apps_for([ch], sports=False) if ch else []
+            if not apps or e.get("number") != 1 or sh.get("language") not in ("English", None):
+                continue
+            if sh.get("type") in ("News", "Talk Show", "Sports") or sh.get("id") in seen:
+                continue
+            seen.add(sh.get("id"))
+            new_show = (sh.get("premiered") or "") == (e.get("airdate") or d)
+            items.append({
+                "title": sh.get("name"), "date": e.get("airdate") or d, "app": apps[0], "network": ch,
+                "season": e.get("season"), "kind": "New show" if new_show else f"Season {e.get('season')}",
+                "image": (sh.get("image") or {}).get("medium"), "genres": (sh.get("genres") or [])[:2],
+                "rating": (sh.get("rating") or {}).get("average"),
+            })
+    # Returning seasons of rated shows first within a day, then new shows.
+    items.sort(key=lambda i: (i["date"], i["kind"] == "New show", -(i["rating"] or 0)))
+    return _store("new_week", {"from": dates[0], "items": items[:24]})

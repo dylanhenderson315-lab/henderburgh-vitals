@@ -600,3 +600,16 @@ button.card-go{ min-height:32px; padding:0 2px; }
 .find-sub{ font-size:var(--t-xs); color:var(--text-3); }
 .find-extra{ font-size:var(--t-xs); color:var(--text-2); }
 .find-body .where{ margin-top:auto; padding-top:var(--s-2); }
+
+/* New on your apps — a poster row */
+.posters{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(132px, 150px); gap:var(--s-3); overflow-x:auto; scrollbar-width:none; padding-bottom:var(--s-1); }
+.posters::-webkit-scrollbar{ display:none; }
+.poster{ display:flex; flex-direction:column; gap:4px; text-align:left; min-width:0; transition:transform var(--d-base) var(--ease-out); }
+.poster:active{ transform:scale(0.97); transition-duration:var(--d-press); }
+.poster-art{ position:relative; aspect-ratio:2/3; border-radius:var(--r-md); background:var(--surface-2) center/cover no-repeat;
+  border:1px solid rgba(var(--tint, 255,255,255),0.45); box-shadow:0 10px 24px -14px rgba(var(--tint, 0,0,0),0.9); }
+.poster-when{ position:absolute; left:6px; top:6px; font-family:var(--font-mono); font-size:var(--t-label); letter-spacing:0.1em; text-transform:uppercase;
+  padding:2px 6px; border-radius:var(--r-sm); background:rgba(10,10,11,0.82); color:var(--text-2); }
+.poster-when.now{ color:#0a0a0b; background:var(--accent); }
+.poster-title{ font-size:var(--t-sm); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.poster-sub{ font-size:var(--t-xs); color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

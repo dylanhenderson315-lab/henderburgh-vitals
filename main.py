@@ -2004,6 +2004,12 @@ async def api_watch_tonight():
     return data
 
 
+@app.get("/api/watch/new")
+async def api_watch_new():
+    """Season premieres + new shows this week on the owner's services."""
+    return await watch.new_this_week()
+
+
 @app.get("/api/watch/find")
 async def api_watch_find(q: str = ""):
     """'Where can I watch X?' — shows and teams, answered in the owner's apps."""
