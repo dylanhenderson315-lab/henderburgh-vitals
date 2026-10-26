@@ -2,7 +2,7 @@
    Spaces (Now · Day · Lights · Watch · Everything), the live house colour,
    lights + modes, the front door's day story, context-aware opening, and an
    ambient idle state for a home-screen install. Watch is driven by
-   streaming.js (same element ids); house modes come from house-modes.js.
+   watch.js; house modes come from house-modes.js.
 
    Rules (HENDERBURGH_BRIEF.md): content is visible without animation; all
    interpolated text goes through textContent; polling runs only while the
@@ -293,13 +293,7 @@
   }
 
   // ═══════════════════════ Hub state (Now + Everything) ═══════════════════════
-  const APP_NAMES = Object.fromEntries((window.HBStreaming || []).filter((s) => s.pkg).map((s) => [s.pkg, s.name]));
-  const HOME_APPS = /tvcenter|com\.tcl\.tv$|launcher|dreamx|screensaver/i;
-  function tvApp(t) {
-    if (!t.app) return null;
-    if (HOME_APPS.test(t.app)) return 'Home screen';
-    return APP_NAMES[t.app] || t.app.split('.').pop().replace(/^\w/, (c) => c.toUpperCase());
-  }
+  function tvApp(t) { return window.HBTvApp ? window.HBTvApp(t.app) : t.app; }
   function whenLabel(ev) {
     if (!ev.start) return '';
     const d = new Date(ev.all_day ? ev.start + 'T00:00:00' : ev.start);
@@ -356,6 +350,7 @@
         el('span', null, !t.available ? 'unreachable' : t.on ? ([tvApp(t), t.title].filter(Boolean).join(' — ') || 'on') : 'off'));
       rows.appendChild(r);
     });
+    if (window.HBLastTonight) window.dispatchEvent(new CustomEvent('hb:tonight', { detail: window.HBLastTonight }));
     const watching = tvs.filter((t) => t.on && tvApp(t) && tvApp(t) !== 'Home screen');
     setLaunch('ln-watch', watching.length ? `${watching[0].name}: ${tvApp(watching[0])}` : null);
 
@@ -448,6 +443,24 @@
     if (playing && (h >= 17 || h < 3)) goTo('watch');
     userMoved = true;
   }
+
+  // Tonight's pick on the Now space's On-TV card, and a live big game pulls a
+  // freshly opened hub to Watch.
+  window.addEventListener('hb:tonight', (ev) => {
+    const t = ev.detail || {};
+    const rows = $('tv-rows');
+    const old = rows.querySelector('.tonight-line');
+    if (old) old.remove();
+    const p = t.pick;
+    if (p) {
+      const line = el('span', 'row tonight-line');
+      line.append(el('span', 'hb-dot ' + (p.state === 'in' ? 'hb-dot-live' : 'hb-dot-off')),
+        el('b', null, p.state === 'in' ? 'Live' : 'Tonight'), el('span', null, `${p.title} · ${p.reason}`));
+      rows.appendChild(line);
+    }
+    const bigLive = (t.live || []).some((g) => g.score >= 120);
+    if (bigLive && !userMoved && Date.now() - loadedAt < 6000) { goTo('watch'); userMoved = true; }
+  });
 
   async function loadState() {
     try { renderState(await (await fetch('/api/hub/state', { credentials: 'same-origin' })).json()); }

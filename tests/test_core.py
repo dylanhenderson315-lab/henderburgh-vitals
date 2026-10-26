@@ -380,3 +380,56 @@ def test_media_launch_is_gated_and_validated(monkeypatch):
     assert client.post("/api/media/command", json={"tv": "remote.x", "command": "REBOOT"}).status_code == 400
     assert client.post("/api/media/launch", json=body).status_code == 200
     assert calls[-1] == ("remote", "turn_on", "remote.living_room_tv", {"activity": "com.netflix.ninja"})
+
+
+def test_watch_maps_networks_to_owned_apps():
+    from services import watch
+
+    assert watch.apps_for(["ESPN", "ABC", "Disney+"]) == ["espn", "disney"]
+    assert watch.apps_for(["Fox"]) == []                        # not in his apps -> live channels
+    assert watch.apps_for(["TNT"]) == ["max"]
+    assert watch.apps_for(["ABC"], sports=False) == []          # ABC shows aren't in the ESPN app
+    assert watch.apps_for(["NBC"], sports=False) == ["peacock"]
+
+
+def test_watch_close_game_and_pick(monkeypatch):
+    import asyncio
+    from services import watch
+
+    def team(abbr, score, home):
+        return {"abbr": abbr, "name": abbr, "color": "112233", "score": score, "home": home, "record": None, "logo": None, "alt": None}
+
+    live = {"id": "1", "league": "NFL", "start": "2026-10-27T00:15Z", "state": "in", "detail": "Q4 2:01", "period": 4,
+            "clock": "2:01", "teams": [team("DAL", "20", False), team("PHI", "24", True)], "networks": ["ESPN"],
+            "apps": ["espn"], "national": True, "postseason": False, "note": None, "series": None, "situation": None, "win": None}
+    assert watch._closeness(live) == "Close · late"
+    blowout = dict(live, teams=[team("DAL", "3", False), team("PHI", "38", True)])
+    assert watch._closeness(blowout) is None
+
+    async def fake_board(client, league, ymd):
+        return [dict(live)] if league == "NFL" else []
+
+    async def fake_guide(client, ymd):
+        return [{"kind": "show", "time": "20:00", "title": "World Series", "episode": "Game 3", "network": "FOX",
+                 "apps": [], "genres": [], "sports": True},
+                {"kind": "show", "time": "21:00", "title": "FBI", "episode": "x", "network": "CBS",
+                 "apps": ["paramount"], "genres": ["Drama"], "sports": False}]
+
+    async def no_wp(client, g):
+        return {"home": 71}
+
+    monkeypatch.setattr(watch, "_scoreboard", fake_board)
+    monkeypatch.setattr(watch, "_guide", fake_guide)
+    monkeypatch.setattr(watch, "_win_prob", no_wp)
+    out = asyncio.run(watch.tonight())
+    assert out["pick"]["kind"] == "game" and out["pick"]["state"] == "in"
+    assert out["pick"]["reason"].startswith("Close · late: DAL 20–24 PHI")
+    assert out["live"][0]["win"] == {"home": 71}
+    assert [i["title"] for i in out["guide"]] == ["FBI"]          # sports never doubles up in the TV guide
+
+
+def test_streaming_redirects_to_hub_watch():
+    import main
+
+    res = TestClient(main.app).get("/streaming", follow_redirects=False)
+    assert res.status_code == 307 and res.headers["location"] == "/hub#watch"

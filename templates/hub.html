@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=8">
+<link rel="stylesheet" href="/static/hub.css?v=10">
 </head>
 <body>
 <!-- HENDERBURGH HUB
@@ -160,37 +160,71 @@
     <p class="msg" id="lights-msg" role="status"></p>
   </section>
 
-  <!-- ═══════════════════════════ WATCH ═══════════════════════════ -->
+  <!-- ═══════════════════════════ WATCH ═══════════════════════════
+       The watching hub. Right column answers "what's on and where": one
+       pick, live score bugs, tonight's timeline — every item resolved to the
+       app that can play it. Left column is the TVs themselves: what each is
+       showing, and a real remote for the one you pick. -->
   <section class="space" id="space-watch" data-space="watch" aria-label="Watch">
     <div class="watch-grid">
       <div class="watch-tv">
-        <h2 class="space-title" id="headline">What's on tonight</h2>
-        <div id="tvs" class="tvs"></div>
+        <div class="tvs" id="tvs"></div>
         <div class="remote" id="remote" hidden>
-          <div class="remote-row">
-            <span class="remote-label">Power</span>
-            <button class="key" data-power="on" type="button">On</button>
-            <button class="key" data-power="off" type="button">Off</button>
+          <div class="remote-top">
+            <button class="key" data-power="on" type="button" aria-label="Power on">On</button>
+            <button class="key" data-power="off" type="button" aria-label="Power off">Off</button>
+            <span class="remote-for" id="remote-for"></span>
+            <button class="key" data-cmd="VOLUME_MUTE" type="button">Mute</button>
+          </div>
+          <div class="remote-main">
+            <div class="rocker" aria-label="Volume">
+              <button class="key" data-cmd="VOLUME_UP" type="button" aria-label="Volume up">+</button>
+              <span class="rocker-label">VOL</span>
+              <button class="key" data-cmd="VOLUME_DOWN" type="button" aria-label="Volume down">−</button>
+            </div>
+            <!-- Swipe pad: swipe to move, tap for OK — like the Apple TV remote. -->
+            <div class="pad" id="pad" role="button" tabindex="0" aria-label="Swipe to navigate, tap to select">
+              <span class="pad-hint">swipe · tap</span>
+              <i class="pad-ripple" id="pad-ripple"></i>
+            </div>
+            <div class="rocker" aria-label="Channel">
+              <button class="key" data-cmd="CHANNEL_UP" type="button" aria-label="Channel up">▲</button>
+              <span class="rocker-label">CH</span>
+              <button class="key" data-cmd="CHANNEL_DOWN" type="button" aria-label="Channel down">▼</button>
+            </div>
           </div>
           <div class="remote-row">
-            <span class="remote-label">Play</span>
+            <button class="key" data-cmd="BACK" type="button">Back</button>
+            <button class="key" data-cmd="HOME" type="button">Home</button>
+            <button class="key" data-cmd="MEDIA_REWIND" type="button" aria-label="Rewind">«</button>
             <button class="key primary" data-cmd="MEDIA_PLAY_PAUSE" type="button" aria-label="Play or pause">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l11-7z"/></svg>
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
             </button>
-            <button class="key" data-cmd="BACK" type="button">Back</button>
-            <button class="key" data-cmd="HOME" type="button">Home</button>
-          </div>
-          <div class="remote-row">
-            <span class="remote-label">Volume</span>
-            <button class="key" data-cmd="VOLUME_DOWN" type="button" aria-label="Volume down">−</button>
-            <button class="key" data-cmd="VOLUME_UP" type="button" aria-label="Volume up">+</button>
-            <button class="key" data-cmd="VOLUME_MUTE" type="button">Mute</button>
+            <button class="key" data-cmd="MEDIA_FAST_FORWARD" type="button" aria-label="Fast forward">»</button>
           </div>
           <p class="status" id="remote-status" role="status"></p>
         </div>
+        <p class="faint lock-note" id="watch-lock" hidden>TV control is locked on this device. <a href="/home-assistant">Unlock on the lighting page</a>, then come back.</p>
       </div>
-      <div class="services" id="services"></div>
+
+      <div class="watch-guide">
+        <article class="pick" id="pick" hidden></article>
+        <article class="split" id="split" hidden></article>
+        <section class="wsec" id="live-sec" hidden>
+          <div class="wsec-head"><span class="hb-label">Live now</span></div>
+          <div class="bugs" id="bugs"></div>
+        </section>
+        <section class="wsec">
+          <div class="wsec-head"><span class="hb-label">Tonight</span><span class="faint" id="tonight-date"></span></div>
+          <ol class="guide" id="guide"><li class="muted">Loading tonight…</li></ol>
+        </section>
+        <section class="wsec">
+          <div class="wsec-head"><span class="hb-label">Your apps</span></div>
+          <div class="apps" id="apps"></div>
+        </section>
+        <p class="faint credit" id="watch-credit"></p>
+      </div>
     </div>
   </section>
 
@@ -200,7 +234,7 @@
       <a class="card launch" href="/vitals"><span class="launch-name">Vitals</span><span class="launch-sub" id="ln-vitals">Oura — sleep, readiness, HR</span></a>
       <a class="card launch" href="/xbox"><span class="launch-name">Xbox</span><span class="launch-sub" id="ln-xbox">Sessions + gamerscore</span></a>
       <a class="card launch" href="/home-assistant"><span class="launch-name">Lighting</span><span class="launch-sub" id="ln-lights">Rooms, modes, effects</span></a>
-      <a class="card launch" href="/streaming"><span class="launch-name">Watch</span><span class="launch-sub" id="ln-watch">TVs + every service</span></a>
+      <a class="card launch" href="#watch" data-go="watch"><span class="launch-name">Watch</span><span class="launch-sub" id="ln-watch">TVs + every service</span></a>
       <a class="card launch" href="/arcade"><span class="launch-name">Arcade</span><span class="launch-sub" id="ln-arcade">M-1 LED panel</span></a>
       <a class="card launch" href="/insights"><span class="launch-name">Insights</span><span class="launch-sub">Lighting week, patterns</span></a>
       <a class="card launch launch-wide" href="/blog"><span class="launch-name">Blog</span><span class="launch-sub launch-quote" id="ln-blog">Notes + posts</span></a>
@@ -233,8 +267,8 @@
 
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
-<script src="/static/streaming-services.js?v=2"></script>
-<script src="/static/streaming.js?v=4"></script>
-<script src="/static/hub.js?v=11"></script>
+<script src="/static/streaming-services.js?v=3"></script>
+<script src="/static/hub.js?v=13"></script>
+<script src="/static/watch.js?v=3"></script>
 </body>
 </html>

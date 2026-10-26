@@ -25,4 +25,14 @@
     { key: 'applemusic',name: 'Apple Music',      tint: '250,45,85',   open: 'https://music.apple.com',             tv: null,                                     perk: true,  confirmed: false },
     { key: 'appletv',   name: 'Apple TV+',        tint: '200,200,210', open: 'https://tv.apple.com',                tv: 'https://tv.apple.com', pkg: 'com.apple.atve.androidtv.appletv',       perk: false, confirmed: false },
   ];
+
+  // What a TV's reported activity means in words: a service name, or "Home
+  // screen" for the TVs' own launchers / screensavers.
+  const BY_PKG = Object.fromEntries(window.HBStreaming.filter((s) => s.pkg).map((s) => [s.pkg, s.name]));
+  const HOME_APPS = /tvcenter|com\.tcl\.tv$|launcher|dreamx|screensaver/i;
+  window.HBTvApp = function (app) {
+    if (!app) return null;
+    if (HOME_APPS.test(app)) return 'Home screen';
+    return BY_PKG[app] || app.split('.').pop().replace(/^\w/, (c) => c.toUpperCase());
+  };
 })();

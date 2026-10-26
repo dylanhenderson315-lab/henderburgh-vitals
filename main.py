@@ -46,7 +46,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import ambient, home_assistant, persistence, push, state, vitals, xbox
+from services import ambient, home_assistant, persistence, push, state, vitals, watch, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -1963,7 +1963,8 @@ async def api_home():
 # remote.turn_on with an `activity` (an app package or URL) launches that app.
 
 TV_COMMANDS = {"MEDIA_PLAY_PAUSE", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "HOME", "BACK",
-               "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER"}
+               "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER",
+               "CHANNEL_UP", "CHANNEL_DOWN", "MEDIA_REWIND", "MEDIA_FAST_FORWARD", "MENU"}
 # HA names these after the TV's own self-description ("Smart TV"); the house
 # knows them by room.
 TV_LABELS = {"remote.smarttv_4k_ffm": "Living Room TV", "remote.smart_tv": "Theater TV"}
@@ -1971,9 +1972,17 @@ _TV_ENTITY = re.compile(r"remote\.[a-z0-9_]+")
 _TV_APP = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+|https://\S+")
 
 
-@app.get("/streaming", response_class=HTMLResponse)
-async def streaming_page(request: Request):
-    return _render("streaming.html", {"request": request, "display_name": DISPLAY_NAME})
+@app.get("/api/watch/tonight")
+async def api_watch_tonight():
+    """Live games, tonight's guide and one pick, each resolved to the owner's
+    apps (services/watch.py). Public read."""
+    return await watch.tonight()
+
+
+@app.get("/streaming")
+async def streaming_page():
+    """The standalone Watch page grew into the hub's Watch space."""
+    return RedirectResponse("/hub#watch", status_code=307)
 
 
 def _tvs_from(states: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
