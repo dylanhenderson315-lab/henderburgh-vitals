@@ -1956,6 +1956,9 @@ async def api_home():
 
 TV_COMMANDS = {"MEDIA_PLAY_PAUSE", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "HOME", "BACK",
                "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER"}
+# HA names these after the TV's own self-description ("Smart TV"); the house
+# knows them by room.
+TV_LABELS = {"remote.smarttv_4k_ffm": "Living Room TV", "remote.smart_tv": "Theater TV"}
 _TV_ENTITY = re.compile(r"remote\.[a-z0-9_]+")
 _TV_APP = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+|https://\S+")
 
@@ -1980,7 +1983,7 @@ async def api_media_tvs():
         mpa = (players.get(eid.split(".", 1)[1]) or {}).get("attributes") or {}
         tvs.append({
             "entity_id": eid,
-            "name": attrs.get("friendly_name") or eid,
+            "name": TV_LABELS.get(eid) or attrs.get("friendly_name") or eid,
             "on": s.get("state") == "on",
             "available": s.get("state") not in ("unavailable", "unknown"),
             "app": attrs.get("current_activity") or mpa.get("app_name"),

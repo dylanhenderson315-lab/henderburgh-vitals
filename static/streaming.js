@@ -6,6 +6,9 @@
   const $ = (id) => document.getElementById(id);
   const SERVICES = (window.HBStreaming || []).filter((s) => s.key !== 'applemusic' && s.key !== 'ytmusic');
   const BY_PACKAGE = Object.fromEntries((window.HBStreaming || []).filter((s) => s.tv).map((s) => [s.tv, s.name]));
+  // The TVs' own launchers / live-TV apps (seen on the Hisense + TCL).
+  Object.assign(BY_PACKAGE, { 'com.vt.tv.tvcenter': 'Home screen', 'com.tcl.tv': 'Home screen',
+    'com.google.android.apps.tv.launcherx': 'Home screen', 'com.google.android.tvlauncher': 'Home screen' });
 
   let tvs = [];
   let selected = null;

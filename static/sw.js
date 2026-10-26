@@ -3,14 +3,14 @@
    and survives a flaky hotel network. API calls are never cached — live data
    (lights, weather) must always be real or visibly missing, never stale-as-live.
    Bump VERSION whenever ipad.html / ipad.js / tokens.css change. */
-const VERSION = 'hb-shell-v6';
+const VERSION = 'hb-shell-v7';
 const SHELL = [
   '/ipad',
   '/static/tokens.css?v=6',
   '/static/house-modes.js?v=1',
   '/static/streaming-services.js?v=1',
   '/static/ipad.js?v=6',
-  '/static/streaming.js?v=1',
+  '/static/streaming.js?v=2',
   '/static/icons/icon-192.png',
   '/static/icons/apple-touch-icon.png',
 ];
