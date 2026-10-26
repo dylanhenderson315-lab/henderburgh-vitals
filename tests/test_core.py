@@ -540,3 +540,20 @@ def test_sunset_matches_myrtle_beach():
     t = sun_times(33.73, -78.90, date(2026, 10, 26))
     assert t["sunset"].astimezone(et).strftime("%H:%M") in ("18:29", "18:30", "18:31")
     assert t["sunrise"].astimezone(et).strftime("%H:%M") in ("07:27", "07:28", "07:29")
+
+
+def test_favorites_detects_his_teams_and_kickoffs():
+    from datetime import datetime, timezone
+    from services import favorites
+
+    steelers_game = {"league": "NFL", "teams": [{"id": "5", "abbr": "CLE"}, {"id": "23", "abbr": "PIT"}]}
+    pirates_id_in_nfl = {"league": "NFL", "teams": [{"id": "1", "abbr": "ATL"}, {"id": "2", "abbr": "BUF"}]}
+    pitt = {"league": "NCAAF", "teams": [{"id": "59", "abbr": "GT"}, {"id": "221", "abbr": "PITT"}]}
+    assert favorites.is_favorite(steelers_game) and favorites.is_favorite(pitt)
+    assert not favorites.is_favorite(pirates_id_in_nfl)
+
+    now = datetime(2026, 11, 1, 17, 50, tzinfo=timezone.utc)
+    teams = [{"name": "Pittsburgh Steelers", "next": {"start": "2026-11-01T18:00Z", "live": False}},
+             {"name": "Pittsburgh Penguins", "next": {"start": "2026-11-01T23:00Z", "live": False}}]
+    soon = favorites.kickoff_soon(teams, now, 15)
+    assert [s["team"]["name"] for s in soon] == ["Pittsburgh Steelers"] and soon[0]["minutes"] == 10

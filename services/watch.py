@@ -108,6 +108,7 @@ def _game(league: str, e: Dict[str, Any]) -> Dict[str, Any]:
     for x in sorted(c.get("competitors") or [], key=lambda x: x.get("homeAway") != "away"):   # away first
         t = x.get("team") or {}
         teams.append({
+            "id": t.get("id"),
             "abbr": t.get("abbreviation"),
             "name": t.get("shortDisplayName") or t.get("name"),
             "color": t.get("color"),
@@ -270,6 +271,8 @@ def _game_score(g: Dict[str, Any], now: datetime) -> float:
         s += 10
     if g["apps"]:
         s += 12
+    if g.get("fav"):
+        s += 60          # his teams outrank everything but a close live game
     return s
 
 
@@ -305,8 +308,10 @@ async def tonight() -> Dict[str, Any]:
         for g, wp in zip(live[:4], wps):
             g["win"] = wp
 
+    from services import favorites   # local import: favorites imports this module
     for g in games:
         g.setdefault("close", None)
+        g["fav"] = favorites.is_favorite(g)
         g["score"] = _game_score(g, now)
 
     # Games already in the sports list don't also belong in the TV guide
@@ -316,7 +321,7 @@ async def tonight() -> Dict[str, Any]:
 
     # NCAAF fills Saturdays with 60 games; outside the national/postseason
     # ones, only keep what's live — the guide is for tonight, not every game.
-    games = [g for g in games if g["league"] != "NCAAF" or g["national"] or g["state"] == "in" or g["postseason"]]
+    games = [g for g in games if g["league"] != "NCAAF" or g["national"] or g["state"] == "in" or g["postseason"] or g["fav"]]
     upcoming = sorted((g for g in games if g["state"] == "pre"), key=lambda g: g["start"] or "")
     finals = [g for g in games if g["state"] == "post"]
 
@@ -375,8 +380,8 @@ SENT_PATH = Path(os.getenv("DATA_DIR", "data").strip() or "data") / "close_alert
 
 
 def watchable(g: Dict[str, Any]) -> bool:
-    """Same test the Watch guide uses: national, postseason, in his apps, or over the air."""
-    return bool(g.get("national") or g.get("postseason") or g.get("apps") or any(OTA.match(n) for n in g.get("networks") or []))
+    """Same test the Watch guide uses: his team, national, postseason, in his apps, or over the air."""
+    return bool(g.get("fav") or g.get("national") or g.get("postseason") or g.get("apps") or any(OTA.match(n) for n in g.get("networks") or []))
 
 
 def _secret() -> bytes:
@@ -469,6 +474,33 @@ async def check_close_games(tvs: List[Dict[str, Any]], notify, base_url: str) ->
         if ok:
             sent[g["id"]] = time.time()
             fired.append(g["id"])
+    # Kickoff reminders for his teams: one push ~15 minutes before.
+    try:
+        from services import favorites
+        fav = await favorites.overview()
+        for k in favorites.kickoff_soon(fav.get("teams") or [], datetime.now(ET).astimezone(), 15):
+            t, n = k["team"], k["game"]
+            key = f"kick:{t['league']}:{n['start']}"
+            if key in sent:
+                continue
+            app = next((a for a in n.get("apps") or [] if a in APP_LINKS), None)
+            where = f"in {APP_LINKS[app][0]}" if app else (f"on {n['networks'][0]}" if n.get("networks") else "")
+            title = f"{t['short'] or t['name']} {'vs' if n['home'] else '@'} {n['opponent']} in {k['minutes']} min"
+            body = " · ".join(x for x in [t.get("record"), where] if x)
+            actions = []
+            if app:
+                for tv in sorted([x for x in tvs if x.get("available")], key=lambda x: not x.get("on"))[:2]:
+                    tok = sign_put(key, tv["entity_id"], app)
+                    if tok:
+                        actions.append({"action": "http", "label": f"{APP_LINKS[app][0]} on {tv['name']}",
+                                        "url": f"{base_url}/api/watch/put?t={tok}", "method": "POST", "clear": True})
+            actions.append({"action": "view", "label": "Open Watch", "url": f"{base_url}/hub#watch"})
+            ok = await asyncio.to_thread(notify, title, body, "high", ["football"], f"{base_url}/hub#watch", actions)
+            if ok:
+                sent[key] = time.time()
+                fired.append(key)
+    except Exception as e:
+        print(f"kickoff reminder error: {e}")
     if fired:
         _save_sent(sent)
     return fired

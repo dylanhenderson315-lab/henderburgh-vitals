@@ -654,3 +654,22 @@ button.card-go{ min-height:32px; padding:0 2px; }
   border-radius:var(--r-md); border:1px solid var(--line); background:var(--surface-2); text-align:left; }
 .rs-light.on{ border-color:rgba(var(--room-rgb, var(--accent-rgb)),0.45); background:linear-gradient(90deg, rgba(var(--room-rgb, var(--accent-rgb)),0.16), var(--surface-2) 70%); }
 .rs-light.on .hb-dot{ background:rgb(var(--room-rgb, var(--accent-rgb))); }
+
+/* Your teams */
+.favs{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:var(--s-3); }
+.fav{ display:flex; flex-direction:column; gap:4px; padding:var(--s-3) var(--s-4) var(--s-4); border-radius:var(--r-lg);
+  background:linear-gradient(160deg, color-mix(in srgb, var(--tc) 24%, transparent), rgba(19,19,22,0.9) 55%);
+  border:1px solid color-mix(in srgb, var(--tc) 40%, var(--line)); }
+.fav.live{ box-shadow:0 0 0 1px rgba(248,113,113,0.4), 0 0 22px -8px rgba(248,113,113,0.6); }
+.fav-head{ display:flex; align-items:center; gap:var(--s-3); margin-bottom:2px; }
+.fav-head img{ width:34px; height:34px; object-fit:contain; }
+.fav-head > div{ display:flex; flex-direction:column; min-width:0; flex:1; }
+.fav-title{ font-family:var(--font-display); font-weight:700; font-size:var(--t-lg); }
+.fav-sub{ font-size:var(--t-xs); color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fav-live{ font-family:var(--font-mono); font-size:var(--t-label); letter-spacing:0.14em; color:#fff; background:var(--danger); padding:2px 6px; border-radius:var(--r-sm); }
+.fav-line{ font-size:var(--t-sm); color:var(--text-2); }
+.fav-via{ font-size:var(--t-xs); color:var(--text-3); }
+.fav .where{ margin-top:auto; padding-top:var(--s-2); }
+.bug.mine{ border-color:rgba(255,182,18,0.55); }
+.bug-flag.mine{ background:#ffb612; color:#101820; }
+.mine-tag{ font-family:var(--font-mono); font-size:var(--t-label); letter-spacing:0.1em; text-transform:uppercase; color:#101820; background:#ffb612; padding:1px 6px; border-radius:var(--r-sm); margin-left:var(--s-2); }

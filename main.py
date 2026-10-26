@@ -46,7 +46,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import ambient, home_assistant, persistence, push, sky, state, vitals, watch, xbox
+from services import ambient, favorites, home_assistant, persistence, push, sky, state, vitals, watch, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -2002,6 +2002,12 @@ async def api_watch_tonight():
     data = await watch.tonight()
     data["alerts"] = {"enabled": push.enabled() and bool(ADMIN_TOKEN)}
     return data
+
+
+@app.get("/api/watch/favorites")
+async def api_watch_favorites():
+    """Steelers / Pirates / Penguins / Pitt, NASCAR, F1 (Verstappen), golf (Scheffler)."""
+    return await favorites.overview()
 
 
 @app.get("/api/watch/new")

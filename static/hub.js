@@ -540,7 +540,7 @@
     return `in ${h}h${mm ? ` ${mm}m` : ''}`;
   }
   const OTA_RE = /^(fox|nbc|cbs|abc|the cw|pbs)$/i;
-  const watchable = (g) => g.national || g.postseason || (g.apps || []).length || (g.networks || []).some((n) => OTA_RE.test(n));
+  const watchable = (g) => g.fav || g.national || g.postseason || (g.apps || []).length || (g.networks || []).some((n) => OTA_RE.test(n));
   function whereLine(g) {
     const app = (g.apps || []).map((k) => (window.HBStreaming || []).find((s) => s.key === k)).find(Boolean);
     if (app) return `in ${app.name}`;
@@ -606,7 +606,22 @@
     // When nothing's live, On now already shows the next game — Later starts after it.
     const anyLive = (t.live || []).some(watchable);
     const ups = (t.upcoming || []).filter(watchable).slice(anyLive ? 0 : 1, anyLive ? 3 : 4);
-    if (!ups.length) { list.appendChild(el('span', 'muted', 'No more big games tonight.')); return; }
+    if (!ups.length) {
+      // Nothing big tonight: your next team game instead of an empty card.
+      const f = window.HBFavs;
+      const next = f && (f.teams || []).filter((t) => t.next && !t.next.live).sort((a, b) => Date.parse(a.next.start) - Date.parse(b.next.start))[0];
+      if (next) {
+        const n = next.next;
+        const row = el('span', 'later-row big');
+        const chip = el('span', 'tchip', next.abbr); chip.style.setProperty('--tc', hexc(next.color));
+        const info = el('span', 'later-info');
+        info.append(el('span', 'later-when num', new Date(n.start).toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + startAt(n.start)),
+          el('span', 'later-sub', `${n.home ? 'vs' : '@'} ${n.opponent} · ${whereLine(n)}`));
+        row.append(chip, info);
+        list.append(el('span', 'muted', 'No more big games tonight. Your next:'), row);
+      } else list.appendChild(el('span', 'muted', 'No more big games tonight.'));
+      return;
+    }
     ups.forEach((g) => {
       const row = el('span', 'later-row' + (g.score >= 50 ? ' big' : ''));
       const teams = el('span', 'later-teams');
@@ -643,6 +658,7 @@
     };
     amb.append(side(a), el('div', 'al-mid', g.close ? `${g.close}\n${g.detail || ''}` : g.detail || 'Live'), side(b));
   }
+  window.addEventListener('hb:favs', () => { if (window.HBLastTonight) renderLater(window.HBLastTonight); });
   window.addEventListener('hb:tonight', (ev) => {
     const t = ev.detail || {};
     renderOnNow(t);

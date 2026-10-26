@@ -229,6 +229,7 @@
       card.append(wp, el('div', 'bug-wpl', `${lead.abbr} ${Math.max(homeWin, 100 - homeWin)}% to win`));
     }
     if (g.close) card.prepend(el('span', 'bug-flag', g.close));
+    if (g.fav) { card.classList.add('mine'); card.prepend(el('span', 'bug-flag mine', 'Your team')); }
     card.appendChild(whereRow(g.apps, g.networks, { compact: true }));
     return card;
   }
@@ -313,7 +314,7 @@
     // Watchable games lead: national, postseason, in your apps, or on the
     // TV's live channels. The rest (regional nets, League Pass) fold into one
     // line you can open.
-    const watchable = (g) => g.national || g.postseason || g.apps.length || g.networks.some((n) => OTA.test(n));
+    const watchable = (g) => g.fav || g.national || g.postseason || g.apps.length || g.networks.some((n) => OTA.test(n));
     const hiddenGames = tonight.upcoming.filter((g) => !watchable(g));
     tonight.upcoming.filter((g) => showAllGames || watchable(g))
       .forEach((g) => rows.push({ t: Date.parse(g.start), when: timeOf(g.start), g }));
@@ -342,6 +343,7 @@
           teams.appendChild(chip);
           if (k === 0) teams.appendChild(el('span', 'faint', '@'));
         });
+        if (g.fav) teams.appendChild(el('span', 'mine-tag', 'Your team'));
         main.append(teams, el('div', 'guide-sub', [g.note, g.series, g.league].filter(Boolean).join(' · ')));
       } else {
         main.append(el('div', 'guide-title', r.i.title), el('div', 'guide-sub', r.i.episode || ''));
@@ -407,6 +409,78 @@
     reschedule();
     // Let the rest of the hub (Now's On-TV card, context opening) know.
     if (tonight) { window.HBLastTonight = tonight; window.dispatchEvent(new CustomEvent('hb:tonight', { detail: tonight })); }
+  }
+
+  // ═══════════════ Your teams ═══════════════
+  let favs = null;
+  function shortDay(iso) {
+    const d = new Date(iso);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const day = new Date(d); day.setHours(0, 0, 0, 0);
+    const diff = Math.round((day - today) / 86400000);
+    const dl = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short' });
+    return `${dl} ${timeOf(iso)}`;
+  }
+  function favCard({ logo, color, title, sub, lines, live, apps, networks, via }) {
+    const c = el('article', 'fav' + (live ? ' live' : ''));
+    c.style.setProperty('--tc', hex(color));
+    const head = el('div', 'fav-head');
+    if (logo && /^https:\/\//.test(logo)) { const i = el('img'); i.src = logo; i.alt = ''; i.loading = 'lazy'; head.appendChild(i); }
+    const names = el('div');
+    names.append(el('b', 'fav-title', title), el('span', 'fav-sub', sub || ''));
+    head.appendChild(names);
+    if (live) head.appendChild(el('span', 'fav-live', 'LIVE'));
+    c.appendChild(head);
+    (lines || []).filter(Boolean).forEach((l) => c.appendChild(el('span', 'fav-line', l)));
+    if (via) c.appendChild(el('span', 'fav-via', via));
+    if ((apps && apps.length) || (networks && networks.length)) c.appendChild(whereRow(apps, networks, { compact: true }));
+    return c;
+  }
+  function favCards() {
+    if (!favs) return [];
+    const out = [];
+    (favs.teams || []).forEach((t) => {
+      const n = t.next, l = t.last;
+      const lines = [];
+      if (n && n.live) lines.push(`Live: ${t.abbr} ${n.us ?? ''}–${n.them ?? ''} ${n.opponent}`);
+      else if (n) lines.push(`Next: ${shortDay(n.start)} · ${n.home ? 'vs' : '@'} ${n.opponent}`);
+      if (l) lines.push(`Last: ${l.won ? 'W' : 'L'} ${l.us}–${l.them} ${l.home ? 'vs' : '@'} ${l.opponent}`);
+      if (t.season_over) lines.push('Season’s over — back next season.');
+      out.push(favCard({ logo: t.logo, color: t.color, title: t.short || t.name,
+        sub: t.season_over ? t.league : [t.record, t.standing].filter(Boolean).join(' · '),
+        lines, live: n && n.live, apps: n ? n.apps : [], networks: n ? n.networks : [] }));
+    });
+    const r = favs.nascar;
+    if (r) out.push(favCard({ color: 'f5c400', title: 'NASCAR', sub: r.title, live: r.live,
+      lines: [r.live ? 'Racing now' : r.start ? `${shortDay(r.start)}` : null], apps: r.apps, networks: r.networks }));
+    const f = favs.f1;
+    if (f) {
+      const st = f.standing;
+      out.push(favCard({ color: '1e41ff', title: `F1 · ${f.driver}`,
+        sub: st ? `P${st.position} · ${st.points} pts${st.behind ? ` · ${st.behind} behind ${st.leader}` : ''}` : 'Standings unavailable',
+        live: f.live, lines: [f.title ? `${f.title}${f.start ? ` · ${shortDay(f.start)}` : ''}` : null], apps: f.apps, networks: f.networks }));
+    }
+    const g = favs.golf;
+    if (g) {
+      const pos = g.golfer_pos;
+      out.push(favCard({ color: '0a7f3f', title: 'Golf', sub: g.title, live: g.live,
+        lines: [g.live ? (pos ? `${g.golfer}: ${pos.order === 1 ? 'leading' : `T${pos.order}`} (${pos.score})` : `${g.golfer} isn’t in this one`) : (g.start ? `Starts ${shortDay(g.start).replace(/ \d.*$/, '')}` : null),   // tournament starts are dates, not tee times
+          g.live && g.leader && (!pos || pos.order !== 1) ? `Leader: ${g.leader.name} ${g.leader.score}` : null],
+        via: g.via, apps: g.apps, networks: g.networks }));
+    }
+    return out;
+  }
+  function renderFavs() {
+    const cards = favCards();
+    $('fav-sec').hidden = !cards.length;
+    $('fav-row').replaceChildren(...cards);
+    if (openScene === 'sports') $('sc-favs').replaceChildren(...favCards());
+  }
+  async function loadFavs() {
+    try { favs = await (await fetch('/api/watch/favorites')).json(); } catch (e) { return; }
+    window.HBFavs = favs;
+    renderFavs();
+    window.dispatchEvent(new CustomEvent('hb:favs', { detail: favs }));
   }
 
   // ═══════════════ New on your apps ═══════════════
@@ -526,8 +600,9 @@
 
   function renderScene() {
     if (openScene !== 'sports' || !tonight) return;
-    const watchable = (g) => g.national || g.postseason || g.apps.length || g.networks.some((n) => OTA.test(n));
+    const watchable = (g) => g.fav || g.national || g.postseason || g.apps.length || g.networks.some((n) => OTA.test(n));
     const live = (tonight.live || []).filter(watchable);
+    $('sc-favs').replaceChildren(...favCards());
     $('sc-live-sec').hidden = !live.length;
     $('sc-live-count').textContent = live.length ? `${live.length} game${live.length === 1 ? '' : 's'}` : '';
     $('sc-bugs').replaceChildren(...live.map(bug));
@@ -613,6 +688,8 @@
   renderApps();
   loadAuth();
   loadNew();
+  loadFavs();
+  setInterval(() => { if (document.visibilityState === 'visible') loadFavs(); }, 5 * 60 * 1000);
   setInterval(() => { if (document.visibilityState === 'visible') loadNew(); }, 6 * 3600 * 1000);
   if (document.visibilityState === 'visible') start();
 })();

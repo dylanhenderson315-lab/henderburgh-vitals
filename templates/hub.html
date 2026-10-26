@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=18">
+<link rel="stylesheet" href="/static/hub.css?v=19">
 </head>
 <body>
 <!-- HENDERBURGH HUB
@@ -224,6 +224,10 @@
         <nav class="scenes" aria-label="Scenes">
           <button class="scene-btn" type="button" data-scene="sports"><span class="scene-name">Sports</span><span class="scene-sub" id="scene-sports-sub">Live games, tonight, TVs</span></button>
         </nav>
+        <section class="wsec" id="fav-sec" hidden>
+          <div class="wsec-head"><span class="hb-label">Your teams</span></div>
+          <div class="favs" id="fav-row"></div>
+        </section>
         <article class="pick" id="pick" hidden></article>
         <article class="split" id="split" hidden></article>
         <section class="wsec" id="live-sec" hidden>
@@ -285,6 +289,10 @@
     </header>
     <div class="sheet-body">
       <div class="sheet-main">
+        <section class="wsec">
+          <div class="wsec-head"><span class="hb-label">Your teams</span></div>
+          <div class="favs" id="sc-favs"></div>
+        </section>
         <section class="wsec" id="sc-live-sec">
           <div class="wsec-head"><span class="hb-label">Live now</span><span class="faint" id="sc-live-count"></span></div>
           <div class="bugs" id="sc-bugs"></div>
@@ -349,7 +357,7 @@
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
 <script src="/static/streaming-services.js?v=5"></script>
-<script src="/static/hub.js?v=19"></script>
-<script src="/static/watch.js?v=9"></script>
+<script src="/static/hub.js?v=20"></script>
+<script src="/static/watch.js?v=11"></script>
 </body>
 </html>
