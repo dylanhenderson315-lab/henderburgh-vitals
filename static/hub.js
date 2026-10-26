@@ -168,10 +168,43 @@
     $('ln-lights').textContent = on ? `${on} on right now` : 'Rooms, modes, effects';
     $('ln-lights').classList.toggle('live', on > 0);
 
-    const house = avgRgb(Object.values(lightsData.lights_by_room || {}).flat().filter((l) => !l.is_sync));
+    const all = Object.values(lightsData.lights_by_room || {}).flat().filter((l) => !l.is_sync);
+    const house = avgRgb(all);
     root.style.setProperty('--house-rgb', house || 'var(--accent-rgb)');
     root.style.setProperty('--house-a', String(house ? Math.min(0.32, 0.12 + on * 0.015) : 0.08));
+    paintAurora(all);
     renderModes();
+  }
+
+  // The front door's light strip + aurora: the distinct colours the lit bulbs
+  // are showing, in room order. Dark house = a dim emerald idle.
+  function litColours(lights) {
+    const seen = new Map();
+    lights.filter((l) => l.state === 'on').forEach((l) => {
+      const c = Array.isArray(l.rgb_color) && l.rgb_color.length >= 3 ? l.rgb_color : [255, 196, 120];
+      const key = c.map((v) => Math.round(v / 24)).join('-');
+      if (!seen.has(key)) seen.set(key, c.slice(0, 3).join(','));
+    });
+    return [...seen.values()];
+  }
+  function paintAurora(lights) {
+    const cols = litColours(lights);
+    const strip = $('light-strip');
+    if (!cols.length) {
+      ['--aur-1', '--aur-2', '--aur-3'].forEach((k) => root.style.setProperty(k, 'var(--accent-rgb)'));
+      root.style.setProperty('--aur-a', '0.07');
+      strip.style.background = '';
+      strip.style.opacity = '0.25';
+      return;
+    }
+    root.style.setProperty('--aur-1', cols[0]);
+    root.style.setProperty('--aur-2', cols[1] || cols[0]);
+    root.style.setProperty('--aur-3', cols[2] || cols[0]);
+    root.style.setProperty('--aur-a', String(Math.min(0.34, 0.18 + lights.filter((l) => l.state === 'on').length * 0.01)));
+    strip.style.background = cols.length === 1
+      ? `rgb(${cols[0]})`
+      : `linear-gradient(90deg, ${cols.map((c, i) => `rgb(${c}) ${Math.round((i / (cols.length - 1)) * 100)}%`).join(', ')})`;
+    strip.style.opacity = '0.7';
   }
 
   let modeBusy = null;
@@ -188,8 +221,23 @@
     const hint = suggestedMode(new Date().getHours());
     $('modes').replaceChildren(...Object.entries(MODES).map(([k, m]) => modeButton(k, m, hint)));
     const has = !!(hint && MODES[hint]);
-    $('card-suggest').hidden = !has;
-    $('now-suggest').replaceChildren(...(has ? [modeButton(hint, MODES[hint], hint)] : []));
+    if (has) $('now-suggest').replaceChildren(modeButton(hint, MODES[hint], hint));
+    else $('now-suggest').replaceChildren(...contextCard());
+    $('card-suggest').hidden = !$('now-suggest').childElementCount;
+  }
+  // When no lighting routine fits the hour, "Right now" shows what does:
+  // Intake Desk in work hours, otherwise what the M-1 panel is showing.
+  function contextCard() {
+    const d = lastState || {};
+    const link = (href, name, sub) => {
+      const a = el('a', 'ctx');
+      a.href = href;
+      a.append(el('span', 'ctx-name', name), el('span', 'ctx-sub', sub));
+      return [a];
+    };
+    if (d.work_hours) return link('http://192.168.40.203:8080', 'Intake Desk', 'Work hours · owed by me, owed to me');
+    if (d.arcade && d.arcade.mode) return link('/arcade', `Arcade · ${cap(d.arcade.mode)}`, 'The M-1 panel — change mode');
+    return [];
   }
 
   function flash(text, kind) {
@@ -345,6 +393,8 @@
 
     // Body
     const v = d.vitals || {};
+    $('tick-bpm').textContent = v.hr != null ? String(v.hr) : (heartDay && seriesOf(heartDay).length ? String(seriesOf(heartDay).slice(-1)[0].y) : '—');
+    $('tick-steps').textContent = v.steps != null ? Number(v.steps).toLocaleString() : '—';
     const vs = $('vitals-stats');
     vs.replaceChildren();
     [['Heart', v.hr != null ? `${v.hr}` : '—'], ['Steps', v.steps != null ? Number(v.steps).toLocaleString() : '—'],
@@ -373,6 +423,7 @@
     setLaunch('ln-clips', d.clips && d.clips[0] && d.clips[0].title ? d.clips[0].title : null);
 
     document.body.classList.toggle('work', !!d.work_hours);
+    renderModes();
     openForContext(d);
   }
 
@@ -392,23 +443,140 @@
     catch (e) { /* keep last good state on screen; the fresh dot already reports HA */ }
   }
 
+  // ═══════════════════════ Heart ═══════════════════════
+  // Day-replay x values are minutes on the LOGICAL day: 240 (4 AM) through
+  // 1680 (4 AM next day), the same window the front door's explorer uses.
+  const D0 = 240, D1 = 1680;
+  const GAP_MIN = 20;   // never draw a line across a ring gap longer than this
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attrs) {
+    const n = document.createElementNS(SVGNS, tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => n.setAttribute(k, v));
+    return n;
+  }
+  function seriesOf(d) {
+    return ((d && d.hr_series) || []).filter((p) => p && Number.isFinite(p.x) && p.y > 0).sort((a, b) => a.x - b.x);
+  }
+  function runs(series) {
+    // split into continuous runs so gaps stay visibly empty
+    const out = [];
+    let cur = [];
+    series.forEach((p, i) => {
+      if (i && p.x - series[i - 1].x > GAP_MIN) { if (cur.length) out.push(cur); cur = []; }
+      cur.push(p);
+    });
+    if (cur.length) out.push(cur);
+    return out;
+  }
+  function bpmAt(series, m) {
+    if (!series.length) return null;
+    for (let i = 1; i < series.length; i++) {
+      const a = series[i - 1], b = series[i];
+      if (m >= a.x && m <= b.x) {
+        if (b.x - a.x > GAP_MIN) return null;
+        return Math.round(a.y + (b.y - a.y) * ((m - a.x) / Math.max(1e-6, b.x - a.x)));
+      }
+    }
+    const first = series[0], last = series[series.length - 1];
+    if (Math.abs(m - first.x) <= 3) return first.y;
+    if (Math.abs(m - last.x) <= 3) return last.y;
+    return null;
+  }
+  function clk(m) {
+    const t = ((Math.round(m) % 1440) + 1440) % 1440;
+    const h = Math.floor(t / 60), mm = String(t % 60).padStart(2, '0');
+    return `${((h + 11) % 12) + 1}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  }
+  function nowMinute() {
+    // minutes since midnight ET, mapped into the logical-day window
+    let h = new Date().getHours(), mi = new Date().getMinutes();
+    try {
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date());
+      h = +p.find((x) => x.type === 'hour').value % 24; mi = +p.find((x) => x.type === 'minute').value;
+    } catch (e) {}
+    const m = h * 60 + mi;
+    return m < D0 ? m + 1440 : m;
+  }
+  // Draw a trace into an svg whose viewBox is "240 0 1440 H".
+  function drawTrace(svg, d, H, opts) {
+    svg.replaceChildren();
+    const series = seriesOf(d);
+    if (!series.length) return { series, y: () => H / 2 };
+    const ys = series.map((p) => p.y);
+    const lo = Math.max(35, Math.min(...ys) - 6), hi = Math.max(lo + 30, Math.max(...ys) + 6);
+    const y = (bpm) => H - 6 - ((bpm - lo) / (hi - lo)) * (H - 12);
+    if (opts && opts.bands) (d.bands || []).forEach((b) => {
+      const x0 = Math.max(D0, b.x0), x1 = Math.min(D1, b.x1);
+      if (x1 - x0 < 1) return;
+      svg.appendChild(svgEl('rect', { x: x0, y: 0, width: x1 - x0, height: H,
+        fill: b.kind === 'media' ? 'rgba(96,165,250,0.13)' : 'rgba(139,127,255,0.15)' }));
+    });
+    const rs = runs(series);
+    for (let i = 1; i < rs.length; i++) {   // a faint dotted bridge marks the gap honestly
+      const a = rs[i - 1][rs[i - 1].length - 1], b = rs[i][0];
+      svg.appendChild(svgEl('line', { x1: a.x, y1: y(a.y), x2: b.x, y2: y(b.y), class: 'trace-ghost' }));
+    }
+    rs.forEach((run) => {
+      if (run.length === 1) run = [run[0], { x: run[0].x + 1, y: run[0].y }];
+      svg.appendChild(svgEl('polyline', { points: run.map((p) => `${p.x.toFixed(1)},${y(p.y).toFixed(1)}`).join(' '), class: 'trace' }));
+    });
+    return { series, y };
+  }
+  function placeDot(dot, x, yPx, H, live, bpm) {
+    dot.hidden = false;
+    dot.style.left = `${((x - D0) / (D1 - D0)) * 100}%`;
+    dot.style.top = `${(yPx / H) * 100}%`;
+    dot.classList.toggle('live', live);
+    if (live && bpm) dot.style.setProperty('--beat', `${(60 / bpm).toFixed(2)}s`);
+  }
+
+  // The Now heartline + bar ticker + ambient heart, from the newest day with data.
+  let heartDay = null, heartIso = null;
+  function paintHeart() {
+    const d = heartDay;
+    const series = seriesOf(d);
+    const last = series[series.length - 1];
+    const isToday = heartIso === TODAY;
+    const age = last && isToday ? nowMinute() - last.x : null;
+    const fresh = age != null && age >= 0 && age <= 30;
+    const bpm = last ? last.y : null;
+
+    const lbl = !d ? 'Heart' : isToday ? 'Heart · today' : `Heart · ${relLabel(heartIso).toLowerCase()}`;
+    $('hl-label').textContent = lbl;
+    $('hl-bpm').textContent = bpm != null ? String(bpm) : '—';
+    $('hl-foot').textContent = !last ? 'No ring data yet.' :
+      fresh ? `Live · last reading ${clk(last.x)}` :
+      isToday ? `Last reading ${clk(last.x)} · ${Math.round(age)} min ago` :
+      `The ring hasn’t synced today — showing ${relLabel(heartIso).toLowerCase()}, last ${clk(last.x)}`;
+
+    const H = 100;
+    const { y } = drawTrace($('hl-svg'), d || {}, H, { bands: true });
+    const amb = drawTrace($('amb-svg'), d || {}, H, {});
+    if (last) {
+      placeDot($('hl-dot'), last.x, y(last.y), H, fresh, bpm);
+      placeDot($('amb-dot'), last.x, amb.y(last.y), H, fresh, bpm);
+    } else { $('hl-dot').hidden = true; $('amb-dot').hidden = true; }
+    $('ambient-bpm').textContent = bpm != null ? `${bpm} bpm${fresh ? '' : ` · ${clk(last.x)}`}` : '';
+
+    const beat = $('tick-beat');
+    beat.className = 'beat ' + (fresh ? 'live' : last ? 'stale' : '');
+    if (fresh) beat.style.setProperty('--beat', `${(60 / bpm).toFixed(2)}s`);
+  }
+
   // ═══════════════════════ Day (the front door's story) ═══════════════════════
-  // The logical day starts at 4 AM ET, matching the front door's explorer.
   function logicalTodayISO() {
     const d = new Date(Date.now() - 4 * 3600 * 1000);
     try {
-      const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-      return p;
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
     } catch (e) { return d.toISOString().slice(0, 10); }
   }
   function shiftISO(iso, days) {
     const [y, m, dd] = iso.split('-').map(Number);
-    const t = new Date(Date.UTC(y, m - 1, dd + days));
-    return t.toISOString().slice(0, 10);
+    return new Date(Date.UTC(y, m - 1, dd + days)).toISOString().slice(0, 10);
   }
   const TODAY = logicalTodayISO();
   let dayIso = TODAY;
-  let dayFellBack = false;
+  let dayData = null;
   const DAY_CACHE = {};
 
   function richText(node, text) {
@@ -423,48 +591,39 @@
     if (iso === TODAY) return 'Today';
     if (iso === shiftISO(TODAY, -1)) return 'Yesterday';
     const [y, m, d] = iso.split('-').map(Number);
-    const days = Math.round((Date.UTC(...TODAY.split('-').map((v, i) => i === 1 ? v - 1 : +v)) - Date.UTC(y, m - 1, d)) / 86400000);
-    return `${days} days ago`;
+    const [ty, tm, td] = TODAY.split('-').map(Number);
+    return `${Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / 86400000)} days ago`;
   }
 
-  const SVGNS = 'http://www.w3.org/2000/svg';
-  function drawChart(d) {
-    const svg = $('day-svg');
-    svg.replaceChildren();
-    const H = 160, lo = 40, hi = 170;
-    const y = (bpm) => H - ((Math.min(hi, Math.max(lo, bpm)) - lo) / (hi - lo)) * (H - 12) - 6;
-    (d.bands || []).forEach((b) => {
-      const x0 = Math.max(0, Math.min(1440, b.x0)), x1 = Math.max(0, Math.min(1440, b.x1));
-      if (x1 - x0 < 1) return;
-      const r = document.createElementNS(SVGNS, 'rect');
-      r.setAttribute('x', x0); r.setAttribute('y', 0); r.setAttribute('width', x1 - x0); r.setAttribute('height', H);
-      r.setAttribute('fill', b.kind === 'media' ? 'rgba(96,165,250,0.14)' : 'rgba(139,127,255,0.16)');
-      svg.appendChild(r);
-    });
-    const pts = (d.hr_series || []).filter((p) => p && p.x >= 0 && p.x <= 1440 && p.y);
-    if (pts.length > 1) {
-      const path = document.createElementNS(SVGNS, 'polyline');
-      path.setAttribute('points', pts.map((p) => `${p.x.toFixed(1)},${y(p.y).toFixed(1)}`).join(' '));
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', '#4ade80');
-      path.setAttribute('stroke-width', '2');
-      path.setAttribute('vector-effect', 'non-scaling-stroke');
-      path.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(path);
-    }
+  async function fetchDay(iso) {
+    if (DAY_CACHE[iso]) return DAY_CACHE[iso];
+    let d;
+    try { d = await (await fetch('/api/day-replay?day=' + encodeURIComponent(iso), { credentials: 'same-origin' })).json(); }
+    catch (e) { d = { has_data: false }; }
+    if (d && d.has_data && iso !== TODAY) DAY_CACHE[iso] = d;   // today keeps filling in
+    return d || { has_data: false };
   }
+
+  let rows = [];          // [{m, li}] for the playhead <-> timeline link
+  let dayTrace = null;    // {series, y}
+  const DAY_H = 160;
 
   function paintDay(iso, d) {
-    $('day-rel').textContent = relLabel(iso) + (dayFellBack && iso !== TODAY ? ' · today is still quiet' : '');
+    dayData = d;
+    $('day-rel').textContent = relLabel(iso);
     $('day-label').textContent = d.day || iso;
     $('day-next').disabled = iso >= TODAY;
     const tl = $('day-timeline');
     tl.replaceChildren();
     const stats = $('day-stats');
     stats.replaceChildren();
+    rows = [];
     if (!d.has_data) {
-      $('day-narration').textContent = 'Nothing recorded for this day.';
-      drawChart({});
+      $('day-narration').textContent = iso === TODAY ? 'Nothing recorded yet today — the ring hasn’t synced.' : 'Nothing recorded for this day.';
+      dayTrace = drawTrace($('day-svg'), {}, DAY_H, {});
+      $('playhead').classList.remove('on');
+      $('rd-time').textContent = '—'; $('rd-bpm').textContent = '—'; $('rd-what').textContent = '';
+      $('tl-rail').replaceChildren();
       return;
     }
     richText($('day-narration'), d.narration || d.facts || '');
@@ -479,33 +638,162 @@
     if (d.current) stat(iso === TODAY ? 'Now' : 'Last', `${d.current.bpm}`, d.current.clk);
     stat('Games', `${d.games_count || 0}`);
     stat('Watching', `${d.media_count || 0}`);
-    drawChart(d);
+    dayTrace = drawTrace($('day-svg'), d, DAY_H, { bands: true });
     (d.timeline || []).forEach((e) => {
       const li = el('li');
+      li.dataset.kind = e.kind || '';
       const body = el('div');
       body.append(el('div', 'tl-title', e.title), el('div', 'tl-detail', e.detail || ''));
-      li.append(el('span', 'tl-clk', e.clk || ''), el('span', 'tl-dot ' + (e.kind || '')), body);
+      li.append(el('span', 'tl-clk', e.clk || ''), body);
+      li.addEventListener('click', () => setPlayhead(e.x, false));
       tl.appendChild(li);
+      rows.push({ m: e.x, li, e });
+    });
+    requestAnimationFrame(drawRail);
+    const start = d.current ? d.current.x : (rows[0] ? rows[0].m : (dayTrace.series[0] || {}).x);
+    if (start != null) setPlayhead(start, true);
+  }
+
+  // The front door's vertical heart rail, drawn down the timeline: each HR
+  // point is placed between the rows it falls between, so the line bends
+  // through the events it was beating during.
+  const KIND_COLOR = { game: '#8B7FFF', media: '#60a5fa', unlock: '#FFB454', peak: '#f87171', wake: '#4ade80', sleep: '#4ade80' };
+  function drawRail() {
+    const svg = $('tl-rail');
+    svg.replaceChildren();
+    const series = dayTrace ? dayTrace.series : [];
+    if (!rows.length) return;
+    const list = $('day-timeline');
+    const H = list.offsetHeight;
+    svg.setAttribute('viewBox', `0 0 44 ${H}`);
+    svg.style.height = `${H}px`;
+    const pts = rows.map((r) => ({ m: r.m, y: r.li.offsetTop + 18 })).sort((a, b) => a.m - b.m);
+    const yOf = (m) => {
+      if (m <= pts[0].m) return Math.max(4, pts[0].y - (pts[0].m - m) * 0.6);
+      for (let i = 1; i < pts.length; i++) {
+        if (m <= pts[i].m) {
+          const a = pts[i - 1], b = pts[i];
+          return a.y + (b.y - a.y) * ((m - a.m) / Math.max(1e-6, b.m - a.m));
+        }
+      }
+      const z = pts[pts.length - 1];
+      return Math.min(H - 4, z.y + (m - z.m) * 0.6);
+    };
+    const ys = series.map((p) => p.y);
+    const lo = ys.length ? Math.min(...ys) : 60, hi = ys.length ? Math.max(...ys) : 100;
+    const xOf = (bpm) => 8 + ((bpm - lo) / Math.max(1, hi - lo)) * 28;
+    svg.appendChild(svgEl('line', { x1: 22, y1: 0, x2: 22, y2: H, class: 'rail-gap' }));
+    runs(series).forEach((run) => {
+      if (run.length < 2) return;
+      svg.appendChild(svgEl('polyline', { points: run.map((p) => `${xOf(p.y).toFixed(1)},${yOf(p.x).toFixed(1)}`).join(' '), class: 'rail' }));
+    });
+    rows.forEach((r) => {
+      const b = bpmAt(series, r.m);
+      svg.appendChild(svgEl('circle', { cx: b != null ? xOf(b) : 22, cy: r.li.offsetTop + 18, r: 4.5,
+        fill: KIND_COLOR[r.e.kind] || '#7a8494', stroke: '#0a0a0b', 'stroke-width': 2 }));
     });
   }
+
+  // One playhead for the chart, the reading and the timeline.
+  let activeRow = null;
+  function setPlayhead(m, fromScroll) {
+    if (!dayTrace) return;
+    m = Math.max(D0, Math.min(D1, m));
+    const ph = $('playhead');
+    const bpm = bpmAt(dayTrace.series, m);
+    ph.classList.add('on');
+    ph.style.left = `${((m - D0) / (D1 - D0)) * 100}%`;
+    ph.style.setProperty('--py', bpm != null ? `${(dayTrace.y(bpm) / DAY_H) * 100}%` : '-100%');
+    $('rd-time').textContent = clk(m);
+    $('rd-bpm').textContent = bpm != null ? String(bpm) : '—';
+    let row = null;
+    rows.forEach((r) => { if (r.m <= m + 2) row = r; });
+    $('rd-what').textContent = row ? row.e.title : '';
+    if (row !== activeRow) {
+      if (activeRow) activeRow.li.classList.remove('active');
+      if (row) row.li.classList.add('active');
+      activeRow = row;
+      if (row && !fromScroll) {
+        const wrap = $('tl-wrap');
+        const scroller = wrap.scrollHeight > wrap.clientHeight + 4 ? wrap : $('space-day');
+        if (scroller === wrap) wrap.scrollTop = Math.max(0, row.li.offsetTop - 60);
+      }
+    }
+  }
+
+  // Scrub: drag across the chart (touch-action:none keeps the space swipe out of it).
+  (function scrub() {
+    const chart = $('day-chart');
+    let dragging = false;
+    const at = (ev) => {
+      const r = chart.getBoundingClientRect();
+      return D0 + ((ev.clientX - r.left) / Math.max(1, r.width)) * (D1 - D0);
+    };
+    chart.addEventListener('pointerdown', (ev) => { dragging = true; chart.setPointerCapture(ev.pointerId); setPlayhead(at(ev), false); });
+    chart.addEventListener('pointermove', (ev) => { if (dragging) setPlayhead(at(ev), false); });
+    const end = () => { dragging = false; };
+    chart.addEventListener('pointerup', end);
+    chart.addEventListener('pointercancel', end);
+  })();
+
+  // Scroll the timeline -> the playhead walks to the event at the top.
+  (function follow() {
+    let t = null;
+    const onScroll = (ev) => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const sc = ev.target;
+        const top = sc.getBoundingClientRect().top + 40;
+        let hit = null;
+        rows.forEach((r) => { if (r.li.getBoundingClientRect().top <= top) hit = r; });
+        if (hit) setPlayhead(hit.m, true);
+      }, 60);
+    };
+    $('tl-wrap').addEventListener('scroll', onScroll, { passive: true });
+    $('space-day').addEventListener('scroll', onScroll, { passive: true });
+  })();
 
   let daySeq = 0;
   async function loadDay(iso, allowFallback) {
     const seq = ++daySeq;
     dayIso = iso;
-    let d = DAY_CACHE[iso];
-    if (!d) {
-      try { d = await (await fetch('/api/day-replay?day=' + encodeURIComponent(iso), { credentials: 'same-origin' })).json(); }
-      catch (e) { d = { has_data: false }; }
-      if (d && d.has_data) DAY_CACHE[iso] = d;
-    }
+    const d = await fetchDay(iso);
     if (seq !== daySeq) return;
     // Early in the day there's often nothing yet — show yesterday's full story instead.
-    if (allowFallback && !d.has_data && iso === TODAY) { dayFellBack = true; return loadDay(shiftISO(TODAY, -1), false); }
+    if (allowFallback && !d.has_data && iso === TODAY) return loadDay(shiftISO(TODAY, -1), false);
     paintDay(iso, d);
+  }
+  // The heartline wants the newest day that has a trace: today, else walk back.
+  async function loadHeart() {
+    for (let i = 0; i < 4; i++) {
+      const iso = shiftISO(TODAY, -i);
+      const d = await fetchDay(iso);
+      if (seriesOf(d).length) { heartDay = d; heartIso = iso; break; }
+    }
+    paintHeart();
   }
   $('day-prev').addEventListener('click', () => loadDay(shiftISO(dayIso, -1)));
   $('day-next').addEventListener('click', () => { if (dayIso < TODAY) loadDay(shiftISO(dayIso, 1)); });
+  // Swipe the date header to change day (the header opts out of the space swipe).
+  (function daySwipe() {
+    const nav = document.querySelector('.day-nav');
+    let x0 = null, y0 = null;
+    nav.addEventListener('pointerdown', (ev) => { x0 = ev.clientX; y0 = ev.clientY; });
+    nav.addEventListener('pointerup', (ev) => {
+      if (x0 == null) return;
+      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      x0 = null;
+      if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+      if (dx > 0) loadDay(shiftISO(dayIso, -1)); else if (dayIso < TODAY) loadDay(shiftISO(dayIso, 1));
+    });
+  })();
+  window.addEventListener('keydown', (ev) => {
+    const cur = tabs.find((t) => t.getAttribute('aria-current') === 'true');
+    if (!cur || cur.dataset.space !== 'day') return;
+    if (ev.key === 'ArrowLeft') loadDay(shiftISO(dayIso, -1));
+    if (ev.key === 'ArrowRight' && dayIso < TODAY) loadDay(shiftISO(dayIso, 1));
+  });
+  window.addEventListener('resize', () => requestAnimationFrame(drawRail));
 
   // ═══════════════════════ Idle (ambient) ═══════════════════════
   const idleAllowed = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) ||
@@ -537,6 +825,8 @@
     timers.push(setInterval(tickClock, 15000));
     timers.push(setInterval(loadLights, LIGHTS_POLL_MS));
     timers.push(setInterval(loadState, STATE_POLL_MS));
+    timers.push(setInterval(() => { delete DAY_CACHE[TODAY]; loadHeart(); }, 5 * 60 * 1000));
+    timers.push(setInterval(paintHeart, 60 * 1000));   // keep 'n min ago' + the live/stale beat honest
   }
   function stop() { timers.forEach(clearInterval); timers = []; }
   document.addEventListener('visibilitychange', () => {
@@ -547,6 +837,7 @@
   renderModes();
   loadAuth();
   loadDay(TODAY, true);
+  loadHeart();
   wake();
   if (document.visibilityState === 'visible') start();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

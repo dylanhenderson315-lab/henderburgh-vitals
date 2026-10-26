@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=4">
+<link rel="stylesheet" href="/static/hub.css?v=6">
 </head>
 <body>
 <!-- HENDERBURGH HUB
@@ -30,6 +30,8 @@
 <header class="bar">
   <a class="bar-brand" href="/hub" aria-label="Henderburgh hub">HENDERBURGH</a>
   <span class="hb-dot hb-dot-off" id="fresh-dot" title="Live data status"></span>
+  <span class="tick" id="tick-hr" title="Heart rate"><i class="beat" id="tick-beat"></i><b id="tick-bpm">—</b> bpm</span>
+  <span class="tick tick-steps"><b id="tick-steps">—</b> steps</span>
   <nav class="tabs" id="tabs" aria-label="Spaces">
     <button type="button" data-space="now" aria-current="true">Now</button>
     <button type="button" data-space="day">Day</button>
@@ -38,6 +40,7 @@
     <button type="button" data-space="all">Everything</button>
   </nav>
   <span class="bar-time" id="bar-time"></span>
+  <div class="light-strip" id="light-strip" aria-hidden="true"></div>
 </header>
 
 <main class="spaces" id="spaces">
@@ -49,6 +52,21 @@
         <p class="hero-eyebrow hb-label" id="hero-eyebrow">Personal OS · Live</p>
         <h1 class="hero-line"><span class="hero-dot" id="hero-dot"></span>Henderburgh is <span class="hero-state" id="hero-state">here</span>.</h1>
         <p class="hero-sub" id="hero-sub">Live from the house.</p>
+        <!-- The heartline: the body as a live signal. Today's trace (or the
+             last day the ring synced, labelled as such), the day's games and
+             shows shaded in, and a dot that beats at the real bpm only while
+             the reading is fresh. -->
+        <button class="heartline" type="button" data-go="day" id="heartline" aria-label="Heart rate — open the day">
+          <span class="hl-head">
+            <span class="hb-label" id="hl-label">Heart</span>
+            <span class="hl-now"><b class="num" id="hl-bpm">—</b><small>bpm</small></span>
+          </span>
+          <span class="hl-plot">
+            <svg id="hl-svg" viewBox="240 0 1440 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <i class="hl-dot" id="hl-dot" hidden></i>
+          </span>
+          <span class="hl-foot"><span id="hl-foot">—</span><span class="hl-axis"><span>4a</span><span>10a</span><span>4p</span><span>10p</span><span>4a</span></span></span>
+        </button>
         <div class="hero-clock" id="clock">--:--</div>
         <p class="hero-date" id="date"></p>
         <div class="wx-row">
@@ -106,12 +124,25 @@
         </div>
         <p class="day-narration" id="day-narration">Loading the day…</p>
         <div class="day-stats" id="day-stats"></div>
-        <figure class="day-chart">
-          <svg id="day-svg" viewBox="0 0 1440 160" preserveAspectRatio="none" aria-label="Heart rate across the day"></svg>
-          <figcaption class="day-axis"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></figcaption>
+        <!-- One playhead, two views: drag across the trace and the timeline
+             follows; scroll the timeline and the playhead walks the trace. -->
+        <div class="reading" id="reading" aria-live="polite">
+          <span class="hb-label">Reading</span>
+          <span class="rd-time num" id="rd-time">—</span>
+          <span class="rd-bpm"><b class="num" id="rd-bpm">—</b> bpm</span>
+          <span class="rd-what" id="rd-what"></span>
+        </div>
+        <figure class="day-chart" id="day-chart">
+          <svg id="day-svg" viewBox="240 0 1440 160" preserveAspectRatio="none" aria-label="Heart rate across the day — drag to scrub"></svg>
+          <i class="playhead" id="playhead"></i>
+          <figcaption class="day-axis"><span>4a</span><span>10a</span><span>4p</span><span>10p</span><span>4a</span></figcaption>
         </figure>
+        <p class="faint day-hint">Drag along the line to scrub the day · swipe the date or use ← → to change days</p>
       </div>
-      <ol class="timeline" id="day-timeline" aria-label="Moments"></ol>
+      <div class="tl-wrap" id="tl-wrap">
+        <svg class="tl-rail" id="tl-rail" aria-hidden="true"></svg>
+        <ol class="timeline" id="day-timeline" aria-label="Moments"></ol>
+      </div>
     </div>
   </section>
 
@@ -194,12 +225,17 @@
 <div class="ambient" id="ambient" aria-hidden="true">
   <div class="ambient-clock" id="ambient-clock">--:--</div>
   <p class="ambient-line" id="ambient-line"></p>
+  <div class="ambient-heart">
+    <svg id="amb-svg" viewBox="240 0 1440 100" preserveAspectRatio="none"></svg>
+    <i class="hl-dot" id="amb-dot" hidden></i>
+  </div>
+  <p class="ambient-bpm" id="ambient-bpm"></p>
 </div>
 
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
 <script src="/static/streaming-services.js?v=2"></script>
 <script src="/static/streaming.js?v=4"></script>
-<script src="/static/hub.js?v=2"></script>
+<script src="/static/hub.js?v=4"></script>
 </body>
 </html>
