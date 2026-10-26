@@ -2156,11 +2156,11 @@ async def api_hub_state(request: Request):
         "music": music,
         "xbox": {k: (xb or {}).get(k) for k in ("status", "state", "game", "kind", "playing_now")} if xb else None,
         "vitals": {"hr": metrics.get("latest_hr"), "hr_age_minutes": metrics.get("hr_age_minutes"),
+                   "hr_timestamp": metrics.get("latest_hr_timestamp"),
                    "steps": metrics.get("steps"), "readiness": readiness},
         "blog": {"latest": latest_post, "unread": unread},
         "golf": latest_round,
         "clips": clips,
-        "work_hours": xbox.in_work_hours(now),
     }
 
 

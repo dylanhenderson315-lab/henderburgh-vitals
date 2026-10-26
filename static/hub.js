@@ -225,8 +225,8 @@
     else $('now-suggest').replaceChildren(...contextCard());
     $('card-suggest').hidden = !$('now-suggest').childElementCount;
   }
-  // When no lighting routine fits the hour, "Right now" shows what does:
-  // Intake Desk in work hours, otherwise what the M-1 panel is showing.
+  // When no lighting routine fits the hour, "Right now" shows what the M-1
+  // panel is doing. (Nothing work-related lives on this site — owner rule.)
   function contextCard() {
     const d = lastState || {};
     const link = (href, name, sub) => {
@@ -235,7 +235,6 @@
       a.append(el('span', 'ctx-name', name), el('span', 'ctx-sub', sub));
       return [a];
     };
-    if (d.work_hours) return link('http://192.168.40.203:8080', 'Intake Desk', 'Work hours · owed by me, owed to me');
     if (d.arcade && d.arcade.mode) return link('/arcade', `Arcade · ${cap(d.arcade.mode)}`, 'The M-1 panel — change mode');
     return [];
   }
@@ -422,8 +421,8 @@
     });
     setLaunch('ln-clips', d.clips && d.clips[0] && d.clips[0].title ? d.clips[0].title : null);
 
-    document.body.classList.toggle('work', !!d.work_hours);
     renderModes();
+    paintHeart();
     openForContext(d);
   }
 
@@ -539,15 +538,25 @@
     const isToday = heartIso === TODAY;
     const age = last && isToday ? nowMinute() - last.x : null;
     const fresh = age != null && age >= 0 && age <= 30;
-    const bpm = last ? last.y : null;
 
-    const lbl = !d ? 'Heart' : isToday ? 'Heart · today' : `Heart · ${relLabel(heartIso).toLowerCase()}`;
-    $('hl-label').textContent = lbl;
+    // The big number is always the NEWEST reading the house has: a live trace
+    // from today wins; otherwise the vitals snapshot (often newer than the
+    // last day's trace). The line stays labelled as the day it came from.
+    const v = (lastState && lastState.vitals) || {};
+    const vTs = v.hr_timestamp ? Date.parse(v.hr_timestamp) : NaN;
+    const vAge = Number.isFinite(vTs) ? (Date.now() - vTs) / 60000 : (v.hr_age_minutes != null ? v.hr_age_minutes : null);
+    const useVitals = v.hr != null && !(isToday && fresh);
+    const bpm = useVitals ? v.hr : (last ? last.y : null);
+    const bpmFresh = useVitals ? (vAge != null && vAge <= 30) : fresh;
+    const when = useVitals
+      ? (Number.isFinite(vTs) ? new Date(vTs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '')
+      : (last ? clk(last.x) : '');
+
+    $('hl-label').textContent = !d ? 'Heart' : isToday ? 'Heart · today' : `Heart · trace from ${relLabel(heartIso).toLowerCase()}`;
     $('hl-bpm').textContent = bpm != null ? String(bpm) : '—';
-    $('hl-foot').textContent = !last ? 'No ring data yet.' :
-      fresh ? `Live · last reading ${clk(last.x)}` :
-      isToday ? `Last reading ${clk(last.x)} · ${Math.round(age)} min ago` :
-      `The ring hasn’t synced today — showing ${relLabel(heartIso).toLowerCase()}, last ${clk(last.x)}`;
+    $('hl-foot').textContent = bpm == null ? 'No ring data yet.' :
+      bpmFresh ? `Live · ${bpm} bpm at ${when}` :
+      `Latest ${bpm} bpm${when ? ` at ${when}` : ''}${d && !isToday ? ' · no trace synced today yet' : ''}`;
 
     const H = 100;
     const { y } = drawTrace($('hl-svg'), d || {}, H, { bands: true });
@@ -556,11 +565,13 @@
       placeDot($('hl-dot'), last.x, y(last.y), H, fresh, bpm);
       placeDot($('amb-dot'), last.x, amb.y(last.y), H, fresh, bpm);
     } else { $('hl-dot').hidden = true; $('amb-dot').hidden = true; }
-    $('ambient-bpm').textContent = bpm != null ? `${bpm} bpm${fresh ? '' : ` · ${clk(last.x)}`}` : '';
+    $('ambient-bpm').textContent = bpm != null ? `${bpm} bpm${bpmFresh || !when ? '' : ` · ${when}`}` : '';
 
+    // The bar's beat follows the newest reading; the trace dot only beats when
+    // the trace itself is live (today + fresh), so an old line never pretends.
     const beat = $('tick-beat');
-    beat.className = 'beat ' + (fresh ? 'live' : last ? 'stale' : '');
-    if (fresh) beat.style.setProperty('--beat', `${(60 / bpm).toFixed(2)}s`);
+    beat.className = 'beat ' + (bpmFresh ? 'live' : bpm != null ? 'stale' : '');
+    if (bpmFresh) beat.style.setProperty('--beat', `${(60 / bpm).toFixed(2)}s`);
   }
 
   // ═══════════════════════ Day (the front door's story) ═══════════════════════

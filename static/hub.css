@@ -341,8 +341,6 @@ button.card:active, a.card:active{ transform:scale(0.985); transition-duration:v
 .launch-quote.live::before{ display:none; }
 .clip-strip{ display:flex; gap:4px; order:-1; margin-bottom:auto; }
 .clip-strip img, .clip-strip video{ width:44px; height:44px; object-fit:cover; border-radius:var(--r-sm); background:var(--surface-2); }
-.work-only{ display:none; }
-body.work .work-only{ display:flex; }
 .poke-row{ display:flex; align-items:center; gap:var(--s-4); margin-top:var(--s-6); }
 
 /* ═════════════════════════ AMBIENT (idle) ═════════════════════════ */
