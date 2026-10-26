@@ -54,6 +54,11 @@ WHERE = [
     (r"^netflix$", "netflix"),
     (r"^(apple tv\+?|apple tv|mls season pass)$", "appletv"),
     (r"^(youtube|youtube tv)$", "youtube"),
+    # free + legal (ad-supported)
+    (r"^tubi$", "tubi"),
+    (r"^pluto ?tv$", "pluto"),
+    (r"^the roku channel$", "roku"),
+    (r"^plex$", "plex"),
 ]
 NATIONAL = re.compile(r"^(espn|espn2|abc|fox|nbc|cbs|tnt|tbs|truTV|prime video|netflix|peacock|nfl net|nfl network|fs1)$", re.I)
 
@@ -355,6 +360,10 @@ APP_LINKS = {
     "paramount": ("Paramount+", "https://www.paramountplus.com"),
     "youtube": ("YouTube", "https://www.youtube.com"),
     "appletv": ("Apple TV+", "https://tv.apple.com"),
+    "tubi": ("Tubi", "https://tubitv.com"),
+    "pluto": ("Pluto TV", "https://pluto.tv"),
+    "roku": ("The Roku Channel", "https://therokuchannel.roku.com"),
+    "plex": ("Plex", "https://watch.plex.tv"),
 }
 OTA = re.compile(r"^(fox|nbc|cbs|abc|the cw|pbs)$", re.I)
 ALERT_TTL = 2 * 3600

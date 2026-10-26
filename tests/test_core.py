@@ -507,3 +507,11 @@ def test_watch_put_endpoint(monkeypatch):
     assert client.get(f"/api/watch/put?t={tok}").status_code == 200 and not calls        # GET never touches the TV
     assert client.post(f"/api/watch/put?t={tok}").status_code == 200
     assert calls[-1] == ("remote", "turn_on", "remote.smart_tv", {"activity": "https://www.espn.com/watch/"})
+
+
+def test_watch_free_legal_apps_map():
+    from services import watch
+
+    assert watch.apps_for(["Tubi"], sports=False) == ["tubi"]
+    assert watch.apps_for(["Pluto TV"], sports=False) == ["pluto"]
+    assert set(["tubi", "pluto", "roku", "plex"]) <= set(watch.APP_LINKS)

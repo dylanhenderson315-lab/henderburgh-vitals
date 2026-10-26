@@ -109,13 +109,17 @@
     tv = tv || selectedTv();
     if (!s || !s.tv || !tv) return;
     toast(`Opening ${s.name} on ${tv.name}…`);
+    const before = (tvs.find((t) => t.entity_id === tv.entity_id) || {}).app;
     try { await post('/api/media/launch', { tv: tv.entity_id, app: s.tv }); }
     catch (e) { toast(e.message, 'err'); return; }
     for (let i = 0; i < 6; i++) {
       await new Promise((r) => setTimeout(r, 1500));
       await loadTvs();
       const now = tvs.find((t) => t.entity_id === tv.entity_id);
-      if (now && now.app === s.pkg) { toast(`${s.name} is on ${tv.name}`, 'ok'); return; }
+      // Known package: it must match. Unknown (the free apps): the TV must
+      // at least have left what it was showing.
+      const landed = now && (s.pkg ? now.app === s.pkg : now.app && now.app !== before && !/tvcenter|com\.tcl\.tv$|launcher|dreamx/i.test(now.app));
+      if (landed) { toast(`${s.name} is on ${tv.name}`, 'ok'); return; }
     }
     toast(`${tv.name} didn’t switch to ${s.name} — is it installed on that TV?`, 'err');
   }
@@ -382,6 +386,7 @@
       b.type = 'button';
       b.style.setProperty('--tint', s.tint);
       b.textContent = s.name;
+      if (s.free) b.appendChild(el('span', 'app-free', 'Free'));
       b.addEventListener('click', () => {
         const tv = selectedTv();
         if (tv && canControl && s.tv) launch(s.key, tv);

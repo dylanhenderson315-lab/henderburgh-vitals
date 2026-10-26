@@ -23,6 +23,13 @@
     { key: 'youtube',   name: 'YouTube',          tint: '255,0,0',     open: 'https://www.youtube.com',             tv: 'https://www.youtube.com', pkg: 'com.google.android.youtube.tv',          perk: true,  confirmed: false },
     { key: 'ytmusic',   name: 'YouTube Music',    tint: '255,40,40',   open: 'https://music.youtube.com',           tv: 'https://music.youtube.com', pkg: 'com.google.android.youtube.tvmusic',     perk: true,  confirmed: false },
     { key: 'applemusic',name: 'Apple Music',      tint: '250,45,85',   open: 'https://music.apple.com',             tv: null,                                     perk: true,  confirmed: false },
+    // Free, legal, ad-supported (FMHY's "Free w/ Ads" list — the legal part of
+    // that directory). Packages unconfirmed on these TVs, so a launch is
+    // confirmed by the TV changing apps rather than by a package match.
+    { key: 'tubi',      name: 'Tubi',             tint: '255,80,30',   open: 'https://tubitv.com',                  tv: 'https://tubitv.com', pkg: null, free: true, perk: false, confirmed: false },
+    { key: 'pluto',     name: 'Pluto TV',         tint: '255,230,0',   open: 'https://pluto.tv/live-tv',            tv: 'https://pluto.tv', pkg: null, free: true, perk: false, confirmed: false },
+    { key: 'roku',      name: 'The Roku Channel', tint: '110,40,200',  open: 'https://therokuchannel.roku.com',     tv: 'https://therokuchannel.roku.com', pkg: null, free: true, perk: false, confirmed: false },
+    { key: 'plex',      name: 'Plex',             tint: '229,160,13',  open: 'https://watch.plex.tv',               tv: 'https://watch.plex.tv', pkg: null, free: true, perk: false, confirmed: false },
     { key: 'appletv',   name: 'Apple TV+',        tint: '200,200,210', open: 'https://tv.apple.com',                tv: 'https://tv.apple.com', pkg: 'com.apple.atve.androidtv.appletv',       perk: false, confirmed: false },
   ];
 
