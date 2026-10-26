@@ -46,7 +46,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import ambient, home_assistant, persistence, push, state, vitals, watch, xbox
+from services import ambient, home_assistant, persistence, push, sky, state, vitals, watch, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -2199,9 +2199,9 @@ async def api_hub_state(request: Request):
         except Exception:
             return None
 
-    arcade, calendar, music, xb, lights, readiness = await asyncio.gather(
+    arcade, calendar, music, xb, lights, readiness, sun = await asyncio.gather(
         _arcade_state(), ambient.upcoming_events(), ambient.music_now(), _xbox(),
-        home_assistant.get_ha_summary(), _readiness())
+        home_assistant.get_ha_summary(), _readiness(), sky.today())
     metrics = vitals.snapshot_home_metrics()
 
     latest_post, unread = None, 0
@@ -2244,6 +2244,7 @@ async def api_hub_state(request: Request):
         "blog": {"latest": latest_post, "unread": unread},
         "golf": latest_round,
         "clips": clips,
+        "sun": sun,
     }
 
 

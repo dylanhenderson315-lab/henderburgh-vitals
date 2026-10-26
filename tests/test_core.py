@@ -529,3 +529,14 @@ def test_watch_find_teams_and_shows(monkeypatch):
     assert [t["abbr"] for t in watch._match_teams(index, "panthers")] == ["CAR"]
     assert [t["abbr"] for t in watch._match_teams(index, "gb")] == ["GB"]
     assert watch._match_teams(index, "xx") == []
+
+
+def test_sunset_matches_myrtle_beach():
+    from datetime import date
+    from zoneinfo import ZoneInfo
+    from services.sky import sun_times
+
+    et = ZoneInfo("America/New_York")
+    t = sun_times(33.73, -78.90, date(2026, 10, 26))
+    assert t["sunset"].astimezone(et).strftime("%H:%M") in ("18:29", "18:30", "18:31")
+    assert t["sunrise"].astimezone(et).strftime("%H:%M") in ("07:27", "07:28", "07:29")

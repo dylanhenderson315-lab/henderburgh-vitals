@@ -40,10 +40,15 @@
   const indexOf = (key) => Math.max(0, spaces.findIndex((s) => s.dataset.space === key));
   let userMoved = false;
 
+  let settling = false;   // ignore scroll events while a programmatic jump lands
   function goTo(key, instant) {
     const i = indexOf(key);
+    settling = true;
     track.scrollTo({ left: i * track.clientWidth, behavior: instant ? 'instant' : 'smooth' });
     markTab(key);
+    // On first load the layout may not be final yet: re-apply once it is.
+    if (instant) requestAnimationFrame(() => { track.scrollTo({ left: i * track.clientWidth, behavior: 'instant' }); markTab(key); });
+    setTimeout(() => { settling = false; }, instant ? 120 : 700);
   }
   function markTab(key) {
     tabs.forEach((t) => t.setAttribute('aria-current', String(t.dataset.space === key)));
@@ -55,6 +60,7 @@
   track.addEventListener('scroll', () => {
     clearTimeout(scrollT);
     scrollT = setTimeout(() => {
+      if (settling) return;
       const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
       if (spaces[i]) markTab(spaces[i].dataset.space);
     }, 80);
@@ -112,7 +118,15 @@
     'desk-on': 'rgba(139,127,255,0.30)', 'meeting': 'rgba(255,180,84,0.18)', 'evening': 'rgba(255,180,84,0.30)',
     'bedtime': 'rgba(248,113,113,0.22)', 'lights-out': 'rgba(255,255,255,0.03)',
   };
-  function suggestedMode(h) { return h >= 17 && h < 21 ? 'evening' : (h >= 21 || h < 5) ? 'bedtime' : null; }
+  // Evening follows the real sky: from half an hour before sunset (or 5 PM
+  // when the sun time isn't known) until 9; Bedtime from 9 until 5.
+  let sunInfo = null;
+  function suggestedMode(h) {
+    const now = new Date();
+    if (h >= 21 || h < 5) return 'bedtime';
+    const eveningFrom = sunInfo && sunInfo.sunset ? new Date(Date.parse(sunInfo.sunset) - 30 * 60000) : (() => { const d = new Date(); d.setHours(17, 0, 0, 0); return d; })();
+    return now >= eveningFrom && h < 21 ? 'evening' : null;
+  }
 
   function avgRgb(lights) {
     const lit = lights.filter((l) => l.state === 'on');
@@ -156,8 +170,16 @@
       name.append(el('span', 'hb-dot ' + (shown > 0 ? '' : 'hb-dot-off')), document.createTextNode(r.name));
       b.append(name, el('span', 'room-count', shown > 0 ? `${shown} of ${r.total} on` : 'off'));
       b.addEventListener('click', () => toggleRoom(r));
-      wrap.appendChild(b);
+      const cell = el('div', 'room-cell');
+      const adj = el('button', 'room-adj', 'Adjust');
+      adj.type = 'button';
+      adj.disabled = !canControl;
+      adj.setAttribute('aria-label', `Adjust ${r.name}`);
+      adj.addEventListener('click', () => openRoom(r.name));
+      cell.append(b, adj);
+      wrap.appendChild(cell);
     });
+    if (openRoomName) renderRoomSheet();
     $('lights-on').textContent = String(on);
     $('lights-of').textContent = `of ${total} lights on`;
     $('house-on').textContent = String(on);
@@ -262,6 +284,80 @@
     catch (e) { flash(`${r.name}: ${e.message}`, 'err'); }
     setTimeout(() => { pending.delete(r.name); loadLights(); }, 1200);
   }
+  // ── Room adjust sheet ──
+  // Presets are plain light states (warmth / colour + brightness), not modes:
+  // modes stay the owner's data-backed routines in house-modes.js.
+  const PRESETS = [
+    { name: 'Warm', sub: '2700K', p: { color_temp_kelvin: 2700, brightness_pct: 80 } },
+    { name: 'Soft', sub: 'dim warm', p: { color_temp_kelvin: 2200, brightness_pct: 35 } },
+    { name: 'Daylight', sub: '5000K', p: { color_temp_kelvin: 5000, brightness_pct: 100 } },
+    { name: 'Red', sub: 'game', p: { rgb_color: [255, 30, 20] }, sw: '255,30,20' },
+    { name: 'Ocean', sub: 'blue', p: { rgb_color: [20, 90, 255] }, sw: '20,90,255' },
+    { name: 'Violet', sub: 'purple', p: { rgb_color: [139, 80, 255] }, sw: '139,80,255' },
+  ];
+  let openRoomName = null;
+  function roomLights(name) {
+    return ((lightsData.lights_by_room || {})[name] || []).filter((l) => !l.is_sync);
+  }
+  function rsMsg(t, kind) { const m = $('rs-msg'); m.className = 'msg' + (kind ? ' ' + kind : ''); m.textContent = t; }
+  function renderRoomSheet() {
+    const lights = roomLights(openRoomName);
+    const lit = lights.filter((l) => l.state === 'on' && l.brightness != null);
+    const pct = lit.length ? Math.round(lit.reduce((a, l) => a + l.brightness, 0) / lit.length / 2.55) : 0;
+    const range = $('rs-range');
+    if (document.activeElement !== range) { range.value = String(pct || 50); $('rs-pct').textContent = lit.length ? `${pct}%` : 'Off'; }
+    range.disabled = !canControl;
+    const list = $('rs-lights');
+    list.replaceChildren();
+    lights.forEach((l) => {
+      const b = el('button', 'rs-light' + (l.state === 'on' ? ' on' : ''));
+      b.type = 'button';
+      b.disabled = !canControl || l.state === 'unavailable';
+      if (Array.isArray(l.rgb_color)) b.style.setProperty('--room-rgb', l.rgb_color.slice(0, 3).join(','));
+      b.append(el('span', 'hb-dot ' + (l.state === 'on' ? '' : 'hb-dot-off')), el('span', null, l.friendly_name || l.entity_id),
+        el('span', 'faint', l.state === 'unavailable' ? 'unreachable' : l.state === 'on' ? `${Math.round((l.brightness || 0) / 2.55)}%` : 'off'));
+      b.addEventListener('click', async () => {
+        try { await callService(l.state === 'on' ? 'turn_off' : 'turn_on', [l.entity_id]); } catch (e) { rsMsg(e.message, 'err'); }
+        setTimeout(loadLights, 700);
+      });
+      list.appendChild(b);
+    });
+  }
+  function openRoom(name) {
+    if (!canControl) return;
+    openRoomName = name;
+    $('rs-title').textContent = name;
+    rsMsg('');
+    const pre = $('rs-presets');
+    pre.replaceChildren(...PRESETS.map((p) => {
+      const b = el('button', 'preset');
+      b.type = 'button';
+      if (p.sw) b.style.setProperty('--sw', p.sw);
+      else b.style.setProperty('--sw', p.p.color_temp_kelvin <= 2700 ? '255,180,90' : p.p.color_temp_kelvin >= 5000 ? '220,235,255' : '255,220,170');
+      b.append(el('i', 'preset-sw'), el('b', null, p.name), el('span', 'faint', p.sub));
+      b.addEventListener('click', async () => {
+        const ids = roomLights(openRoomName).filter((l) => l.state !== 'unavailable').map((l) => l.entity_id);
+        try { await callService('turn_on', ids, { transition: 0.4, ...p.p }); rsMsg(`${p.name} set`, 'ok'); }
+        catch (e) { rsMsg(e.message, 'err'); }
+        setTimeout(loadLights, 700);
+      });
+      return b;
+    }));
+    renderRoomSheet();
+    $('room-sheet').hidden = false;
+  }
+  function closeRoom() { openRoomName = null; $('room-sheet').hidden = true; }
+  $('rs-close').addEventListener('click', closeRoom);
+  $('room-sheet').addEventListener('click', (ev) => { if (ev.target === $('room-sheet')) closeRoom(); });
+  window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeRoom(); });
+  $('rs-range').addEventListener('input', () => { $('rs-pct').textContent = `${$('rs-range').value}%`; });
+  $('rs-range').addEventListener('change', async () => {
+    const ids = roomLights(openRoomName).filter((l) => l.state !== 'unavailable').map((l) => l.entity_id);
+    try { await callService('turn_on', ids, { transition: 0.4, brightness_pct: Number($('rs-range').value) }); rsMsg(''); }
+    catch (e) { rsMsg(e.message, 'err'); }
+    setTimeout(loadLights, 700);
+  });
+
   async function loadLights() {
     try {
       const data = await (await fetch('/api/ha/lights-data', { credentials: 'same-origin' })).json();
@@ -324,7 +420,19 @@
     $('wx-temp').textContent = w && w.temperature != null ? `${Math.round(w.temperature)}${w.temperature_unit || '°'}` : '—';
     $('wx-cond').textContent = w ? cap(w.condition) : '—';
     $('wx-hum').textContent = w && w.humidity != null ? `${Math.round(w.humidity)}%` : '—';
-    $('wx-wind').textContent = w && w.wind_speed != null ? `${Math.round(w.wind_speed)} ${w.wind_speed_unit || ''}`.trim() : '—';
+    // The next sun event, from the house's own coordinates (services/sky.py).
+    sunInfo = d.sun || null;
+    if (sunInfo) {
+      const up = sunInfo.is_day;
+      const t = new Date(up ? sunInfo.sunset : sunInfo.sunrise);
+      const label = up ? 'Sunset' : (new Date() < new Date(sunInfo.sunrise) ? 'Sunrise' : 'Sunrise tmrw');
+      $('wx-sun-label').textContent = label;
+      $('wx-sun').textContent = t.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } else {
+      $('wx-sun-label').textContent = 'Wind';
+      $('wx-sun').textContent = w && w.wind_speed != null ? `${Math.round(w.wind_speed)} ${w.wind_speed_unit || ''}`.trim() : '—';
+    }
+    renderModes();
 
     // On TV
     const rows = $('tv-rows');
@@ -514,10 +622,32 @@
       list.appendChild(row);
     });
   }
+  // The live game rides along everywhere: a compact ticker in the bar and a
+  // big score on the idle screen — like a Live Activity on the lock screen.
+  function renderLiveActivity(t) {
+    const g = (t.live || []).filter(watchable)[0];
+    const bar = $('bar-live'), amb = $('amb-live');
+    bar.hidden = !g; amb.hidden = !g;
+    bar.replaceChildren(); amb.replaceChildren();
+    if (!g) return;
+    const [a, b] = g.teams;
+    const chip = (tm) => { const i = el('i', 'bl-dot'); i.style.background = hexc(tm.color); return i; };
+    bar.classList.toggle('hot', !!g.close);
+    bar.append(chip(a), el('b', null, `${a.abbr} ${a.score}`), el('span', 'bl-sep', '–'), el('b', null, `${b.score} ${b.abbr}`), chip(b),
+      el('span', 'bl-clock', g.detail || ''));
+    const side = (tm) => {
+      const box = el('div', 'al-side');
+      box.style.setProperty('--tc', hexc(tm.color));
+      box.append(el('span', 'al-abbr', tm.abbr), el('span', 'al-score num', String(tm.score ?? '')));
+      return box;
+    };
+    amb.append(side(a), el('div', 'al-mid', g.close ? `${g.close}\n${g.detail || ''}` : g.detail || 'Live'), side(b));
+  }
   window.addEventListener('hb:tonight', (ev) => {
     const t = ev.detail || {};
     renderOnNow(t);
     renderLater(t);
+    renderLiveActivity(t);
     // A big live game pulls a freshly opened hub to Watch.
     const bigLive = (t.live || []).some((g) => g.score >= 120);
     if (bigLive && !userMoved && Date.now() - loadedAt < 6000) { goTo('watch'); userMoved = true; }

@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=16">
+<link rel="stylesheet" href="/static/hub.css?v=18">
 </head>
 <body>
 <!-- HENDERBURGH HUB
@@ -39,6 +39,8 @@
     <button type="button" data-space="watch">Watch</button>
     <button type="button" data-space="all">Everything</button>
   </nav>
+  <!-- Live game, Live-Activity style: appears only while a watchable game is on. -->
+  <button class="bar-live" id="bar-live" type="button" data-scene="sports" hidden aria-label="Live game — open Sports"></button>
   <span class="bar-time" id="bar-time"></span>
   <div class="light-strip" id="light-strip" aria-hidden="true"></div>
 </header>
@@ -73,7 +75,7 @@
           <div class="wx"><span class="hb-label">Outside</span><span class="wx-val" id="wx-temp">—</span></div>
           <div class="wx"><span class="hb-label">Sky</span><span class="wx-val" id="wx-cond">—</span></div>
           <div class="wx"><span class="hb-label">Humidity</span><span class="wx-val" id="wx-hum">—</span></div>
-          <div class="wx"><span class="hb-label">Wind</span><span class="wx-val" id="wx-wind">—</span></div>
+          <div class="wx"><span class="hb-label" id="wx-sun-label">Sunset</span><span class="wx-val" id="wx-sun">—</span></div>
         </div>
       </article>
 
@@ -306,6 +308,31 @@
   </div>
 </div>
 
+<!-- Room adjust: brightness + presets + each light, for one room. -->
+<div class="sheet" id="room-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="rs-title">
+  <div class="sheet-panel room-panel">
+    <header class="sheet-head">
+      <div><span class="hb-label">Room</span><h2 class="sheet-title" id="rs-title">Room</h2></div>
+      <button class="key" type="button" id="rs-close">Done</button>
+    </header>
+    <div class="sheet-body rs-body">
+      <div class="rs-bright">
+        <div class="wsec-head"><span class="hb-label">Brightness</span><b class="num" id="rs-pct">—</b></div>
+        <input type="range" min="1" max="100" step="1" id="rs-range" aria-label="Room brightness">
+      </div>
+      <div>
+        <div class="wsec-head"><span class="hb-label">Presets</span></div>
+        <div class="presets" id="rs-presets"></div>
+      </div>
+      <div>
+        <div class="wsec-head"><span class="hb-label">Lights</span></div>
+        <div class="rs-lights" id="rs-lights"></div>
+      </div>
+      <p class="msg" id="rs-msg" role="status"></p>
+    </div>
+  </div>
+</div>
+
 <!-- Idle: after a quiet minute on a home-screen install (or ?kiosk=1), the hub
      settles into a dim ambient clock — StandBy for the house. Any touch wakes it. -->
 <div class="ambient" id="ambient" aria-hidden="true">
@@ -316,12 +343,13 @@
     <i class="hl-dot" id="amb-dot" hidden></i>
   </div>
   <p class="ambient-bpm" id="ambient-bpm"></p>
+  <div class="ambient-live" id="amb-live" hidden></div>
 </div>
 
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
 <script src="/static/streaming-services.js?v=5"></script>
-<script src="/static/hub.js?v=16"></script>
+<script src="/static/hub.js?v=19"></script>
 <script src="/static/watch.js?v=9"></script>
 </body>
 </html>
