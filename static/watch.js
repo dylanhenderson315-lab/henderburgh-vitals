@@ -85,6 +85,7 @@
       });
       wrap.appendChild(b);
     });
+    if (openScene) sceneTvs();
     const tv = selectedTv();
     $('remote').hidden = !canControl || !tv;
     $('watch-lock').hidden = canControl;
@@ -375,7 +376,10 @@
     const alerts = tonight.alerts && tonight.alerts.enabled;
     $('watch-credit').textContent = [alerts ? 'Close-game alerts on — you’ll get a push with buttons to put it on a TV' : 'Close-game alerts off',
       tonight.credit].filter(Boolean).join(' · ');
-    renderPick(); renderSplit(); renderLive();
+    renderPick(); renderSplit(); renderLive(); renderScene();
+    const live = (tonight.live || []).length;
+    const sub = $('scene-sports-sub');
+    if (sub) sub.textContent = live ? `${live} live now` : (tonight.upcoming || []).length ? `Next ${timeOf(tonight.upcoming[0].start)}` : 'Live games, tonight, TVs';
   }
 
   function renderApps() {
@@ -404,6 +408,100 @@
     // Let the rest of the hub (Now's On-TV card, context opening) know.
     if (tonight) { window.HBLastTonight = tonight; window.dispatchEvent(new CustomEvent('hb:tonight', { detail: tonight })); }
   }
+
+  // ═══════════════ Scenes ═══════════════
+  // A scene is one button that opens everything for an activity. Sports
+  // gathers live bugs, tonight's games, the sports apps, and the TVs + the
+  // real remote (moved in while open, moved back on close — one remote).
+  const SCENE_APPS = { sports: ['espn', 'disney', 'peacock', 'paramount', 'max', 'youtube', 'pluto', 'tubi'] };
+  let openScene = null;
+  const remoteHome = { parent: null, next: null };
+
+  function sceneTvs() {
+    const wrap = $('sc-tvs');
+    wrap.replaceChildren();
+    tvs.forEach((t) => {
+      const b = el('button', 'tv-chip');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(t.entity_id === selected));
+      b.append(el('span', 'hb-dot ' + (t.on ? 'hb-dot-live' : 'hb-dot-off')), el('b', null, t.name),
+        el('span', 'faint', !t.available ? 'unreachable' : t.on ? (tvApp(t.app) || 'on') : 'off'));
+      b.addEventListener('click', () => {
+        selected = t.entity_id;
+        try { localStorage.setItem('hb-watch-tv', selected); } catch (e) {}
+        renderTvs(); renderGuide();
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  function renderScene() {
+    if (openScene !== 'sports' || !tonight) return;
+    const watchable = (g) => g.national || g.postseason || g.apps.length || g.networks.some((n) => OTA.test(n));
+    const live = (tonight.live || []).filter(watchable);
+    $('sc-live-sec').hidden = !live.length;
+    $('sc-live-count').textContent = live.length ? `${live.length} game${live.length === 1 ? '' : 's'}` : '';
+    $('sc-bugs').replaceChildren(...live.map(bug));
+    const list = $('sc-games');
+    list.replaceChildren();
+    const ups = (tonight.upcoming || []).filter(watchable);
+    if (!ups.length) list.appendChild(el('li', 'muted', live.length ? 'That’s everything tonight.' : 'No more watchable games tonight.'));
+    ups.forEach((g) => {
+      const li = el('li', 'guide-row' + (g.score >= 50 ? ' big' : ''));
+      const main = el('div', 'guide-main');
+      const teams = el('div', 'guide-teams');
+      g.teams.forEach((t, k) => {
+        const chip = el('span', 'tchip', t.abbr);
+        chip.style.setProperty('--tc', hex(t.color));
+        teams.appendChild(chip);
+        if (k === 0) teams.appendChild(el('span', 'faint', '@'));
+      });
+      main.append(teams, el('div', 'guide-sub', [g.note, g.series, g.league].filter(Boolean).join(' · ')));
+      li.append(el('span', 'guide-when num', timeOf(g.start)), main, el('span', 'net', (g.networks || [])[0] || ''), whereRow(g.apps, g.networks, { compact: true }));
+      list.appendChild(li);
+    });
+    const apps = $('sc-apps');
+    apps.replaceChildren();
+    SCENE_APPS.sports.map((k) => SVC[k]).filter(Boolean).forEach((s) => {
+      const b = el('button', 'app');
+      b.type = 'button';
+      b.style.setProperty('--tint', s.tint);
+      b.textContent = s.name;
+      if (s.free) b.appendChild(el('span', 'app-free', 'Free'));
+      b.addEventListener('click', () => {
+        const tv = selectedTv();
+        if (tv && canControl && s.tv) launch(s.key, tv); else window.location.href = s.open;
+      });
+      apps.appendChild(b);
+    });
+    sceneTvs();
+    $('sc-alerts').textContent = tonight.alerts && tonight.alerts.enabled
+      ? 'Close-game alerts are on: a push with TV buttons when a game gets close and late.'
+      : 'Close-game alerts are off.';
+  }
+
+  function showScene(name) {
+    openScene = name;
+    const remote = $('remote');
+    if (!remoteHome.parent) { remoteHome.parent = remote.parentNode; remoteHome.next = remote.nextSibling; }
+    $('sc-remote-slot').appendChild(remote);
+    $('scene-title').textContent = 'Sports';
+    $('scene').hidden = false;
+    document.body.classList.add('scene-open');
+    renderScene();
+    $('scene-close').focus();
+  }
+  function hideScene() {
+    if (!openScene) return;
+    openScene = null;
+    $('scene').hidden = true;
+    document.body.classList.remove('scene-open');
+    if (remoteHome.parent) remoteHome.parent.insertBefore($('remote'), remoteHome.next);
+  }
+  document.querySelectorAll('[data-scene]').forEach((b) => b.addEventListener('click', () => showScene(b.dataset.scene)));
+  $('scene-close').addEventListener('click', hideScene);
+  $('scene').addEventListener('click', (ev) => { if (ev.target === $('scene')) hideScene(); });
+  window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') hideScene(); });
 
   // ═══════════════ Polling ═══════════════
   let tvTimer = null, tonightTimer = null;

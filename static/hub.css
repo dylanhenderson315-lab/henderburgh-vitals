@@ -547,3 +547,39 @@ button.card-go{ min-height:32px; padding:0 2px; }
 }
 .app{ display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s-2); }
 .app-free{ font-family:var(--font-mono); font-size:var(--t-label); letter-spacing:0.12em; text-transform:uppercase; color:var(--accent); border:1px solid var(--accent-line); border-radius:var(--r-sm); padding:1px 5px; }
+
+/* ═════════════════════════ SCENES ═════════════════════════
+   One button opens everything for an activity, on one surface. */
+.scenes{ display:flex; gap:var(--s-3); overflow-x:auto; scrollbar-width:none; }
+.scene-btn{ display:flex; flex-direction:column; gap:2px; min-width:180px; min-height:64px; padding:var(--s-3) var(--s-4);
+  border-radius:var(--r-lg); border:1px solid var(--accent-line);
+  background:linear-gradient(135deg, rgba(var(--accent-rgb),0.16), rgba(19,19,22,0.86) 70%);
+  transition:transform var(--d-base) var(--ease-out); }
+.scene-btn:active{ transform:scale(0.97); transition-duration:var(--d-press); }
+.scene-name{ font-family:var(--font-display); font-weight:600; font-size:var(--t-lg); }
+.scene-sub{ font-size:var(--t-xs); color:var(--text-2); }
+
+.sheet{ position:fixed; inset:0; z-index:50; background:rgba(5,5,6,0.62); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  display:flex; align-items:stretch; justify-content:center;
+  padding:calc(var(--safe-t) + var(--s-4)) calc(var(--safe-r) + var(--s-4)) calc(var(--safe-b) + var(--s-4)) calc(var(--safe-l) + var(--s-4)); }
+.sheet[hidden]{ display:none; }
+.sheet-panel{ width:100%; max-width:1280px; display:flex; flex-direction:column; min-height:0;
+  border-radius:var(--r-lg); border:1px solid var(--line-strong); background:rgba(12,12,14,0.97); box-shadow:var(--shadow-lg);
+  animation:sheet-in var(--d-base) var(--ease-out); }
+@keyframes sheet-in{ from{ transform:translateY(14px); } to{ transform:none; } }
+.sheet-head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s-3); padding:var(--s-4) var(--s-5); border-bottom:1px solid var(--line); }
+.sheet-title{ font-family:var(--font-display); font-size:var(--t-2xl); font-weight:600; letter-spacing:-0.02em; }
+.sheet-body{ flex:1; min-height:0; overflow-y:auto; padding:var(--s-5); display:flex; flex-direction:column; gap:var(--s-6); }
+.sheet-main, .sheet-side{ display:flex; flex-direction:column; gap:var(--s-6); min-width:0; }
+.sheet-main > *, .sheet-side > *{ flex-shrink:0; }
+.sheet .remote{ margin-top:0; }
+.tv-chips{ display:flex; flex-direction:column; gap:var(--s-2); }
+.tv-chip{ display:grid; grid-template-columns:auto auto 1fr; align-items:center; gap:var(--s-2); min-height:48px; padding:0 var(--s-4);
+  border-radius:var(--r-md); border:1px solid var(--line); background:rgba(19,19,22,0.86); text-align:left; }
+.tv-chip .faint{ justify-self:end; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tv-chip[aria-pressed="true"]{ border-color:var(--accent-line); background:linear-gradient(150deg, var(--accent-dim), rgba(19,19,22,0.86) 70%); }
+@media (orientation: landscape) and (min-width: 960px){
+  .sheet-body{ display:grid; grid-template-columns:minmax(0,1.6fr) minmax(300px,0.8fr); overflow:hidden; }
+  .sheet-main, .sheet-side{ overflow-y:auto; padding-right:var(--s-2); }
+}
+@media (max-width: 767px){ .sheet{ padding:var(--safe-t) 0 0; } .sheet-panel{ border-radius:var(--r-lg) var(--r-lg) 0 0; } }

@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=13">
+<link rel="stylesheet" href="/static/hub.css?v=14">
 </head>
 <body>
 <!-- HENDERBURGH HUB
@@ -87,8 +87,8 @@
 
       <!-- On now: the best live game as a score bug with ESPN's latest play;
            when nothing's live, what's next and how long until it starts. -->
-      <button class="card card-onnow" type="button" data-go="watch" id="card-onnow">
-        <span class="card-head"><span class="hb-label" id="onnow-label">On now</span><span class="card-go">Watch →</span></span>
+      <button class="card card-onnow" type="button" data-scene="sports" id="card-onnow">
+        <span class="card-head"><span class="hb-label" id="onnow-label">On now</span><span class="card-go">Sports →</span></span>
         <span class="onnow-body" id="onnow-body"><span class="muted">Checking the scoreboard…</span></span>
       </button>
 
@@ -214,6 +214,9 @@
       </div>
 
       <div class="watch-guide">
+        <nav class="scenes" aria-label="Scenes">
+          <button class="scene-btn" type="button" data-scene="sports"><span class="scene-name">Sports</span><span class="scene-sub" id="scene-sports-sub">Live games, tonight, TVs</span></button>
+        </nav>
         <article class="pick" id="pick" hidden></article>
         <article class="split" id="split" hidden></article>
         <section class="wsec" id="live-sec" hidden>
@@ -258,6 +261,42 @@
   </section>
 </main>
 
+<!-- Scenes: one button, everything for that activity on one surface. The
+     TV remote is moved in (not copied) while a scene is open. -->
+<div class="sheet" id="scene" hidden role="dialog" aria-modal="true" aria-labelledby="scene-title">
+  <div class="sheet-panel">
+    <header class="sheet-head">
+      <div>
+        <span class="hb-label" id="scene-eyebrow">Scene</span>
+        <h2 class="sheet-title" id="scene-title">Sports</h2>
+      </div>
+      <button class="key" type="button" id="scene-close" aria-label="Close">Done</button>
+    </header>
+    <div class="sheet-body">
+      <div class="sheet-main">
+        <section class="wsec" id="sc-live-sec">
+          <div class="wsec-head"><span class="hb-label">Live now</span><span class="faint" id="sc-live-count"></span></div>
+          <div class="bugs" id="sc-bugs"></div>
+        </section>
+        <section class="wsec">
+          <div class="wsec-head"><span class="hb-label">Tonight’s games</span></div>
+          <ol class="guide" id="sc-games"></ol>
+        </section>
+        <section class="wsec">
+          <div class="wsec-head"><span class="hb-label">Sports apps</span></div>
+          <div class="apps" id="sc-apps"></div>
+        </section>
+      </div>
+      <aside class="sheet-side">
+        <div class="wsec-head"><span class="hb-label">Screens</span></div>
+        <div class="tv-chips" id="sc-tvs"></div>
+        <div id="sc-remote-slot"></div>
+        <p class="faint" id="sc-alerts"></p>
+      </aside>
+    </div>
+  </div>
+</div>
+
 <!-- Idle: after a quiet minute on a home-screen install (or ?kiosk=1), the hub
      settles into a dim ambient clock — StandBy for the house. Any touch wakes it. -->
 <div class="ambient" id="ambient" aria-hidden="true">
@@ -274,6 +313,6 @@
 <script src="/static/house-modes.js?v=1"></script>
 <script src="/static/streaming-services.js?v=4"></script>
 <script src="/static/hub.js?v=16"></script>
-<script src="/static/watch.js?v=5"></script>
+<script src="/static/watch.js?v=6"></script>
 </body>
 </html>
