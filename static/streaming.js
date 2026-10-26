@@ -5,7 +5,7 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const SERVICES = (window.HBStreaming || []).filter((s) => s.key !== 'applemusic' && s.key !== 'ytmusic');
-  const BY_PACKAGE = Object.fromEntries((window.HBStreaming || []).filter((s) => s.tv).map((s) => [s.tv, s.name]));
+  const BY_PACKAGE = Object.fromEntries((window.HBStreaming || []).filter((s) => s.pkg).map((s) => [s.pkg, s.name]));
   // The TVs' own launchers / live-TV apps (seen on the Hisense + TCL).
   Object.assign(BY_PACKAGE, { 'com.vt.tv.tvcenter': 'Home screen', 'com.tcl.tv': 'Home screen',
     'com.google.android.apps.tv.launcherx': 'Home screen', 'com.google.android.tvlauncher': 'Home screen' });
@@ -107,11 +107,20 @@
     setStatus(`Opening ${s.name} on ${tv.name}…`);
     try {
       await post('/api/media/launch', { tv: tv.entity_id, app: s.tv });
-      setStatus(`${s.name} is opening on ${tv.name}`, 'ok');
-      setTimeout(loadTvs, 2500);
     } catch (e) {
       setStatus(e.message, 'err');
+      $('remote').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
     }
+    // HA accepting the call doesn't mean the TV switched apps; confirm from the
+    // TV's own reported activity before saying it worked.
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      await loadTvs();
+      const now = selectedTv();
+      if (now && now.app === s.pkg) { setStatus(`${s.name} is on ${tv.name}`, 'ok'); return; }
+    }
+    setStatus(`${tv.name} didn't switch to ${s.name} — is the app installed on that TV?`, 'err');
     $('remote').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
