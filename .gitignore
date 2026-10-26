@@ -33,3 +33,4 @@ env/
 # Transient lock files from storage/json_store
 data/*.lock
 .ntfy_topic
+.env.bak*

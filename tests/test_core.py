@@ -14,7 +14,7 @@ os.environ.setdefault("OURA_TOKEN", "")
 os.environ.setdefault("PUBLIC_MODE", "false")
 os.environ.setdefault("ADMIN_TOKEN", "test-admin-secret")
 os.environ.setdefault("XBL_API_KEY", "")
-os.environ.setdefault("HA_TOKEN", "")
+os.environ.setdefault("HA_TOKEN", "test-ha-token")
 
 from clients.oura import compute_trend, process_dashboard_data
 from gtm import inject, normalize_container_id
@@ -85,12 +85,56 @@ def test_admin_session_auth():
     assert is_admin_authenticated(request) is True
 
 
-def test_ha_poke_requires_auth():
+def test_ha_poke_is_public_but_rate_limited(monkeypatch):
+    # Poke is public on purpose (friends can blink the office lamp); the guard is
+    # the 3s rate limit. Stub the blink so the test never touches a real lamp.
+    import main
+
+    async def no_blink():
+        return None
+
+    monkeypatch.setattr(main.home_assistant, "perform_poke_blink", no_blink)
+    monkeypatch.setattr(main.state, "_poke_last", 0.0)
+    client = TestClient(main.app)
+    assert client.post("/api/ha/poke").status_code == 200
+    assert client.post("/api/ha/poke").status_code == 429
+
+
+def test_ipad_page_is_installable():
     import main
 
     client = TestClient(main.app)
-    res = client.post("/api/ha/poke")
-    assert res.status_code == 403
+    res = client.get("/ipad")
+    assert res.status_code == 200
+    assert 'rel="manifest"' in res.text
+    assert "apple-touch-icon" in res.text
+    manifest = client.get("/manifest.webmanifest")
+    assert manifest.status_code == 200
+    assert manifest.json()["start_url"] == "/ipad"
+    assert client.get("/sw.js").headers["content-type"].startswith("application/javascript")
+
+
+def test_api_home_reports_weather_and_sensors(monkeypatch):
+    import main
+
+    async def fake_states():
+        return [
+            {"entity_id": "weather.forecast_home", "state": "sunny",
+             "attributes": {"temperature": 71, "temperature_unit": "°F", "humidity": 55}},
+            {"entity_id": "sensor.office_temp", "state": "70.2",
+             "attributes": {"device_class": "temperature", "unit_of_measurement": "°F", "friendly_name": "Office"}},
+            {"entity_id": "sensor.dead_temp", "state": "unavailable",
+             "attributes": {"device_class": "temperature"}},
+            {"entity_id": "light.kitchen", "state": "on", "attributes": {}},
+        ], True
+
+    monkeypatch.setattr(main.home_assistant, "fetch_ha_states", fake_states)
+    monkeypatch.setenv("ARCADE_URL", "http://127.0.0.1:9")   # nothing listens: arcade must degrade to null
+    body = TestClient(main.app).get("/api/home").json()
+    assert body["ha_ok"] is True
+    assert body["weather"]["temperature"] == 71
+    assert [s["name"] for s in body["sensors"]] == ["Office"]
+    assert body["arcade"] is None
 
 
 def test_golf_write_requires_admin():

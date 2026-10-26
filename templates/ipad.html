@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- viewport-fit=cover lets the page run under the home indicator; the
+     safe-area padding below keeps content out of it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>HENDERBURGH</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Henderburgh">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/tokens.css?v=6">
+<style>
+  :root{
+    --page-max: 820px;
+    --page-pad: 24px;
+    --hud-h: 52px;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+  }
+  @media (max-width: 520px){ :root{ --page-pad: 16px; } }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    /* standalone iPad apps: no rubber-band highlight, no long-press callouts on tiles */
+    -webkit-tap-highlight-color:transparent; overscroll-behavior-y:none;
+  }
+  a{ color:inherit; text-decoration:none; }
+  button{ font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+  .font-display{ font-family:var(--font-display); }
+  .page{
+    width:100%; max-width:var(--page-max); margin-inline:auto;
+    padding-left:calc(var(--page-pad) + var(--safe-l));
+    padding-right:calc(var(--page-pad) + var(--safe-r));
+  }
+
+  /* ── Corner HUD: always-visible clock + freshness, since "now" can be any tile ── */
+  .hud{
+    position:fixed; top:0; left:0; right:0; z-index:40;
+    padding-top:var(--safe-t);
+    background:rgba(10,10,11,0.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .hud-row{ height:var(--hud-h); display:flex; align-items:center; gap:var(--s-3); }
+  .hud-brand{ font-family:var(--font-display); font-weight:600; font-size:14px; letter-spacing:0.04em; }
+  .hud-spacer{ flex:1; }
+  .hud-time{ font-family:var(--font-mono); font-size:var(--t-sm); color:var(--text-2); font-variant-numeric:tabular-nums; }
+  .hud-link{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-3); padding:var(--s-2) var(--s-3); border-radius:var(--r-sm); }
+  .hud-link:active{ background:var(--surface-2); }
+  main{ padding-top:calc(var(--hud-h) + var(--safe-t) + var(--s-6)); padding-bottom:calc(var(--s-12) + var(--safe-b)); }
+
+  /* ── Time bands (scroll-as-time-of-day) ── */
+  .band{ margin-bottom:var(--s-8); scroll-margin-top:calc(var(--hud-h) + var(--safe-t) + var(--s-4)); }
+  .band-head{ display:flex; align-items:center; gap:var(--s-3); margin-bottom:var(--s-4); }
+  .band-head .hb-label{ white-space:nowrap; }
+  .band-head::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .band.is-now .band-head .hb-label{ color:var(--accent); }
+  .now-pill{ display:none; font-family:var(--font-mono); font-size:var(--t-label); letter-spacing:0.16em;
+    color:var(--accent); background:var(--accent-dim); border:1px solid var(--accent-line);
+    padding:2px 8px; border-radius:var(--r-full); }
+  .band.is-now .now-pill{ display:inline-block; }
+
+  .stack{ display:grid; gap:var(--s-4); }
+  .tile{ padding:var(--s-6); }
+  .tile-head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s-3); margin-bottom:var(--s-4); }
+  .tile-title{ font-size:var(--t-lg); font-weight:600; }
+  .muted{ color:var(--text-2); font-size:var(--t-sm); line-height:var(--lh-body); }
+  .faint{ color:var(--text-3); font-size:var(--t-xs); }
+  .tile-link{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-2);
+    display:inline-flex; align-items:center; min-height:var(--tap-min); padding:0 var(--s-3);
+    margin-right:calc(-1 * var(--s-3)); border-radius:var(--r-sm); }
+  .tile-link:active{ background:var(--surface-2); }
+
+  /* Hero */
+  .hero{ padding:var(--s-8) var(--s-6); position:relative; overflow:hidden; }
+  .hero::before{ /* the one approved generative accent: a small static aurora */
+    content:''; position:absolute; inset:-40% -20% auto auto; width:70%; height:120%;
+    background:radial-gradient(closest-side, rgba(var(--accent-rgb),0.16), transparent);
+    filter:blur(40px); pointer-events:none; z-index:-1; }
+  .hero{ isolation:isolate; }
+  .hero-greet{ color:var(--text-2); font-size:var(--t-lg); margin-bottom:var(--s-2); }
+  .hero-clock{ font-family:var(--font-display); font-weight:600; font-size:clamp(4.5rem, 16vw, 8.5rem);
+    line-height:0.95; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; }
+  .hero-clock .ampm{ font-size:0.28em; letter-spacing:0; color:var(--text-3); margin-left:0.2em; font-weight:500; }
+  .hero-date{ font-family:var(--font-mono); font-size:var(--t-sm); color:var(--text-3); margin-top:var(--s-3); }
+  .hero-weather{ display:flex; flex-wrap:wrap; gap:var(--s-6); margin-top:var(--s-8); padding-top:var(--s-6); border-top:1px solid var(--line); }
+  .wx{ display:flex; flex-direction:column; gap:var(--s-1); }
+  .wx-val{ font-family:var(--font-display); font-size:var(--t-xl); font-weight:600; }
+
+  /* Lights */
+  .lights-sum{ display:flex; align-items:baseline; gap:var(--s-2); margin-bottom:var(--s-4); }
+  .lights-sum .num{ font-family:var(--font-display); font-size:var(--t-2xl); font-weight:600; }
+  .rooms{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--s-3); }
+  @media (min-width:700px){ .rooms{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  .room{ text-align:left; min-height:72px; padding:var(--s-3) var(--s-4); border-radius:var(--r-md);
+    background:var(--surface-2); border:1px solid var(--line);
+    display:flex; flex-direction:column; justify-content:center; gap:var(--s-1);
+    transition:background var(--d-fast) ease, border-color var(--d-fast) ease, transform var(--d-base) var(--ease-out); }
+  .room:active{ transform:scale(0.97); transition-duration:var(--d-press); }
+  .room-name{ font-weight:600; font-size:var(--t-base); display:flex; align-items:center; gap:var(--s-2); }
+  .room-count{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .room.on{ background:rgba(var(--accent-rgb),0.10); border-color:var(--accent-line); }
+  .room.on .room-count{ color:var(--accent); }
+  .room.pending{ opacity:0.6; }
+  .room[disabled]{ cursor:default; }
+  .actions{ display:flex; flex-wrap:wrap; gap:var(--s-3); margin-top:var(--s-4); }
+  .btn{ min-height:var(--tap-min); padding:0 var(--s-5); border-radius:var(--r-md);
+    background:var(--surface-2); border:1px solid var(--line-strong); font-weight:600; font-size:var(--t-sm);
+    display:inline-flex; align-items:center; gap:var(--s-2);
+    transition:transform var(--d-base) var(--ease-out), background var(--d-fast) ease; }
+  .btn:active{ transform:scale(0.97); transition-duration:var(--d-press); background:var(--surface-3); }
+  .btn[disabled]{ opacity:0.45; }
+  .lock-note{ margin-top:var(--s-3); }
+  .lock-note a{ color:var(--info); }
+  .err{ color:var(--danger); font-size:var(--t-xs); margin-top:var(--s-2); min-height:1em; }
+
+  /* Generic stat rows (home, arcade) */
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:var(--s-4); }
+  .stat{ display:flex; flex-direction:column; gap:var(--s-1); }
+  .stat-val{ font-family:var(--font-display); font-size:var(--t-xl); font-weight:600; font-variant-numeric:tabular-nums; }
+
+  /* Placeholder rows (calendar, media, music until their sources exist) */
+  .placeholder{ border:1px dashed var(--line-strong); border-radius:var(--r-md); padding:var(--s-4); }
+  .media-row{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(150px, 1fr); gap:var(--s-3);
+    overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:var(--s-1); }
+  .media-card{ scroll-snap-align:start; aspect-ratio:16/10; border-radius:var(--r-md); background:var(--surface-2);
+    border:1px solid var(--line); display:flex; align-items:flex-end; padding:var(--s-3); font-weight:600; font-size:var(--t-sm); color:var(--text-2); }
+
+  .work{ display:none; }
+  body.work-mode .work{ display:block; }
+  body.work-mode .home-only{ display:none; }
+  .footer{ display:flex; justify-content:center; gap:var(--s-3); margin-top:var(--s-4); }
+</style>
+</head>
+<body>
+
+<header class="hud">
+  <div class="page hud-row">
+    <span class="hud-brand">HENDERBURGH</span>
+    <span class="hb-dot hb-dot-off" id="fresh-dot" title="Live data status"></span>
+    <span class="hud-spacer"></span>
+    <span class="hud-time" id="hud-time"></span>
+    <a class="hud-link" href="/home-assistant">Lights</a>
+    <a class="hud-link" href="/">Home</a>
+  </div>
+</header>
+
+<main class="page">
+
+  <section class="band" data-band="morning" id="band-morning">
+    <div class="band-head"><span class="hb-label">Morning</span><span class="now-pill">NOW</span></div>
+    <div class="stack">
+      <article class="hb-card hero" id="tile-hero">
+        <p class="hero-greet" id="greet">Hello, {{ display_name or "Dylan" }}</p>
+        <div class="hero-clock" id="clock">--:--</div>
+        <p class="hero-date" id="date"></p>
+        <div class="hero-weather" id="weather">
+          <div class="wx"><span class="hb-label">Outside</span><span class="wx-val hb-stat" id="wx-temp">—</span></div>
+          <div class="wx"><span class="hb-label">Sky</span><span class="wx-val" id="wx-cond">—</span></div>
+          <div class="wx"><span class="hb-label">Humidity</span><span class="wx-val hb-stat" id="wx-hum">—</span></div>
+          <div class="wx"><span class="hb-label">Wind</span><span class="wx-val hb-stat" id="wx-wind">—</span></div>
+        </div>
+      </article>
+
+      <article class="hb-card tile home-only" id="tile-calendar">
+        <div class="tile-head"><h2 class="tile-title">Next up</h2><span class="hb-label">Calendar</span></div>
+        <div class="placeholder muted">No calendar connected yet — your next three events will land here.</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="band" data-band="afternoon" id="band-afternoon">
+    <div class="band-head"><span class="hb-label">Afternoon</span><span class="now-pill">NOW</span></div>
+    <div class="stack">
+      <article class="hb-card tile" id="tile-lights">
+        <div class="tile-head">
+          <h2 class="tile-title">Lights</h2>
+          <a class="tile-link" href="/home-assistant">Open lighting →</a>
+        </div>
+        <div class="lights-sum"><span class="num hb-stat" id="lights-on">—</span><span class="muted" id="lights-of">lights on</span></div>
+        <div class="rooms" id="rooms"></div>
+        <div class="actions">
+          <button class="btn" id="all-off" type="button" disabled>Lights out</button>
+        </div>
+        <p class="faint lock-note" id="lock-note" hidden>Controls are locked on this device. <a href="/home-assistant">Unlock on the lighting page</a>, then come back.</p>
+        <p class="err" id="lights-err" role="status"></p>
+      </article>
+
+      <article class="hb-card tile home-only" id="tile-music">
+        <div class="tile-head"><h2 class="tile-title">Music</h2><span class="hb-label">Last.fm</span></div>
+        <div class="placeholder muted">Last.fm isn't connected yet — now playing and recent scrobbles will show here.</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="band" data-band="evening" id="band-evening">
+    <div class="band-head"><span class="hb-label">Evening</span><span class="now-pill">NOW</span></div>
+    <div class="stack">
+      <article class="hb-card tile" id="tile-home">
+        <div class="tile-head"><h2 class="tile-title">Home</h2><span class="hb-label">Sensors</span></div>
+        <div class="stats" id="home-stats"><p class="muted">Loading…</p></div>
+      </article>
+
+      <article class="hb-card tile home-only" id="tile-arcade">
+        <div class="tile-head">
+          <h2 class="tile-title">Arcade</h2>
+          <a class="tile-link" href="/arcade">Change mode →</a>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="hb-label">M-1 mode</span><span class="stat-val" id="arcade-mode">—</span></div>
+          <div class="stat"><span class="hb-label">Panel</span><span class="stat-val" id="arcade-on">—</span></div>
+        </div>
+        <p class="faint" id="arcade-note" style="margin-top:var(--s-3)"></p>
+      </article>
+    </div>
+  </section>
+
+  <section class="band" data-band="night" id="band-night">
+    <div class="band-head"><span class="hb-label">Night</span><span class="now-pill">NOW</span></div>
+    <div class="stack">
+      <article class="hb-card tile home-only" id="tile-media">
+        <div class="tile-head"><h2 class="tile-title">What to watch</h2><span class="hb-label">Media</span></div>
+        <div class="media-row">
+          <div class="media-card">Streaming</div>
+          <div class="media-card">lands</div>
+          <div class="media-card">in step 5</div>
+        </div>
+      </article>
+
+      <article class="hb-card tile work" id="tile-work">
+        <div class="tile-head"><h2 class="tile-title">Work</h2><span class="hb-label">Office</span></div>
+        <p class="muted">Office tiles (Intake Desk owed-by-me / owed-to-me, Teams, Granola) are the next build. For now:</p>
+        <div class="actions"><a class="btn" href="http://192.168.40.203:8080">Open Intake Desk</a></div>
+      </article>
+    </div>
+  </section>
+
+  <div class="footer">
+    <button class="btn" id="work-toggle" type="button" aria-pressed="false">Work mode</button>
+  </div>
+</main>
+
+<script src="/static/ipad.js?v=2"></script>
+</body>
+</html>

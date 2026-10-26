@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
+import httpx
+
 from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Request, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -1885,6 +1887,75 @@ async def arcade_page(request: Request):
         "request": request,
         "arcade_url": os.getenv("ARCADE_URL", "http://192.168.40.203:7333"),
     })
+
+
+# --- iPad home (portrait PWA landing) ------------------------------------------
+
+@app.get("/ipad", response_class=HTMLResponse)
+async def ipad_page(request: Request):
+    """Portrait iPad home: one scroll of morning -> night tiles, pinned to now.
+    Everything live comes from public-read endpoints (/api/home, /api/ha/lights-data);
+    room toggles reuse the same light-control gate as /home-assistant."""
+    return _render("ipad.html", {
+        "request": request,
+        "display_name": DISPLAY_NAME,
+        "arcade_url": os.getenv("ARCADE_URL", "http://192.168.40.203:7333"),
+    })
+
+
+@app.get("/api/home")
+async def api_home():
+    """House conditions for the iPad home: HA weather + any temperature/humidity
+    sensors, and the M-1 arcade's current mode. Each part degrades to null on its
+    own — an unreachable arcade (always the case from Railway) never hides weather."""
+    weather, sensors = None, []
+    states, ha_ok = await home_assistant.fetch_ha_states()
+    for s in states:
+        eid = s.get("entity_id", "")
+        attrs = s.get("attributes") or {}
+        if eid.startswith("weather.") and weather is None:
+            weather = {
+                "condition": s.get("state"),
+                "temperature": attrs.get("temperature"),
+                "temperature_unit": attrs.get("temperature_unit"),
+                "humidity": attrs.get("humidity"),
+                "wind_speed": attrs.get("wind_speed"),
+                "wind_speed_unit": attrs.get("wind_speed_unit"),
+            }
+        elif eid.startswith("sensor.") and attrs.get("device_class") in ("temperature", "humidity"):
+            if s.get("state") in ("unavailable", "unknown"):
+                continue
+            sensors.append({
+                "entity_id": eid,
+                "name": attrs.get("friendly_name") or eid,
+                "kind": attrs.get("device_class"),
+                "value": s.get("state"),
+                "unit": attrs.get("unit_of_measurement"),
+            })
+
+    arcade = None
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            r = await client.get(f"{os.getenv('ARCADE_URL', 'http://192.168.40.203:7333')}/api/state")
+            r.raise_for_status()
+            a = r.json() or {}
+            arcade = {"mode": a.get("mode"), "on": a.get("on"), "paused": a.get("paused")}
+    except Exception:
+        arcade = None
+
+    return {"ha_ok": ha_ok, "weather": weather, "sensors": sensors, "arcade": arcade}
+
+
+@app.get("/manifest.webmanifest")
+async def web_manifest():
+    return FileResponse("static/manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+async def service_worker():
+    """Served from the root so its scope covers /ipad and the pages it links to."""
+    return FileResponse("static/sw.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
 
 
 
