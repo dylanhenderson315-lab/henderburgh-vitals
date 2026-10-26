@@ -742,3 +742,8 @@ button.card-go{ min-height:32px; padding:0 2px; }
   .rooms{ grid-auto-rows:minmax(150px, auto); }
   .mode{ min-height:112px; }
 }
+@media (orientation: portrait) and (min-width: 700px){
+  .hl-plot{ height:56px; }
+  #space-now .card{ padding:var(--s-4) var(--s-5); }
+  .heartline{ padding:var(--s-2) var(--s-4); }
+}

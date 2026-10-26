@@ -3,11 +3,11 @@
    and survives a flaky hotel network. API calls are never cached — live data
    (lights, weather) must always be real or visibly missing, never stale-as-live.
    Bump VERSION whenever hub.html / hub.js / hub.css / tokens.css change. */
-const VERSION = 'hb-hub-v35';
+const VERSION = 'hb-hub-v36';
 const SHELL = [
   '/hub',
   '/static/tokens.css?v=6',
-  '/static/hub.css?v=23',
+  '/static/hub.css?v=24',
   '/static/hub.js?v=23',
   '/static/watch.js?v=11',
   '/static/house-modes.js?v=1',
