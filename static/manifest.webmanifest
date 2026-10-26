@@ -2,7 +2,7 @@
   "name": "Henderburgh",
   "short_name": "HBURGH",
   "id": "/ipad",
-  "start_url": "/ipad",
+  "start_url": "/hub",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

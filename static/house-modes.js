@@ -1,5 +1,5 @@
 /* House modes — the owner's REAL lighting routines, one tap each.
-   Single source of truth for /home-assistant and /ipad (moved verbatim out of
+   Single source of truth for /home-assistant and /hub (moved verbatim out of
    home-assistant.html; keep the history comments with the data).
 
    HBHouseModes.build({ allLightIds }) -> { key: { icon, name, desc, run } }

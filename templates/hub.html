@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>HENDERBURGH</title>
+<meta name="description" content="Henderburgh — a personal OS. The house, the day, live.">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Henderburgh">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/tokens.css?v=6">
+<link rel="stylesheet" href="/static/hub.css?v=4">
+</head>
+<body>
+<!-- HENDERBURGH HUB
+     One screen, five spaces you swipe between (or tap the tabs): Now · Day ·
+     Lights · Watch · Everything. Built to become the front door: everything
+     here reads public-safe endpoints, and every control is behind the same
+     light-control gate as /home-assistant, so a visitor sees the house but
+     can't drive it. -->
+
+<header class="bar">
+  <a class="bar-brand" href="/hub" aria-label="Henderburgh hub">HENDERBURGH</a>
+  <span class="hb-dot hb-dot-off" id="fresh-dot" title="Live data status"></span>
+  <nav class="tabs" id="tabs" aria-label="Spaces">
+    <button type="button" data-space="now" aria-current="true">Now</button>
+    <button type="button" data-space="day">Day</button>
+    <button type="button" data-space="lights">Lights</button>
+    <button type="button" data-space="watch">Watch</button>
+    <button type="button" data-space="all">Everything</button>
+  </nav>
+  <span class="bar-time" id="bar-time"></span>
+</header>
+
+<main class="spaces" id="spaces">
+
+  <!-- ═══════════════════════════ NOW ═══════════════════════════ -->
+  <section class="space" id="space-now" data-space="now" aria-label="Now">
+    <div class="now-grid">
+      <article class="hero" id="hero">
+        <p class="hero-eyebrow hb-label" id="hero-eyebrow">Personal OS · Live</p>
+        <h1 class="hero-line"><span class="hero-dot" id="hero-dot"></span>Henderburgh is <span class="hero-state" id="hero-state">here</span>.</h1>
+        <p class="hero-sub" id="hero-sub">Live from the house.</p>
+        <div class="hero-clock" id="clock">--:--</div>
+        <p class="hero-date" id="date"></p>
+        <div class="wx-row">
+          <div class="wx"><span class="hb-label">Outside</span><span class="wx-val" id="wx-temp">—</span></div>
+          <div class="wx"><span class="hb-label">Sky</span><span class="wx-val" id="wx-cond">—</span></div>
+          <div class="wx"><span class="hb-label">Humidity</span><span class="wx-val" id="wx-hum">—</span></div>
+          <div class="wx"><span class="hb-label">Wind</span><span class="wx-val" id="wx-wind">—</span></div>
+        </div>
+      </article>
+
+      <button class="card card-house" type="button" data-go="lights" id="card-house">
+        <span class="card-head"><span class="hb-label">The house</span><span class="card-go">Lights →</span></span>
+        <span class="house-big"><span class="house-swatch" aria-hidden="true"></span><span class="num" id="house-on">—</span><span class="muted" id="house-of">lights on</span></span>
+        <span class="card-sub" id="house-rooms">—</span>
+      </button>
+
+      <div class="card card-suggest" id="card-suggest" hidden>
+        <span class="card-head"><span class="hb-label">Right now</span></span>
+        <div id="now-suggest"></div>
+      </div>
+
+      <button class="card card-tv" type="button" data-go="watch" id="card-tv">
+        <span class="card-head"><span class="hb-label">On TV</span><span class="card-go">Watch →</span></span>
+        <span class="rows" id="tv-rows"><span class="muted">—</span></span>
+      </button>
+
+      <div class="card card-music" id="card-music">
+        <span class="card-head"><span class="hb-label" id="music-label">Music</span></span>
+        <div id="music-body"><p class="muted">—</p></div>
+      </div>
+
+      <div class="card card-next" id="card-next">
+        <span class="card-head"><span class="hb-label">Up next</span></span>
+        <div id="cal-body"><p class="muted">—</p></div>
+      </div>
+
+      <a class="card card-vitals" href="/vitals" id="card-vitals">
+        <span class="card-head"><span class="hb-label">Body</span><span class="card-go">Vitals →</span></span>
+        <span class="stats" id="vitals-stats"><span class="muted">—</span></span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ DAY ═══════════════════════════ -->
+  <section class="space" id="space-day" data-space="day" aria-label="The day's story">
+    <div class="day-grid">
+      <div class="day-main">
+        <div class="day-nav">
+          <button class="key" type="button" id="day-prev" aria-label="Previous day">←</button>
+          <div class="day-title">
+            <span class="hb-label" id="day-rel">—</span>
+            <h2 id="day-label">The day's story</h2>
+          </div>
+          <button class="key" type="button" id="day-next" aria-label="Next day">→</button>
+        </div>
+        <p class="day-narration" id="day-narration">Loading the day…</p>
+        <div class="day-stats" id="day-stats"></div>
+        <figure class="day-chart">
+          <svg id="day-svg" viewBox="0 0 1440 160" preserveAspectRatio="none" aria-label="Heart rate across the day"></svg>
+          <figcaption class="day-axis"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></figcaption>
+        </figure>
+      </div>
+      <ol class="timeline" id="day-timeline" aria-label="Moments"></ol>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ LIGHTS ═══════════════════════════ -->
+  <section class="space" id="space-lights" data-space="lights" aria-label="Lights">
+    <div class="space-head">
+      <div>
+        <h2 class="space-title"><span class="num" id="lights-on">—</span> <span class="muted" id="lights-of">lights on</span></h2>
+      </div>
+      <a class="tile-link" href="/home-assistant">Full lighting →</a>
+    </div>
+    <div class="modes" id="modes" aria-label="House modes"></div>
+    <div class="rooms" id="rooms"></div>
+    <p class="faint lock-note" id="lock-note" hidden>Controls are locked on this device. <a href="/home-assistant">Unlock on the lighting page</a>, then come back.</p>
+    <p class="msg" id="lights-msg" role="status"></p>
+  </section>
+
+  <!-- ═══════════════════════════ WATCH ═══════════════════════════ -->
+  <section class="space" id="space-watch" data-space="watch" aria-label="Watch">
+    <div class="watch-grid">
+      <div class="watch-tv">
+        <h2 class="space-title" id="headline">What's on tonight</h2>
+        <div id="tvs" class="tvs"></div>
+        <div class="remote" id="remote" hidden>
+          <div class="remote-row">
+            <span class="remote-label">Power</span>
+            <button class="key" data-power="on" type="button">On</button>
+            <button class="key" data-power="off" type="button">Off</button>
+          </div>
+          <div class="remote-row">
+            <span class="remote-label">Play</span>
+            <button class="key primary" data-cmd="MEDIA_PLAY_PAUSE" type="button" aria-label="Play or pause">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l11-7z"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
+            </button>
+            <button class="key" data-cmd="BACK" type="button">Back</button>
+            <button class="key" data-cmd="HOME" type="button">Home</button>
+          </div>
+          <div class="remote-row">
+            <span class="remote-label">Volume</span>
+            <button class="key" data-cmd="VOLUME_DOWN" type="button" aria-label="Volume down">−</button>
+            <button class="key" data-cmd="VOLUME_UP" type="button" aria-label="Volume up">+</button>
+            <button class="key" data-cmd="VOLUME_MUTE" type="button">Mute</button>
+          </div>
+          <p class="status" id="remote-status" role="status"></p>
+        </div>
+      </div>
+      <div class="services" id="services"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ EVERYTHING ═══════════════════════════ -->
+  <section class="space" id="space-all" data-space="all" aria-label="Everything">
+    <div class="launcher">
+      <a class="card launch" href="/vitals"><span class="launch-name">Vitals</span><span class="launch-sub" id="ln-vitals">Oura — sleep, readiness, HR</span></a>
+      <a class="card launch" href="/xbox"><span class="launch-name">Xbox</span><span class="launch-sub" id="ln-xbox">Sessions + gamerscore</span></a>
+      <a class="card launch" href="/home-assistant"><span class="launch-name">Lighting</span><span class="launch-sub" id="ln-lights">Rooms, modes, effects</span></a>
+      <a class="card launch" href="/streaming"><span class="launch-name">Watch</span><span class="launch-sub" id="ln-watch">TVs + every service</span></a>
+      <a class="card launch" href="/arcade"><span class="launch-name">Arcade</span><span class="launch-sub" id="ln-arcade">M-1 LED panel</span></a>
+      <a class="card launch" href="/insights"><span class="launch-name">Insights</span><span class="launch-sub">Lighting week, patterns</span></a>
+      <a class="card launch launch-wide" href="/blog"><span class="launch-name">Blog</span><span class="launch-sub launch-quote" id="ln-blog">Notes + posts</span></a>
+      <a class="card launch" href="/golf"><span class="launch-name">Golf</span><span class="launch-sub" id="ln-golf">Rounds + club yardages</span></a>
+      <a class="card launch" href="/clips"><span class="launch-name">Clips</span><span class="launch-sub" id="ln-clips">Video + media</span><span class="clip-strip" id="clip-strip"></span></a>
+      <a class="card launch" href="/model"><span class="launch-name">Model</span><span class="launch-sub">The Henderburgh model</span></a>
+      <a class="card launch" href="/date"><span class="launch-name">Date night</span><span class="launch-sub">Plans, picks, history</span></a>
+      <a class="card launch" href="/"><span class="launch-name">Front door</span><span class="launch-sub">The classic day timeline</span></a>
+      <a class="card launch work-only" href="http://192.168.40.203:8080"><span class="launch-name">Intake Desk</span><span class="launch-sub">Owed by me · owed to me (home network)</span></a>
+    </div>
+    {% if not public_mode %}
+    <div class="poke-row">
+      <button class="key" type="button" id="poke" title="Blink the office lamp">Poke the office lamp</button>
+      <span class="faint" id="poke-msg"></span>
+    </div>
+    {% endif %}
+  </section>
+</main>
+
+<!-- Idle: after a quiet minute on a home-screen install (or ?kiosk=1), the hub
+     settles into a dim ambient clock — StandBy for the house. Any touch wakes it. -->
+<div class="ambient" id="ambient" aria-hidden="true">
+  <div class="ambient-clock" id="ambient-clock">--:--</div>
+  <p class="ambient-line" id="ambient-line"></p>
+</div>
+
+<script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
+<script src="/static/house-modes.js?v=1"></script>
+<script src="/static/streaming-services.js?v=2"></script>
+<script src="/static/streaming.js?v=4"></script>
+<script src="/static/hub.js?v=2"></script>
+</body>
+</html>

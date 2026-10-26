@@ -1,4 +1,4 @@
-/* Streaming services — shared by /ipad (What to watch row) and /streaming.
+/* Streaming services — shared by /hub (Now + Watch spaces) and /streaming.
 
    `open` is the service's universal link: on iPad it opens the installed app,
    and falls back to Safari when the app isn't installed, so a tap never dead-ends.

@@ -20,8 +20,10 @@ import httpx
 
 from config import HA_ENABLED, HA_HEADERS, HA_URL
 
-LASTFM_USER = os.getenv("LASTFM_USER", "").strip()
-LASTFM_API_KEY = os.getenv("LASTFM_API_KEY", "").strip()
+# Defaults are the account + read-only key the front door (home-concept.html)
+# already ships in its public JS; env vars override.
+LASTFM_USER = os.getenv("LASTFM_USER", "henderburgh").strip()
+LASTFM_API_KEY = os.getenv("LASTFM_API_KEY", "").strip() or "3168e1997fc3a2150bfa1f10bafad213"
 
 _cal_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 _music_cache: Dict[str, Any] = {"ts": 0.0, "data": None}

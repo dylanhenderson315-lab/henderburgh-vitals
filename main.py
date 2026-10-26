@@ -1890,27 +1890,25 @@ async def arcade_page(request: Request):
     })
 
 
-# --- iPad home (portrait PWA landing) ------------------------------------------
+# --- Hub (the iPad home; built to become the front door) ---------------------
 
-@app.get("/ipad", response_class=HTMLResponse)
-async def ipad_page(request: Request):
-    """Portrait iPad home: one scroll of morning -> night tiles, pinned to now.
-    Everything live comes from public-read endpoints (/api/home, /api/ha/lights-data);
-    room toggles reuse the same light-control gate as /home-assistant."""
-    return _render("ipad.html", {
-        "request": request,
-        "display_name": DISPLAY_NAME,
-        "arcade_url": os.getenv("ARCADE_URL", "http://192.168.40.203:7333"),
-    })
+@app.get("/hub", response_class=HTMLResponse)
+async def hub_page(request: Request):
+    """Five spaces on one screen: Now, Day, Lights, Watch, Everything. Every
+    read is public-safe; controls use the light-control gate."""
+    return _render("hub.html", {"request": request, "display_name": DISPLAY_NAME, "public_mode": PUBLIC_MODE})
 
 
-@app.get("/api/home")
-async def api_home():
-    """House conditions for the iPad home: HA weather + any temperature/humidity
-    sensors, the M-1 arcade's current mode, HA calendars and Last.fm. Each part degrades to null on its
-    own — an unreachable arcade (always the case from Railway) never hides weather."""
+@app.get("/ipad")
+async def ipad_page():
+    """The first iPad home grew into /hub. Kept as a redirect so an existing
+    home-screen install keeps working."""
+    return RedirectResponse("/hub", status_code=307)
+
+
+def _home_conditions(states: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """HA weather + any temperature/humidity sensors, from one states fetch."""
     weather, sensors = None, []
-    states, ha_ok = await home_assistant.fetch_ha_states()
     for s in states:
         eid = s.get("entity_id", "")
         attrs = s.get("attributes") or {}
@@ -1933,19 +1931,29 @@ async def api_home():
                 "value": s.get("state"),
                 "unit": attrs.get("unit_of_measurement"),
             })
+    return {"weather": weather, "sensors": sensors}
 
-    arcade = None
+
+async def _arcade_state() -> Optional[Dict[str, Any]]:
+    """The M-1 panel's mode — only reachable from the home network (never from Railway)."""
     try:
         async with httpx.AsyncClient(timeout=1.5) as client:
             r = await client.get(f"{os.getenv('ARCADE_URL', 'http://192.168.40.203:7333')}/api/state")
             r.raise_for_status()
             a = r.json() or {}
-            arcade = {"mode": a.get("mode"), "on": a.get("on"), "paused": a.get("paused")}
+            return {"mode": a.get("mode"), "on": a.get("on"), "paused": a.get("paused")}
     except Exception:
-        arcade = None
+        return None
 
-    calendar, music = await asyncio.gather(ambient.upcoming_events(), ambient.music_now())
-    return {"ha_ok": ha_ok, "weather": weather, "sensors": sensors, "arcade": arcade,
+
+@app.get("/api/home")
+async def api_home():
+    """House conditions for the iPad home: HA weather + any temperature/humidity
+    sensors, the M-1 arcade's current mode, HA calendars and Last.fm. Each part degrades to null on its
+    own — an unreachable arcade (always the case from Railway) never hides weather."""
+    states, ha_ok = await home_assistant.fetch_ha_states()
+    arcade, calendar, music = await asyncio.gather(_arcade_state(), ambient.upcoming_events(), ambient.music_now())
+    return {"ha_ok": ha_ok, **_home_conditions(states), "arcade": arcade,
             "calendar": calendar, "music": music}
 
 
@@ -1968,11 +1976,9 @@ async def streaming_page(request: Request):
     return _render("streaming.html", {"request": request, "display_name": DISPLAY_NAME})
 
 
-@app.get("/api/media/tvs")
-async def api_media_tvs():
+def _tvs_from(states: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """TVs HA can drive (remote.* from Android TV Remote), with what's on screen
-    when the paired media_player reports it. Public read, like the lights."""
-    states, ha_ok = await home_assistant.fetch_ha_states()
+    when the paired media_player reports it."""
     players = {s["entity_id"].split(".", 1)[1]: s for s in states if s.get("entity_id", "").startswith("media_player.")}
     tvs = []
     for s in states:
@@ -1990,7 +1996,14 @@ async def api_media_tvs():
             "title": mpa.get("media_title"),
         })
     tvs.sort(key=lambda t: t["name"].lower())
-    return {"ha_ok": ha_ok, "tvs": tvs}
+    return tvs
+
+
+@app.get("/api/media/tvs")
+async def api_media_tvs():
+    """Public read, like the lights."""
+    states, ha_ok = await home_assistant.fetch_ha_states()
+    return {"ha_ok": ha_ok, "tvs": _tvs_from(states)}
 
 
 def _require_tv(body: dict) -> str:
@@ -2032,6 +2045,125 @@ async def api_media_command(request: Request, body: dict = Body(default={})):
     return {"status": "ok", "tv": tv, "command": command}
 
 
+# --- Hub: one live-state payload for /hub (and, later, the front door) --------
+
+def _time_slot(hour: float) -> str:
+    """Same day shape as the front door's headline (home-concept synthesizeStatus)."""
+    if 7 <= hour < 8.5:
+        return "waking up"
+    if 8.5 <= hour < 17:
+        return "working"
+    if 17 <= hour < 22:
+        return "relaxing"
+    if hour >= 22:
+        return "getting ready for bed"
+    return "sleeping"
+
+
+def _house_status(xb: Dict[str, Any], music: Dict[str, Any], lights: Dict[str, Any],
+                  hr: Optional[int], hour: float) -> Dict[str, Any]:
+    """'Henderburgh is ___.' — the front door's cascade, server-side so every
+    surface tells the same story: Xbox presence beats music beats an all-dark
+    house beats the time of day. `xb` must already be privacy-redacted."""
+    state, sub, live = None, None, True
+    game = (xb or {}).get("game") or ""
+    on, total = lights.get("lights_on") or 0, lights.get("total_lights") or 0
+    if xb and xb.get("status") == "ok" and re.search("online", xb.get("state") or "", re.I) \
+            and game and game != "—" and game.lower() != "home":
+        watching = xb.get("kind") == "media"
+        state = f"{'watching' if watching else 'playing'} {game}"
+        sub = f"{'Watching' if watching else 'Playing'} {game}"
+    elif (music or {}).get("now_playing"):
+        np = music["now_playing"]
+        state = f"listening to {np.get('track')}"
+        sub = f"{np.get('track')} — {np.get('artist')}"
+    elif total and not on:
+        night = hour >= 22 or hour < 7
+        state = "sleeping" if night else "out"
+        sub = "Every light in the house is off." if night else "The house is dark right now."
+        live = not night
+    else:
+        state = _time_slot(hour)
+        if total:
+            lit = sorted((r for r in lights.get("rooms") or [] if r.get("on")), key=lambda r: -r["on"])
+            sub = f"{on} of {total} lights on" + (f" · {lit[0]['name']} lit" if lit else "")
+        else:
+            sub = "Live from the house."
+    if hr:
+        sub = f"{sub} · heart {hr} bpm" if sub else f"heart {hr} bpm"
+    return {"state": state, "sub": sub, "live": live}
+
+
+@app.get("/api/hub/state")
+async def api_hub_state(request: Request):
+    """Everything the hub shows that isn't polled fast (lights poll their own
+    endpoint every 5s). Every part degrades on its own; every part is already
+    public-safe (xbox redacted in work hours, sleep never included)."""
+    states, ha_ok = await home_assistant.fetch_ha_states()
+    reveal = is_admin_authenticated(request) and request.cookies.get("reveal_private") == "1"
+
+    async def _xbox():
+        try:
+            d = await fetch_xbox_status()
+            return d if reveal else xbox.redact_status_for_public(d)
+        except Exception:
+            return None
+
+    async def _readiness():
+        try:
+            ctx = await vitals.get_processed_vitals(use_cache=True)
+            return ctx.get("readiness_score")
+        except Exception:
+            return None
+
+    arcade, calendar, music, xb, lights, readiness = await asyncio.gather(
+        _arcade_state(), ambient.upcoming_events(), ambient.music_now(), _xbox(),
+        home_assistant.get_ha_summary(), _readiness())
+    metrics = vitals.snapshot_home_metrics()
+
+    latest_post, unread = None, 0
+    try:
+        msgs = persistence.load_messages()
+        last_read = persistence.load_last_blog_read()
+        unread = len([m for m in msgs if str(m.get("timestamp", "")) > last_read])
+        top = sorted((m for m in msgs if not m.get("parent_id")), key=lambda m: m.get("timestamp", ""), reverse=True)
+        if top:
+            latest_post = {"text": (top[0].get("text") or "")[:240], "name": top[0].get("name"),
+                           "replies": len([m for m in msgs if m.get("parent_id") == top[0].get("id")])}
+    except Exception:
+        pass
+    latest_round = None
+    try:
+        rounds = sorted(persistence.load_golf_rounds() or [], key=lambda r: r.get("date", ""), reverse=True)
+        if rounds:
+            r0 = rounds[0]
+            latest_round = {k: r0.get(k) for k in ("score", "course", "date", "holes")}
+    except Exception:
+        pass
+    try:
+        clips = [{"title": c.get("title"), "url": c.get("url"), "kind": c.get("kind")} for c in list_clips(limit=3)]
+    except Exception:
+        clips = []
+
+    now = xbox._now_et()
+    return {
+        "ha_ok": ha_ok,
+        "status": _house_status(xb, music, lights or {}, metrics.get("latest_hr"), now.hour + now.minute / 60),
+        **_home_conditions(states),
+        "tvs": _tvs_from(states),
+        "arcade": arcade,
+        "calendar": calendar,
+        "music": music,
+        "xbox": {k: (xb or {}).get(k) for k in ("status", "state", "game", "kind", "playing_now")} if xb else None,
+        "vitals": {"hr": metrics.get("latest_hr"), "hr_age_minutes": metrics.get("hr_age_minutes"),
+                   "steps": metrics.get("steps"), "readiness": readiness},
+        "blog": {"latest": latest_post, "unread": unread},
+        "golf": latest_round,
+        "clips": clips,
+        "work_hours": xbox.in_work_hours(now),
+    }
+
+
 @app.get("/manifest.webmanifest")
 async def web_manifest():
     return FileResponse("static/manifest.webmanifest", media_type="application/manifest+json")
@@ -2039,7 +2171,7 @@ async def web_manifest():
 
 @app.get("/sw.js")
 async def service_worker():
-    """Served from the root so its scope covers /ipad and the pages it links to."""
+    """Served from the root so its scope covers /hub and the pages it links to."""
     return FileResponse("static/sw.js", media_type="application/javascript",
                         headers={"Cache-Control": "no-cache"})
 

@@ -100,18 +100,38 @@ def test_ha_poke_is_public_but_rate_limited(monkeypatch):
     assert client.post("/api/ha/poke").status_code == 429
 
 
-def test_ipad_page_is_installable():
+def test_hub_is_installable_and_ipad_redirects():
     import main
 
     client = TestClient(main.app)
-    res = client.get("/ipad")
+    res = client.get("/hub")
     assert res.status_code == 200
     assert 'rel="manifest"' in res.text
     assert "apple-touch-icon" in res.text
     manifest = client.get("/manifest.webmanifest")
     assert manifest.status_code == 200
-    assert manifest.json()["start_url"] == "/ipad"
+    assert manifest.json()["start_url"] == "/hub"
     assert client.get("/sw.js").headers["content-type"].startswith("application/javascript")
+    old = client.get("/ipad", follow_redirects=False)
+    assert old.status_code == 307 and old.headers["location"] == "/hub"
+
+
+def test_house_status_cascade_matches_front_door():
+    import main
+
+    lights_on = {"lights_on": 3, "total_lights": 14, "rooms": [{"name": "Kitchen", "on": 2}, {"name": "Hallway", "on": 1}]}
+    dark = {"lights_on": 0, "total_lights": 14, "rooms": []}
+    playing = {"status": "ok", "state": "Online", "game": "NASCAR 26", "kind": "game"}
+    music = {"now_playing": {"track": "My Love", "artist": "Justin Timberlake"}}
+
+    assert main._house_status(playing, music, lights_on, 72, 20.0)["state"] == "playing NASCAR 26"
+    assert main._house_status({"status": "ok", "state": "Online", "game": "Home"}, music, lights_on, None, 20.0)["state"] == "listening to My Love"
+    night = main._house_status(None, {}, dark, None, 23.5)
+    assert night["state"] == "sleeping" and night["live"] is False
+    assert main._house_status(None, {}, dark, None, 14.0)["state"] == "out"
+    day = main._house_status(None, {}, lights_on, 70, 10.0)
+    assert day["state"] == "working"
+    assert day["sub"] == "3 of 14 lights on · Kitchen lit · heart 70 bpm"
 
 
 def test_api_home_reports_weather_and_sensors(monkeypatch):

@@ -1,4 +1,5 @@
-/* /streaming — TVs (state first), a remote for the picked TV, and every service.
+/* Watch — TVs (state first), a remote for the picked TV, and every service.
+   Runs on /streaming and inside the hub's Watch space (same element ids).
    textContent only; polling only while visible; control errors are shown, never
    hidden behind an optimistic "done". */
 (function () {
@@ -62,7 +63,8 @@
     });
     $('remote').hidden = !canControl;
     const on = tvs.filter((t) => t.on);
-    $('headline').textContent = on.length ? `On now: ${on.map((t) => t.name).join(', ')}` : "What's on tonight";
+    const head = $('headline');
+    if (head) head.textContent = on.length ? `On now: ${on.map((t) => t.name).join(', ')}` : "What's on tonight";
   }
 
   function selectedTv() { return tvs.find((t) => t.entity_id === selected) || null; }
@@ -143,9 +145,9 @@
     try {
       const d = await (await fetch('/api/media/tvs', { credentials: 'same-origin' })).json();
       tvs = d.tvs || [];
-      $('fresh-dot').className = 'hb-dot ' + (d.ha_ok ? 'hb-dot-live' : 'hb-dot-stale');
+      if ($('fresh-dot')) $('fresh-dot').className = 'hb-dot ' + (d.ha_ok ? 'hb-dot-live' : 'hb-dot-stale');
     } catch (e) {
-      $('fresh-dot').className = 'hb-dot hb-dot-stale';
+      if ($('fresh-dot')) $('fresh-dot').className = 'hb-dot hb-dot-stale';
     }
     renderTvs(); renderServices();
   }
