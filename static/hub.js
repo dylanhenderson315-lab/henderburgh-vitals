@@ -317,6 +317,18 @@
     n.classList.toggle('live', !!live);
   }
 
+  // Camera uploads arrive titled like '843Dde65 B791 … 20260710 190932' —
+  // show those as a dated clip instead of a hash.
+  function clipName(title) {
+    if (!title) return null;
+    const hexish = (title.match(/\b[0-9a-f]{4,}\b/gi) || []).filter((t) => /\d/.test(t) && /[a-f]/i.test(t)).length;
+    if (hexish < 2) return title;
+    const m = title.match(/\b(20\d{2})(\d{2})(\d{2})\b/);
+    if (!m) return 'Latest clip';
+    const dt = new Date(+m[1], +m[2] - 1, +m[3]);
+    return `Clip · ${dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  }
+
   let lastState = null;
   function renderState(d) {
     lastState = d;
@@ -419,7 +431,7 @@
       if (c.kind === 'image') { const i = el('img'); i.src = c.url; i.alt = ''; i.loading = 'lazy'; strip.appendChild(i); }
       else { const vid = el('video'); vid.src = c.url + '#t=0.1'; vid.preload = 'metadata'; vid.muted = true; vid.playsInline = true; strip.appendChild(vid); }
     });
-    setLaunch('ln-clips', d.clips && d.clips[0] && d.clips[0].title ? d.clips[0].title : null);
+    setLaunch('ln-clips', d.clips && d.clips[0] ? clipName(d.clips[0].title) : null);
 
     renderModes();
     paintHeart();
