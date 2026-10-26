@@ -499,13 +499,15 @@
   // Draw a trace into an svg whose viewBox is "240 0 1440 H".
   function drawTrace(svg, d, H, opts) {
     svg.replaceChildren();
+    const dom = (opts && opts.domain) || [D0, D1];
+    svg.setAttribute('viewBox', `${dom[0]} 0 ${dom[1] - dom[0]} ${H}`);
     const series = seriesOf(d);
     if (!series.length) return { series, y: () => H / 2 };
     const ys = series.map((p) => p.y);
     const lo = Math.max(35, Math.min(...ys) - 6), hi = Math.max(lo + 30, Math.max(...ys) + 6);
     const y = (bpm) => H - 6 - ((bpm - lo) / (hi - lo)) * (H - 12);
     if (opts && opts.bands) (d.bands || []).forEach((b) => {
-      const x0 = Math.max(D0, b.x0), x1 = Math.min(D1, b.x1);
+      const x0 = Math.max(dom[0], b.x0), x1 = Math.min(dom[1], b.x1);
       if (x1 - x0 < 1) return;
       svg.appendChild(svgEl('rect', { x: x0, y: 0, width: x1 - x0, height: H,
         fill: b.kind === 'media' ? 'rgba(96,165,250,0.13)' : 'rgba(139,127,255,0.15)' }));
@@ -519,11 +521,22 @@
       if (run.length === 1) run = [run[0], { x: run[0].x + 1, y: run[0].y }];
       svg.appendChild(svgEl('polyline', { points: run.map((p) => `${p.x.toFixed(1)},${y(p.y).toFixed(1)}`).join(' '), class: 'trace' }));
     });
-    return { series, y };
+    return { series, y, dom };
   }
-  function placeDot(dot, x, yPx, H, live, bpm) {
+  // The heartline zooms to the hours the ring actually recorded (at least two),
+  // so a short sync reads as a heartbeat, not a speck in a 24-hour frame.
+  function heartDomain(series) {
+    if (!series.length) return [D0, D1];
+    let a = series[0].x, b = series[series.length - 1].x;
+    const pad = Math.max(6, (b - a) * 0.04);
+    a -= pad; b += pad;
+    if (b - a < 120) { const mid = (a + b) / 2; a = mid - 60; b = mid + 60; }
+    return [Math.max(D0, a), Math.min(D1, b)];
+  }
+  function placeDot(dot, x, yPx, H, live, bpm, dom) {
+    dom = dom || [D0, D1];
     dot.hidden = false;
-    dot.style.left = `${((x - D0) / (D1 - D0)) * 100}%`;
+    dot.style.left = `${((x - dom[0]) / (dom[1] - dom[0])) * 100}%`;
     dot.style.top = `${(yPx / H) * 100}%`;
     dot.classList.toggle('live', live);
     if (live && bpm) dot.style.setProperty('--beat', `${(60 / bpm).toFixed(2)}s`);
@@ -559,12 +572,15 @@
       `Latest ${bpm} bpm${when ? ` at ${when}` : ''}${d && !isToday ? ' · no trace synced today yet' : ''}`;
 
     const H = 100;
-    const { y } = drawTrace($('hl-svg'), d || {}, H, { bands: true });
-    const amb = drawTrace($('amb-svg'), d || {}, H, {});
+    const dom = heartDomain(series);
+    const { y } = drawTrace($('hl-svg'), d || {}, H, { bands: true, domain: dom });
+    const amb = drawTrace($('amb-svg'), d || {}, H, { domain: dom });
     if (last) {
-      placeDot($('hl-dot'), last.x, y(last.y), H, fresh, bpm);
-      placeDot($('amb-dot'), last.x, amb.y(last.y), H, fresh, bpm);
+      placeDot($('hl-dot'), last.x, y(last.y), H, fresh, last.y, dom);
+      placeDot($('amb-dot'), last.x, amb.y(last.y), H, fresh, last.y, dom);
     } else { $('hl-dot').hidden = true; $('amb-dot').hidden = true; }
+    const axis = $('hl-axis');
+    axis.replaceChildren(...[0, 0.5, 1].map((f) => el('span', null, clk(dom[0] + (dom[1] - dom[0]) * f).replace(':00', '').replace(' ', '').toLowerCase())));
     $('ambient-bpm').textContent = bpm != null ? `${bpm} bpm${bpmFresh || !when ? '' : ` · ${when}`}` : '';
 
     // The bar's beat follows the newest reading; the trace dot only beats when
