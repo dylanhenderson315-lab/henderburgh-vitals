@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=10">
+<link rel="stylesheet" href="/static/hub.css?v=12">
 </head>
 <body>
 <!-- HENDERBURGH HUB
@@ -77,16 +77,20 @@
         </div>
       </article>
 
-      <button class="card card-house" type="button" data-go="lights" id="card-house">
-        <span class="card-head"><span class="hb-label">The house</span><span class="card-go">Lights →</span></span>
+      <div class="card card-house" id="card-house">
+        <span class="card-head"><span class="hb-label">The house</span><button class="card-go" type="button" data-go="lights">Lights →</button></span>
         <span class="house-big"><span class="house-swatch" aria-hidden="true"></span><span class="num" id="house-on">—</span><span class="muted" id="house-of">lights on</span></span>
         <span class="card-sub" id="house-rooms">—</span>
-      </button>
-
-      <div class="card card-suggest" id="card-suggest" hidden>
-        <span class="card-head"><span class="hb-label">Right now</span></span>
-        <div id="now-suggest"></div>
+        <!-- The one routine that fits this hour, a thumb away. -->
+        <div class="house-suggest" id="now-suggest"></div>
       </div>
+
+      <!-- On now: the best live game as a score bug with ESPN's latest play;
+           when nothing's live, what's next and how long until it starts. -->
+      <button class="card card-onnow" type="button" data-go="watch" id="card-onnow">
+        <span class="card-head"><span class="hb-label" id="onnow-label">On now</span><span class="card-go">Watch →</span></span>
+        <span class="onnow-body" id="onnow-body"><span class="muted">Checking the scoreboard…</span></span>
+      </button>
 
       <button class="card card-tv" type="button" data-go="watch" id="card-tv">
         <span class="card-head"><span class="hb-label">On TV</span><span class="card-go">Watch →</span></span>
@@ -98,10 +102,11 @@
         <div id="music-body"><p class="muted">—</p></div>
       </div>
 
-      <div class="card card-next" id="card-next">
-        <span class="card-head"><span class="hb-label">Up next</span></span>
-        <div id="cal-body"><p class="muted">—</p></div>
-      </div>
+      <button class="card card-later" type="button" data-go="watch" id="card-later">
+        <span class="card-head"><span class="hb-label">Later tonight</span><span class="card-go">Guide →</span></span>
+        <span class="later-list" id="later-list"><span class="muted">—</span></span>
+        <span class="later-cal" id="cal-body"></span>
+      </button>
 
       <a class="card card-vitals" href="/vitals" id="card-vitals">
         <span class="card-head"><span class="hb-label">Body</span><span class="card-go">Vitals →</span></span>
@@ -268,7 +273,7 @@
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
 <script src="/static/streaming-services.js?v=3"></script>
-<script src="/static/hub.js?v=13"></script>
+<script src="/static/hub.js?v=16"></script>
 <script src="/static/watch.js?v=4"></script>
 </body>
 </html>

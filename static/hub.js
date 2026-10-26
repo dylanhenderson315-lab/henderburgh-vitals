@@ -220,23 +220,10 @@
   function renderModes() {
     const hint = suggestedMode(new Date().getHours());
     $('modes').replaceChildren(...Object.entries(MODES).map(([k, m]) => modeButton(k, m, hint)));
+    // The routine for this hour sits in The House card; outside evening and
+    // night there isn't one, and the card says nothing rather than guessing.
     const has = !!(hint && MODES[hint]);
-    if (has) $('now-suggest').replaceChildren(modeButton(hint, MODES[hint], hint));
-    else $('now-suggest').replaceChildren(...contextCard());
-    $('card-suggest').hidden = !$('now-suggest').childElementCount;
-  }
-  // When no lighting routine fits the hour, "Right now" shows what the M-1
-  // panel is doing. (Nothing work-related lives on this site — owner rule.)
-  function contextCard() {
-    const d = lastState || {};
-    const link = (href, name, sub) => {
-      const a = el('a', 'ctx');
-      a.href = href;
-      a.append(el('span', 'ctx-name', name), el('span', 'ctx-sub', sub));
-      return [a];
-    };
-    if (d.arcade && d.arcade.mode) return link('/arcade', `Arcade · ${cap(d.arcade.mode)}`, 'The M-1 panel — change mode');
-    return [];
+    $('now-suggest').replaceChildren(...(has ? [modeButton(hint, MODES[hint], hint)] : []));
   }
 
   function flash(text, kind) {
@@ -350,7 +337,6 @@
         el('span', null, !t.available ? 'unreachable' : t.on ? ([tvApp(t), t.title].filter(Boolean).join(' — ') || 'on') : 'off'));
       rows.appendChild(r);
     });
-    if (window.HBLastTonight) window.dispatchEvent(new CustomEvent('hb:tonight', { detail: window.HBLastTonight }));
     const watching = tvs.filter((t) => t.on && tvApp(t) && tvApp(t) !== 'Home screen');
     setLaunch('ln-watch', watching.length ? `${watching[0].name}: ${tvApp(watching[0])}` : null);
 
@@ -379,23 +365,13 @@
       mb.appendChild(row);
     }
 
-    // Up next
+    // Calendar: one line under Later tonight, only when a calendar exists
+    // and has something — no placeholder.
     const cb = $('cal-body');
     cb.replaceChildren();
     const cal = d.calendar || {};
-    if (!cal.configured) cb.appendChild(el('p', 'muted', 'No calendar connected yet.'));
-    else if (!(cal.events || []).length) cb.appendChild(el('p', 'muted', 'Nothing on the calendar this week.'));
-    else {
-      const ul = el('ul', 'cal-list');
-      cal.events.slice(0, 3).forEach((ev) => {
-        const li = el('li');
-        const main = el('div'); main.style.minWidth = '0';
-        main.append(el('div', 'cal-title', ev.title));
-        li.append(el('span', 'cal-when', whenLabel(ev)), main);
-        ul.appendChild(li);
-      });
-      cb.appendChild(ul);
-    }
+    const ev = cal.configured && (cal.events || [])[0];
+    if (ev) cb.append(el('span', 'hb-label', 'Calendar'), el('span', 'later-cal-line', `${ev.title} · ${whenLabel(ev)}`));
 
     // Body
     const v = d.vitals || {};
@@ -428,7 +404,6 @@
     });
     setLaunch('ln-clips', d.clips && d.clips[0] ? clipName(d.clips[0].title) : null);
 
-    renderModes();
     paintHeart();
     openForContext(d);
   }
@@ -444,20 +419,106 @@
     userMoved = true;
   }
 
-  // Tonight's pick on the Now space's On-TV card, and a live big game pulls a
-  // freshly opened hub to Watch.
+  // ═══════════════════════ On now + Later (sports) ═══════════════════════
+  // Fed by watch.js's 'hb:tonight' (30s while games are live, 5 min otherwise).
+  const lastScores = {};   // game id -> "a-b", so a change can flash
+  const hexc = (c) => (c && /^[0-9a-f]{6}$/i.test(c) ? `#${c}` : '#3a3a42');
+  const startAt = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  function untilLabel(iso) {
+    const m = Math.round((Date.parse(iso) - Date.now()) / 60000);
+    if (m <= 0) return 'starting';
+    if (m < 60) return `in ${m} min`;
+    const h = Math.floor(m / 60), mm = m % 60;
+    return `in ${h}h${mm ? ` ${mm}m` : ''}`;
+  }
+  const OTA_RE = /^(fox|nbc|cbs|abc|the cw|pbs)$/i;
+  const watchable = (g) => g.national || g.postseason || (g.apps || []).length || (g.networks || []).some((n) => OTA_RE.test(n));
+  function whereLine(g) {
+    const app = (g.apps || []).map((k) => (window.HBStreaming || []).find((s) => s.key === k)).find(Boolean);
+    if (app) return `in ${app.name}`;
+    const n = (g.networks || [])[0];
+    return n ? (OTA_RE.test(n) ? `${n} · live channels` : n) : '';
+  }
+  function teamRow(t, flashIt) {
+    const r = el('span', 'mb-team');
+    const sw = el('i', 'mb-sw'); sw.style.background = hexc(t.color);
+    const sc = el('span', 'mb-score num' + (flashIt ? ' flash' : ''), t.score != null ? String(t.score) : '');
+    r.append(sw, el('b', 'mb-abbr', t.abbr || '?'), sc);
+    return r;
+  }
+  function renderOnNow(t) {
+    const body = $('onnow-body');
+    body.replaceChildren();
+    const live = (t.live || []).filter(watchable);
+    const allLive = t.live || [];
+    if (live.length) {
+      const g = live[0];
+      $('onnow-label').textContent = g.close ? `On now · ${g.close}` : 'On now · Live';
+      $('card-onnow').classList.toggle('hot', !!g.close);
+      // Flash only the side that just scored.
+      const prev = lastScores[g.id];
+      lastScores[g.id] = g.teams.map((x) => x.score);
+      const scored = (i) => !!prev && prev[i] !== g.teams[i].score;
+      const bugEl = el('span', 'mini-bug');
+      bugEl.append(teamRow(g.teams[0], scored(0)), teamRow(g.teams[1], scored(1)));
+      const meta = el('span', 'mb-meta');
+      meta.append(el('span', null, g.detail || ''), el('span', 'mb-where', whereLine(g)));
+      body.append(bugEl, meta);
+      // The update: ESPN's own last play, else the situation (down & distance, outs).
+      const upd = g.last_play || g.situation;
+      if (upd) body.appendChild(el('span', 'mb-update', upd));
+      if (g.win && g.win.home != null) {
+        const home = g.teams[1], away = g.teams[0];
+        const lead = g.win.home >= 50 ? home : away;
+        const wp = el('span', 'mb-wp');
+        const bar = el('i'); bar.style.width = `${g.win.home}%`; bar.style.background = hexc(home.color);
+        wp.style.background = hexc(away.color);
+        wp.appendChild(bar);
+        body.append(wp, el('span', 'mb-wpl', `${lead.abbr} ${Math.max(g.win.home, 100 - g.win.home)}% to win`));
+      }
+      const others = allLive.length - 1;
+      if (others > 0) body.appendChild(el('span', 'faint', `+${others} more live`));
+      return;
+    }
+    // Nothing worth watching is live: say what's next and how soon.
+    $('card-onnow').classList.remove('hot');
+    $('onnow-label').textContent = 'On now';
+    const next = (t.upcoming || []).filter(watchable)[0];
+    const msg = el('span', 'onnow-quiet');
+    msg.append(el('span', 'muted', allLive.length ? `${allLive.length} game${allLive.length === 1 ? '' : 's'} live on regional nets` : 'Nothing live right now.'));
+    if (next) {
+      const title = next.note || `${next.teams[0].abbr} @ ${next.teams[1].abbr}`;
+      msg.append(el('span', 'onnow-next', title), el('span', 'faint', `${startAt(next.start)} · ${untilLabel(next.start)} · ${whereLine(next)}`));
+    }
+    body.appendChild(msg);
+  }
+  function renderLater(t) {
+    const list = $('later-list');
+    list.replaceChildren();
+    // When nothing's live, On now already shows the next game — Later starts after it.
+    const anyLive = (t.live || []).some(watchable);
+    const ups = (t.upcoming || []).filter(watchable).slice(anyLive ? 0 : 1, anyLive ? 3 : 4);
+    if (!ups.length) { list.appendChild(el('span', 'muted', 'No more big games tonight.')); return; }
+    ups.forEach((g) => {
+      const row = el('span', 'later-row' + (g.score >= 50 ? ' big' : ''));
+      const teams = el('span', 'later-teams');
+      g.teams.forEach((tm, i) => {
+        const chip = el('span', 'tchip', tm.abbr);
+        chip.style.setProperty('--tc', hexc(tm.color));
+        teams.appendChild(chip);
+        if (i === 0) teams.appendChild(el('span', 'faint', '@'));
+      });
+      const info = el('span', 'later-info');
+      info.append(el('span', 'later-when num', startAt(g.start)), el('span', 'later-sub', [g.note || g.league, whereLine(g)].filter(Boolean).join(' · ')));
+      row.append(teams, info);
+      list.appendChild(row);
+    });
+  }
   window.addEventListener('hb:tonight', (ev) => {
     const t = ev.detail || {};
-    const rows = $('tv-rows');
-    const old = rows.querySelector('.tonight-line');
-    if (old) old.remove();
-    const p = t.pick;
-    if (p) {
-      const line = el('span', 'row tonight-line');
-      line.append(el('span', 'hb-dot ' + (p.state === 'in' ? 'hb-dot-live' : 'hb-dot-off')),
-        el('b', null, p.state === 'in' ? 'Live' : 'Tonight'), el('span', null, `${p.title} · ${p.reason}`));
-      rows.appendChild(line);
-    }
+    renderOnNow(t);
+    renderLater(t);
+    // A big live game pulls a freshly opened hub to Watch.
     const bigLive = (t.live || []).some((g) => g.score >= 120);
     if (bigLive && !userMoved && Date.now() - loadedAt < 6000) { goTo('watch'); userMoved = true; }
   });

@@ -119,6 +119,7 @@ def _game(league: str, e: Dict[str, Any]) -> Dict[str, Any]:
         situation = sit.get("downDistanceText") or sit.get("shortDownDistanceText") or (
             f"{sit.get('outs')} out" if sit.get("outs") is not None else None)
     note = next((n.get("headline") for n in c.get("notes") or [] if n.get("headline")), None)
+    last_play = ((sit.get("lastPlay") or {}).get("text") or "").strip() if stype.get("state") == "in" else ""
     return {
         "id": e.get("id"),
         "league": league,
@@ -135,6 +136,7 @@ def _game(league: str, e: Dict[str, Any]) -> Dict[str, Any]:
         "note": note,
         "series": (c.get("series") or {}).get("summary"),
         "situation": situation,
+        "last_play": last_play or None,     # ESPN's own play-by-play line, verbatim
         "win": None,
     }
 
