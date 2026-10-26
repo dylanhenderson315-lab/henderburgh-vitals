@@ -23,6 +23,24 @@
     return n;
   }
   function cap(s) { return s ? String(s).replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—'; }
+  // Numbers ease to their new value — but always land on the real number:
+  // instantly when hidden, and a timeout backstop if rAF is throttled.
+  function rollNum(node, to) {
+    if (!node) return;
+    const target = String(to);
+    const from = parseInt(node.textContent, 10);
+    const end = parseInt(target, 10);
+    if (!Number.isFinite(from) || !Number.isFinite(end) || from === end || document.visibilityState !== 'visible'
+        || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { node.textContent = target; return; }
+    const t0 = performance.now(), dur = 480;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      node.textContent = k >= 1 ? target : String(Math.round(from + (end - from) * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    setTimeout(() => { node.textContent = target; }, dur + 120);
+  }
   function ago(uts) {
     if (!uts) return '';
     const m = Math.round((Date.now() / 1000 - uts) / 60);
@@ -50,8 +68,32 @@
     if (instant) requestAnimationFrame(() => { track.scrollTo({ left: i * track.clientWidth, behavior: 'instant' }); markTab(key); });
     setTimeout(() => { settling = false; }, instant ? 120 : 700);
   }
+  // The active pill glides to the tab (one indicator, moved — not five backgrounds toggled).
+  function placeInd() {
+    const ind = $('tab-ind');
+    const cur = tabs.find((t) => t.getAttribute('aria-current') === 'true');
+    if (!ind || !cur || !cur.offsetWidth) return;
+    const first = !ind.dataset.placed;
+    if (first) ind.style.transition = 'none';   // appear in place on load; glide only after that
+    ind.style.width = `${cur.offsetWidth}px`;
+    ind.style.transform = `translateX(${cur.offsetLeft}px)`;
+    if (first) { void ind.offsetWidth; ind.style.transition = ''; ind.dataset.placed = '1'; }
+    // Backstop: if transitions are frozen (backgrounded app, low-power mode),
+    // snap into place — the pill must never sit under the wrong tab.
+    clearTimeout(placeInd.t);
+    placeInd.t = setTimeout(() => {
+      const a = ind.getBoundingClientRect(), b = cur.getBoundingClientRect();
+      if (Math.abs(a.left - b.left) > 1 || Math.abs(a.width - b.width) > 1) {
+        ind.style.transition = 'none';
+        ind.style.transform = `translateX(${cur.offsetLeft}px)`;
+        void ind.offsetWidth;
+        ind.style.transition = '';
+      }
+    }, 650);
+  }
   function markTab(key) {
     tabs.forEach((t) => t.setAttribute('aria-current', String(t.dataset.space === key)));
+    placeInd();
     try { sessionStorage.setItem('hb-hub-space', JSON.stringify({ key, at: Date.now() })); } catch (e) {}
   }
   tabs.forEach((t) => t.addEventListener('click', () => { userMoved = true; goTo(t.dataset.space); }));
@@ -72,8 +114,10 @@
   track.addEventListener('pointerdown', () => { userMoved = true; }, { passive: true });
   // Rotation changes the track width: freeze transitions while the layout
   // re-flows and pin the same space in view, so the turn is one clean step.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeInd);
   let resizeT = null;
   window.addEventListener('resize', () => {
+    requestAnimationFrame(placeInd);
     document.documentElement.classList.add('resizing');
     const cur = tabs.find((t) => t.getAttribute('aria-current') === 'true');
     if (cur) {
@@ -111,8 +155,7 @@
     const mm = String(now.getMinutes()).padStart(2, '0');
     const ap = h < 12 ? 'AM' : 'PM';
     const clock = $('clock');
-    clock.textContent = `${h12}:${mm}`;
-    clock.appendChild(el('span', 'ampm', ap));
+    clock.replaceChildren(document.createTextNode(String(h12)), el('span', 'colon', ':'), document.createTextNode(mm), el('span', 'ampm', ap));
     $('bar-time').textContent = `${h12}:${mm} ${ap}`;
     $('ambient-clock').textContent = `${h12}:${mm}`;
     $('date').textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
@@ -197,9 +240,9 @@
       wrap.appendChild(cell);
     });
     if (openRoomName) renderRoomSheet();
-    $('lights-on').textContent = String(on);
+    rollNum($('lights-on'), on);
     $('lights-of').textContent = `of ${total} lights on`;
-    $('house-on').textContent = String(on);
+    rollNum($('house-on'), on);
     $('house-of').textContent = `of ${total} on`;
     $('house-rooms').textContent = on ? lit.join(' · ') : 'Every light is off.';
     $('card-house').classList.toggle('dark', on === 0);
@@ -482,7 +525,11 @@
       }
       const row = el('div', 'np');
       const art = el('div', 'np-art');
-      if (np.art && /^https:\/\//.test(np.art)) art.style.backgroundImage = `url("${np.art.replace(/"/g, '')}")`;
+      if (np.art && /^https:\/\//.test(np.art)) {
+        const u = `url("${np.art.replace(/"/g, '')}")`;
+        art.style.backgroundImage = u;
+        $('card-music').style.setProperty('--art', u);   // the cover becomes the card's light
+      }
       const txt = el('div');
       txt.style.minWidth = '0';
       txt.append(el('div', 'np-track', np.track), el('div', 'np-artist', np.artist));
@@ -818,7 +865,7 @@
       : (last ? clk(last.x) : '');
 
     $('hl-label').textContent = !d ? 'Heart' : isToday ? 'Heart · today' : `Heart · trace from ${relLabel(heartIso).toLowerCase()}`;
-    $('hl-bpm').textContent = bpm != null ? String(bpm) : '—';
+    if (bpm != null) rollNum($('hl-bpm'), bpm); else $('hl-bpm').textContent = '—';
     $('hl-foot').textContent = bpm == null ? 'No ring data yet.' :
       bpmFresh ? `Live · ${bpm} bpm at ${when}` :
       `Latest ${bpm} bpm${when ? ` at ${when}` : ''}${d && !isToday ? ' · no trace synced today yet' : ''}`;
@@ -1127,8 +1174,17 @@
     if (document.visibilityState === 'visible') { loadAuth(); start(); wake(); } else stop();
   });
 
+  // First open this session: cards rise into place (transform only).
+  try {
+    if (!sessionStorage.getItem('hb-entered')) {
+      document.documentElement.classList.add('entering');
+      sessionStorage.setItem('hb-entered', '1');
+      setTimeout(() => document.documentElement.classList.remove('entering'), 1400);
+    }
+  } catch (e) {}
   tickClock();
   renderModes();
+  placeInd();
   loadAuth();
   openNewestDay();
   loadHeart();

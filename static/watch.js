@@ -424,6 +424,7 @@
   function favCard({ logo, color, title, sub, lines, live, apps, networks, via }) {
     const c = el('article', 'fav' + (live ? ' live' : ''));
     c.style.setProperty('--tc', hex(color));
+    if (logo && /^https:\/\//.test(logo)) { const wm = el('img', 'fav-wm'); wm.src = logo; wm.alt = ''; wm.loading = 'lazy'; c.appendChild(wm); }
     const head = el('div', 'fav-head');
     if (logo && /^https:\/\//.test(logo)) { const i = el('img'); i.src = logo; i.alt = ''; i.loading = 'lazy'; head.appendChild(i); }
     const names = el('div');

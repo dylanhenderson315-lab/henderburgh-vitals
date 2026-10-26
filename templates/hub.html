@@ -17,9 +17,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=24">
+<link rel="stylesheet" href="/static/hub.css?v=26">
 </head>
 <body>
+<!-- Monoline icons (24-unit grid, 1.6 stroke) — one family, no emoji. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-house" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7V19a1.5 1.5 0 0 1-1.5 1.5h-4.5v-6h-5v6H5A1.5 1.5 0 0 1 3.5 19z"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 19a10 10 0 0 1 0-14M19 5a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-tv" viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="13" rx="2.5"/><path d="M8 21h8"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l11-2V16"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.6-9.2A5.3 5.3 0 0 1 12 6.4a5.3 5.3 0 0 1 9.6 4.9C19.5 15.9 12 20.5 12 20.5z"/></symbol>
+  </defs>
+</svg>
 <!-- HENDERBURGH HUB
      One screen, five spaces you swipe between (or tap the tabs): Now · Day ·
      Lights · Watch · Everything. Built to become the front door: everything
@@ -38,6 +49,7 @@
     <button type="button" data-space="lights">Lights</button>
     <button type="button" data-space="watch">Watch</button>
     <button type="button" data-space="all">Everything</button>
+    <span class="tab-ind" id="tab-ind" aria-hidden="true"></span>
   </nav>
   <!-- Live game, Live-Activity style: appears only while a watchable game is on. -->
   <button class="bar-live" id="bar-live" type="button" data-scene="sports" hidden aria-label="Live game — open Sports"></button>
@@ -80,7 +92,7 @@
       </article>
 
       <div class="card card-house" id="card-house">
-        <span class="card-head"><span class="hb-label">The house</span><button class="card-go" type="button" data-go="lights">Lights →</button></span>
+        <span class="card-head"><span class="ch-title"><svg class="ico" aria-hidden="true"><use href="#i-house"/></svg><span class="hb-label">The house</span></span><button class="card-go" type="button" data-go="lights">Lights →</button></span>
         <span class="house-big"><span class="house-swatch" aria-hidden="true"></span><span class="num" id="house-on">—</span><span class="muted" id="house-of">lights on</span></span>
         <span class="card-sub" id="house-rooms">—</span>
         <!-- The one routine that fits this hour, a thumb away. -->
@@ -90,28 +102,28 @@
       <!-- On now: the best live game as a score bug with ESPN's latest play;
            when nothing's live, what's next and how long until it starts. -->
       <button class="card card-onnow" type="button" data-scene="sports" id="card-onnow">
-        <span class="card-head"><span class="hb-label" id="onnow-label">On now</span><span class="card-go">Sports →</span></span>
+        <span class="card-head"><span class="ch-title"><svg class="ico" aria-hidden="true"><use href="#i-live"/></svg><span class="hb-label" id="onnow-label">On now</span></span><span class="card-go">Sports →</span></span>
         <span class="onnow-body" id="onnow-body"><span class="muted">Checking the scoreboard…</span></span>
       </button>
 
       <button class="card card-tv" type="button" data-go="watch" id="card-tv">
-        <span class="card-head"><span class="hb-label">On TV</span><span class="card-go">Watch →</span></span>
+        <span class="card-head"><span class="ch-title"><svg class="ico" aria-hidden="true"><use href="#i-tv"/></svg><span class="hb-label">On TV</span></span><span class="card-go">Watch →</span></span>
         <span class="rows" id="tv-rows"><span class="muted">—</span></span>
       </button>
 
       <div class="card card-music" id="card-music">
-        <span class="card-head"><span class="hb-label" id="music-label">Music</span></span>
+        <span class="card-head"><span class="ch-title"><svg class="ico" aria-hidden="true"><use href="#i-music"/></svg><span class="hb-label" id="music-label">Music</span></span></span>
         <div id="music-body"><p class="muted">—</p></div>
       </div>
 
       <button class="card card-later" type="button" data-go="watch" id="card-later">
-        <span class="card-head"><span class="hb-label">Later tonight</span><span class="card-go">Guide →</span></span>
+        <span class="card-head"><span class="ch-title"><svg class="ico" aria-hidden="true"><use href="#i-cal"/></svg><span class="hb-label">Later tonight</span></span><span class="card-go">Guide →</span></span>
         <span class="later-list" id="later-list"><span class="muted">—</span></span>
         <span class="later-cal" id="cal-body"></span>
       </button>
 
       <a class="card card-vitals" href="/vitals" id="card-vitals">
-        <span class="card-head"><span class="hb-label">Body</span><span class="card-go">Vitals →</span></span>
+        <span class="card-head"><span class="ch-title"><svg class="ico" aria-hidden="true"><use href="#i-heart"/></svg><span class="hb-label">Body</span></span><span class="card-go">Vitals →</span></span>
         <span class="stats" id="vitals-stats"><span class="muted">—</span></span>
       </a>
     </div>
@@ -360,7 +372,7 @@
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
 <script src="/static/streaming-services.js?v=5"></script>
-<script src="/static/hub.js?v=23"></script>
-<script src="/static/watch.js?v=11"></script>
+<script src="/static/hub.js?v=26"></script>
+<script src="/static/watch.js?v=12"></script>
 </body>
 </html>
