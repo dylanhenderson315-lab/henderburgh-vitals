@@ -260,6 +260,9 @@ button.card:active, a.card:active{ transform:scale(0.985); transition-duration:v
 .mode[disabled]{ cursor:default; opacity:0.5; }
 #now-suggest .mode{ width:100%; min-height:0; flex:1; }
 .card[hidden]{ display:none; }
+/* No 'Right now' this hour: Body takes the freed cell instead of leaving a hole. */
+.card-suggest[hidden] ~ .card-vitals{ grid-column:span 2; }
+@media (max-width: 559px){ .card-suggest[hidden] ~ .card-vitals{ grid-column:auto; } }
 .card-suggest{ padding:var(--s-4); }
 .ctx{ display:flex; flex-direction:column; justify-content:space-between; gap:var(--s-2); flex:1; width:100%;
   padding:var(--s-4); border-radius:var(--r-lg); border:1px solid var(--line-strong); background:var(--surface-2); }

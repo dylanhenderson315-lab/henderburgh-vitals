@@ -776,11 +776,11 @@
   }
   // The heartline wants the newest day that has a trace: today, else walk back.
   async function loadHeart() {
-    for (let i = 0; i < 4; i++) {
-      const iso = shiftISO(TODAY, -i);
-      const d = await fetchDay(iso);
-      if (seriesOf(d).length) { heartDay = d; heartIso = iso; break; }
-    }
+    // Ask for the last four days at once; the newest one with a trace wins.
+    const isos = [0, 1, 2, 3].map((i) => shiftISO(TODAY, -i));
+    const days = await Promise.all(isos.map((iso) => fetchDay(iso)));
+    const i = days.findIndex((d) => seriesOf(d).length);
+    if (i >= 0) { heartDay = days[i]; heartIso = isos[i]; }
     paintHeart();
   }
   $('day-prev').addEventListener('click', () => loadDay(shiftISO(dayIso, -1)));
