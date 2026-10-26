@@ -19,14 +19,27 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
 <style>
+  /* ============================================================================
+     One document, two instruments.
+     PORTRAIT  — a single scroll, morning -> night, the current band pinned.
+     LANDSCAPE — a console: the Now panel (clock, weather, the house's live
+                 light colour) holds the left third; the day's tiles scroll on
+                 the right in a two-column grid.
+     The switch is a pure CSS media query, so rotating the iPad re-lays out
+     instantly with no JS and no reload.
+     ========================================================================== */
   :root{
-    --page-max: 820px;
     --page-pad: 24px;
     --hud-h: 52px;
     --safe-t: env(safe-area-inset-top, 0px);
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
     --safe-r: env(safe-area-inset-right, 0px);
+    /* Live tints, written by ipad.js: the house glow (average colour of every
+       lit bulb) and the time-of-day sky. Defaults = calm emerald idle. */
+    --house-rgb: var(--accent-rgb);
+    --house-a: 0.16;
+    --sky-rgb: 96, 165, 250;
   }
   @media (max-width: 520px){ :root{ --page-pad: 16px; } }
   *{ margin:0; padding:0; box-sizing:border-box; }
@@ -34,34 +47,62 @@
   body{
     background:var(--bg); color:var(--text); font-family:var(--font-sans);
     -webkit-font-smoothing:antialiased; overflow-x:hidden;
-    /* standalone iPad apps: no rubber-band highlight, no long-press callouts on tiles */
     -webkit-tap-highlight-color:transparent; overscroll-behavior-y:none;
   }
   a{ color:inherit; text-decoration:none; }
   button{ font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
-  .font-display{ font-family:var(--font-display); }
-  .page{
-    width:100%; max-width:var(--page-max); margin-inline:auto;
-    padding-left:calc(var(--page-pad) + var(--safe-l));
-    padding-right:calc(var(--page-pad) + var(--safe-r));
-  }
 
-  /* ── Corner HUD: always-visible clock + freshness, since "now" can be any tile ── */
+  /* ── Corner HUD ─────────────────────────────────────────────────────────── */
   .hud{
     position:fixed; top:0; left:0; right:0; z-index:40;
-    padding-top:var(--safe-t);
+    padding:var(--safe-t) calc(var(--page-pad) + var(--safe-r)) 0 calc(var(--page-pad) + var(--safe-l));
     background:rgba(10,10,11,0.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);
   }
-  .hud-row{ height:var(--hud-h); display:flex; align-items:center; gap:var(--s-3); }
+  .hud-row{ height:var(--hud-h); display:flex; align-items:center; gap:var(--s-3); max-width:1400px; margin:0 auto; }
   .hud-brand{ font-family:var(--font-display); font-weight:600; font-size:14px; letter-spacing:0.04em; }
   .hud-spacer{ flex:1; }
   .hud-time{ font-family:var(--font-mono); font-size:var(--t-sm); color:var(--text-2); font-variant-numeric:tabular-nums; }
-  .hud-link{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-3); padding:var(--s-2) var(--s-3); border-radius:var(--r-sm); }
+  .hud-link{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-3);
+    min-height:var(--tap-min); display:inline-flex; align-items:center; padding:0 var(--s-3); border-radius:var(--r-sm); }
   .hud-link:active{ background:var(--surface-2); }
-  main{ padding-top:calc(var(--hud-h) + var(--safe-t) + var(--s-6)); padding-bottom:calc(var(--s-12) + var(--safe-b)); }
 
-  /* ── Time bands (scroll-as-time-of-day) ── */
+  .shell{
+    max-width:1400px; margin:0 auto;
+    padding:calc(var(--hud-h) + var(--safe-t) + var(--s-6)) calc(var(--page-pad) + var(--safe-r)) calc(var(--s-12) + var(--safe-b)) calc(var(--page-pad) + var(--safe-l));
+  }
+  .portrait-wrap{ max-width:820px; margin:0 auto; }
+
+  /* ── Now panel (hero) ───────────────────────────────────────────────────── */
+  .now{
+    position:relative; isolation:isolate; overflow:hidden;
+    padding:var(--s-8) var(--s-6); margin-bottom:var(--s-8);
+    border-radius:var(--r-lg); border:1px solid var(--line); background:var(--surface);
+  }
+  /* Two soft light sources, never animated into visibility: the house glow
+     (what the bulbs are actually doing) and the sky (time of day). */
+  .now::before, .now::after{ content:''; position:absolute; pointer-events:none; z-index:-1; filter:blur(48px);
+    transition:background 1.2s ease; }
+  .now::before{ inset:-30% -25% auto auto; width:75%; height:110%;
+    background:radial-gradient(closest-side, rgba(var(--house-rgb), var(--house-a)), transparent); }
+  .now::after{ inset:auto auto -45% -25%; width:80%; height:90%;
+    background:radial-gradient(closest-side, rgba(var(--sky-rgb), 0.10), transparent); }
+  .now-greet{ color:var(--text-2); font-size:var(--t-lg); margin-bottom:var(--s-2); }
+  .now-clock{ font-family:var(--font-display); font-weight:600; font-size:clamp(4.5rem, 16vw, 8.5rem);
+    line-height:0.95; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .now-clock .ampm{ font-size:0.28em; letter-spacing:0; color:var(--text-3); margin-left:0.2em; font-weight:500; }
+  .now-date{ font-family:var(--font-mono); font-size:var(--t-sm); color:var(--text-3); margin-top:var(--s-3); }
+  .now-wx{ display:grid; grid-template-columns:repeat(4, auto); justify-content:start; gap:var(--s-6);
+    margin-top:var(--s-8); padding-top:var(--s-6); border-top:1px solid var(--line); }
+  .wx{ display:flex; flex-direction:column; gap:var(--s-1); }
+  .wx-val{ font-family:var(--font-display); font-size:var(--t-xl); font-weight:600; font-variant-numeric:tabular-nums; }
+  @media (max-width:560px){ .now-wx{ grid-template-columns:repeat(2, auto); } }
+  .now-extra{ display:none; }   /* landscape-only blocks */
+  .house-line{ display:flex; align-items:center; gap:var(--s-3); }
+  .house-swatch{ width:14px; height:14px; border-radius:var(--r-full);
+    background:rgb(var(--house-rgb)); box-shadow:0 0 12px rgba(var(--house-rgb),0.6); flex-shrink:0; }
+
+  /* ── Time bands ─────────────────────────────────────────────────────────── */
   .band{ margin-bottom:var(--s-8); scroll-margin-top:calc(var(--hud-h) + var(--safe-t) + var(--s-4)); }
   .band-head{ display:flex; align-items:center; gap:var(--s-3); margin-bottom:var(--s-4); }
   .band-head .hb-label{ white-space:nowrap; }
@@ -71,37 +112,38 @@
     color:var(--accent); background:var(--accent-dim); border:1px solid var(--accent-line);
     padding:2px 8px; border-radius:var(--r-full); }
   .band.is-now .now-pill{ display:inline-block; }
+  .grid{ display:grid; gap:var(--s-4); grid-template-columns:minmax(0,1fr); }
 
-  .stack{ display:grid; gap:var(--s-4); }
-  .tile{ padding:var(--s-6); }
+  .tile{ padding:var(--s-6); min-width:0; }
   .tile-head{ display:flex; align-items:center; justify-content:space-between; gap:var(--s-3); margin-bottom:var(--s-4); }
   .tile-title{ font-size:var(--t-lg); font-weight:600; }
   .muted{ color:var(--text-2); font-size:var(--t-sm); line-height:var(--lh-body); }
-  .faint{ color:var(--text-3); font-size:var(--t-xs); }
+  .faint{ color:var(--text-3); font-size:var(--t-xs); line-height:var(--lh-snug); }
   .tile-link{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-2);
     display:inline-flex; align-items:center; min-height:var(--tap-min); padding:0 var(--s-3);
-    margin-right:calc(-1 * var(--s-3)); border-radius:var(--r-sm); }
+    margin-right:calc(-1 * var(--s-3)); border-radius:var(--r-sm); white-space:nowrap; }
   .tile-link:active{ background:var(--surface-2); }
-
-  /* Hero */
-  .hero{ padding:var(--s-8) var(--s-6); position:relative; overflow:hidden; }
-  .hero::before{ /* the one approved generative accent: a small static aurora */
-    content:''; position:absolute; inset:-40% -20% auto auto; width:70%; height:120%;
-    background:radial-gradient(closest-side, rgba(var(--accent-rgb),0.16), transparent);
-    filter:blur(40px); pointer-events:none; z-index:-1; }
-  .hero{ isolation:isolate; }
-  .hero-greet{ color:var(--text-2); font-size:var(--t-lg); margin-bottom:var(--s-2); }
-  .hero-clock{ font-family:var(--font-display); font-weight:600; font-size:clamp(4.5rem, 16vw, 8.5rem);
-    line-height:0.95; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; }
-  .hero-clock .ampm{ font-size:0.28em; letter-spacing:0; color:var(--text-3); margin-left:0.2em; font-weight:500; }
-  .hero-date{ font-family:var(--font-mono); font-size:var(--t-sm); color:var(--text-3); margin-top:var(--s-3); }
-  .hero-weather{ display:flex; flex-wrap:wrap; gap:var(--s-6); margin-top:var(--s-8); padding-top:var(--s-6); border-top:1px solid var(--line); }
-  .wx{ display:flex; flex-direction:column; gap:var(--s-1); }
-  .wx-val{ font-family:var(--font-display); font-size:var(--t-xl); font-weight:600; }
+  .placeholder{ border:1px dashed var(--line-strong); border-radius:var(--r-md); padding:var(--s-4); }
 
   /* Lights */
   .lights-sum{ display:flex; align-items:baseline; gap:var(--s-2); margin-bottom:var(--s-4); }
   .lights-sum .num{ font-family:var(--font-display); font-size:var(--t-2xl); font-weight:600; }
+  .modes{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(132px, 1fr); gap:var(--s-3);
+    overflow-x:auto; scroll-snap-type:x mandatory; margin:0 calc(-1 * var(--s-6)) var(--s-4);
+    padding:0 var(--s-6) var(--s-1); scrollbar-width:none; }
+  .modes::-webkit-scrollbar{ display:none; }
+  .mode{ scroll-snap-align:start; text-align:left; min-height:88px; padding:var(--s-3) var(--s-4);
+    border-radius:var(--r-md); border:1px solid var(--line-strong);
+    background:linear-gradient(135deg, var(--mode-a, var(--surface-2)), var(--surface-2) 75%);
+    display:flex; flex-direction:column; justify-content:space-between; gap:var(--s-2);
+    transition:transform var(--d-base) var(--ease-out), border-color var(--d-fast) ease; }
+  .mode:active{ transform:scale(0.97); transition-duration:var(--d-press); }
+  .mode-name{ font-weight:600; font-size:var(--t-base); }
+  .mode-desc{ font-size:var(--t-xs); color:var(--text-2); line-height:var(--lh-snug); }
+  .mode.suggested{ border-color:var(--accent-line); }
+  .mode.suggested .mode-name::after{ content:' · now'; color:var(--accent); font-family:var(--font-mono); font-size:var(--t-xs); font-weight:500; }
+  .mode.busy{ opacity:0.6; }
+  .mode[disabled]{ cursor:default; opacity:0.55; }
   .rooms{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--s-3); }
   @media (min-width:700px){ .rooms{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
   .room{ text-align:left; min-height:72px; padding:var(--s-3) var(--s-4); border-radius:var(--r-md);
@@ -111,147 +153,248 @@
   .room:active{ transform:scale(0.97); transition-duration:var(--d-press); }
   .room-name{ font-weight:600; font-size:var(--t-base); display:flex; align-items:center; gap:var(--s-2); }
   .room-count{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-3); font-variant-numeric:tabular-nums; }
-  .room.on{ background:rgba(var(--accent-rgb),0.10); border-color:var(--accent-line); }
-  .room.on .room-count{ color:var(--accent); }
+  .room.on{ background:rgba(var(--room-rgb, var(--accent-rgb)),0.10); border-color:rgba(var(--room-rgb, var(--accent-rgb)),0.35); }
+  .room.on .hb-dot{ background:rgb(var(--room-rgb, var(--accent-rgb))); }
+  .room.on .room-count{ color:var(--text-2); }
   .room.pending{ opacity:0.6; }
   .room[disabled]{ cursor:default; }
-  .actions{ display:flex; flex-wrap:wrap; gap:var(--s-3); margin-top:var(--s-4); }
+  .lock-note{ margin-top:var(--s-3); }
+  .lock-note a{ color:var(--info); }
+  .err{ color:var(--danger); font-size:var(--t-xs); margin-top:var(--s-2); min-height:1em; }
+  .err.ok{ color:var(--accent); }
+
+  /* Lists (calendar, recent scrobbles): editorial hairlines, not boxes */
+  .rows{ list-style:none; }
+  .rows li{ display:flex; align-items:center; gap:var(--s-4); padding:var(--s-3) 0; border-top:1px solid var(--line); min-width:0; }
+  .rows li:first-child{ border-top:0; padding-top:0; }
+  .row-when{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-3); width:88px; flex-shrink:0; font-variant-numeric:tabular-nums; }
+  .row-main{ min-width:0; flex:1; }
+  .row-title{ font-weight:600; font-size:var(--t-base); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row-sub{ font-size:var(--t-xs); color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Music */
+  .np{ display:flex; gap:var(--s-4); align-items:center; margin-bottom:var(--s-4); }
+  .np-art{ width:84px; height:84px; border-radius:var(--r-md); background:var(--surface-2) center/cover no-repeat; flex-shrink:0;
+    border:1px solid var(--line); }
+  .np-track{ font-family:var(--font-display); font-size:var(--t-xl); font-weight:600; line-height:var(--lh-tight); }
+  .np-artist{ color:var(--text-2); margin-top:var(--s-1); }
+  .eq{ display:inline-flex; gap:2px; align-items:flex-end; height:10px; margin-right:var(--s-2); }
+  .eq i{ width:2px; background:var(--accent); animation:eq 1s ease-in-out infinite; }
+  .eq i:nth-child(2){ animation-delay:-0.3s; } .eq i:nth-child(3){ animation-delay:-0.6s; }
+  @keyframes eq{ 0%,100%{ height:3px; } 50%{ height:10px; } }
+
+  /* Stats */
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr)); gap:var(--s-4); }
+  .stat{ display:flex; flex-direction:column; gap:var(--s-1); }
+  .stat-val{ font-family:var(--font-display); font-size:var(--t-xl); font-weight:600; font-variant-numeric:tabular-nums; }
+
+  /* Media */
+  .media-row{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(150px, 1fr); gap:var(--s-3);
+    overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:var(--s-1); scrollbar-width:none; }
+  .media-card{ scroll-snap-align:start; aspect-ratio:16/10; border-radius:var(--r-md);
+    border:1px solid var(--line); display:flex; align-items:flex-end; padding:var(--s-3);
+    font-weight:600; font-size:var(--t-sm); background:var(--surface-2); }
+
   .btn{ min-height:var(--tap-min); padding:0 var(--s-5); border-radius:var(--r-md);
     background:var(--surface-2); border:1px solid var(--line-strong); font-weight:600; font-size:var(--t-sm);
     display:inline-flex; align-items:center; gap:var(--s-2);
     transition:transform var(--d-base) var(--ease-out), background var(--d-fast) ease; }
   .btn:active{ transform:scale(0.97); transition-duration:var(--d-press); background:var(--surface-3); }
-  .btn[disabled]{ opacity:0.45; }
-  .lock-note{ margin-top:var(--s-3); }
-  .lock-note a{ color:var(--info); }
-  .err{ color:var(--danger); font-size:var(--t-xs); margin-top:var(--s-2); min-height:1em; }
+  .actions{ display:flex; flex-wrap:wrap; gap:var(--s-3); margin-top:var(--s-4); }
 
-  /* Generic stat rows (home, arcade) */
-  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:var(--s-4); }
-  .stat{ display:flex; flex-direction:column; gap:var(--s-1); }
-  .stat-val{ font-family:var(--font-display); font-size:var(--t-xl); font-weight:600; font-variant-numeric:tabular-nums; }
-
-  /* Placeholder rows (calendar, media, music until their sources exist) */
-  .placeholder{ border:1px dashed var(--line-strong); border-radius:var(--r-md); padding:var(--s-4); }
-  .media-row{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(150px, 1fr); gap:var(--s-3);
-    overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:var(--s-1); }
-  .media-card{ scroll-snap-align:start; aspect-ratio:16/10; border-radius:var(--r-md); background:var(--surface-2);
-    border:1px solid var(--line); display:flex; align-items:flex-end; padding:var(--s-3); font-weight:600; font-size:var(--t-sm); color:var(--text-2); }
+  /* Launcher */
+  .launcher{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--s-3); }
+  @media (min-width:700px){ .launcher{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  .launch{ display:flex; flex-direction:column; justify-content:flex-end; gap:var(--s-1); min-height:92px; padding:var(--s-4);
+    transition:transform var(--d-base) var(--ease-out), border-color var(--d-fast) ease; }
+  .launch:active{ transform:scale(0.98); transition-duration:var(--d-press); border-color:var(--accent-line); }
+  .launch-name{ font-family:var(--font-display); font-weight:600; font-size:var(--t-lg); }
+  .launch-sub{ font-size:var(--t-xs); color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .launch-sub.live{ color:var(--text-2); }
+  .launch-sub.live::before{ content:''; display:inline-block; width:6px; height:6px; border-radius:var(--r-full);
+    background:var(--accent); margin-right:var(--s-2); vertical-align:middle; }
 
   .work{ display:none; }
   body.work-mode .work{ display:block; }
   body.work-mode .home-only{ display:none; }
   .footer{ display:flex; justify-content:center; gap:var(--s-3); margin-top:var(--s-4); }
+
+  /* ============================================================================
+     LANDSCAPE CONSOLE — iPad landscape is 1180x820. Kicks in for any wide,
+     short-ish screen so desktop gets it too.
+     ========================================================================== */
+  @media (orientation: landscape) and (min-width: 960px){
+    .shell{ display:grid; grid-template-columns:minmax(340px, 0.85fr) minmax(0, 1.6fr); gap:var(--s-6); align-items:start; }
+    .portrait-wrap{ max-width:none; margin:0; display:contents; }
+    .now{
+      position:sticky; top:calc(var(--hud-h) + var(--safe-t) + var(--s-6));
+      height:calc(100vh - var(--hud-h) - var(--safe-t) - var(--s-6) - var(--s-6) - var(--safe-b));
+      height:calc(100dvh - var(--hud-h) - var(--safe-t) - var(--s-6) - var(--s-6) - var(--safe-b));
+      margin-bottom:0; display:flex; flex-direction:column; padding:var(--s-8);
+    }
+    .now-clock{ font-size:clamp(5rem, 9vw, 8.5rem); }
+    .now-wx{ grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--s-5); }
+    .now-extra{ display:block; margin-top:auto; padding-top:var(--s-6); border-top:1px solid var(--line); }
+    .now-extra + .now-extra{ margin-top:var(--s-5); }
+    .now-extra[hidden]{ display:none; }
+    .now-extra[hidden] + .now-extra{ margin-top:auto; }
+    .now-suggest{ margin-top:var(--s-3); }
+    .now-suggest .mode{ width:100%; min-height:72px; }
+    .bands{ min-width:0; }
+    /* two tiles side by side where they're peers; lights + media stay full width */
+    .grid.pair{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .grid .span{ grid-column:1 / -1; }
+    .rooms{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+  }
 </style>
 </head>
 <body>
 
 <header class="hud">
-  <div class="page hud-row">
+  <div class="hud-row">
     <span class="hud-brand">HENDERBURGH</span>
     <span class="hb-dot hb-dot-off" id="fresh-dot" title="Live data status"></span>
     <span class="hud-spacer"></span>
     <span class="hud-time" id="hud-time"></span>
     <a class="hud-link" href="/home-assistant">Lights</a>
+    <a class="hud-link" href="/streaming">Watch</a>
     <a class="hud-link" href="/">Home</a>
   </div>
 </header>
 
-<main class="page">
+<div class="shell">
+  <div class="portrait-wrap">
 
-  <section class="band" data-band="morning" id="band-morning">
-    <div class="band-head"><span class="hb-label">Morning</span><span class="now-pill">NOW</span></div>
-    <div class="stack">
-      <article class="hb-card hero" id="tile-hero">
-        <p class="hero-greet" id="greet">Hello, {{ display_name or "Dylan" }}</p>
-        <div class="hero-clock" id="clock">--:--</div>
-        <p class="hero-date" id="date"></p>
-        <div class="hero-weather" id="weather">
-          <div class="wx"><span class="hb-label">Outside</span><span class="wx-val hb-stat" id="wx-temp">—</span></div>
-          <div class="wx"><span class="hb-label">Sky</span><span class="wx-val" id="wx-cond">—</span></div>
-          <div class="wx"><span class="hb-label">Humidity</span><span class="wx-val hb-stat" id="wx-hum">—</span></div>
-          <div class="wx"><span class="hb-label">Wind</span><span class="wx-val hb-stat" id="wx-wind">—</span></div>
+    <aside class="now" id="tile-hero" aria-label="Now">
+      <p class="now-greet" id="greet">Hello, {{ display_name or "Dylan" }}</p>
+      <div class="now-clock" id="clock">--:--</div>
+      <p class="now-date" id="date"></p>
+      <div class="now-wx">
+        <div class="wx"><span class="hb-label">Outside</span><span class="wx-val" id="wx-temp">—</span></div>
+        <div class="wx"><span class="hb-label">Sky</span><span class="wx-val" id="wx-cond">—</span></div>
+        <div class="wx"><span class="hb-label">Humidity</span><span class="wx-val" id="wx-hum">—</span></div>
+        <div class="wx"><span class="hb-label">Wind</span><span class="wx-val" id="wx-wind">—</span></div>
+      </div>
+      <!-- Landscape only: the house at a glance, so the left panel stays useful
+           while the right side scrolls. -->
+      <div class="now-extra" id="now-suggest-wrap" hidden>
+        <span class="hb-label">Suggested now</span>
+        <div id="now-suggest" class="now-suggest"></div>
+      </div>
+      <div class="now-extra">
+        <span class="hb-label">The house</span>
+        <div class="house-line" style="margin-top:var(--s-3)">
+          <span class="house-swatch" aria-hidden="true"></span>
+          <span class="muted" id="house-line">—</span>
         </div>
-      </article>
+      </div>
+      <div class="now-extra">
+        <span class="hb-label">Up next</span>
+        <p class="muted" id="next-line" style="margin-top:var(--s-2)">—</p>
+      </div>
+    </aside>
 
-      <article class="hb-card tile home-only" id="tile-calendar">
-        <div class="tile-head"><h2 class="tile-title">Next up</h2><span class="hb-label">Calendar</span></div>
-        <div class="placeholder muted">No calendar connected yet — your next three events will land here.</div>
-      </article>
-    </div>
-  </section>
-
-  <section class="band" data-band="afternoon" id="band-afternoon">
-    <div class="band-head"><span class="hb-label">Afternoon</span><span class="now-pill">NOW</span></div>
-    <div class="stack">
-      <article class="hb-card tile" id="tile-lights">
-        <div class="tile-head">
-          <h2 class="tile-title">Lights</h2>
-          <a class="tile-link" href="/home-assistant">Open lighting →</a>
+    <main class="bands">
+      <section class="band" data-band="morning" id="band-morning">
+        <div class="band-head"><span class="hb-label">Morning</span><span class="now-pill">NOW</span></div>
+        <div class="grid pair">
+          <article class="hb-card tile home-only" id="tile-calendar">
+            <div class="tile-head"><h2 class="tile-title">Next up</h2><span class="hb-label">Calendar</span></div>
+            <div id="cal-body"><p class="muted">Loading…</p></div>
+          </article>
+          <article class="hb-card tile" id="tile-home">
+            <div class="tile-head"><h2 class="tile-title">Home</h2><span class="hb-label">Sensors</span></div>
+            <div class="stats" id="home-stats"><p class="muted">Loading…</p></div>
+          </article>
         </div>
-        <div class="lights-sum"><span class="num hb-stat" id="lights-on">—</span><span class="muted" id="lights-of">lights on</span></div>
-        <div class="rooms" id="rooms"></div>
-        <div class="actions">
-          <button class="btn" id="all-off" type="button" disabled>Lights out</button>
+      </section>
+
+      <section class="band" data-band="afternoon" id="band-afternoon">
+        <div class="band-head"><span class="hb-label">Afternoon</span><span class="now-pill">NOW</span></div>
+        <div class="grid">
+          <article class="hb-card tile span" id="tile-lights">
+            <div class="tile-head">
+              <h2 class="tile-title">Lights</h2>
+              <a class="tile-link" href="/home-assistant">Open lighting →</a>
+            </div>
+            <div class="lights-sum"><span class="num hb-stat" id="lights-on">—</span><span class="muted" id="lights-of">lights on</span></div>
+            <div class="modes" id="modes" aria-label="House modes"></div>
+            <div class="rooms" id="rooms"></div>
+            <p class="faint lock-note" id="lock-note" hidden>Controls are locked on this device. <a href="/home-assistant">Unlock on the lighting page</a>, then come back.</p>
+            <p class="err" id="lights-err" role="status"></p>
+          </article>
         </div>
-        <p class="faint lock-note" id="lock-note" hidden>Controls are locked on this device. <a href="/home-assistant">Unlock on the lighting page</a>, then come back.</p>
-        <p class="err" id="lights-err" role="status"></p>
-      </article>
+      </section>
 
-      <article class="hb-card tile home-only" id="tile-music">
-        <div class="tile-head"><h2 class="tile-title">Music</h2><span class="hb-label">Last.fm</span></div>
-        <div class="placeholder muted">Last.fm isn't connected yet — now playing and recent scrobbles will show here.</div>
-      </article>
-    </div>
-  </section>
-
-  <section class="band" data-band="evening" id="band-evening">
-    <div class="band-head"><span class="hb-label">Evening</span><span class="now-pill">NOW</span></div>
-    <div class="stack">
-      <article class="hb-card tile" id="tile-home">
-        <div class="tile-head"><h2 class="tile-title">Home</h2><span class="hb-label">Sensors</span></div>
-        <div class="stats" id="home-stats"><p class="muted">Loading…</p></div>
-      </article>
-
-      <article class="hb-card tile home-only" id="tile-arcade">
-        <div class="tile-head">
-          <h2 class="tile-title">Arcade</h2>
-          <a class="tile-link" href="/arcade">Change mode →</a>
+      <section class="band" data-band="evening" id="band-evening">
+        <div class="band-head"><span class="hb-label">Evening</span><span class="now-pill">NOW</span></div>
+        <div class="grid pair">
+          <article class="hb-card tile home-only" id="tile-music">
+            <div class="tile-head"><h2 class="tile-title">Music</h2><span class="hb-label">Last.fm</span></div>
+            <div id="music-body"><p class="muted">Loading…</p></div>
+          </article>
+          <article class="hb-card tile home-only" id="tile-arcade">
+            <div class="tile-head">
+              <h2 class="tile-title">Arcade</h2>
+              <a class="tile-link" href="/arcade">Change mode →</a>
+            </div>
+            <div class="stats">
+              <div class="stat"><span class="hb-label">M-1 mode</span><span class="stat-val" id="arcade-mode">—</span></div>
+              <div class="stat"><span class="hb-label">Panel</span><span class="stat-val" id="arcade-on">—</span></div>
+            </div>
+            <p class="faint" id="arcade-note" style="margin-top:var(--s-3)"></p>
+          </article>
         </div>
-        <div class="stats">
-          <div class="stat"><span class="hb-label">M-1 mode</span><span class="stat-val" id="arcade-mode">—</span></div>
-          <div class="stat"><span class="hb-label">Panel</span><span class="stat-val" id="arcade-on">—</span></div>
+      </section>
+
+      <section class="band" data-band="night" id="band-night">
+        <div class="band-head"><span class="hb-label">Night</span><span class="now-pill">NOW</span></div>
+        <div class="grid">
+          <article class="hb-card tile home-only span" id="tile-media">
+            <div class="tile-head">
+              <h2 class="tile-title">What to watch</h2>
+              <a class="tile-link" href="/streaming">All services →</a>
+            </div>
+            <div class="media-row" id="media-row"></div>
+          </article>
+
+          <article class="hb-card tile work span" id="tile-work">
+            <div class="tile-head"><h2 class="tile-title">Work</h2><span class="hb-label">Office</span></div>
+            <p class="muted">Office tiles (Intake Desk owed-by-me / owed-to-me, Teams, Granola) are the next build. For now:</p>
+            <div class="actions"><a class="btn" href="http://192.168.40.203:8080">Open Intake Desk</a></div>
+          </article>
         </div>
-        <p class="faint" id="arcade-note" style="margin-top:var(--s-3)"></p>
-      </article>
-    </div>
-  </section>
+      </section>
 
-  <section class="band" data-band="night" id="band-night">
-    <div class="band-head"><span class="hb-label">Night</span><span class="now-pill">NOW</span></div>
-    <div class="stack">
-      <article class="hb-card tile home-only" id="tile-media">
-        <div class="tile-head"><h2 class="tile-title">What to watch</h2><span class="hb-label">Media</span></div>
-        <div class="media-row">
-          <div class="media-card">Streaming</div>
-          <div class="media-card">lands</div>
-          <div class="media-card">in step 5</div>
-        </div>
-      </article>
+      <!-- The hub: every room of the site, each with one live line where the
+           data is cheap. Plain cards, one accent — no icon wall. -->
+      <section class="band band-static" id="band-everything">
+        <div class="band-head"><span class="hb-label">Everything</span></div>
+        <nav class="launcher" aria-label="All of Henderburgh">
+          <a class="hb-card launch" href="/home-assistant"><span class="launch-name">Lighting</span><span class="launch-sub" id="ln-lights">Rooms, modes, effects</span></a>
+          <a class="hb-card launch" href="/streaming"><span class="launch-name">Watch</span><span class="launch-sub">TVs + every service</span></a>
+          <a class="hb-card launch" href="/vitals"><span class="launch-name">Vitals</span><span class="launch-sub" id="ln-vitals">Oura — sleep, readiness, HR</span></a>
+          <a class="hb-card launch" href="/xbox"><span class="launch-name">Xbox</span><span class="launch-sub" id="ln-xbox">Sessions + gamerscore</span></a>
+          <a class="hb-card launch" href="/arcade"><span class="launch-name">Arcade</span><span class="launch-sub" id="ln-arcade">M-1 LED panel</span></a>
+          <a class="hb-card launch" href="/insights"><span class="launch-name">Insights</span><span class="launch-sub">Lighting week, patterns</span></a>
+          <a class="hb-card launch" href="/clips"><span class="launch-name">Clips</span><span class="launch-sub">Video + media</span></a>
+          <a class="hb-card launch" href="/golf"><span class="launch-name">Golf</span><span class="launch-sub">Rounds + club yardages</span></a>
+          <a class="hb-card launch" href="/blog"><span class="launch-name">Blog</span><span class="launch-sub">Notes + posts</span></a>
+          <a class="hb-card launch" href="/model"><span class="launch-name">Model</span><span class="launch-sub">The Henderburgh model</span></a>
+          <a class="hb-card launch" href="/date"><span class="launch-name">Date night</span><span class="launch-sub">Plans, picks, history</span></a>
+          <a class="hb-card launch" href="/"><span class="launch-name">Front door</span><span class="launch-sub">The day, as a timeline</span></a>
+        </nav>
+      </section>
 
-      <article class="hb-card tile work" id="tile-work">
-        <div class="tile-head"><h2 class="tile-title">Work</h2><span class="hb-label">Office</span></div>
-        <p class="muted">Office tiles (Intake Desk owed-by-me / owed-to-me, Teams, Granola) are the next build. For now:</p>
-        <div class="actions"><a class="btn" href="http://192.168.40.203:8080">Open Intake Desk</a></div>
-      </article>
-    </div>
-  </section>
-
-  <div class="footer">
-    <button class="btn" id="work-toggle" type="button" aria-pressed="false">Work mode</button>
+      <div class="footer">
+        <button class="btn" id="work-toggle" type="button" aria-pressed="false">Work mode</button>
+      </div>
+    </main>
   </div>
-</main>
+</div>
 
-<script src="/static/ipad.js?v=2"></script>
+<script src="/static/streaming-services.js?v=1"></script>
+<script src="/static/house-modes.js?v=1"></script>
+<script src="/static/ipad.js?v=6"></script>
 </body>
 </html>

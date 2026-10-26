@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -45,7 +46,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import home_assistant, persistence, push, state, vitals, xbox
+from services import ambient, home_assistant, persistence, push, state, vitals, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -1906,7 +1907,7 @@ async def ipad_page(request: Request):
 @app.get("/api/home")
 async def api_home():
     """House conditions for the iPad home: HA weather + any temperature/humidity
-    sensors, and the M-1 arcade's current mode. Each part degrades to null on its
+    sensors, the M-1 arcade's current mode, HA calendars and Last.fm. Each part degrades to null on its
     own — an unreachable arcade (always the case from Railway) never hides weather."""
     weather, sensors = None, []
     states, ha_ok = await home_assistant.fetch_ha_states()
@@ -1943,7 +1944,89 @@ async def api_home():
     except Exception:
         arcade = None
 
-    return {"ha_ok": ha_ok, "weather": weather, "sensors": sensors, "arcade": arcade}
+    calendar, music = await asyncio.gather(ambient.upcoming_events(), ambient.music_now())
+    return {"ha_ok": ha_ok, "weather": weather, "sensors": sensors, "arcade": arcade,
+            "calendar": calendar, "music": music}
+
+
+# --- Streaming + TVs ---------------------------------------------------------
+# The three Google TVs (Living Room, Theater, Bedroom) are driven through Home
+# Assistant's Android TV Remote integration, which exposes each as remote.<tv>.
+# remote.turn_on with an `activity` (an app package or URL) launches that app.
+
+TV_COMMANDS = {"MEDIA_PLAY_PAUSE", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "HOME", "BACK",
+               "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER"}
+_TV_ENTITY = re.compile(r"remote\.[a-z0-9_]+")
+_TV_APP = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+|https://\S+")
+
+
+@app.get("/streaming", response_class=HTMLResponse)
+async def streaming_page(request: Request):
+    return _render("streaming.html", {"request": request, "display_name": DISPLAY_NAME})
+
+
+@app.get("/api/media/tvs")
+async def api_media_tvs():
+    """TVs HA can drive (remote.* from Android TV Remote), with what's on screen
+    when the paired media_player reports it. Public read, like the lights."""
+    states, ha_ok = await home_assistant.fetch_ha_states()
+    players = {s["entity_id"].split(".", 1)[1]: s for s in states if s.get("entity_id", "").startswith("media_player.")}
+    tvs = []
+    for s in states:
+        eid = s.get("entity_id", "")
+        if not eid.startswith("remote."):
+            continue
+        attrs = s.get("attributes") or {}
+        mpa = (players.get(eid.split(".", 1)[1]) or {}).get("attributes") or {}
+        tvs.append({
+            "entity_id": eid,
+            "name": attrs.get("friendly_name") or eid,
+            "on": s.get("state") == "on",
+            "available": s.get("state") not in ("unavailable", "unknown"),
+            "app": attrs.get("current_activity") or mpa.get("app_name"),
+            "title": mpa.get("media_title"),
+        })
+    tvs.sort(key=lambda t: t["name"].lower())
+    return {"ha_ok": ha_ok, "tvs": tvs}
+
+
+def _require_tv(body: dict) -> str:
+    tv = (body.get("tv") or "").strip()
+    if not _TV_ENTITY.fullmatch(tv):
+        raise HTTPException(400, "tv must be a remote.* entity")
+    return tv
+
+
+@app.post("/api/media/launch")
+async def api_media_launch(request: Request, body: dict = Body(default={})):
+    """Open an app on a TV: {tv: remote.x, app: <android package or https URL>}.
+    House-control gate (admin or guest), same as the lights."""
+    require_light_control(request)
+    if PUBLIC_MODE or not HA_ENABLED:
+        raise HTTPException(403, "Home Assistant controls are disabled")
+    tv = _require_tv(body)
+    app_id = (body.get("app") or "").strip()
+    if not _TV_APP.fullmatch(app_id):
+        raise HTTPException(400, "app must be an Android package or https URL")
+    await home_assistant.call_ha_service("remote", "turn_on", tv, {"activity": app_id})
+    return {"status": "ok", "tv": tv, "app": app_id}
+
+
+@app.post("/api/media/command")
+async def api_media_command(request: Request, body: dict = Body(default={})):
+    """Remote buttons: {tv, command} for a small allowlist, or {tv, power: true|false}."""
+    require_light_control(request)
+    if PUBLIC_MODE or not HA_ENABLED:
+        raise HTTPException(403, "Home Assistant controls are disabled")
+    tv = _require_tv(body)
+    if "power" in body:
+        await home_assistant.call_ha_service("remote", "turn_on" if body.get("power") else "turn_off", tv)
+        return {"status": "ok", "tv": tv, "power": bool(body.get("power"))}
+    command = (body.get("command") or "").strip().upper()
+    if command not in TV_COMMANDS:
+        raise HTTPException(400, f"command must be one of {sorted(TV_COMMANDS)}")
+    await home_assistant.call_ha_service("remote", "send_command", tv, {"command": command})
+    return {"status": "ok", "tv": tv, "command": command}
 
 
 @app.get("/manifest.webmanifest")

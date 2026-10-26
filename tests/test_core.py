@@ -318,3 +318,45 @@ def test_gtm_injects_into_full_page_only():
     assert "gtm.js" not in inject("<div>card</div>", "GTM-TEST1")
     # already tagged — do not double
     assert out.count("gtm.js") == inject(out, "GTM-TEST1").count("gtm.js")
+
+
+def test_media_tvs_lists_remotes_with_now_playing(monkeypatch):
+    import main
+
+    async def fake_states():
+        return [
+            {"entity_id": "remote.living_room_tv", "state": "on",
+             "attributes": {"friendly_name": "Living Room TV", "current_activity": "com.netflix.ninja"}},
+            {"entity_id": "media_player.living_room_tv", "state": "playing",
+             "attributes": {"media_title": "Arcane"}},
+            {"entity_id": "remote.bedroom_tv", "state": "off", "attributes": {"friendly_name": "Bedroom TV"}},
+            {"entity_id": "light.kitchen", "state": "on", "attributes": {}},
+        ], True
+
+    monkeypatch.setattr(main.home_assistant, "fetch_ha_states", fake_states)
+    tvs = TestClient(main.app).get("/api/media/tvs").json()["tvs"]
+    assert [t["name"] for t in tvs] == ["Bedroom TV", "Living Room TV"]
+    living = tvs[1]
+    assert living["on"] and living["app"] == "com.netflix.ninja" and living["title"] == "Arcane"
+
+
+def test_media_launch_is_gated_and_validated(monkeypatch):
+    import main
+
+    calls = []
+
+    async def fake_call(domain, service, entity_id=None, extra=None):
+        calls.append((domain, service, entity_id, extra))
+        return {}
+
+    monkeypatch.setattr(main.home_assistant, "call_ha_service", fake_call)
+    client = TestClient(main.app)
+    body = {"tv": "remote.living_room_tv", "app": "com.netflix.ninja"}
+    assert client.post("/api/media/launch", json=body).status_code == 403   # locked without a session
+
+    monkeypatch.setattr(main, "require_light_control", lambda request: None)
+    assert client.post("/api/media/launch", json={"tv": "light.kitchen", "app": "com.netflix.ninja"}).status_code == 400
+    assert client.post("/api/media/launch", json={"tv": "remote.x", "app": "javascript:alert(1)"}).status_code == 400
+    assert client.post("/api/media/command", json={"tv": "remote.x", "command": "REBOOT"}).status_code == 400
+    assert client.post("/api/media/launch", json=body).status_code == 200
+    assert calls[-1] == ("remote", "turn_on", "remote.living_room_tv", {"activity": "com.netflix.ninja"})

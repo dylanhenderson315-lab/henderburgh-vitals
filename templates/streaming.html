@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Watch • HENDERBURGH</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/tokens.css?v=6">
+<style>
+  /* State first: what each TV is doing leads; the remote only appears for the
+     TV you picked; services are one calm grid, not a wall of neon buttons. */
+  :root{ --page-pad:24px; --hud-h:52px;
+    --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+    --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px); }
+  @media (max-width:520px){ :root{ --page-pad:16px; } }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  body{ background:var(--bg); color:var(--text); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;
+    overflow-x:hidden; -webkit-tap-highlight-color:transparent; overscroll-behavior-y:none; }
+  a{ color:inherit; text-decoration:none; }
+  button{ font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+  .hud{ position:fixed; top:0; left:0; right:0; z-index:40;
+    padding:var(--safe-t) calc(var(--page-pad) + var(--safe-r)) 0 calc(var(--page-pad) + var(--safe-l));
+    background:rgba(10,10,11,0.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  .hud-row{ height:var(--hud-h); display:flex; align-items:center; gap:var(--s-3); max-width:1400px; margin:0 auto; }
+  .hud-back{ font-family:var(--font-mono); font-size:var(--t-xs); color:var(--text-2); min-height:var(--tap-min);
+    display:inline-flex; align-items:center; padding:0 var(--s-3) 0 0; }
+  .hud-title{ font-family:var(--font-display); font-weight:600; font-size:14px; letter-spacing:0.04em; }
+  .shell{ max-width:1400px; margin:0 auto;
+    padding:calc(var(--hud-h) + var(--safe-t) + var(--s-6)) calc(var(--page-pad) + var(--safe-r)) calc(var(--s-12) + var(--safe-b)) calc(var(--page-pad) + var(--safe-l)); }
+  h1{ font-family:var(--font-display); font-size:var(--t-2xl); font-weight:600; letter-spacing:-0.02em; margin-bottom:var(--s-2); }
+  .lede{ color:var(--text-2); font-size:var(--t-base); margin-bottom:var(--s-8); }
+  .section{ margin-bottom:var(--s-8); }
+  .section-head{ display:flex; align-items:center; gap:var(--s-3); margin-bottom:var(--s-4); }
+  .section-head::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .muted{ color:var(--text-2); font-size:var(--t-sm); line-height:var(--lh-body); }
+  .faint{ color:var(--text-3); font-size:var(--t-xs); line-height:var(--lh-snug); }
+
+  /* TVs */
+  .tvs{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:var(--s-3); }
+  .tv{ text-align:left; padding:var(--s-4); min-height:96px; border-radius:var(--r-lg); background:var(--surface);
+    border:1px solid var(--line); display:flex; flex-direction:column; gap:var(--s-2);
+    transition:border-color var(--d-fast) ease, transform var(--d-base) var(--ease-out); }
+  .tv:active{ transform:scale(0.98); transition-duration:var(--d-press); }
+  .tv[aria-pressed="true"]{ border-color:var(--accent-line); background:linear-gradient(150deg, var(--accent-dim), var(--surface) 70%); }
+  .tv-name{ font-weight:600; font-size:var(--t-lg); display:flex; align-items:center; gap:var(--s-2); }
+  .tv-what{ font-size:var(--t-sm); color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tv.off .tv-what{ color:var(--text-3); }
+  .empty{ border:1px dashed var(--line-strong); border-radius:var(--r-lg); padding:var(--s-6); }
+  .empty h2{ font-size:var(--t-lg); font-weight:600; margin-bottom:var(--s-2); }
+
+  /* Remote — appears only for a selected TV */
+  .remote{ margin-top:var(--s-4); padding:var(--s-5); border-radius:var(--r-lg); background:var(--surface); border:1px solid var(--line); }
+  .remote[hidden]{ display:none; }
+  .remote-row{ display:flex; flex-wrap:wrap; gap:var(--s-3); align-items:center; }
+  .remote-row + .remote-row{ margin-top:var(--s-3); }
+  .key{ min-width:56px; min-height:56px; padding:0 var(--s-4); border-radius:var(--r-md); background:var(--surface-2);
+    border:1px solid var(--line-strong); font-weight:600; font-size:var(--t-sm);
+    display:inline-flex; align-items:center; justify-content:center; gap:var(--s-2);
+    transition:transform var(--d-base) var(--ease-out), background var(--d-fast) ease; }
+  .key:active{ transform:scale(0.95); transition-duration:var(--d-press); background:var(--surface-3); }
+  .key.primary{ background:var(--accent-dim); border-color:var(--accent-line); color:var(--accent); min-width:96px; }
+  .key svg{ width:20px; height:20px; }
+  .remote-label{ font-family:var(--font-mono); font-size:var(--t-label); letter-spacing:0.16em; color:var(--text-3); text-transform:uppercase; width:64px; }
+  .status{ font-size:var(--t-xs); min-height:1.2em; margin-top:var(--s-3); color:var(--text-3); }
+  .status.err{ color:var(--danger); } .status.ok{ color:var(--accent); }
+
+  /* Services */
+  .services{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--s-3); }
+  @media (min-width:700px){ .services{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  .svc{ border-radius:var(--r-lg); border:1px solid var(--line); overflow:hidden; background:var(--surface);
+    display:flex; flex-direction:column; }
+  .svc-open{ display:flex; align-items:flex-end; min-height:112px; padding:var(--s-4);
+    background:linear-gradient(150deg, rgba(var(--tint),0.42), rgba(var(--tint),0.06) 60%, transparent);
+    font-family:var(--font-display); font-weight:600; font-size:var(--t-xl); letter-spacing:-0.01em;
+    transition:transform var(--d-base) var(--ease-out); }
+  .svc-open:active{ transform:scale(0.98); transition-duration:var(--d-press); }
+  .svc-actions{ display:flex; border-top:1px solid var(--line); }
+  .svc-actions > *{ flex:1; min-height:var(--tap-min); display:inline-flex; align-items:center; justify-content:center;
+    font-size:var(--t-xs); font-family:var(--font-mono); color:var(--text-2); }
+  .svc-actions > * + *{ border-left:1px solid var(--line); }
+  .svc-actions > *:active{ background:var(--surface-2); }
+  .svc-actions button[disabled]{ color:var(--text-3); opacity:0.5; cursor:default; }
+
+  @media (orientation: landscape) and (min-width: 960px){
+    .shell{ display:grid; grid-template-columns:minmax(360px, 0.9fr) minmax(0, 1.6fr); gap:var(--s-8); align-items:start; }
+    .intro{ grid-column:1 / -1; }
+    .col-tv{ position:sticky; top:calc(var(--hud-h) + var(--safe-t) + var(--s-6)); }
+    .tvs{ grid-template-columns:1fr; }
+    .services{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+  }
+</style>
+</head>
+<body>
+<header class="hud">
+  <div class="hud-row">
+    <a class="hud-back" href="/ipad">← Home</a>
+    <span class="hud-title">WATCH</span>
+    <span style="flex:1"></span>
+    <span class="hb-dot hb-dot-off" id="fresh-dot"></span>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="intro">
+    <h1 id="headline">What's on tonight</h1>
+    <p class="lede" id="lede">Pick a TV to put something on it, or open any service right here.</p>
+  </div>
+
+  <div class="col-tv">
+    <section class="section">
+      <div class="section-head"><span class="hb-label">TVs</span></div>
+      <div id="tvs" class="tvs"><p class="muted">Looking for your TVs…</p></div>
+      <div class="remote" id="remote" hidden>
+        <div class="remote-row">
+          <span class="remote-label">Power</span>
+          <button class="key" data-power="on" type="button">On</button>
+          <button class="key" data-power="off" type="button">Off</button>
+        </div>
+        <div class="remote-row">
+          <span class="remote-label">Play</span>
+          <button class="key primary" data-cmd="MEDIA_PLAY_PAUSE" type="button" aria-label="Play or pause">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l11-7z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
+          </button>
+          <button class="key" data-cmd="BACK" type="button">Back</button>
+          <button class="key" data-cmd="HOME" type="button">Home</button>
+        </div>
+        <div class="remote-row">
+          <span class="remote-label">Volume</span>
+          <button class="key" data-cmd="VOLUME_DOWN" type="button" aria-label="Volume down">−</button>
+          <button class="key" data-cmd="VOLUME_UP" type="button" aria-label="Volume up">+</button>
+          <button class="key" data-cmd="VOLUME_MUTE" type="button">Mute</button>
+        </div>
+        <p class="status" id="remote-status" role="status"></p>
+      </div>
+    </section>
+  </div>
+
+  <div class="col-svc">
+    <section class="section">
+      <div class="section-head"><span class="hb-label">Services</span></div>
+      <div class="services" id="services"></div>
+      <p class="faint" style="margin-top:var(--s-4)">"Open here" opens the app on this iPad (or the website if it isn't installed). "On TV" launches it on the TV you picked.</p>
+    </section>
+  </div>
+</div>
+
+<script src="/static/streaming-services.js?v=1"></script>
+<script src="/static/streaming.js?v=1"></script>
+</body>
+</html>

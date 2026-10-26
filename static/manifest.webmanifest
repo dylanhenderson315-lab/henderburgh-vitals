@@ -5,7 +5,7 @@
   "start_url": "/ipad",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "theme_color": "#0a0a0b",
   "background_color": "#0a0a0b",
   "icons": [
