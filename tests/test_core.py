@@ -433,3 +433,77 @@ def test_streaming_redirects_to_hub_watch():
 
     res = TestClient(main.app).get("/streaming", follow_redirects=False)
     assert res.status_code == 307 and res.headers["location"] == "/hub#watch"
+
+
+def _close_game():
+    def team(abbr, score):
+        return {"abbr": abbr, "name": abbr, "color": "112233", "score": score, "home": abbr == "PHI", "record": None, "logo": None, "alt": None}
+    return {"id": "401", "league": "NFL", "start": "2026-10-27T00:15Z", "state": "in", "detail": "Q4 2:01", "period": 4,
+            "clock": "2:01", "teams": [team("DAL", "20"), team("PHI", "24")], "networks": ["ESPN", "ABC"], "apps": ["espn"],
+            "national": True, "postseason": False, "note": None, "series": None, "situation": "3rd & 4 at DAL 30",
+            "win": None, "close": "Close · late", "score": 160}
+
+
+def test_watch_put_tokens_are_scoped_and_expire():
+    from services import watch
+
+    tok = watch.sign_put("401", "remote.smart_tv", "espn", now=1_000_000)
+    assert watch.verify_put(tok, now=1_000_100) == {"game_id": "401", "tv": "remote.smart_tv", "app": "espn"}
+    assert watch.verify_put(tok, now=1_000_000 + watch.ALERT_TTL + 1) is None        # expired
+    assert watch.verify_put(tok.replace("remote.smart_tv", "remote.other_tv"), now=1_000_100) is None   # tampered
+    assert watch.verify_put("garbage") is None
+
+
+def test_close_game_alert_has_tv_buttons():
+    from services import watch
+
+    tvs = [{"entity_id": "remote.smarttv_4k_ffm", "name": "Living Room TV", "on": False, "available": True},
+           {"entity_id": "remote.smart_tv", "name": "Theater TV", "on": True, "available": True}]
+    al = watch.build_alert(_close_game(), tvs, "https://henderburgh.com")
+    assert al["title"] == "Close & late: DAL 20-24 PHI"
+    assert al["body"] == "Q4 2:01 · 3rd & 4 at DAL 30 · in ESPN"
+    labels = [a["label"] for a in al["actions"]]
+    assert labels == ["ESPN on Theater TV", "ESPN on Living Room TV", "Open Watch"]   # the TV that's on comes first
+    assert al["actions"][0]["method"] == "POST" and "/api/watch/put?t=" in al["actions"][0]["url"]
+
+
+def test_close_game_alert_fires_once(monkeypatch, tmp_path):
+    import asyncio
+    from datetime import datetime
+    from services import watch
+
+    real_hours = watch.alert_hours
+    monkeypatch.setattr(watch, "SENT_PATH", tmp_path / "sent.json")
+    monkeypatch.setattr(watch, "alert_hours", lambda now: True)
+
+    async def fake_tonight():
+        return {"live": [_close_game()]}
+
+    monkeypatch.setattr(watch, "tonight", fake_tonight)
+    pushes = []
+    notify = lambda *a: pushes.append(a) or True
+    assert asyncio.run(watch.check_close_games([], notify, "https://x")) == ["401"]
+    assert asyncio.run(watch.check_close_games([], notify, "https://x")) == []          # deduped
+    assert len(pushes) == 1
+    assert real_hours(datetime(2026, 10, 27, 3, 0)) is False                            # 3 AM: quiet
+    assert real_hours(datetime(2026, 10, 27, 0, 45)) is True                            # West Coast finish
+
+
+def test_watch_put_endpoint(monkeypatch):
+    import main
+    from services import watch
+
+    calls = []
+
+    async def fake_call(domain, service, entity_id=None, extra=None):
+        calls.append((domain, service, entity_id, extra))
+        return {}
+
+    monkeypatch.setattr(main.home_assistant, "call_ha_service", fake_call)
+    monkeypatch.setattr(main, "HA_ENABLED", True)
+    client = TestClient(main.app)
+    assert client.post("/api/watch/put?t=nope").status_code == 403
+    tok = watch.sign_put("401", "remote.smart_tv", "espn")
+    assert client.get(f"/api/watch/put?t={tok}").status_code == 200 and not calls        # GET never touches the TV
+    assert client.post(f"/api/watch/put?t={tok}").status_code == 200
+    assert calls[-1] == ("remote", "turn_on", "remote.smart_tv", {"activity": "https://www.espn.com/watch/"})

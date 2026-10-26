@@ -368,7 +368,9 @@
       });
     }
     $('tonight-date').textContent = new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-    $('watch-credit').textContent = tonight.credit || '';
+    const alerts = tonight.alerts && tonight.alerts.enabled;
+    $('watch-credit').textContent = [alerts ? 'Close-game alerts on — you’ll get a push with buttons to put it on a TV' : 'Close-game alerts off',
+      tonight.credit].filter(Boolean).join(' · ');
     renderPick(); renderSplit(); renderLive();
   }
 

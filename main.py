@@ -181,6 +181,27 @@ async def _vitals_history_loop():
             raise
 
 
+async def _close_game_loop():
+    """Every minute, push a close-and-late watchable game once, with buttons
+    that put it on a TV (services/watch.py). Silent when ntfy isn't set up."""
+    if not push.enabled():
+        return
+    await asyncio.sleep(45)   # let the app settle
+    base = os.getenv("PUBLIC_BASE_URL", "https://henderburgh.com").rstrip("/")
+    while True:
+        try:
+            states, _ = await home_assistant.fetch_ha_states()
+            fired = await watch.check_close_games(_tvs_from(states), push.notify, base)
+            if fired:
+                print(f"close-game alerts sent: {fired}")
+        except Exception as e:
+            print(f"close game loop error: {e}")
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if OURA_TOKEN:
@@ -191,11 +212,13 @@ async def lifespan(app: FastAPI):
     transition_task = asyncio.create_task(_light_transition_loop())
     xbox_task = asyncio.create_task(_xbox_observer_loop())
     vitals_task = asyncio.create_task(_vitals_history_loop())
+    close_games_task = asyncio.create_task(_close_game_loop())
     yield
     history_task.cancel()
     transition_task.cancel()
     xbox_task.cancel()
     vitals_task.cancel()
+    close_games_task.cancel()
     if state.oura_client:
         await state.oura_client.close()
         state.oura_client = None
@@ -1976,7 +1999,46 @@ _TV_APP = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+|https://\S+")
 async def api_watch_tonight():
     """Live games, tonight's guide and one pick, each resolved to the owner's
     apps (services/watch.py). Public read."""
-    return await watch.tonight()
+    data = await watch.tonight()
+    data["alerts"] = {"enabled": push.enabled() and bool(ADMIN_TOKEN)}
+    return data
+
+
+@app.post("/api/watch/put")
+async def api_watch_put(t: str = ""):
+    """A close-game alert's button: launch one app on one TV. Authorised by
+    the signed, two-hour, single-purpose token in the link — not a session —
+    so it works straight from the phone's lock screen."""
+    claim = watch.verify_put(t)
+    if not claim:
+        raise HTTPException(403, "This button has expired")
+    if PUBLIC_MODE or not HA_ENABLED:
+        raise HTTPException(403, "Home Assistant controls are disabled")
+    name, link = watch.APP_LINKS[claim["app"]]
+    await home_assistant.call_ha_service("remote", "turn_on", claim["tv"], {"activity": link})
+    return {"status": "ok", "tv": claim["tv"], "app": name}
+
+
+@app.get("/api/watch/put", response_class=HTMLResponse)
+async def api_watch_put_page(t: str = ""):
+    """Opening the button's link in a browser (instead of tapping it in ntfy)
+    shows a confirm page — a GET never changes the TV, so link previews
+    can't switch channels."""
+    claim = watch.verify_put(t)
+    if not claim:
+        body = "<p>This button has expired. Open the hub to put something on.</p>"
+    else:
+        name = watch.APP_LINKS[claim["app"]][0]
+        tv = TV_LABELS.get(claim["tv"], claim["tv"])
+        from html import escape
+        body = (f"<h1>{escape(name)} on {escape(tv)}?</h1>"
+                f"<button id='go'>Put it on</button><p id='msg'></p>"
+                f"<script>document.getElementById('go').onclick=async()=>{{const r=await fetch(location.href,{{method:'POST'}});"
+                f"document.getElementById('msg').textContent=r.ok?'On it.':'That button has expired.';}};</script>")
+    return HTMLResponse(f"""<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Henderburgh</title><style>body{{background:#0a0a0b;color:#e8edf2;font:16px system-ui;padding:32px;}}
+button{{font:600 18px system-ui;padding:16px 28px;border-radius:12px;border:0;background:#4ade80;color:#0a0a0b;}}
+a{{color:#60a5fa}}</style>{body}<p><a href="/hub#watch">Open Watch</a></p>""")
 
 
 @app.get("/streaming")

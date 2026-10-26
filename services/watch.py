@@ -19,8 +19,13 @@ Rules carried over from the arcade's sports engine:
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
+import os
 import re
 import time
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -328,3 +333,127 @@ async def tonight() -> Dict[str, Any]:
         "guide": guide,
         "credit": "Scores: ESPN · TV listings: TVmaze (CC BY-SA)",
     }
+
+
+# ── Close-game alerts ───────────────────────────────────────────────────────
+# A watchable game that turns "Close · late" earns one push, with buttons that
+# put it on a TV straight from the lock screen. Each button is a signed,
+# single-purpose link (this game, this TV, this app, two hours) so a leaked
+# notification can't become a remote for the house.
+
+# TV launch links — must match `tv` in static/streaming-services.js (app links,
+# never packages: the TVs ignore bare package names).
+APP_LINKS = {
+    "netflix": ("Netflix", "https://www.netflix.com/title"),
+    "max": ("Max", "https://play.max.com"),
+    "disney": ("Disney+", "https://www.disneyplus.com"),
+    "hulu": ("Hulu", "https://www.hulu.com"),
+    "espn": ("ESPN", "https://www.espn.com/watch/"),
+    "peacock": ("Peacock", "https://www.peacocktv.com"),
+    "paramount": ("Paramount+", "https://www.paramountplus.com"),
+    "youtube": ("YouTube", "https://www.youtube.com"),
+    "appletv": ("Apple TV+", "https://tv.apple.com"),
+}
+OTA = re.compile(r"^(fox|nbc|cbs|abc|the cw|pbs)$", re.I)
+ALERT_TTL = 2 * 3600
+SENT_PATH = Path(os.getenv("DATA_DIR", "data").strip() or "data") / "close_alerts.json"
+
+
+def watchable(g: Dict[str, Any]) -> bool:
+    """Same test the Watch guide uses: national, postseason, in his apps, or over the air."""
+    return bool(g.get("national") or g.get("postseason") or g.get("apps") or any(OTA.match(n) for n in g.get("networks") or []))
+
+
+def _secret() -> bytes:
+    return (os.getenv("ADMIN_TOKEN", "") or "").encode() or b""
+
+
+def sign_put(game_id: str, tv: str, app: str, now: Optional[float] = None) -> Optional[str]:
+    """A link token for one launch. None when there's no secret to sign with."""
+    key = _secret()
+    if not key:
+        return None
+    exp = int((now or time.time()) + ALERT_TTL)
+    body = f"{game_id}|{tv}|{app}|{exp}"
+    mac = hmac.new(key, body.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{body}|{mac}"
+
+
+def verify_put(token: str, now: Optional[float] = None) -> Optional[Dict[str, str]]:
+    key = _secret()
+    try:
+        game_id, tv, app, exp, mac = (token or "").split("|")
+    except ValueError:
+        return None
+    if not key:
+        return None
+    good = hmac.new(key, f"{game_id}|{tv}|{app}|{exp}".encode(), hashlib.sha256).hexdigest()[:32]
+    if not hmac.compare_digest(good, mac) or int(exp) < int(now or time.time()):
+        return None
+    if not re.fullmatch(r"remote\.[a-z0-9_]+", tv) or app not in APP_LINKS:
+        return None
+    return {"game_id": game_id, "tv": tv, "app": app}
+
+
+def _load_sent() -> Dict[str, float]:
+    try:
+        data = json.loads(SENT_PATH.read_text())
+        cutoff = time.time() - 2 * 86400
+        return {k: v for k, v in data.items() if v > cutoff}
+    except Exception:
+        return {}
+
+
+def _save_sent(sent: Dict[str, float]) -> None:
+    try:
+        SENT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        SENT_PATH.write_text(json.dumps(sent))
+    except Exception as e:
+        print(f"close alerts save error: {e}")
+
+
+def alert_hours(now: datetime) -> bool:
+    """9 AM through 1:30 AM ET — late enough for West Coast finishes, never the middle of the night."""
+    m = now.hour * 60 + now.minute
+    return m >= 9 * 60 or m <= 90
+
+
+def build_alert(g: Dict[str, Any], tvs: List[Dict[str, Any]], base_url: str) -> Dict[str, Any]:
+    """Title, body and buttons for one close game. Pure — testable without a phone."""
+    a, b = g["teams"][0], g["teams"][1]
+    net = (g.get("networks") or [""])[0]
+    title = f"Close & late: {a['abbr']} {a['score']}-{b['score']} {b['abbr']}"
+    app = next((k for k in g.get("apps") or [] if k in APP_LINKS), None)
+    where = f"in {APP_LINKS[app][0]}" if app else (f"on {net} (live channels)" if net else "")
+    body = " · ".join(x for x in [g.get("detail"), g.get("situation"), where] if x)
+    actions = []
+    if app:
+        # The TV that's already on first — that's the one he's watching.
+        for tv in sorted([t for t in tvs if t.get("available")], key=lambda t: not t.get("on"))[:2]:
+            tok = sign_put(g["id"], tv["entity_id"], app)
+            if tok:
+                actions.append({"action": "http", "label": f"{APP_LINKS[app][0]} on {tv['name']}",
+                                "url": f"{base_url}/api/watch/put?t={tok}", "method": "POST", "clear": True})
+    actions.append({"action": "view", "label": "Open Watch", "url": f"{base_url}/hub#watch"})
+    return {"title": title, "body": body, "actions": actions, "click": f"{base_url}/hub#watch"}
+
+
+async def check_close_games(tvs: List[Dict[str, Any]], notify, base_url: str) -> List[str]:
+    """One pass: push for every newly close-and-late watchable game. Returns game ids alerted."""
+    now = datetime.now(ET)
+    if not alert_hours(now):
+        return []
+    data = await tonight()
+    sent = _load_sent()
+    fired = []
+    for g in data.get("live") or []:
+        if g.get("close") != "Close · late" or not watchable(g) or g["id"] in sent:
+            continue
+        al = build_alert(g, tvs, base_url)
+        ok = await asyncio.to_thread(notify, al["title"], al["body"], "high", ["rotating_light"], al["click"], al["actions"])
+        if ok:
+            sent[g["id"]] = time.time()
+            fired.append(g["id"])
+    if fired:
+        _save_sent(sent)
+    return fired

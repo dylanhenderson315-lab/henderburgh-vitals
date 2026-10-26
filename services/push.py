@@ -27,7 +27,7 @@ def enabled():
     return bool(TOPIC)
 
 
-def notify(title, message, priority="default", tags=None, click=None):
+def notify(title, message, priority="default", tags=None, click=None, actions=None):
     """Fire a push. Silent no-op if NTFY_TOPIC isn't set.
 
     - title: bold header on the notification
@@ -37,6 +37,9 @@ def notify(title, message, priority="default", tags=None, click=None):
       "cocktail", "coffee", "camera_flash")
     - click: URL the notification opens when tapped (e.g. link to
       /date/inbox on his LAN)
+    - actions: list of ntfy action dicts, e.g.
+      {"action": "http", "label": "ESPN on Living Room TV", "url": "...", "method": "POST"}
+      — buttons on the notification itself (ntfy runs http ones in place).
     """
     if not TOPIC:
         return False
@@ -48,6 +51,17 @@ def notify(title, message, priority="default", tags=None, click=None):
         headers["Tags"] = ",".join(t for t in tags if isinstance(t, str))
     if click:
         headers["Click"] = click
+    if actions:
+        parts = []
+        for a in actions[:3]:   # ntfy allows three buttons
+            label = _hdr(a.get("label", "")).replace(",", " ").replace(";", " ")
+            bits = [a.get("action", "view"), label, a["url"]]
+            if a.get("method"):
+                bits.append(f"method={a['method']}")
+            if a.get("clear"):
+                bits.append("clear=true")
+            parts.append(", ".join(bits))
+        headers["Actions"] = "; ".join(parts)
     try:
         req = urllib.request.Request(
             f"{BASE}/{TOPIC}",
