@@ -622,13 +622,19 @@
     return `${Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / 86400000)} days ago`;
   }
 
-  async function fetchDay(iso) {
-    if (DAY_CACHE[iso]) return DAY_CACHE[iso];
-    let d;
-    try { d = await (await fetch('/api/day-replay?day=' + encodeURIComponent(iso), { credentials: 'same-origin' })).json(); }
-    catch (e) { d = { has_data: false }; }
-    if (d && d.has_data && iso !== TODAY) DAY_CACHE[iso] = d;   // today keeps filling in
-    return d || { has_data: false };
+  const DAY_INFLIGHT = {};   // the heartline and the Day space share one request per day
+  function fetchDay(iso) {
+    if (DAY_CACHE[iso]) return Promise.resolve(DAY_CACHE[iso]);
+    if (DAY_INFLIGHT[iso]) return DAY_INFLIGHT[iso];
+    DAY_INFLIGHT[iso] = (async () => {
+      let d;
+      try { d = await (await fetch('/api/day-replay?day=' + encodeURIComponent(iso), { credentials: 'same-origin' })).json(); }
+      catch (e) { d = { has_data: false }; }
+      if (d && d.has_data && iso !== TODAY) DAY_CACHE[iso] = d;   // today keeps filling in
+      delete DAY_INFLIGHT[iso];
+      return d || { has_data: false };
+    })();
+    return DAY_INFLIGHT[iso];
   }
 
   let rows = [];          // [{m, li}] for the playhead <-> timeline link
@@ -781,14 +787,23 @@
   })();
 
   let daySeq = 0;
-  async function loadDay(iso, allowFallback) {
+  async function loadDay(iso) {
     const seq = ++daySeq;
     dayIso = iso;
     const d = await fetchDay(iso);
     if (seq !== daySeq) return;
-    // Early in the day there's often nothing yet — show yesterday's full story instead.
-    if (allowFallback && !d.has_data && iso === TODAY) return loadDay(shiftISO(TODAY, -1), false);
     paintDay(iso, d);
+  }
+  // Open on the newest day that actually has a story (today, else walk back
+  // up to three days) — an empty Sunday shouldn't be the first thing you see.
+  async function openNewestDay() {
+    const seq = ++daySeq;
+    const isos = [0, 1, 2, 3].map((i) => shiftISO(TODAY, -i));
+    const days = await Promise.all(isos.map((iso) => fetchDay(iso)));
+    if (seq !== daySeq) return;   // the user already picked a day
+    const i = Math.max(0, days.findIndex((d) => d.has_data));
+    dayIso = isos[i];
+    paintDay(isos[i], days[i]);
   }
   // The heartline wants the newest day that has a trace: today, else walk back.
   async function loadHeart() {
@@ -863,7 +878,7 @@
   tickClock();
   renderModes();
   loadAuth();
-  loadDay(TODAY, true);
+  openNewestDay();
   loadHeart();
   wake();
   if (document.visibilityState === 'visible') start();
