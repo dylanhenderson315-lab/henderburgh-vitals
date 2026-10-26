@@ -2004,6 +2004,12 @@ async def api_watch_tonight():
     return data
 
 
+@app.get("/api/watch/find")
+async def api_watch_find(q: str = ""):
+    """'Where can I watch X?' — shows and teams, answered in the owner's apps."""
+    return await watch.find(q)
+
+
 @app.post("/api/watch/put")
 async def api_watch_put(t: str = ""):
     """A close-game alert's button: launch one app on one TV. Authorised by

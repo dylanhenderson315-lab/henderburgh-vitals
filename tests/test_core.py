@@ -515,3 +515,14 @@ def test_watch_free_legal_apps_map():
     assert watch.apps_for(["Tubi"], sports=False) == ["tubi"]
     assert watch.apps_for(["Pluto TV"], sports=False) == ["pluto"]
     assert set(["tubi", "pluto", "roku", "plex"]) <= set(watch.APP_LINKS)
+
+
+def test_watch_find_teams_and_shows(monkeypatch):
+    import asyncio
+    from services import watch
+
+    index = [{"league": "NFL", "id": "29", "name": "Carolina Panthers", "short": "Panthers", "nick": "Panthers", "loc": "Carolina", "abbr": "CAR", "color": "0085ca", "logo": None},
+             {"league": "NFL", "id": "9", "name": "Green Bay Packers", "short": "Packers", "nick": "Packers", "loc": "Green Bay", "abbr": "GB", "color": "", "logo": None}]
+    assert [t["abbr"] for t in watch._match_teams(index, "panthers")] == ["CAR"]
+    assert [t["abbr"] for t in watch._match_teams(index, "gb")] == ["GB"]
+    assert watch._match_teams(index, "xx") == []

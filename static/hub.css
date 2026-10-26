@@ -583,3 +583,20 @@ button.card-go{ min-height:32px; padding:0 2px; }
   .sheet-main, .sheet-side{ overflow-y:auto; padding-right:var(--s-2); }
 }
 @media (max-width: 767px){ .sheet{ padding:var(--safe-t) 0 0; } .sheet-panel{ border-radius:var(--r-lg) var(--r-lg) 0 0; } }
+
+/* Find anything */
+.find{ display:flex; flex-direction:column; gap:var(--s-3); }
+.find-input{ width:100%; min-height:52px; padding:0 var(--s-5); border-radius:var(--r-full); font:inherit; font-size:var(--t-base);
+  color:var(--text); background:rgba(19,19,22,0.9); border:1px solid var(--line-strong); outline:none; }
+.find-input:focus{ border-color:var(--accent-line); box-shadow:0 0 0 3px var(--accent-dim); }
+.find-results{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:var(--s-3); }
+.find-results[hidden]{ display:none; }
+.find-results > p{ grid-column:1 / -1; }
+.find-card{ display:grid; grid-template-columns:64px minmax(0,1fr); gap:var(--s-3); padding:var(--s-3); border-radius:var(--r-lg);
+  background:rgba(19,19,22,0.9); border:1px solid var(--line); }
+.find-art{ width:64px; height:88px; border-radius:var(--r-sm); background:var(--surface-2) center/contain no-repeat; }
+.find-body{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.find-title{ font-weight:600; font-size:var(--t-base); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.find-sub{ font-size:var(--t-xs); color:var(--text-3); }
+.find-extra{ font-size:var(--t-xs); color:var(--text-2); }
+.find-body .where{ margin-top:auto; padding-top:var(--s-2); }

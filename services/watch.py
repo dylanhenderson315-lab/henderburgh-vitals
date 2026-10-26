@@ -468,3 +468,127 @@ async def check_close_games(tvs: List[Dict[str, Any]], notify, base_url: str) ->
     if fired:
         _save_sent(sent)
     return fired
+
+
+# ── Find anything ──────────────────────────────────────────────────────────
+# "Where can I watch X?" for shows (TVmaze) and teams (ESPN), answered in
+# terms of HIS apps, with the next airing / next game. Movies aren't in
+# either keyless source — say so rather than guess.
+
+TEAM_LEAGUES = ["NFL", "NBA", "MLB", "NHL"]
+NEXT_DAY = {"abc": "hulu", "fox": "hulu"}
+
+
+async def _team_index(client: httpx.AsyncClient) -> List[Dict[str, Any]]:
+    hit = _cached("teams", 86400)
+    if hit is not None:
+        return hit
+    out: List[Dict[str, Any]] = []
+    for lg in TEAM_LEAGUES:
+        try:
+            r = await client.get(f"{ESPN}/{LEAGUES[lg]}/teams")
+            r.raise_for_status()
+            for t in ((r.json().get("sports") or [{}])[0].get("leagues") or [{}])[0].get("teams") or []:
+                tm = t.get("team") or {}
+                out.append({"league": lg, "id": tm.get("id"), "name": tm.get("displayName"), "short": tm.get("shortDisplayName"),
+                            "nick": tm.get("name"), "loc": tm.get("location"), "abbr": tm.get("abbreviation"),
+                            "color": tm.get("color"), "logo": ((tm.get("logos") or [{}])[0]).get("href")})
+        except Exception as e:
+            print(f"team index {lg} error: {e}")
+    return _store("teams", out) if out else out
+
+
+def _match_teams(index: List[Dict[str, Any]], q: str) -> List[Dict[str, Any]]:
+    ql = q.lower().strip()
+    scored = []
+    for t in index:
+        names = [x.lower() for x in (t["name"], t["short"], t["nick"], t["loc"]) if x]
+        if (t["abbr"] or "").lower() == ql:
+            s = 3
+        elif any(n == ql for n in names):
+            s = 3
+        elif any(n.startswith(ql) for n in names) and len(ql) >= 3:
+            s = 2
+        elif len(ql) >= 4 and any(ql in n for n in names):
+            s = 1
+        else:
+            continue
+        scored.append((s, t))
+    scored.sort(key=lambda x: -x[0])
+    return [t for _, t in scored[:3]]
+
+
+async def _team_next(client: httpx.AsyncClient, t: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    try:
+        r = await client.get(f"{ESPN}/{LEAGUES[t['league']]}/teams/{t['id']}/schedule")
+        r.raise_for_status()
+        events = r.json().get("events") or []
+    except Exception:
+        return None
+    for e in events:
+        c = (e.get("competitions") or [{}])[0]
+        state = ((c.get("status") or {}).get("type") or {}).get("state")
+        if state not in ("pre", "in"):
+            continue
+        nets = [((b.get("media") or {}).get("shortName")) for b in c.get("broadcasts") or []]
+        nets = [n for n in nets if n]
+        opp = next(((x.get("team") or {}) for x in c.get("competitors") or [] if (x.get("team") or {}).get("id") != t["id"]), {})
+        home = next((x.get("homeAway") == "home" for x in c.get("competitors") or [] if (x.get("team") or {}).get("id") == t["id"]), False)
+        return {"name": e.get("name"), "start": e.get("date"), "state": state, "networks": nets, "apps": apps_for(nets),
+                "opponent": opp.get("abbreviation") or opp.get("displayName"), "home": home}
+    return None
+
+
+async def find(q: str) -> Dict[str, Any]:
+    q = (q or "").strip()[:60]
+    if len(q) < 2:
+        return {"q": q, "teams": [], "shows": []}
+    key = f"find:{q.lower()}"
+    hit = _cached(key, 300)
+    if hit is not None:
+        return hit
+    async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "henderburgh-hub/1.0"}) as client:
+        index_task = asyncio.create_task(_team_index(client))
+        try:
+            r = await client.get("https://api.tvmaze.com/search/shows", params={"q": q})
+            raw = r.json() if r.status_code == 200 else []
+        except Exception:
+            raw = []
+        shows = []
+        for x in raw[:4]:
+            sh = x.get("show") or {}
+            net = (sh.get("webChannel") or {}).get("name") or (sh.get("network") or {}).get("name")
+            apps = apps_for([net], sports=False) if net else []
+            later = None
+            # Catalog answer (not tonight's live guide): ABC and FOX shows land
+            # on Hulu the day after they air.
+            if not apps and net and NEXT_DAY.get(net.lower()):
+                apps, later = [NEXT_DAY[net.lower()]], "next day"
+            # A network says where a show airs, not where an old, finished one
+            # streams today — don't promise Paramount+ has a 1952 CBS show.
+            yr = int((sh.get("premiered") or "0")[:4] or 0)
+            if sh.get("status") == "Ended" and yr and yr < 2010 and sh.get("network") and not sh.get("webChannel"):
+                apps, later = [], "older show — streaming home unknown"
+            shows.append({"id": sh.get("id"), "title": sh.get("name"), "network": net, "apps": apps, "later": later,
+                          "status": sh.get("status"), "year": (sh.get("premiered") or "")[:4] or None,
+                          "image": ((sh.get("image") or {}).get("medium")), "genres": sh.get("genres") or [],
+                          "next": None})
+        # Next episode for running shows near the top.
+        async def nxt(s):
+            if s["status"] != "Running":
+                return
+            try:
+                rr = await client.get(f"https://api.tvmaze.com/shows/{s['id']}", params={"embed": "nextepisode"})
+                ep = ((rr.json() or {}).get("_embedded") or {}).get("nextepisode") if rr.status_code == 200 else None
+                if ep:
+                    s["next"] = {"airstamp": ep.get("airstamp"), "name": ep.get("name"), "season": ep.get("season"), "number": ep.get("number")}
+            except Exception:
+                pass
+        await asyncio.gather(*[nxt(s) for s in shows[:2]])
+        teams = _match_teams(await index_task, q)
+        nexts = await asyncio.gather(*[_team_next(client, t) for t in teams])
+        for t, n in zip(teams, nexts):
+
+            t["next"] = n
+    return _store(key, {"q": q, "teams": teams, "shows": shows,
+                        "note": "Shows: TVmaze · Teams: ESPN · Movies aren't covered by these sources yet"})

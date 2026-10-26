@@ -409,6 +409,66 @@
     if (tonight) { window.HBLastTonight = tonight; window.dispatchEvent(new CustomEvent('hb:tonight', { detail: tonight })); }
   }
 
+  // ═══════════════ Find anything ═══════════════
+  function dayWhen(iso) {
+    const d = new Date(iso);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const day = new Date(d); day.setHours(0, 0, 0, 0);
+    const diff = Math.round((day - today) / 86400000);
+    const dl = diff === 0 ? 'Tonight' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    return `${dl} ${timeOf(iso)}`;
+  }
+  function resultCard(img, title, sub, extra, actions) {
+    const card = el('article', 'find-card');
+    const art = el('div', 'find-art');
+    if (img && /^https:\/\//.test(img)) art.style.backgroundImage = `url("${img.replace(/"/g, '')}")`;
+    const body = el('div', 'find-body');
+    body.append(el('b', 'find-title', title), el('span', 'find-sub', sub));
+    if (extra) body.appendChild(el('span', 'find-extra', extra));
+    body.appendChild(actions);
+    card.append(art, body);
+    return card;
+  }
+  function renderFind(d) {
+    const box = $('find-results');
+    box.replaceChildren();
+    if (!d || !d.q) { box.hidden = true; return; }
+    box.hidden = false;
+    (d.teams || []).forEach((t) => {
+      const n = t.next;
+      const extra = !n ? 'No upcoming games — the season’s over for now.'
+        : `${n.state === 'in' ? 'Live now' : dayWhen(n.start)} · ${n.home ? 'vs' : '@'} ${n.opponent}${n.networks.length ? ` · ${n.networks[0]}` : ''}`;
+      box.appendChild(resultCard(t.logo, t.name, `${t.league} team`, extra, n ? whereRow(n.apps, n.networks, { compact: true }) : el('span')));
+    });
+    (d.shows || []).forEach((s) => {
+      const sub = [s.network, s.year, s.status === 'Running' ? 'airing' : s.status === 'Ended' ? 'ended' : s.status].filter(Boolean).join(' · ');
+      const nx = s.next ? `Next: ${dayWhen(s.next.airstamp)}${s.next.season ? ` · S${s.next.season}E${s.next.number}` : ''}` : null;
+      const extra = [nx, s.later ? (s.apps.length ? `${s.later} in ${(SVC[s.apps[0]] || {}).name || s.apps[0]}` : s.later) : null].filter(Boolean).join(' · ');
+      box.appendChild(resultCard(s.image, s.title, sub, extra || null, s.apps.length || !s.later ? whereRow(s.apps, s.network ? [s.network] : [], { compact: true }) : el('span')));
+    });
+    if (!box.childElementCount) box.appendChild(el('p', 'muted', `Nothing found for “${d.q}”.`));
+    if (d.note) box.appendChild(el('p', 'faint', d.note));
+  }
+  (function findBox() {
+    const input = $('find-q');
+    let t = null, seq = 0;
+    input.addEventListener('input', () => {
+      clearTimeout(t);
+      const q = input.value.trim();
+      if (q.length < 2) { renderFind(null); return; }
+      t = setTimeout(async () => {
+        const my = ++seq;
+        $('find-results').hidden = false;
+        $('find-results').replaceChildren(el('p', 'muted', 'Looking…'));
+        try {
+          const d = await (await fetch('/api/watch/find?q=' + encodeURIComponent(q))).json();
+          if (my === seq) renderFind(d);
+        } catch (e) { if (my === seq) renderFind({ q, teams: [], shows: [] }); }
+      }, 350);
+    });
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { input.value = ''; renderFind(null); input.blur(); } });
+  })();
+
   // ═══════════════ Scenes ═══════════════
   // A scene is one button that opens everything for an activity. Sports
   // gathers live bugs, tonight's games, the sports apps, and the TVs + the
