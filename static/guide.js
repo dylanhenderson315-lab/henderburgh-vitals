@@ -123,6 +123,7 @@
         else window.location.href = app.open;
       });
       b.appendChild(badge);
+      b.classList.add('has-app');
     }
     b.setAttribute('aria-label', `${row.ch} ${row.name}: ${p.title}, ${clock(t(p.start))} to ${clock(e)}`);
     b.addEventListener('click', () => tuneTo(row.ch, b, p.title));
@@ -192,32 +193,65 @@
     if (!placedOnce) { box.scrollLeft = Math.max(0, (now - t0) / 60000 * PX - 40); placedOnce = true; }
     else { box.scrollLeft = keep.x; box.scrollTop = keep.y; }
     $('cg-credit').textContent = data.credit || '';
+    cacheGeometry();
     settle();
   }
 
+  // Refreshes rebuild the grid only when the listings changed, and never
+  // mid-scroll; otherwise just the now line moves.
+  let sig = '', lastScroll = 0;
+  $('cg').addEventListener('scroll', () => { lastScroll = Date.now(); }, { passive: true });
+  function moveNow() {
+    const line = $('cg').querySelector('.cg-now');
+    if (line && data) line.style.left = `calc(var(--chw) + ${(Date.now() - t(data.start)) / 60000 * PX}px)`;
+  }
   async function load() {
     try {
       const r = await fetch('/api/watch/grid', { credentials: 'same-origin' });
       if (!r.ok) throw new Error(String(r.status));
-      data = await r.json();
-      render();
+      const next = await r.json();
+      const nsig = next.start + '|' + JSON.stringify(next.channels);
+      if (nsig === sig && data) { moveNow(); return; }
+      const apply = () => { sig = nsig; data = next; render(); };
+      if (Date.now() - lastScroll < 1500) setTimeout(apply, 1600); else apply();
     } catch (e) {
       if (!data) $('cg').replaceChildren(el('p', 'muted cg-empty', 'Couldn’t load the guide.'));
     }
   }
   // Titles of programmes that began off to the left slide along so they stay
-  // readable next to the pinned channel column (transform only, no layout).
-  function settle() {
-    const box = $('cg');
-    const x = box.scrollLeft;
-    box.querySelectorAll('.cg-prog').forEach((b) => {
-      const left = b.offsetLeft, w = b.offsetWidth;
-      const tx = b.firstChild && b.firstChild.classList && b.firstChild.classList.contains('cg-txt') ? b.firstChild : b.querySelector('.cg-txt');
-      if (!tx) return;
-      const shift = Math.max(0, Math.min(x - left, w - 90));
-      tx.style.transform = shift ? `translateX(${shift}px)` : '';
-      b.classList.toggle('narrow', w - shift < 170);   // too little left to show an app badge too
+  // readable next to the pinned channel column. Geometry is cached once per
+  // render (it comes from the data, not from measuring), and the scroll
+  // handler only does arithmetic and writes a transform when one changes —
+  // at most once a frame. No layout reads while scrolling.
+  let geo = [];
+  function cacheGeometry() {
+    geo = [];
+    $('cg').querySelectorAll('.cg-prog').forEach((b) => {
+      const tx = b.querySelector('.cg-txt');
+      if (tx) geo.push({ b, tx, left: parseFloat(b.style.left) || 0, w: parseFloat(b.style.width) || 0, shift: 0, narrow: null });
     });
+  }
+  let queued = false;
+  function settle() {
+    if (queued) return;
+    queued = true;
+    let done = false;
+    const run = () => {
+      if (done) return;
+      done = true;
+      queued = false;
+      const x = $('cg').scrollLeft;
+      for (const g of geo) {
+        const shift = Math.max(0, Math.min(x - g.left, g.w - 90));
+        if (shift !== g.shift) { g.tx.style.transform = shift ? `translate3d(${shift}px,0,0)` : ''; g.shift = shift; }
+        const narrow = g.w - shift < 170;
+        if (narrow !== g.narrow) { g.b.classList.toggle('narrow', narrow); g.narrow = narrow; }
+      }
+    };
+    // Next frame; a timer backstop in case frames aren't being drawn, so a
+    // missed frame can never leave the handler stuck.
+    requestAnimationFrame(run);
+    setTimeout(run, 100);
   }
   $('cg').addEventListener('scroll', settle, { passive: true });
   $('cg-listed').addEventListener('click', () => {
