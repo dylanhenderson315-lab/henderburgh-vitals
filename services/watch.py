@@ -117,6 +117,8 @@ def _game(league: str, e: Dict[str, Any]) -> Dict[str, Any]:
             "score": x.get("score") if stype.get("state") != "pre" else None,
             "record": next((r.get("summary") for r in x.get("records") or [] if r.get("summary")), None),
             "home": x.get("homeAway") == "home",
+            "periods": [ls.get("displayValue") or (str(int(ls["value"])) if isinstance(ls.get("value"), (int, float)) else None)
+                        for ls in x.get("linescores") or []] if stype.get("state") != "pre" else [],
         })
     nets: List[str] = []
     for b in (c.get("broadcasts") or []):
@@ -129,7 +131,14 @@ def _game(league: str, e: Dict[str, Any]) -> Dict[str, Any]:
         situation = sit.get("downDistanceText") or sit.get("shortDownDistanceText") or (
             f"{sit.get('outs')} out" if sit.get("outs") is not None else None)
     note = next((n.get("headline") for n in c.get("notes") or [] if n.get("headline")), None)
-    last_play = ((sit.get("lastPlay") or {}).get("text") or "").strip() if stype.get("state") == "in" else ""
+    lp = (sit.get("lastPlay") or {}) if stype.get("state") == "in" else {}
+    last_play = (lp.get("text") or "").strip()
+    # Who made the last play (for the scoring moment's portrait), and whether it scored.
+    who = next(iter(lp.get("athletesInvolved") or []), {}) if lp else {}
+    play = {"kind": (lp.get("type") or {}).get("text"), "scored": bool(lp.get("scoreValue")),
+            "team": str((lp.get("team") or {}).get("id") or ""),
+            "who": who.get("displayName"),
+            "headshot": who.get("headshot") if str(who.get("headshot") or "").startswith("https://") else None} if lp else None
     return {
         "id": e.get("id"),
         "league": league,
@@ -147,6 +156,7 @@ def _game(league: str, e: Dict[str, Any]) -> Dict[str, Any]:
         "series": (c.get("series") or {}).get("summary"),
         "situation": situation,
         "last_play": last_play or None,     # ESPN's own play-by-play line, verbatim
+        "play": play,
         "win": None,
     }
 
@@ -190,7 +200,7 @@ async def _win_prob(client: httpx.AsyncClient, g: Dict[str, Any]) -> Optional[Di
 
 def _closeness(g: Dict[str, Any]) -> Optional[str]:
     """'Close · late' when a live game is tight in its final stretch."""
-    if g["state"] != "in":
+    if g["state"] != "in" or g.get("combat"):
         return None
     try:
         a, b = (int(t["score"] or 0) for t in g["teams"][:2])
@@ -263,7 +273,7 @@ def _game_score(g: Dict[str, Any], now: datetime) -> float:
         if hrs > 6:
             return 5
         s += 60 - max(0, hrs) * 8
-    if g["postseason"]:
+    if g["postseason"] or g.get("big"):     # playoffs, numbered UFC cards, big fights
         s += 30
     if g["league"] == "NFL":
         s += 15
@@ -279,6 +289,15 @@ def _game_score(g: Dict[str, Any], now: datetime) -> float:
 def _reason(g: Dict[str, Any]) -> str:
     """One line on why this is the pick — never a repeat of the title."""
     a, b = g["teams"][0], g["teams"][1] if len(g["teams"]) > 1 else {"abbr": "?"}
+    if g.get("combat"):
+        main = f"Main event: {a['name']} vs {b.get('name')}" + (f" ({g['series']})" if g.get("series") else "")
+        if g["state"] == "in":
+            return f"Live · {main}"
+        try:
+            when = datetime.fromisoformat(g["start"].replace("Z", "+00:00")).astimezone(ET).strftime("%-I:%M %p")
+        except Exception:
+            when = ""
+        return " · ".join(x for x in (f"Main card {when}" if when else None, main, f"on {g['networks'][0]}" if g["networks"] else None) if x)
     if g["state"] == "in":
         return f"{g.get('close') or 'Live'}: {a['abbr']} {a['score']}–{b.get('score')} {b['abbr']} · {g.get('detail') or ''}".strip(" ·")
     try:
@@ -296,7 +315,9 @@ async def tonight() -> Dict[str, Any]:
     day = (now - timedelta(hours=4)).date()
     ymd, ymd_dash = day.strftime("%Y%m%d"), day.isoformat()
     async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "henderburgh-hub/1.0"}) as client:
-        boards = await asyncio.gather(*[_scoreboard(client, lg, ymd) for lg in LEAGUES], _guide(client, ymd_dash))
+        from services import combat   # local import: combat imports this module
+        boards = await asyncio.gather(*[_scoreboard(client, lg, ymd) for lg in LEAGUES], combat.tonight(client, ymd, day),
+                                      _guide(client, ymd_dash))
         guide = boards.pop()
         games = [g for b in boards for g in b]
         live = [g for g in games if g["state"] == "in"]

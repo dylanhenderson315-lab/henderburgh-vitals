@@ -46,7 +46,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import ambient, favorites, home_assistant, persistence, push, sky, state, vitals, watch, xbox
+from services import ambient, favorites, gamecenter, home_assistant, persistence, push, sky, state, vitals, watch, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -2006,6 +2006,16 @@ async def api_watch_tonight():
     apps (services/watch.py). Public read."""
     data = await watch.tonight()
     data["alerts"] = {"enabled": push.enabled() and bool(ADMIN_TOKEN)}
+    return data
+
+
+@app.get("/api/watch/game")
+async def api_watch_game(league: str = "", id: str = ""):
+    """Game Center for one game: period scores, head-to-head stats, leaders,
+    scoring summary, win-probability curve (services/gamecenter.py). Public read."""
+    data = await gamecenter.game(league.upper(), id)
+    if data is None:
+        raise HTTPException(404, "game not found")
     return data
 
 

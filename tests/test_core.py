@@ -557,3 +557,27 @@ def test_favorites_detects_his_teams_and_kickoffs():
              {"name": "Pittsburgh Penguins", "next": {"start": "2026-11-01T23:00Z", "live": False}}]
     soon = favorites.kickoff_soon(teams, now, 15)
     assert [s["team"]["name"] for s in soon] == ["Pittsburgh Steelers"] and soon[0]["minutes"] == 10
+
+
+def test_gamecenter_rates_and_edges():
+    from services import gamecenter as gc
+    assert gc._rate("1/4") == 25.0 and gc._rate("41-85") == 48.2 and gc._rate("28") == 28.0
+    p = gc._pair("Power play", "1/4", "1/3", False)
+    assert p["edge"] == "home"                      # 33% beats 25%, not 1 vs 1
+    assert gc._pair("Turnovers", "3", "1", True)["edge"] == "home"
+    assert gc._pair("Shots", None, None, False) is None
+
+
+def test_ufc_event_is_shaped_like_a_game():
+    from services import combat
+    ev = {"id": "1", "name": "UFC 330: A vs. B", "date": "2026-11-01T22:00Z", "status": {"type": {"state": "pre"}},
+          "competitions": [{"date": "2026-11-02T01:00Z", "type": {"abbreviation": "Lightweight"},
+                            "status": {"type": {"state": "pre"}}, "broadcasts": [{"names": ["Paramount+"]}],
+                            "competitors": [{"id": "9", "order": 1, "athlete": {"displayName": "Ann Ace"}, "records": [{"summary": "10-1"}]},
+                                            {"id": "8", "order": 2, "athlete": {"displayName": "Bea Bold"}}]}]}
+    g = combat._ufc_event(ev)
+    assert g["league"] == "UFC" and g["apps"] == ["paramount"] and g["big"] and g["start"] == "2026-11-02T01:00Z"
+    assert [t["abbr"] for t in g["teams"]] == ["ACE", "BOLD"] and g["teams"][0]["record"] == "10-1"
+    from services.watch import _closeness
+    g["state"] = "in"
+    assert _closeness(g) is None                     # fights are never "close · late"

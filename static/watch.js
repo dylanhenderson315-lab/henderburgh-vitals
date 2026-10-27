@@ -293,6 +293,8 @@
     send({ command: cmd });
   }, true);
 
+  window.HBWhereRow = (apps, networks) => whereRow(apps, networks);
+
   // ═══════════════ What's on ═══════════════
   // Where something can be watched, in words + the one-tap action.
   function whereRow(apps, networks, { compact } = {}) {
@@ -344,6 +346,9 @@
   // only when ESPN actually publishes it.
   function bug(g) {
     const card = el('article', 'bug' + (g.close ? ' hot' : ''));
+    card.dataset.game = g.id;
+    // The whole bug opens Game Center; its put-on-TV buttons still do their own thing.
+    card.addEventListener('click', (ev) => { if (!ev.target.closest('button, a') && window.HBOpenGame) window.HBOpenGame(g.league, g.id, g); });
     const [away, home] = g.teams;
     const homeWin = g.win && g.win.home != null ? g.win.home : null;
     card.append(teamLine(away, homeWin != null ? 100 - homeWin : null), teamLine(home, homeWin));
@@ -374,6 +379,8 @@
     box.replaceChildren();
     if (!p) return;
     const g = p.kind === 'game' ? [...tonight.live, ...tonight.upcoming].find((x) => x.id === p.game_id) : null;
+    if (g && g.state === 'in') { box.dataset.game = g.id; box.onclick = (ev) => { if (!ev.target.closest('button, a') && window.HBOpenGame) window.HBOpenGame(g.league, g.id, g); }; }
+    else { delete box.dataset.game; box.onclick = null; }
     if (g && g.teams.length === 2) box.style.setProperty('--pa', hex(g.teams[0].color)), box.style.setProperty('--pb', hex(g.teams[1].color));
     else box.style.removeProperty('--pa'), box.style.removeProperty('--pb');
     const when = p.state === 'in' ? 'Live now' : p.start ? `Tonight · ${timeOf(p.start)}` : 'Tonight';
@@ -602,6 +609,17 @@
           g.live && g.leader && (!pos || pos.order !== 1) ? `Leader: ${g.leader.name} ${g.leader.score}` : null],
         via: g.via, apps: g.apps, networks: g.networks }));
     }
+    // Fight cards: the next UFC event (DWCS included) and the next big boxing card.
+    const fight = (e, title, color, dateOnly) => {
+      if (!e) return;
+      const [a, b] = e.teams || [];
+      out.push(favCard({ color, title, sub: e.note, live: e.state === 'in',
+        lines: [a && b ? `${a.name} vs ${b.name}${e.series && e.league === 'UFC' ? ` · ${e.series}` : ''}` : null,
+          e.state === 'in' ? 'On now' : e.start ? (dateOnly ? shortDay(e.start).replace(/ \d.*$/, '') : `Main card ${shortDay(e.start)}`) : null],
+        apps: e.apps, networks: e.networks }));
+    };
+    fight(favs.ufc, 'UFC', 'd20a0a', false);
+    fight(favs.boxing, 'Boxing', 'c9a227', true);   // the boxing source's fight times aren't reliable: date only
     return out;
   }
   function renderFavs() {

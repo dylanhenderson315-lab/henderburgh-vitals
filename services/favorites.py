@@ -190,11 +190,14 @@ async def overview() -> Dict[str, Any]:
     hit = _cached("favorites", 300)
     if hit is not None:
         return hit
+    from services import combat
     async with httpx.AsyncClient(timeout=6.0, headers=UA) as client:
-        res = await asyncio.gather(*[_team(client, lg, tid) for lg, tid in TEAMS], _nascar(client), _f1(client), _golf(client))
+        res = await asyncio.gather(*[_team(client, lg, tid) for lg, tid in TEAMS], _nascar(client), _f1(client), _golf(client),
+                                   combat.next_up(client))
     teams = [t for t in res[:len(TEAMS)] if t]
-    nascar, f1, golf = res[len(TEAMS):]
-    return _store("favorites", {"teams": teams, "nascar": nascar, "f1": f1, "golf": golf})
+    nascar, f1, golf, fights = res[len(TEAMS):]
+    return _store("favorites", {"teams": teams, "nascar": nascar, "f1": f1, "golf": golf,
+                                "ufc": fights.get("ufc"), "boxing": fights.get("boxing")})
 
 
 def kickoff_soon(teams: List[Dict[str, Any]], now: datetime, within_min: int = 15) -> List[Dict[str, Any]]:

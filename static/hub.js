@@ -679,6 +679,14 @@
     r.append(sw, logo(t.logo, 'mb-logo'), el('b', 'mb-abbr', t.abbr || '?'), sc);
     return r;
   }
+  // A live game in the card opens Game Center; otherwise the card opens the
+  // Sports scene (capture runs before the scene's own click handler).
+  let onNowGame = null;
+  $('card-onnow').addEventListener('click', (ev) => {
+    if (!onNowGame || !window.HBOpenGame) return;
+    ev.stopImmediatePropagation();
+    window.HBOpenGame(onNowGame.league, onNowGame.id, onNowGame);
+  }, true);
   function renderOnNow(t) {
     const body = $('onnow-body');
     body.replaceChildren();
@@ -688,6 +696,8 @@
       const g = live[0];
       $('onnow-label').textContent = g.close ? `On now · ${g.close}` : 'On now · Live';
       $('card-onnow').classList.toggle('hot', !!g.close);
+      $('card-onnow').dataset.game = g.id;
+      onNowGame = g;
       // Flash only the side that just scored.
       const prev = lastScores[g.id];
       lastScores[g.id] = g.teams.map((x) => x.score);
@@ -715,6 +725,8 @@
     }
     // Nothing worth watching is live: say what's next and how soon.
     $('card-onnow').classList.remove('hot');
+    delete $('card-onnow').dataset.game;
+    onNowGame = null;
     $('onnow-label').textContent = 'On now';
     const next = (t.upcoming || []).filter(watchable)[0];
     const msg = el('span', 'onnow-quiet');
@@ -781,6 +793,7 @@
       box.append(logo(tm.logo, 'al-logo'), el('span', 'al-abbr', tm.abbr), el('span', 'al-score num', String(tm.score ?? '')));
       return box;
     };
+    amb.dataset.game = g.id;
     amb.append(side(a), el('div', 'al-mid', g.close ? `${g.close}\n${g.detail || ''}` : g.detail || 'Live'), side(b));
   }
   window.addEventListener('hb:favs', () => { if (window.HBLastTonight) renderLater(window.HBLastTonight); });
