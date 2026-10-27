@@ -100,6 +100,8 @@
     pw.setAttribute('aria-pressed', String(!!tv.on));
     pw.setAttribute('aria-label', tv.on ? `Turn ${tv.name} off` : `Turn ${tv.name} on`);
     $('remote').classList.toggle('is-off', !tv.on);
+    $('r-cable').hidden = !tv.box;
+    if (tv.box) $('remote-what').textContent = !tv.on ? 'Off — tap power' : tv.on_box ? `${tv.box.label} · cable` : `${tvApp(tv.app) || 'On'} · cable box ready`;
     const muted = tv.muted === true;
     $('r-mute').setAttribute('aria-pressed', String(muted));
     $('r-vol').textContent = muted ? 'MUTE' : tv.on && tv.volume != null ? String(tv.volume) : 'VOL';
@@ -146,11 +148,14 @@
   const queue = [];
   let sending = false;
   let refreshSoon = null;
+  // Watching cable, everything but volume and power drives the box.
+  const TV_ONLY = /^(VOLUME_|power)/;
   function send(body, key) {
     const tv = selectedTv();
     if (!tv) return;
+    if (tv.box && tv.on_box && !body.target && !('power' in body) && !TV_ONLY.test(body.command || '')) body = { ...body, target: 'box' };
     const last = queue[queue.length - 1];
-    if (last && last.tv === tv.entity_id && body.command && last.body.command === body.command && !body.hold && !last.body.hold && (last.body.repeat || 1) < 15) {
+    if (last && last.tv === tv.entity_id && body.command && last.body.command === body.command && last.body.target === body.target && !body.hold && !last.body.hold && (last.body.repeat || 1) < 15) {
       last.body.repeat = (last.body.repeat || 1) + 1;
     } else {
       queue.push({ tv: tv.entity_id, body: { ...body }, key });
@@ -198,6 +203,12 @@
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => b.addEventListener(t, end));
     b.addEventListener('click', () => { if (held) { held = false; return; } send({ command: b.dataset.cmd }, b); });
     b.addEventListener('contextmenu', (ev) => ev.preventDefault());
+  });
+  document.querySelectorAll('#remote [data-box]').forEach((b) => b.addEventListener('click', () => send({ command: b.dataset.box, target: 'box' }, b)));
+  $('r-num').addEventListener('click', () => {
+    const pad = $('r-numpad');
+    pad.hidden = !pad.hidden;
+    $('r-num').setAttribute('aria-expanded', String(!pad.hidden));
   });
   $('r-power').addEventListener('click', () => {
     const tv = selectedTv();
@@ -285,6 +296,7 @@
     const onWatch = document.querySelector('[data-space="watch"][aria-current="true"]') || openScene;
     const remote = $('remote');
     if (!onWatch || remote.hidden || !remote.offsetParent) return;
+    if (/^[0-9]$/.test(ev.key) && selectedTv().box) { ev.preventDefault(); send({ command: ev.key, target: 'box' }); return; }
     const cmd = KEYMAP[ev.key];
     if (!cmd || (ev.key === 'Escape' && openScene)) return;   // Esc closes the scene first
     // Return/space on a focused button should still press that button.

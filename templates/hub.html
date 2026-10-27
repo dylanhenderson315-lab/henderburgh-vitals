@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=38">
+<link rel="stylesheet" href="/static/hub.css?v=39">
 </head>
 <body>
 <!-- Monoline icons (24-unit grid, 1.6 stroke) — one family, no emoji. -->
@@ -237,6 +237,22 @@
             </button>
             <button class="key" data-cmd="CAPTIONS" type="button" aria-label="Captions">CC</button>
           </div>
+          <!-- Cable: only for a TV with an HTC box. These always go to the box. -->
+          <div class="remote-cable" id="r-cable" hidden>
+            <div class="remote-row cable-row">
+              <button class="key" data-box="GUIDE" type="button">Guide</button>
+              <button class="key" data-box="INFO" type="button">Info</button>
+              <button class="key" data-box="DVR" type="button">DVR</button>
+              <button class="key" data-box="LAST_CHANNEL" type="button" aria-label="Last channel">Last</button>
+              <button class="key" id="r-num" type="button" aria-expanded="false" aria-label="Number pad">123</button>
+            </div>
+            <div class="numpad" id="r-numpad" hidden>
+              <button class="key" data-box="1" type="button">1</button><button class="key" data-box="2" type="button">2</button><button class="key" data-box="3" type="button">3</button>
+              <button class="key" data-box="4" type="button">4</button><button class="key" data-box="5" type="button">5</button><button class="key" data-box="6" type="button">6</button>
+              <button class="key" data-box="7" type="button">7</button><button class="key" data-box="8" type="button">8</button><button class="key" data-box="9" type="button">9</button>
+              <button class="key" data-box="PAGE_UP" type="button" aria-label="Page up">Pg up</button><button class="key" data-box="0" type="button">0</button><button class="key" data-box="PAGE_DOWN" type="button" aria-label="Page down">Pg dn</button>
+            </div>
+          </div>
           <div class="remote-row transport">
             <button class="key" data-cmd="MEDIA_REWIND" data-hold="repeat" type="button" aria-label="Rewind">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 6v12l-8-6zM20 6v12l-8-6z"/></svg>
@@ -402,9 +418,9 @@
 
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
-<script src="/static/streaming-services.js?v=5"></script>
+<script src="/static/streaming-services.js?v=6"></script>
 <script src="/static/hub.js?v=29"></script>
-<script src="/static/watch.js?v=16"></script>
+<script src="/static/watch.js?v=17"></script>
 <script src="/static/game.js?v=2"></script>
 </body>
 </html>

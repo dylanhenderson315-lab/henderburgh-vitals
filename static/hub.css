@@ -1106,3 +1106,13 @@ img.mb-logo.none, img.bug-logo.none{ visibility:hidden; }
   .gs-score{ font-size:clamp(2.6rem, 7vw, 4rem); }
   .gs-hero{ padding:var(--s-5) var(--s-5) var(--s-6); }
 }
+
+/* Cable (HTC box): one row of guide keys, and a number pad that folds out. */
+.remote-cable{ display:flex; flex-direction:column; gap:var(--s-2); padding-top:var(--s-2); border-top:1px solid var(--line); }
+.remote-cable[hidden], .numpad[hidden]{ display:none; }
+.cable-row{ grid-template-columns:repeat(5, minmax(0,1fr)); }
+.cable-row .key, .numpad .key{ font-size:var(--t-sm); }
+#r-num[aria-expanded="true"]{ color:var(--accent); border-color:var(--accent-line); }
+.numpad{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--s-2); }
+.numpad .key{ min-height:48px; font-family:var(--font-display); font-size:var(--t-lg); font-variant-numeric:tabular-nums; }
+.numpad .key[data-box^="PAGE"]{ font-family:var(--font-sans); font-size:var(--t-xs); color:var(--text-2); }

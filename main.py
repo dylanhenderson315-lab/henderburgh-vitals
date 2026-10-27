@@ -1988,7 +1988,15 @@ async def api_home():
 TV_COMMANDS = {"MEDIA_PLAY_PAUSE", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "HOME", "BACK",
                "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER",
                "CHANNEL_UP", "CHANNEL_DOWN", "MEDIA_REWIND", "MEDIA_FAST_FORWARD", "MENU",
-               "SEARCH", "CAPTIONS", "DEL", "ENTER"}
+               "SEARCH", "CAPTIONS", "DEL", "ENTER",
+               "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+               "GUIDE", "INFO", "LAST_CHANNEL", "DVR", "PAGE_UP", "PAGE_DOWN"}
+# HTC cable boxes (Evolution Digital Force 1, Android TV running HTC TV MAX /
+# TiVo), each wired to the TV it feeds. The remote sends to the box whenever
+# that TV is showing its HDMI input; volume and power stay with the TV.
+TV_BOXES = {"remote.smart_tv": "remote.frc1_mobi"}
+BOX_LABEL = "HTC TV"
+TV_INPUT_APPS = re.compile(r"tvcenter|^com\.tcl\.tv$", re.I)   # the TVs' own live-input apps
 # Typing into the TV's on-screen keyboard: each character is its own Android
 # key code (the remote protocol has no "send text"), lowercase only.
 TV_TEXT_KEYS = {**{c: c.upper() for c in "abcdefghijklmnopqrstuvwxyz0123456789"},
@@ -2084,10 +2092,12 @@ def _tvs_from(states: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """TVs HA can drive (remote.* from Android TV Remote), with what's on screen
     when the paired media_player reports it."""
     players = {s["entity_id"].split(".", 1)[1]: s for s in states if s.get("entity_id", "").startswith("media_player.")}
+    by_id = {s.get("entity_id"): s for s in states}
+    boxes = set(TV_BOXES.values())
     tvs = []
     for s in states:
         eid = s.get("entity_id", "")
-        if not eid.startswith("remote."):
+        if not eid.startswith("remote.") or eid in boxes:
             continue
         attrs = s.get("attributes") or {}
         mpa = (players.get(eid.split(".", 1)[1]) or {}).get("attributes") or {}
@@ -2101,6 +2111,16 @@ def _tvs_from(states: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "volume": round(mpa["volume_level"] * 100) if isinstance(mpa.get("volume_level"), (int, float)) else None,
             "muted": mpa.get("is_volume_muted"),
         })
+        bx = by_id.get(TV_BOXES.get(eid, ""))
+        if bx:
+            on_input = bool(TV_INPUT_APPS.search(tvs[-1]["app"] or ""))
+            tvs[-1]["box"] = {"entity_id": bx["entity_id"], "label": BOX_LABEL, "on": bx.get("state") == "on",
+                              "available": bx.get("state") not in ("unavailable", "unknown"),
+                              "app": (bx.get("attributes") or {}).get("current_activity")}
+            # Watching cable: the TV is on its input and the box is awake.
+            tvs[-1]["on_box"] = tvs[-1]["on"] and on_input and tvs[-1]["box"]["on"]
+            if tvs[-1]["on_box"]:
+                tvs[-1]["app"] = tvs[-1]["box"]["app"] or tvs[-1]["app"]   # say "HTC TV", not "Home screen"
     tvs.sort(key=lambda t: t["name"].lower())
     return tvs
 
@@ -2141,9 +2161,28 @@ async def api_media_command(request: Request, body: dict = Body(default={})):
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(403, "Home Assistant controls are disabled")
     tv = _require_tv(body)
+    box = TV_BOXES.get(tv)
     if "power" in body:
-        await home_assistant.call_ha_service("remote", "turn_on" if body.get("power") else "turn_off", tv)
+        # The TV and its cable box go on and off together.
+        svc = "turn_on" if body.get("power") else "turn_off"
+        await home_assistant.call_ha_service("remote", svc, tv)
+        if box:
+            try:
+                await home_assistant.call_ha_service("remote", svc, box)
+            except HTTPException:
+                pass   # the TV is the part that matters
         return {"status": "ok", "tv": tv, "power": bool(body.get("power"))}
+    if "channel" in body:
+        # Tune the cable box: digits, which the TiVo guide takes as a channel.
+        ch = str(body.get("channel") or "").strip()
+        if not box or not re.fullmatch(r"\d{1,4}", ch):
+            raise HTTPException(400, "channel needs a TV with a cable box and 1-4 digits")
+        await home_assistant.call_ha_service("remote", "send_command", box, {"command": list(ch), "delay_secs": 0.15})
+        return {"status": "ok", "tv": tv, "channel": ch}
+    if body.get("target") == "box":
+        if not box:
+            raise HTTPException(400, "this TV has no cable box")
+        tv = box
     if "text" in body:
         text = str(body.get("text") or "").lower()[:60]
         keys = [TV_TEXT_KEYS[c] for c in text if c in TV_TEXT_KEYS]

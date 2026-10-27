@@ -39,6 +39,7 @@
   const HOME_APPS = /tvcenter|com\.tcl\.tv$|launcher|dreamx|screensaver/i;
   window.HBTvApp = function (app) {
     if (!app) return null;
+    if (/tivo/i.test(app)) return 'HTC TV';   // the Force 1 cable boxes
     if (HOME_APPS.test(app)) return 'Home screen';
     return BY_PKG[app] || app.split('.').pop().replace(/^\w/, (c) => c.toUpperCase());
   };
