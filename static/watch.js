@@ -321,6 +321,13 @@
     return row;
   }
 
+  // A team's logo, or an empty slot of the same size so rows stay aligned.
+  function logoImg(src, cls) {
+    if (!src || !/^https:\/\//.test(src)) return el('span', cls + ' none');
+    const i = el('img', cls); i.src = src; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async';
+    i.addEventListener('error', () => i.classList.add('none'));
+    return i;
+  }
   function teamLine(t, winPct) {
     const line = el('div', 'bug-team');
     line.style.setProperty('--tc', hex(t.color));
@@ -328,7 +335,7 @@
     const abbr = el('b', 'bug-abbr', t.abbr || '?');
     const rec = el('span', 'bug-rec', t.record || '');
     const score = el('span', 'bug-score num', t.score != null ? String(t.score) : '');
-    line.append(sw, abbr, rec, score);
+    line.append(sw, logoImg(t.logo, 'bug-logo'), abbr, rec, score);
     if (winPct != null) line.dataset.win = String(winPct);
     return line;
   }

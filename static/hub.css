@@ -848,3 +848,103 @@ html.entering .now-grid > *:nth-child(6){ animation-delay:200ms; } html.entering
 #remote .key{ -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; }
 #remote .key[data-hold]{ touch-action:none; }
 .remote-type .key.primary{ min-width:0; padding:0 var(--s-4); }
+
+/* ═══════════════════════ SPOTLIGHT (2026-10-27) ═══════════════════════
+   Now ranks its cards (hub.js arrange()): one lead across the top, three
+   compact beneath, two medium at the bottom — six tracks, so the rhythm is
+   1 / 3 / 2 instead of a wall of equal boxes. */
+.hero-eyebrow{ font-family:var(--font-sans); text-transform:none; letter-spacing:0; font-size:var(--t-sm); color:var(--text-2); margin-bottom:var(--s-2); }
+/* Emphasis by weight and the house's own colour — no gradient text. */
+.hero-state{ background:none; -webkit-background-clip:border-box; background-clip:border-box;
+  color:color-mix(in srgb, rgb(var(--house-rgb)) 35%, var(--accent)); transition:color 1.6s ease; }
+
+@media (min-width: 700px){
+  #space-now .now-grid{ grid-template-columns:repeat(6, minmax(0,1fr)); }
+  #space-now .hero{ grid-column:1 / -1; }
+  #space-now .slot-lead{ grid-column:span 6; }
+  #space-now .slot-s{ grid-column:span 2; }
+  #space-now .slot-m{ grid-column:span 3; }
+}
+@media (orientation: portrait) and (min-width: 700px){
+  /* The lead row sizes to its content: a flexible lead row would make every
+     1fr row as tall as the lead (fr maths on an indefinite-height grid). */
+  #space-now .now-grid{ grid-template-rows:auto auto repeat(2, minmax(min-content, 1fr)); }
+}
+@media (orientation: landscape) and (min-width: 960px){
+  #space-now .now-grid{ grid-template-columns:minmax(0,3.75fr) repeat(6, minmax(0,1fr));
+    grid-template-rows:minmax(min-content, 1.25fr) repeat(2, minmax(min-content, 1fr)); }
+  #space-now .hero{ grid-column:1; grid-row:1 / span 3; }
+  #space-now .hero-clock{ margin-top:var(--s-4); }
+}
+
+/* The lead: one step up in scale, the rest of the screen defers to it. */
+#space-now .slot-lead{ padding:var(--s-6); gap:var(--s-4); }
+.slot-lead .mb-abbr{ font-size:var(--t-2xl); }
+.slot-lead .mb-score{ font-size:var(--t-3xl, 2.6rem); }
+.slot-lead .mb-sw{ height:30px; width:6px; }
+.slot-lead .mb-team{ grid-template-columns:6px 1fr auto; }
+.slot-lead .mb-meta{ font-size:var(--t-sm); }
+.slot-lead .mb-update{ font-size:var(--t-sm); -webkit-line-clamp:2; }
+.slot-lead .np-art{ width:112px; height:112px; border-radius:var(--r-lg); }
+.slot-lead .np-track{ font-size:var(--t-2xl); }
+.slot-lead .np-artist{ font-size:var(--t-base); }
+.slot-lead.card-music::before{ opacity:0.5; }
+.slot-lead .house-big .num{ font-size:var(--t-3xl, 2.6rem); }
+.slot-lead .row{ font-size:var(--t-base); }
+.slot-lead .stat-val{ font-size:var(--t-2xl); }
+
+/* Compact: quieter surface, secondary detail tucked away. */
+#space-now .slot-s, #space-now .slot-m{ background:linear-gradient(180deg, rgba(255,255,255,0.035), transparent 50%), rgba(20,20,24,0.42); }
+#space-now .slot-s{ padding:var(--s-4); gap:var(--s-2); }
+.slot-s .card-go{ display:none; }
+.slot-s .mb-update, .slot-s .mb-wp, .slot-s .mb-wpl, .slot-s .house-suggest, .slot-s .later-cal{ display:none; }
+.slot-s .np-art{ width:44px; height:44px; }
+.slot-s .np-track{ font-size:var(--t-base); }
+.slot-s .stats{ gap:var(--s-2); }
+.slot-s .stat-val{ font-size:var(--t-lg); }
+.slot-s .house-big .num{ font-size:var(--t-xl); }
+.slot-s .mb-abbr{ font-size:var(--t-base); }
+.slot-s .mb-score{ font-size:var(--t-lg); }
+.slot-s .mb-sw{ height:16px; }
+.slot-s .mb-meta{ flex-direction:column; gap:0; }
+
+/* The morph when the lead changes (Safari 18+): short, ease-out, transform
+   only — and the page itself doesn't crossfade. */
+::view-transition-group(*){ animation-duration:320ms; animation-timing-function:cubic-bezier(0.23,1,0.32,1); }
+::view-transition-old(root), ::view-transition-new(root){ animation:none; }
+@media (prefers-reduced-motion: reduce){ ::view-transition-group(*){ animation:none; } }
+
+/* Narrow bars (portrait iPad, phones): the live-game pill and the clock don't
+   both fit beside the tabs, so the clock — already huge on Now — steps aside. */
+@media (max-width: 999px){
+  .bar-live:not([hidden]) + .bar-time{ display:none; }
+  .bar-live{ min-width:0; overflow:hidden; }
+}
+@media (max-width: 559px){ .bar-live{ display:none !important; } }
+
+/* Team logos beside the colour bar — Now's score bug, Watch's live bugs, the
+   idle screen. A missing/broken logo keeps its slot so rows stay aligned. */
+.mb-team{ grid-template-columns:5px 22px 1fr auto; }
+.mb-logo{ width:22px; height:22px; object-fit:contain; }
+.slot-lead .mb-team{ grid-template-columns:6px 34px 1fr auto; }
+.slot-lead .mb-logo{ width:34px; height:34px; }
+.slot-s .mb-team{ grid-template-columns:5px 18px 1fr auto; }
+.slot-s .mb-logo{ width:18px; height:18px; }
+.bug-team{ grid-template-columns:6px 24px auto 1fr auto; }
+.bug-logo{ width:24px; height:24px; object-fit:contain; }
+.al-logo{ width:72px; height:72px; object-fit:contain; margin-bottom:var(--s-2); }
+.mb-logo.none, .bug-logo.none{ visibility:hidden; }
+.al-logo.none{ display:none; }
+img.mb-logo.none, img.bug-logo.none{ visibility:hidden; }
+/* Shorter landscape iPads (820px tall): the clock gives back a little height
+   so the statement column fits without scrolling. */
+@media (orientation: landscape) and (min-width: 960px) and (max-height: 830px){
+  #space-now .hero-clock{ font-size:clamp(5rem, 8.5vw, 7.5rem); }
+  #space-now .wx-row{ margin-top:var(--s-5); }
+}
+/* A definite height lets the 1fr rows share the real leftover space instead
+   of each copying the lead's size; minmax(min-content) still never clips —
+   a taller day just scrolls. */
+@media (min-width: 700px){
+  #space-now .now-grid{ height:100%; }
+}

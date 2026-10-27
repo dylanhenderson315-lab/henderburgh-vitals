@@ -159,7 +159,7 @@
     $('bar-time').textContent = `${h12}:${mm} ${ap}`;
     $('ambient-clock').textContent = `${h12}:${mm}`;
     $('date').textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
-    $('hero-eyebrow').textContent = `${greetingFor(h)}, ${NAME} · Personal OS · Live`;
+    $('hero-eyebrow').textContent = `${greetingFor(h)}, ${NAME}.`;
     root.style.setProperty('--sky-rgb', SKY[bandFor(h)]);
   }
 
@@ -246,6 +246,8 @@
     $('house-of').textContent = `of ${total} on`;
     $('house-rooms').textContent = on ? lit.join(' · ') : 'Every light is off.';
     $('card-house').classList.toggle('dark', on === 0);
+    sig.lights = on;
+    arrange();
     $('lock-note').hidden = canControl;
     $('ln-lights').textContent = on ? `${on} on right now` : 'Rooms, modes, effects';
     $('ln-lights').classList.toggle('live', on > 0);
@@ -467,6 +469,53 @@
   }
 
   let lastState = null;
+  // ═══════════════════════ Spotlight ═══════════════════════
+  // Now isn't six equal cards: whatever matters most this minute takes the
+  // lead slot (a close game > music playing > a TV in use > lights on…) and
+  // the rest step down to a quieter row beneath it. Re-ranked on every
+  // update; when the lead changes the cards morph into place (a view
+  // transition), otherwise nothing moves.
+  const sig = { live: 0, music: false, tv: false, lights: 0, later: false };
+  let leadId = null;
+  function arrange() {
+    const h = new Date().getHours();
+    const morning = h >= 5 && h < 11;
+    const score = {
+      'card-onnow': sig.live === 2 ? 100 : sig.live === 1 ? 80 : 14,
+      'card-music': sig.music ? 70 : 6,
+      'card-tv': sig.tv ? 60 : 9,
+      'card-house': sig.lights ? 40 + Math.min(sig.lights, 10) : 12,
+      'card-later': sig.later ? 30 : 8,
+      'card-vitals': morning ? 50 : 16,
+    };
+    const ids = Object.keys(score).sort((a, b) => score[b] - score[a]);
+    const apply = () => {
+      ids.forEach((id, i) => {
+        const c = $(id);
+        if (!c) return;
+        c.style.order = String(i + 1);
+        c.classList.toggle('slot-lead', i === 0);
+        c.classList.toggle('slot-s', i >= 1 && i <= 3);
+        c.classList.toggle('slot-m', i >= 4);
+      });
+    };
+    if (leadId === ids[0]) { apply(); return; }
+    const first = leadId === null;
+    leadId = ids[0];
+    const calm = first || document.hidden || !document.startViewTransition ||
+      matchMedia('(prefers-reduced-motion: reduce)').matches || root.classList.contains('resizing');
+    if (calm) apply();
+    else {
+      ids.forEach((id) => { const c = $(id); if (c) c.style.viewTransitionName = id; });
+      const vt = document.startViewTransition(apply);
+      // Names only live for the morph; a backstop clears them even if the
+      // transition never finishes (hidden pane = no frames).
+      const clear = () => ids.forEach((id) => { const c = $(id); if (c) c.style.viewTransitionName = ''; });
+      vt.finished.then(clear, clear);
+      setTimeout(clear, 1200);
+    }
+  }
+
   function renderState(d) {
     lastState = d;
     // Headline — the front door's "Henderburgh is ___."
@@ -506,6 +555,7 @@
       rows.appendChild(r);
     });
     const watching = tvs.filter((t) => t.on && tvApp(t) && tvApp(t) !== 'Home screen');
+    sig.tv = watching.length > 0;
     setLaunch('ln-watch', watching.length ? `${watching[0].name}: ${tvApp(watching[0])}` : null);
 
     // Music
@@ -513,6 +563,7 @@
     mb.replaceChildren();
     const music = d.music || {};
     const np = music.now_playing || (music.recent || [])[0];
+    sig.music = !!music.now_playing;
     if (!music.configured) mb.appendChild(el('p', 'muted', 'Last.fm isn’t connected.'));
     else if (!np) mb.appendChild(el('p', 'muted', music.ok === false ? 'Couldn’t reach Last.fm.' : 'Nothing scrobbled yet.'));
     else {
@@ -580,6 +631,7 @@
     setLaunch('ln-clips', d.clips && d.clips[0] ? clipName(d.clips[0].title) : null);
 
     paintHeart();
+    arrange();
     openForContext(d);
   }
 
@@ -614,11 +666,17 @@
     const n = (g.networks || [])[0];
     return n ? (OTA_RE.test(n) ? `${n} · live channels` : n) : '';
   }
+  function logo(src, cls) {
+    if (!src || !/^https:\/\//.test(src)) return el('span', cls + ' none');
+    const i = el('img', cls); i.src = src; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async';
+    i.addEventListener('error', () => i.classList.add('none'));
+    return i;
+  }
   function teamRow(t, flashIt) {
     const r = el('span', 'mb-team');
     const sw = el('i', 'mb-sw'); sw.style.background = hexc(t.color);
     const sc = el('span', 'mb-score num' + (flashIt ? ' flash' : ''), t.score != null ? String(t.score) : '');
-    r.append(sw, el('b', 'mb-abbr', t.abbr || '?'), sc);
+    r.append(sw, logo(t.logo, 'mb-logo'), el('b', 'mb-abbr', t.abbr || '?'), sc);
     return r;
   }
   function renderOnNow(t) {
@@ -720,7 +778,7 @@
     const side = (tm) => {
       const box = el('div', 'al-side');
       box.style.setProperty('--tc', hexc(tm.color));
-      box.append(el('span', 'al-abbr', tm.abbr), el('span', 'al-score num', String(tm.score ?? '')));
+      box.append(logo(tm.logo, 'al-logo'), el('span', 'al-abbr', tm.abbr), el('span', 'al-score num', String(tm.score ?? '')));
       return box;
     };
     amb.append(side(a), el('div', 'al-mid', g.close ? `${g.close}\n${g.detail || ''}` : g.detail || 'Live'), side(b));
@@ -731,6 +789,10 @@
     renderOnNow(t);
     renderLater(t);
     renderLiveActivity(t);
+    const g = (t.live || []).filter(watchable)[0];
+    sig.live = g ? (g.close ? 2 : 1) : 0;
+    sig.later = (t.upcoming || []).some(watchable);
+    arrange();
     // A big live game pulls a freshly opened hub to Watch.
     const bigLive = (t.live || []).some((g) => g.score >= 120);
     if (bigLive && !userMoved && Date.now() - loadedAt < 6000) { goTo('watch'); userMoved = true; }
