@@ -1098,3 +1098,11 @@ img.mb-logo.none, img.bug-logo.none{ visibility:hidden; }
   .burst-shine{ display:none; }
   @keyframes burst-fade{ from{ opacity:0; } to{ opacity:1; } }
 }
+/* Portrait iPad: the big score squeezes the sides — names wrap to two lines
+   instead of truncating, and the logos and score step down a size. */
+@media (max-width: 1000px) and (min-width: 560px){
+  .gs-name{ white-space:normal; font-size:var(--t-xl); line-height:1.05; overflow-wrap:anywhere; }
+  .gs-logo{ width:64px; height:64px; }
+  .gs-score{ font-size:clamp(2.6rem, 7vw, 4rem); }
+  .gs-hero{ padding:var(--s-5) var(--s-5) var(--s-6); }
+}
