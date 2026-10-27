@@ -83,6 +83,7 @@
         selected = t.entity_id;
         try { localStorage.setItem('hb-watch-tv', selected); } catch (e) {}
         renderTvs(); renderGuide();
+        window.dispatchEvent(new CustomEvent('hb:tv'));
       });
       wrap.appendChild(b);
     });
@@ -170,6 +171,8 @@
     setTimeout(() => from && from.classList.remove('tuning'), 1400);
     queue.push({ tv: tv.entity_id, body: { channel: String(ch) }, key: from });
     pump();
+    try { localStorage.setItem(`hb-ch:${tv.entity_id}`, String(ch)); } catch (e) {}
+    window.dispatchEvent(new CustomEvent('hb:tuned', { detail: { tv: tv.entity_id, ch: Number(ch) } }));
     setTimeout(() => status(''), 1800);
   }
   function renderCable(tv) {
@@ -493,6 +496,10 @@
   }, true);
 
   window.HBWhereRow = (apps, networks) => whereRow(apps, networks);
+  // For the channel guide (static/guide.js): tune, launch, and who's driving.
+  window.HBTune = (ch, from) => tune(ch, from);
+  window.HBLaunch = (key) => launch(key, selectedTv());
+  window.HBRemote = () => ({ canControl, tv: selectedTv() });
 
   // ═══════════════ What's on ═══════════════
   // Where something can be watched, in words + the one-tap action.

@@ -46,7 +46,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import ambient, favorites, gamecenter, home_assistant, htc, persistence, push, sky, state, vitals, watch, xbox
+from services import ambient, favorites, gamecenter, guide, home_assistant, htc, persistence, push, sky, state, vitals, watch, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -2015,6 +2015,13 @@ async def api_watch_tonight():
     data = await watch.tonight()
     data["alerts"] = {"enabled": push.enabled() and bool(ADMIN_TOKEN)}
     return data
+
+
+@app.get("/api/watch/grid")
+async def api_watch_grid():
+    """The channel guide: every HTC channel with listings, six hours ahead
+    (services/guide.py). Public read."""
+    return await guide.grid()
 
 
 @app.get("/api/watch/game")

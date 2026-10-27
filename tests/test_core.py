@@ -582,3 +582,22 @@ def test_ufc_event_is_shaped_like_a_game():
     from services.watch import _closeness
     g["state"] = "in"
     assert _closeness(g) is None                     # fights are never "close · late"
+
+
+def test_guide_merge_games_win_and_clip():
+    from datetime import datetime, timezone
+    from services import guide
+    t0 = datetime(2026, 10, 27, 0, 0, tzinfo=timezone.utc)
+    t1 = datetime(2026, 10, 27, 6, 0, tzinfo=timezone.utc)
+    show = {"start": "2026-10-27T01:00:00+00:00", "end": "2026-10-27T02:00:00+00:00", "title": "Filler", "kind": "show"}
+    old = {"start": "2026-10-26T20:00:00+00:00", "end": "2026-10-26T21:00:00+00:00", "title": "Gone", "kind": "show"}
+    game = {"start": "2026-10-27T00:30:00+00:00", "end": "2026-10-27T03:45:00+00:00", "title": "Pitt at GT", "kind": "game"}
+    out = guide._merge([show, old], [game], t0, t1)
+    assert [p["title"] for p in out] == ["Pitt at GT"]          # the game replaces the filler; past shows drop
+
+
+def test_htc_lineup_is_sorted_and_maps_networks():
+    from services import htc
+    nums = [n for n, _, _ in htc.LINEUP]
+    assert nums == sorted(nums) and len(nums) == len(set(nums))
+    assert htc.channel_for("ESPN2") == 29 and htc.channel_for("Fox News Channel") == 61 and htc.channel_for("NFL Network") is None

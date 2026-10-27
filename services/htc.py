@@ -33,7 +33,12 @@ LINEUP = [
     (90, "Start TV", "Basic"), (91, "MeTV", "Basic"), (92, "Bounce", "Basic"), (94, "Grit", "Basic"),
     (96, "CBS Sports Network", "Plus"), (97, "MLB Network", "Plus"), (125, "True Crime", "Basic"),
     (128, "Telemundo", "Basic"), (133, "Dabl", "Basic"), (136, "POP", "Plus"),
+    (4, "HTC Local Access", "Basic"), (9, "City Gov. Access", "Basic"), (12, "Educational Access", "Basic"),
+    (14, "County Gov. Access", "Basic"), (17, "GSTV", "Basic"), (19, "QVC2", "Basic"), (85, "ION Mystery", "Basic"),
+    (87, "The Nest", "Basic"), (93, "WPDE2", "Basic"), (98, "Beach TV", "Basic"), (99, "Jewelry TV", "Basic"),
+    (100, "ROAR", "Basic"), (101, "ETV World", "Basic"), (102, "South Carolina Channel", "Basic"), (129, "EWTN", "Basic"),
 ]
+LINEUP.sort(key=lambda c: c[0])
 
 # How ESPN / TVmaze spell a network -> HTC's number. Lowercased, punctuation-light.
 ALIASES: Dict[str, int] = {
@@ -49,7 +54,26 @@ ALIASES: Dict[str, int] = {
     "turner classic movies": 45, "paramount network": 63, "nickelodeon": 53, "cartoon network": 41,
     "disney channel": 37, "own": 59, "we tv": 81, "telemundo": 128, "travel channel": 58, "animal planet": 57,
     "the weather channel": 36, "cmt": 44, "tv land": 54, "pop": 136, "bravesvision": 74,
+    "newsnation": 68, "fox business network": 66, "fox business": 66, "fox weather": 75, "hln": 3, "headline news": 3,
+    "c-span": 6, "lifetime movie network": 30, "lmn": 30, "hallmark mystery": 79, "hallmark movies & mysteries": 79,
+    "ion mystery": 0, "metv": 91, "me tv": 91, "cozi tv": 20, "start tv": 90, "bounce tv": 92, "grit": 94, "comet": 88,
+    "laff": 84, "dabl": 133, "true crime network": 125, "mynetworktv": 89, "pbs kids": 86, "disney": 37,
+    "nick": 53, "cartoon network/adult swim": 41, "adult swim": 41, "wetv": 81, "tennis": 76, "nfl network": 0,
 }
+# What kind of channel it is, for the guide's filters.
+CATEGORY = {}
+for _n in (28, 29, 55, 67, 73, 52, 96, 97, 76, 74, 82):
+    CATEGORY[_n] = "Sports"
+for _n in (3, 6, 26, 42, 61, 66, 68, 70, 75, 36):
+    CATEGORY[_n] = "News"
+for _n in (7, 8, 10, 13, 15, 16, 89, 128):
+    CATEGORY[_n] = "Local"
+for _n in (37, 41, 53, 86):
+    CATEGORY[_n] = "Kids"
+for _n in (45, 30, 78, 79, 46, 90, 133):
+    CATEGORY[_n] = "Movies"
+for _n in (11, 18, 22, 125, 20, 84, 88, 91, 92, 94):
+    CATEGORY.setdefault(_n, "Classic & more")
 NAMES = {n: name for n, name, _ in LINEUP}
 # Quick-tune favourites for the remote: sports first, then the locals.
 FAVORITES = [28, 29, 55, 67, 73, 52, 96, 97, 25, 47, 27, 10, 13, 7, 15]
