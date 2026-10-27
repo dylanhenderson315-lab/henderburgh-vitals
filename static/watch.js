@@ -850,6 +850,7 @@
   }
   async function loadFavs() {
     try { favs = await (await fetch('/api/watch/favorites')).json(); } catch (e) { return; }
+    (favs.teams || []).forEach((t) => [t.next, t.last].forEach((r) => (r && r.cable || []).forEach((c) => { if (c.net) netCh[String(c.net).toLowerCase()] = c; })));
     window.HBFavs = favs;
     renderFavs();
     window.dispatchEvent(new CustomEvent('hb:favs', { detail: favs }));

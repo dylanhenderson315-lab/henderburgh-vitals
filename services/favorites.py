@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from services import htc
 from services.watch import ESPN, ET, LEAGUES, _cached, _store, apps_for
 
 # What he calls them (ESPN's short name for Pitt is "Panthers").
@@ -81,6 +82,7 @@ async def _team(client: httpx.AsyncClient, league: str, tid: str) -> Optional[Di
         row = {"start": e.get("date"), "home": me.get("homeAway") == "home", "opponent": o.get("abbreviation"),
                "opponent_name": o.get("displayName"), "networks": _nets(c)}
         row["apps"] = apps_for(row["networks"])
+        row["cable"] = htc.channels_for(row["networks"])
         if state == "post":
             row.update(us=_score(me), them=_score(opp), won=bool(me.get("winner")))
             out["last"] = row
