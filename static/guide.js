@@ -105,7 +105,10 @@
       top.textContent = p.live && a.score != null ? `${a.abbr} ${a.score} – ${h.score} ${h.abbr}` : p.title;
       b.append(txt(top, el('span', 'cg-sub', p.live ? [p.close, p.sub].filter(Boolean).join(' · ') || 'Live' : `${clock(t(p.start))} · ${p.sub || ''}`.replace(/ · $/, ''))));
     } else {
-      b.append(txt(el('span', 'cg-title', p.title), el('span', 'cg-sub', [`${clock(t(p.start))}–${clock(e)}`, p.sub].filter(Boolean).join(' · '))));
+      const sub = el('span', 'cg-sub');
+      if (p.new) sub.appendChild(el('b', 'cg-new', 'New'));
+      sub.appendChild(document.createTextNode([`${clock(t(p.start))}–${clock(e)}`, p.sub].filter(Boolean).join(' · ')));
+      b.append(txt(el('span', 'cg-title', p.title), sub));
     }
     const app = (p.apps || []).map((k) => SVC[k]).find((x) => x && x.tv);
     if (app) {

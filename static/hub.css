@@ -1367,3 +1367,5 @@ img.mb-logo.none, img.bug-logo.none{ visibility:hidden; }
   background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); transition:transform 140ms cubic-bezier(0.23,1,0.32,1); }
 .cg-listed[aria-pressed="true"]{ color:var(--text); border-color:rgba(255,255,255,0.2); background:rgba(255,255,255,0.09); }
 .cg-listed:active{ transform:scale(0.96); }
+.cg-new{ display:inline-block; margin-right:6px; padding:0 5px; border-radius:4px; font-size:var(--t-label); font-weight:700; letter-spacing:0.04em;
+  color:#0b0b0d; background:var(--amber); vertical-align:0.05em; }

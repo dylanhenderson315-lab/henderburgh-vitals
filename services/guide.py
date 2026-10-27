@@ -28,6 +28,9 @@ from services.watch import ET, _cached, _store, apps_for
 UA = {"User-Agent": "henderburgh-hub/1.0"}
 GAME_MIN = {"NFL": 195, "NCAAF": 210, "NBA": 150, "NHL": 150, "MLB": 180, "UFC": 240, "BOXING": 240}
 HOURS = 6
+# Networks whose shows really are in the owner's apps (next-day or live).
+# Channel-level guesses beyond these would be wrong (TBS sitcoms aren't on Max).
+CHANNEL_APPS = {10: ["peacock"], 65: ["peacock"], 13: ["paramount"], 15: ["hulu"], 5: ["hulu"], 60: ["hulu"], 72: ["hulu"]}
 
 
 def _dt(iso: Optional[str]) -> Optional[datetime]:
@@ -94,6 +97,24 @@ def _games(games: List[Dict[str, Any]], now: datetime) -> Dict[int, List[Dict[st
     return by
 
 
+def _adopt(listed: List[Dict[str, Any]], games: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """A game the listings already carry keeps the listing's real start/end
+    and gains the game's live details (teams, score, close). Games the
+    listings don't have stay as their own (estimated-length) blocks."""
+    rest = []
+    for g in games:
+        gs = _dt(g["start"])
+        hit = next((p for p in listed if p.get("kind") in ("sports", "game") and abs((_dt(p["start"]) - gs).total_seconds()) <= 45 * 60), None)
+        if hit:
+            hit.update({k: g[k] for k in ("kind", "league", "live", "game_id", "teams", "close", "fav") if k in g})
+            hit["apps"] = g.get("apps") or hit.get("apps") or []
+            hit["sub"] = g.get("sub") if g.get("live") else (hit.get("sub") or g.get("sub"))
+            hit["title"] = g["title"]
+        else:
+            rest.append(g)
+    return rest
+
+
 def _merge(shows: List[Dict[str, Any]], games: List[Dict[str, Any]], t0: datetime, t1: datetime) -> List[Dict[str, Any]]:
     """Games first; shows only where they don't collide with a game; no overlaps; clipped to the window."""
     def span(p):
@@ -123,16 +144,23 @@ async def grid() -> Dict[str, Any]:
     t1 = t0 + timedelta(hours=HOURS)
     et = now.astimezone(ET)
     days = sorted({et.date().isoformat(), (et + timedelta(hours=HOURS)).date().isoformat(), (et - timedelta(hours=4)).date().isoformat()})
+    from services import epg
     async with httpx.AsyncClient(timeout=8.0, headers=UA) as client:
-        eps_days = await asyncio.gather(*[_tvmaze_day(client, d) for d in days])
+        eps_days, full = await asyncio.gather(asyncio.gather(*[_tvmaze_day(client, d) for d in days]), epg.listings())
     tonight = await watch.tonight()
-    shows = _shows([e for day in eps_days for e in day])
+    maze = _shows([e for day in eps_days for e in day])
     games = _games((tonight.get("live") or []) + (tonight.get("upcoming") or []), now)
     favs = set(htc.FAVORITES)
     rows = []
     for n, name, tier in htc.LINEUP:
-        progs = _merge(shows.get(n, []), games.get(n, []), t0, t1)
+        # Full Gracenote listings where the feed has the channel; TVmaze otherwise.
+        listed = [dict(p) for p in full.get(n, [])] or maze.get(n, [])
+        if listed and n in full:
+            for p in listed:   # where that network's shows actually stream in his apps
+                p["apps"] = p.get("apps") or (CHANNEL_APPS.get(n, []) if p.get("kind") != "sports" else [])
+        extra = _adopt(listed, games.get(n, []))
+        progs = _merge(listed, extra, t0, t1)
         rows.append({"ch": n, "name": name, "short": htc.SHORT.get(n, name), "cat": htc.CATEGORY.get(n, "Shows"),
                      "fav": n in favs, "programs": progs})
     return _store("grid", {"start": t0.isoformat(), "end": t1.isoformat(), "now": now.isoformat(), "channels": rows,
-                           "credit": "Listings: TVmaze (CC BY-SA) · Games: ESPN · Lineup: HTC Horry/Marion"})
+                           "credit": "Listings: EPGTalk (Gracenote) + TVmaze (CC BY-SA) · Games: ESPN · Lineup: HTC Horry/Marion"})

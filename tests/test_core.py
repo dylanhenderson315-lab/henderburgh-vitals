@@ -601,3 +601,18 @@ def test_htc_lineup_is_sorted_and_maps_networks():
     nums = [n for n, _, _ in htc.LINEUP]
     assert nums == sorted(nums) and len(nums) == len(set(nums))
     assert htc.channel_for("ESPN2") == 29 and htc.channel_for("Fox News Channel") == 61 and htc.channel_for("NFL Network") is None
+
+
+def test_epg_parse_maps_and_cleans():
+    import gzip
+    from datetime import datetime, timezone
+    from services import epg
+    xml = (b'<?xml version="1.0"?><tv><channel id="I206.10179.schedulesdirect.org"><display-name>ESPN</display-name></channel>'
+           b'<programme start="20261027001500 +0000" stop="20261027031500 +0000" channel="I206.10179.schedulesdirect.org">'
+           b'<title>NFL Football [NEW]</title><sub-title>Dallas \xf0\x9f\x8f\x88 [NFL] Cowboys at Philadelphia</sub-title>'
+           b'<category>Football</category><new/></programme>'
+           b'<programme start="20261027001500 +0000" stop="20261027031500 +0000" channel="nope"><title>x</title></programme></tv>')
+    out = epg._parse(gzip.compress(xml), datetime(2026, 10, 26, tzinfo=timezone.utc), datetime(2026, 10, 28, tzinfo=timezone.utc))
+    assert list(out) == [28]
+    p = out[28][0]
+    assert p["title"] == "NFL Football" and p["new"] and p["kind"] == "sports" and "\U0001F3C8" not in p["sub"] and "[NFL]" not in p["sub"]
