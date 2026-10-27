@@ -89,7 +89,20 @@
     const tv = selectedTv();
     $('remote').hidden = !canControl || !tv;
     $('watch-lock').hidden = canControl;
-    if (tv) $('remote-for').textContent = tv.name;
+    if (tv) renderRemote(tv);
+  }
+
+  // The remote's header says what it's driving and what that TV is doing.
+  function renderRemote(tv) {
+    $('remote-for').textContent = tv.name;
+    $('remote-what').textContent = !tv.available ? 'Unreachable' : !tv.on ? 'Off — tap power' : tvApp(tv.app) || 'On';
+    const pw = $('r-power');
+    pw.setAttribute('aria-pressed', String(!!tv.on));
+    pw.setAttribute('aria-label', tv.on ? `Turn ${tv.name} off` : `Turn ${tv.name} on`);
+    $('remote').classList.toggle('is-off', !tv.on);
+    const muted = tv.muted === true;
+    $('r-mute').setAttribute('aria-pressed', String(muted));
+    $('r-vol').textContent = muted ? 'MUTE' : tv.on && tv.volume != null ? String(tv.volume) : 'VOL';
   }
 
   async function loadTvs() {
@@ -126,46 +139,159 @@
   }
 
   // ═══════════════ Remote ═══════════════
-  async function send(body) {
+  // One press at a time, in order: every press waits its turn, and taps that
+  // pile up behind a slow one merge into a single call with a repeat count
+  // (five quick VOL+ taps = one request, five steps). The TV is a tunnel hop
+  // away, so this is what keeps a burst of taps from landing out of order.
+  const queue = [];
+  let sending = false;
+  let refreshSoon = null;
+  function send(body, key) {
     const tv = selectedTv();
     if (!tv) return;
-    try { await post('/api/media/command', { tv: tv.entity_id, ...body }); status(''); }
-    catch (e) { status(e.message, 'err'); }
+    const last = queue[queue.length - 1];
+    if (last && last.tv === tv.entity_id && body.command && last.body.command === body.command && !body.hold && !last.body.hold && (last.body.repeat || 1) < 15) {
+      last.body.repeat = (last.body.repeat || 1) + 1;
+    } else {
+      queue.push({ tv: tv.entity_id, body: { ...body }, key });
+    }
+    pump();
   }
-  document.querySelectorAll('#remote [data-cmd]').forEach((b) => b.addEventListener('click', () => send({ command: b.dataset.cmd })));
-  document.querySelectorAll('#remote [data-power]').forEach((b) => b.addEventListener('click', async () => {
-    await send({ power: b.dataset.power === 'on' });
-    setTimeout(loadTvs, 2000);
-  }));
-  // Swipe pad: a swipe is one D-pad step in its direction, a tap is OK. The
-  // pad opts out of the space swipe (touch-action:none).
+  async function pump() {
+    if (sending) return;
+    sending = true;
+    while (queue.length) {
+      const job = queue.shift();
+      try {
+        await post('/api/media/command', { tv: job.tv, ...job.body });
+        status('');
+      } catch (e) {
+        status(e.message, 'err');
+        queue.length = 0;   // the rest would fail the same way
+        if (job.key) { job.key.classList.remove('nope'); void job.key.offsetWidth; job.key.classList.add('nope'); }
+      }
+      // Volume, mute and power change what the header shows; read it back.
+      if (/^VOLUME_/.test(job.body.command || '') || 'power' in job.body) {
+        clearTimeout(refreshSoon);
+        refreshSoon = setTimeout(loadTvs, 'power' in job.body ? 2500 : 700);
+      }
+    }
+    sending = false;
+  }
+
+  // Keys: tap sends once; data-hold="repeat" keeps sending while held
+  // (volume, channel, scrubbing); data-hold="long" sends a long press.
+  document.querySelectorAll('#remote [data-cmd]').forEach((b) => {
+    let timer = null, held = false;
+    const end = () => { clearTimeout(timer); clearInterval(timer); timer = null; };
+    b.addEventListener('pointerdown', (ev) => {
+      held = false;
+      if (!b.dataset.hold) return;
+      b.setPointerCapture(ev.pointerId);
+      timer = setTimeout(() => {
+        held = true;
+        if (b.dataset.hold === 'long') { send({ command: b.dataset.cmd, hold: true }, b); return; }
+        send({ command: b.dataset.cmd }, b);
+        timer = setInterval(() => send({ command: b.dataset.cmd }, b), 160);
+      }, 420);
+    });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => b.addEventListener(t, end));
+    b.addEventListener('click', () => { if (held) { held = false; return; } send({ command: b.dataset.cmd }, b); });
+    b.addEventListener('contextmenu', (ev) => ev.preventDefault());
+  });
+  $('r-power').addEventListener('click', () => {
+    const tv = selectedTv();
+    if (!tv) return;
+    tv.on = !tv.on;   // optimistic; the read-back corrects it
+    renderRemote(tv);
+    send({ power: tv.on }, $('r-power'));
+  });
+
+  // Search + type: opens the TV's search, then letters go to its keyboard.
+  $('r-type').addEventListener('click', () => {
+    const f = $('r-typer');
+    f.hidden = !f.hidden;
+    $('r-type').setAttribute('aria-expanded', String(!f.hidden));
+    if (!f.hidden) { send({ command: 'SEARCH' }); $('r-text').focus(); }
+  });
+  $('r-typer').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const text = $('r-text').value.trim();
+    if (!text) return;
+    send({ text, enter: true });
+    $('r-text').value = '';
+  });
+
+  // Swipe pad, Apple TV style: a swipe moves one step per ~70px travelled;
+  // swipe and keep your finger down to keep moving; tap = OK; press and hold
+  // without moving = a long OK (an app's options). Opts out of the space
+  // swipe (touch-action:none).
   (function pad() {
     const p = $('pad');
     const ripple = $('pad-ripple');
-    let x0 = null, y0 = null, t0 = 0;
-    const flash = (x, y, dir) => {
+    const STEP = 70;
+    let x0 = null, y0 = null, t0 = 0, dir = null, sent = 0, rep = null, longT = null, longDone = false;
+    const flash = (x, y, d) => {
       const r = p.getBoundingClientRect();
       ripple.style.left = `${x - r.left}px`; ripple.style.top = `${y - r.top}px`;
-      ripple.dataset.dir = dir;
+      ripple.dataset.dir = d;
       ripple.classList.remove('go'); void ripple.offsetWidth; ripple.classList.add('go');
     };
-    p.addEventListener('pointerdown', (ev) => { x0 = ev.clientX; y0 = ev.clientY; t0 = Date.now(); p.setPointerCapture(ev.pointerId); });
+    const step = (d, x, y) => { flash(x, y, d.toLowerCase()); send({ command: `DPAD_${d}` }); sent++; };
+    const reset = () => { clearInterval(rep); clearTimeout(longT); rep = null; x0 = null; };
+    p.addEventListener('pointerdown', (ev) => {
+      x0 = ev.clientX; y0 = ev.clientY; t0 = Date.now(); dir = null; sent = 0; longDone = false;
+      p.setPointerCapture(ev.pointerId);
+      clearTimeout(longT);
+      longT = setTimeout(() => {
+        if (x0 == null || dir) return;
+        longDone = true; flash(ev.clientX, ev.clientY, 'ok'); send({ command: 'DPAD_CENTER', hold: true });
+      }, 650);
+    });
+    p.addEventListener('pointermove', (ev) => {
+      if (x0 == null || longDone) return;
+      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 18) return;
+      const d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP');
+      if (dir && d !== dir) { x0 = ev.clientX; y0 = ev.clientY; dir = d; sent = 0; clearInterval(rep); rep = null; return; }
+      dir = d;
+      clearTimeout(longT);
+      const want = 1 + Math.floor((dist - 18) / STEP);
+      while (sent < Math.min(want, 8)) step(d, ev.clientX, ev.clientY);
+      // Resting at the end of a swipe: keep going until the finger lifts.
+      clearInterval(rep);
+      rep = setInterval(() => step(d, ev.clientX, ev.clientY), 240);
+    });
     p.addEventListener('pointerup', (ev) => {
       if (x0 == null) return;
-      const dx = ev.clientX - x0, dy = ev.clientY - y0;
-      x0 = null;
-      const dist = Math.hypot(dx, dy);
-      if (dist < 18 && Date.now() - t0 < 600) { flash(ev.clientX, ev.clientY, 'ok'); send({ command: 'DPAD_CENTER' }); return; }
-      if (dist < 18) return;
-      const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP');
-      flash(ev.clientX, ev.clientY, dir.toLowerCase());
-      send({ command: `DPAD_${dir}` });
+      const quick = Date.now() - t0 < 600;
+      const tapped = !dir && !longDone && quick;
+      reset();
+      if (tapped) { flash(ev.clientX, ev.clientY, 'ok'); send({ command: 'DPAD_CENTER' }); }
     });
-    p.addEventListener('keydown', (ev) => {
-      const map = { ArrowUp: 'DPAD_UP', ArrowDown: 'DPAD_DOWN', ArrowLeft: 'DPAD_LEFT', ArrowRight: 'DPAD_RIGHT', Enter: 'DPAD_CENTER', ' ': 'DPAD_CENTER' };
-      if (map[ev.key]) { ev.preventDefault(); ev.stopPropagation(); send({ command: map[ev.key] }); }
-    });
+    p.addEventListener('pointercancel', reset);
+    p.addEventListener('contextmenu', (ev) => ev.preventDefault());
   })();
+
+  // A hardware keyboard drives the TV while Watch is on screen: arrows,
+  // Return = OK, Esc = Back, space = play/pause, +/− volume, m mute, h home.
+  const KEYMAP = { ArrowUp: 'DPAD_UP', ArrowDown: 'DPAD_DOWN', ArrowLeft: 'DPAD_LEFT', ArrowRight: 'DPAD_RIGHT',
+    Enter: 'DPAD_CENTER', Escape: 'BACK', ' ': 'MEDIA_PLAY_PAUSE', '=': 'VOLUME_UP', '+': 'VOLUME_UP',
+    '-': 'VOLUME_DOWN', m: 'VOLUME_MUTE', h: 'HOME' };
+  document.addEventListener('keydown', (ev) => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey || !canControl || !selectedTv()) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '')) return;
+    const onWatch = document.querySelector('[data-space="watch"][aria-current="true"]') || openScene;
+    const remote = $('remote');
+    if (!onWatch || remote.hidden || !remote.offsetParent) return;
+    const cmd = KEYMAP[ev.key];
+    if (!cmd || (ev.key === 'Escape' && openScene)) return;   // Esc closes the scene first
+    // Return/space on a focused button should still press that button.
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target && ev.target.closest && ev.target.closest('button, a') && ev.target !== $('pad')) return;
+    ev.preventDefault(); ev.stopPropagation();
+    send({ command: cmd });
+  }, true);
 
   // ═══════════════ What's on ═══════════════
   // Where something can be watched, in words + the one-tap action.

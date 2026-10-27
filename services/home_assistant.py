@@ -228,6 +228,19 @@ def _avg_brightness(lights: List[Dict]) -> Optional[int]:
     return int(sum(vals) / len(vals) / 255 * 100)  # percent
 
 
+_SERVICE_CLIENT: Optional[httpx.AsyncClient] = None
+
+
+def _service_client() -> httpx.AsyncClient:
+    """One kept-alive client for service calls: a remote button press reuses
+    the open connection instead of paying a fresh TLS handshake through the
+    tunnel every tap."""
+    global _SERVICE_CLIENT
+    if _SERVICE_CLIENT is None or _SERVICE_CLIENT.is_closed:
+        _SERVICE_CLIENT = httpx.AsyncClient(timeout=15.0)
+    return _SERVICE_CLIENT
+
+
 async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = None, extra: Optional[dict] = None):
     """Call a Home Assistant service. Internal; protection done at route level.
     extra can contain brightness, color_temp, rgb_color etc.
@@ -238,16 +251,16 @@ async def call_ha_service(domain: str, service: str, entity_id: Optional[str] = 
     if entity_id:
         payload.setdefault("entity_id", entity_id)
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            url = f"{HA_URL}/api/services/{domain}/{service}"
-            resp = await client.post(url, headers=HA_HEADERS, json=payload)
-            if resp.status_code >= 400:
-                print(f"HA service error {resp.status_code}: {resp.text[:200]}")
-            resp.raise_for_status()
-            try:
-                return resp.json()
-            except Exception:
-                return {"status": "called"}
+        client = _service_client()
+        url = f"{HA_URL}/api/services/{domain}/{service}"
+        resp = await client.post(url, headers=HA_HEADERS, json=payload)
+        if resp.status_code >= 400:
+            print(f"HA service error {resp.status_code}: {resp.text[:200]}")
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except Exception:
+            return {"status": "called"}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=502, detail=f"HA error: {e.response.text[:200] if e.response else str(e)}")
     except Exception as e:

@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=26">
+<link rel="stylesheet" href="/static/hub.css?v=27">
 </head>
 <body>
 <!-- Monoline icons (24-unit grid, 1.6 stroke) — one family, no emoji. -->
@@ -191,37 +191,63 @@
         <div class="tvs" id="tvs"></div>
         <div class="remote" id="remote" hidden>
           <div class="remote-top">
-            <button class="key" data-power="on" type="button" aria-label="Power on">On</button>
-            <button class="key" data-power="off" type="button" aria-label="Power off">Off</button>
-            <span class="remote-for" id="remote-for"></span>
-            <button class="key" data-cmd="VOLUME_MUTE" type="button">Mute</button>
+            <button class="key power" id="r-power" type="button" aria-label="Power" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
+            </button>
+            <div class="remote-now">
+              <span class="remote-for" id="remote-for"></span>
+              <span class="remote-what" id="remote-what"></span>
+            </div>
+            <button class="key" id="r-type" type="button" aria-label="Search and type on the TV" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+            </button>
           </div>
+          <form class="remote-type" id="r-typer" hidden>
+            <input id="r-text" type="text" placeholder="Type on TV…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Text to type on the TV">
+            <button class="key" type="button" data-cmd="DEL" id="r-del" aria-label="Delete a letter">⌫</button>
+            <button class="key primary" type="submit">Send</button>
+          </form>
           <div class="remote-main">
             <div class="rocker" aria-label="Volume">
-              <button class="key" data-cmd="VOLUME_UP" type="button" aria-label="Volume up">+</button>
-              <span class="rocker-label">VOL</span>
-              <button class="key" data-cmd="VOLUME_DOWN" type="button" aria-label="Volume down">−</button>
+              <button class="key" data-cmd="VOLUME_UP" data-hold="repeat" type="button" aria-label="Volume up">+</button>
+              <span class="rocker-label" id="r-vol">VOL</span>
+              <button class="key" data-cmd="VOLUME_DOWN" data-hold="repeat" type="button" aria-label="Volume down">−</button>
             </div>
-            <!-- Swipe pad: swipe to move, tap for OK — like the Apple TV remote. -->
-            <div class="pad" id="pad" role="button" tabindex="0" aria-label="Swipe to navigate, tap to select">
-              <span class="pad-hint">swipe · tap</span>
+            <!-- Swipe pad: swipe to move (longer swipe, more steps; swipe and
+                 hold keeps going), tap for OK, press and hold for options. -->
+            <div class="pad" id="pad" role="button" tabindex="0" aria-label="Swipe to navigate, tap to select, hold for options">
+              <span class="pad-hint">swipe · tap · hold</span>
               <i class="pad-ripple" id="pad-ripple"></i>
             </div>
             <div class="rocker" aria-label="Channel">
-              <button class="key" data-cmd="CHANNEL_UP" type="button" aria-label="Channel up">▲</button>
+              <button class="key" data-cmd="CHANNEL_UP" data-hold="repeat" type="button" aria-label="Channel up">▲</button>
               <span class="rocker-label">CH</span>
-              <button class="key" data-cmd="CHANNEL_DOWN" type="button" aria-label="Channel down">▼</button>
+              <button class="key" data-cmd="CHANNEL_DOWN" data-hold="repeat" type="button" aria-label="Channel down">▼</button>
             </div>
           </div>
           <div class="remote-row">
-            <button class="key" data-cmd="BACK" type="button">Back</button>
-            <button class="key" data-cmd="HOME" type="button">Home</button>
-            <button class="key" data-cmd="MEDIA_REWIND" type="button" aria-label="Rewind">«</button>
+            <button class="key" data-cmd="BACK" type="button" aria-label="Back">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l-5 5 5 5"/><path d="M4 11h10a6 6 0 0 1 0 12h-2"/></svg>
+            </button>
+            <button class="key" data-cmd="HOME" data-hold="long" type="button" aria-label="Home (hold for the dashboard)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>
+            </button>
+            <button class="key" data-cmd="VOLUME_MUTE" id="r-mute" type="button" aria-label="Mute" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="mute-x" d="M16 9l5 6M21 9l-5 6"/><path class="mute-w" d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
+            </button>
+            <button class="key" data-cmd="CAPTIONS" type="button" aria-label="Captions">CC</button>
+          </div>
+          <div class="remote-row transport">
+            <button class="key" data-cmd="MEDIA_REWIND" data-hold="repeat" type="button" aria-label="Rewind">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 6v12l-8-6zM20 6v12l-8-6z"/></svg>
+            </button>
             <button class="key primary" data-cmd="MEDIA_PLAY_PAUSE" type="button" aria-label="Play or pause">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l11-7z"/></svg>
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
             </button>
-            <button class="key" data-cmd="MEDIA_FAST_FORWARD" type="button" aria-label="Fast forward">»</button>
+            <button class="key" data-cmd="MEDIA_FAST_FORWARD" data-hold="repeat" type="button" aria-label="Fast forward">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 6v12l8-6zM4 6v12l8-6z"/></svg>
+            </button>
           </div>
           <p class="status" id="remote-status" role="status"></p>
         </div>
@@ -373,6 +399,6 @@
 <script src="/static/house-modes.js?v=1"></script>
 <script src="/static/streaming-services.js?v=5"></script>
 <script src="/static/hub.js?v=26"></script>
-<script src="/static/watch.js?v=12"></script>
+<script src="/static/watch.js?v=13"></script>
 </body>
 </html>

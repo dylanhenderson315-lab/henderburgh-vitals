@@ -1987,7 +1987,12 @@ async def api_home():
 
 TV_COMMANDS = {"MEDIA_PLAY_PAUSE", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "HOME", "BACK",
                "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER",
-               "CHANNEL_UP", "CHANNEL_DOWN", "MEDIA_REWIND", "MEDIA_FAST_FORWARD", "MENU"}
+               "CHANNEL_UP", "CHANNEL_DOWN", "MEDIA_REWIND", "MEDIA_FAST_FORWARD", "MENU",
+               "SEARCH", "CAPTIONS", "DEL", "ENTER"}
+# Typing into the TV's on-screen keyboard: each character is its own Android
+# key code (the remote protocol has no "send text"), lowercase only.
+TV_TEXT_KEYS = {**{c: c.upper() for c in "abcdefghijklmnopqrstuvwxyz0123456789"},
+                " ": "SPACE", ".": "PERIOD", ",": "COMMA", "'": "APOSTROPHE", "-": "MINUS", "@": "AT", "&": "AMPERSAND"}
 # HA names these after the TV's own self-description ("Smart TV"); the house
 # knows them by room.
 TV_LABELS = {"remote.smarttv_4k_ffm": "Living Room TV", "remote.smart_tv": "Theater TV"}
@@ -2083,6 +2088,8 @@ def _tvs_from(states: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "available": s.get("state") not in ("unavailable", "unknown"),
             "app": attrs.get("current_activity") or mpa.get("app_name"),
             "title": mpa.get("media_title"),
+            "volume": round(mpa["volume_level"] * 100) if isinstance(mpa.get("volume_level"), (int, float)) else None,
+            "muted": mpa.get("is_volume_muted"),
         })
     tvs.sort(key=lambda t: t["name"].lower())
     return tvs
@@ -2127,11 +2134,28 @@ async def api_media_command(request: Request, body: dict = Body(default={})):
     if "power" in body:
         await home_assistant.call_ha_service("remote", "turn_on" if body.get("power") else "turn_off", tv)
         return {"status": "ok", "tv": tv, "power": bool(body.get("power"))}
+    if "text" in body:
+        text = str(body.get("text") or "").lower()[:60]
+        keys = [TV_TEXT_KEYS[c] for c in text if c in TV_TEXT_KEYS]
+        if body.get("enter"):
+            keys.append("ENTER")
+        if not keys:
+            raise HTTPException(400, "nothing typeable in text")
+        await home_assistant.call_ha_service("remote", "send_command", tv, {"command": keys, "delay_secs": 0.05})
+        return {"status": "ok", "tv": tv, "keys": len(keys)}
     command = (body.get("command") or "").strip().upper()
     if command not in TV_COMMANDS:
         raise HTTPException(400, f"command must be one of {sorted(TV_COMMANDS)}")
-    await home_assistant.call_ha_service("remote", "send_command", tv, {"command": command})
-    return {"status": "ok", "tv": tv, "command": command}
+    # Rapid taps arrive merged as one call with a repeat count; a long press
+    # holds the key (Home held, OK held for an app's options).
+    repeat = max(1, min(int(body.get("repeat") or 1), 15))
+    extra: Dict[str, Any] = {"command": command}
+    if body.get("hold"):
+        extra["hold_secs"] = 0.8
+    elif repeat > 1:
+        extra.update(num_repeats=repeat, delay_secs=0.08)
+    await home_assistant.call_ha_service("remote", "send_command", tv, extra)
+    return {"status": "ok", "tv": tv, "command": command, "repeat": repeat}
 
 
 # --- Hub: one live-state payload for /hub (and, later, the front door) --------
