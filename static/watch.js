@@ -19,6 +19,7 @@
   let selected = null;
   let canControl = false;
   let tonight = null;
+  let channels = [];   // HTC quick-tune favourites, from /api/media/tvs
   try { selected = localStorage.getItem('hb-watch-tv'); } catch (e) {}
 
   function el(tag, cls, text) {
@@ -90,25 +91,135 @@
     $('remote').hidden = !canControl || !tv;
     $('watch-lock').hidden = canControl;
     if (tv) renderRemote(tv);
+    placeFab();
   }
 
   // The remote's header says what it's driving and what that TV is doing.
+  let deck = null;        // 'cable' | 'apps' | 'type' — remembered per session
   function renderRemote(tv) {
-    $('remote-for').textContent = tv.name;
-    $('remote-what').textContent = !tv.available ? 'Unreachable' : !tv.on ? 'Off — tap power' : tvApp(tv.app) || 'On';
+    // Screens: one chip per TV, the live dot says which are on.
+    const sc = $('rm-screens');
+    sc.replaceChildren();
+    tvs.forEach((t) => {
+      const c = el('button', 'rm-screen');
+      c.type = 'button'; c.setAttribute('role', 'tab');
+      c.setAttribute('aria-selected', String(t.entity_id === tv.entity_id));
+      c.append(el('i', 'hb-dot ' + (t.on ? 'hb-dot-live' : 'hb-dot-off')), document.createTextNode(t.name.replace(/ TV$/, '')));
+      c.addEventListener('click', () => {
+        selected = t.entity_id;
+        try { localStorage.setItem('hb-watch-tv', selected); } catch (e) {}
+        renderTvs(); renderGuide();
+      });
+      sc.appendChild(c);
+    });
+    $('remote-for').textContent = !tv.available ? 'Unreachable' : !tv.on ? 'Off' : tv.on_box ? tv.box.label : tvApp(tv.app) || 'On';
+    const live = tv.on_box && liveOnCable()[0];
+    $('remote-what').textContent = !tv.on ? 'Tap power to turn it on' : live ? `${live.g.teams[0].abbr} ${live.g.teams[0].score ?? ''}–${live.g.teams[1].score ?? ''} ${live.g.teams[1].abbr} on ch ${live.c.ch}` :
+      tv.on_box ? 'Live TV through the cable box' : tv.box ? 'Cable box ready' : tv.title || '';
     const pw = $('r-power');
     pw.setAttribute('aria-pressed', String(!!tv.on));
     pw.setAttribute('aria-label', tv.on ? `Turn ${tv.name} off` : `Turn ${tv.name} on`);
     $('remote').classList.toggle('is-off', !tv.on);
-    $('r-cable').hidden = !tv.box;
-    if (tv.box) $('remote-what').textContent = !tv.on ? 'Off — tap power' : tv.on_box ? `${tv.box.label} · cable` : `${tvApp(tv.app) || 'On'} · cable box ready`;
     const muted = tv.muted === true;
     $('r-mute').setAttribute('aria-pressed', String(muted));
-    $('r-vol').textContent = muted ? 'MUTE' : tv.on && tv.volume != null ? String(tv.volume) : 'VOL';
+    const v = tv.on && tv.volume != null ? tv.volume : null;
+    $('r-vol').textContent = muted ? 'Muted' : v != null ? String(v) : '';
+    $('rm-vol').hidden = v == null;
+    $('rm-vol-fill').style.transform = `scaleX(${v != null ? Math.min(1, v / 100) : 0})`;
+    $('remote').classList.toggle('muted', muted);
+    // The deck: cable when this TV has a box, otherwise apps.
+    $('tab-cable').hidden = !tv.box;
+    const want = deck && (deck !== 'cable' || tv.box) ? deck : tv.box ? 'cable' : 'apps';
+    showDeck(want, false);
+    if (want === 'cable') renderCable(tv);
+  }
+  function showDeck(name, remember = true) {
+    if (remember) deck = name;
+    document.querySelectorAll('#remote .rm-tabs [data-deck]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.deck === name)));
+    document.querySelectorAll('#remote .rm-deck').forEach((d) => { d.hidden = d.dataset.deck !== name; });
+    if (name === 'apps' && !$('rm-apps').childElementCount) renderRemoteApps();
+  }
+  document.querySelectorAll('#remote .rm-tabs [data-deck]').forEach((t) => t.addEventListener('click', () => {
+    showDeck(t.dataset.deck);
+    const tv = selectedTv();
+    if (t.dataset.deck === 'cable' && tv) renderCable(tv);
+    if (t.dataset.deck === 'type') { send({ command: 'SEARCH' }); $('r-text').focus(); }
+  }));
+
+  // Cable deck: what's live on HTC right now (one tap tunes), then the
+  // favourite channels, each saying what's on it when we know.
+  function liveOnCable() {
+    const out = [];
+    ((tonight && tonight.live) || []).forEach((g) => (g.cable || []).forEach((c) => out.push({ g, c })));
+    return out;
+  }
+  function onChannel(ch) {
+    const all = [...((tonight && tonight.live) || []), ...((tonight && tonight.upcoming) || [])];
+    const g = all.find((x) => (x.cable || []).some((c) => c.ch === ch));
+    if (g) return g.state === 'in' ? `${g.teams[0].abbr} ${g.teams[0].score ?? ''}–${g.teams[1].score ?? ''} ${g.teams[1].abbr}` : `${g.teams[0].abbr} @ ${g.teams[1].abbr} ${timeOf(g.start)}`;
+    const show = ((tonight && tonight.guide) || []).find((i) => (i.cable || []).some((c) => c.ch === ch) && i.time && hhmmToMin(i.time) <= nowMin() && nowMin() < hhmmToMin(i.time) + (i.runtime || 30));
+    return show ? show.title : '';
+  }
+  const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const hhmmToMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
+  function tune(ch, from) {
+    const tv = selectedTv();
+    if (!tv || !tv.box) return;
+    status(`Tuning ${tv.name} to ${ch}…`);
+    from && from.classList.add('tuning');
+    setTimeout(() => from && from.classList.remove('tuning'), 1400);
+    queue.push({ tv: tv.entity_id, body: { channel: String(ch) }, key: from });
+    pump();
+    setTimeout(() => status(''), 1800);
+  }
+  function renderCable(tv) {
+    const air = $('rm-onair');
+    air.replaceChildren();
+    liveOnCable().slice(0, 4).forEach(({ g, c }) => {
+      const b = el('button', 'onair' + (g.close ? ' hot' : ''));
+      b.type = 'button';
+      b.style.setProperty('--ta', hex(g.teams[0].color)); b.style.setProperty('--tb', hex(g.teams[1].color));
+      const teams = el('span', 'onair-teams');
+      g.teams.forEach((t) => {
+        const row = el('span', 'onair-team');
+        if (t.logo && /^https:\/\//.test(t.logo)) { const i = el('img'); i.src = t.logo; i.alt = ''; i.loading = 'lazy'; row.appendChild(i); }
+        row.append(el('b', null, t.abbr || ''), el('span', 'num', t.score ?? ''));
+        teams.appendChild(row);
+      });
+      const meta = el('span', 'onair-meta');
+      meta.append(el('b', 'num', String(c.ch)), el('span', null, c.name), el('span', 'faint', g.detail || ''));
+      b.append(teams, meta);
+      b.addEventListener('click', () => tune(c.ch, b));
+      air.appendChild(b);
+    });
+    air.hidden = !air.childElementCount;
+    const wrap = $('rm-chans');
+    wrap.replaceChildren();
+    channels.forEach((c) => {
+      const b = el('button', 'chan');
+      b.type = 'button';
+      const what = onChannel(c.ch);
+      b.append(el('b', 'num', String(c.ch)), el('span', 'chan-name', c.name));
+      if (what) b.append(el('span', 'chan-what', what));
+      b.addEventListener('click', () => tune(c.ch, b));
+      wrap.appendChild(b);
+    });
+  }
+  function renderRemoteApps() {
+    const wrap = $('rm-apps');
+    wrap.replaceChildren();
+    (window.HBStreaming || []).filter((x) => x.tv).forEach((x) => {
+      const b = el('button', 'rm-app');
+      b.type = 'button';
+      b.style.setProperty('--tint', x.tint);
+      b.append(el('i'), el('span', null, x.name));
+      b.addEventListener('click', () => launch(x.key, selectedTv()));
+      wrap.appendChild(b);
+    });
   }
 
   async function loadTvs() {
-    try { tvs = (await (await fetch('/api/media/tvs', { credentials: 'same-origin' })).json()).tvs || []; }
+    try { const d = await (await fetch('/api/media/tvs', { credentials: 'same-origin' })).json(); tvs = d.tvs || []; channels = d.channels || channels; }
     catch (e) { /* keep last */ }
     renderTvs();
   }
@@ -210,6 +321,21 @@
     pad.hidden = !pad.hidden;
     $('r-num').setAttribute('aria-expanded', String(!pad.hidden));
   });
+  // Number pad: digits build up on screen with the channel's name, Tune sends them.
+  let npDigits = '';
+  function npShow() {
+    $('np-digits').textContent = npDigits || '—';
+    const c = channels.find((x) => String(x.ch) === npDigits);
+    $('np-name').textContent = npDigits ? (c ? c.name : '') + (onChannel(Number(npDigits)) ? ` · ${onChannel(Number(npDigits))}` : '') : 'Enter a channel';
+  }
+  document.querySelectorAll('#remote [data-np]').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.np;
+    if (k === 'clear') npDigits = '';
+    else if (k === 'go') { if (npDigits) tune(npDigits, b); npDigits = ''; }
+    else if (npDigits.length < 4) npDigits += k;
+    npShow();
+  }));
+  npShow();
   $('r-power').addEventListener('click', () => {
     const tv = selectedTv();
     if (!tv) return;
@@ -219,12 +345,6 @@
   });
 
   // Search + type: opens the TV's search, then letters go to its keyboard.
-  $('r-type').addEventListener('click', () => {
-    const f = $('r-typer');
-    f.hidden = !f.hidden;
-    $('r-type').setAttribute('aria-expanded', String(!f.hidden));
-    if (!f.hidden) { send({ command: 'SEARCH' }); $('r-text').focus(); }
-  });
   $('r-typer').addEventListener('submit', (ev) => {
     ev.preventDefault();
     const text = $('r-text').value.trim();
@@ -248,19 +368,35 @@
       ripple.dataset.dir = d;
       ripple.classList.remove('go'); void ripple.offsetWidth; ripple.classList.add('go');
     };
-    const step = (d, x, y) => { flash(x, y, d.toLowerCase()); send({ command: `DPAD_${d}` }); sent++; };
-    const reset = () => { clearInterval(rep); clearTimeout(longT); rep = null; x0 = null; };
+    const glow = $('pad-glow');
+    // The light under the finger: 1:1 with the pointer, set straight on the
+    // transform (no transition), so touch and light move together.
+    const track = (ev) => {
+      const r = p.getBoundingClientRect();
+      glow.style.transform = `translate(${ev.clientX - r.left}px, ${ev.clientY - r.top}px)`;
+    };
+    const chev = (d) => {
+      const c = p.querySelector(`.pad-chev.${d}`);
+      if (!c) return;
+      c.classList.remove('go'); void c.offsetWidth; c.classList.add('go');
+    };
+    const step = (d, x, y) => { flash(x, y, d.toLowerCase()); chev(d.toLowerCase()); send({ command: `DPAD_${d}` }); sent++; };
+    const reset = () => { clearInterval(rep); clearTimeout(longT); rep = null; x0 = null; p.classList.remove('touching', 'holding'); };
     p.addEventListener('pointerdown', (ev) => {
       x0 = ev.clientX; y0 = ev.clientY; t0 = Date.now(); dir = null; sent = 0; longDone = false;
       p.setPointerCapture(ev.pointerId);
+      track(ev);
+      p.classList.add('touching');   // feedback on touch-down, not on release
       clearTimeout(longT);
       longT = setTimeout(() => {
         if (x0 == null || dir) return;
-        longDone = true; flash(ev.clientX, ev.clientY, 'ok'); send({ command: 'DPAD_CENTER', hold: true });
+        longDone = true; p.classList.add('holding'); flash(ev.clientX, ev.clientY, 'ok'); send({ command: 'DPAD_CENTER', hold: true });
       }, 650);
     });
     p.addEventListener('pointermove', (ev) => {
-      if (x0 == null || longDone) return;
+      if (x0 == null) return;
+      track(ev);
+      if (longDone) return;
       const dx = ev.clientX - x0, dy = ev.clientY - y0;
       const dist = Math.hypot(dx, dy);
       if (dist < 18) return;
@@ -285,6 +421,57 @@
     p.addEventListener('contextmenu', (ev) => ev.preventDefault());
   })();
 
+  // Rails: tap an end, or put a finger on the rail and slide — every 26px
+  // is one step, so a long slide is a big volume change in one motion.
+  document.querySelectorAll('#remote .rail').forEach((rail) => {
+    const STEP = 26;
+    let y0 = null, n = 0, moved = false;
+    rail.addEventListener('pointerdown', (ev) => {
+      if (ev.target.closest('.rail-end')) return;   // the ends are buttons
+      y0 = ev.clientY; n = 0; moved = false;
+      rail.setPointerCapture(ev.pointerId);
+      rail.classList.add('dragging');
+    });
+    rail.addEventListener('pointermove', (ev) => {
+      if (y0 == null) return;
+      const want = Math.trunc((y0 - ev.clientY) / STEP);
+      while (n < want) { send({ command: rail.dataset.up }); n++; moved = true; rail.style.setProperty('--nudge', '-3px'); }
+      while (n > want) { send({ command: rail.dataset.down }); n--; moved = true; rail.style.setProperty('--nudge', '3px'); }
+    });
+    const end = () => { y0 = null; rail.classList.remove('dragging'); rail.style.setProperty('--nudge', '0px'); };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => rail.addEventListener(t, end));
+  });
+
+  // The remote from anywhere: a floating button on every space opens a sheet
+  // and the one remote moves into it (and back on close).
+  const rmHome = { parent: null, next: null };
+  function openRemoteSheet() {
+    const r = $('remote');
+    if (!rmHome.parent) { rmHome.parent = r.parentNode; rmHome.next = r.nextSibling; }
+    $('rm-slot').appendChild(r);
+    const sh = $('rm-sheet');
+    sh.hidden = false;
+    sh.classList.add('opening');
+    setTimeout(() => sh.classList.remove('opening'), 400);
+    loadTvs();
+  }
+  function closeRemoteSheet() {
+    $('rm-sheet').hidden = true;
+    if (rmHome.parent) rmHome.parent.insertBefore($('remote'), rmHome.next);
+  }
+  $('rm-fab').addEventListener('click', openRemoteSheet);
+  $('rm-close').addEventListener('click', closeRemoteSheet);
+  $('rm-sheet').addEventListener('click', (ev) => { if (ev.target === $('rm-sheet')) closeRemoteSheet(); });
+  window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('rm-sheet').hidden) closeRemoteSheet(); });
+  // Shown when the remote can do something: controls unlocked, a TV exists,
+  // and the Watch space (which has the remote inline) isn't the one on screen.
+  function placeFab() {
+    const onWatch = !!document.querySelector('[data-space="watch"][aria-current="true"]');
+    $('rm-fab').hidden = !canControl || !tvs.length || onWatch || !$('rm-sheet').hidden;
+  }
+  new MutationObserver(placeFab).observe(document.querySelector('.tabs') || document.body, { attributes: true, subtree: true, attributeFilter: ['aria-current'] });
+  setInterval(placeFab, 2000);
+
   // A hardware keyboard drives the TV while Watch is on screen: arrows,
   // Return = OK, Esc = Back, space = play/pause, +/− volume, m mute, h home.
   const KEYMAP = { ArrowUp: 'DPAD_UP', ArrowDown: 'DPAD_DOWN', ArrowLeft: 'DPAD_LEFT', ArrowRight: 'DPAD_RIGHT',
@@ -293,12 +480,12 @@
   document.addEventListener('keydown', (ev) => {
     if (ev.metaKey || ev.ctrlKey || ev.altKey || !canControl || !selectedTv()) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '')) return;
-    const onWatch = document.querySelector('[data-space="watch"][aria-current="true"]') || openScene;
+    const onWatch = document.querySelector('[data-space="watch"][aria-current="true"]') || openScene || !$('rm-sheet').hidden;
     const remote = $('remote');
     if (!onWatch || remote.hidden || !remote.offsetParent) return;
     if (/^[0-9]$/.test(ev.key) && selectedTv().box) { ev.preventDefault(); send({ command: ev.key, target: 'box' }); return; }
     const cmd = KEYMAP[ev.key];
-    if (!cmd || (ev.key === 'Escape' && openScene)) return;   // Esc closes the scene first
+    if (!cmd || (ev.key === 'Escape' && (openScene || !$('rm-sheet').hidden))) return;   // Esc closes the sheet first
     // Return/space on a focused button should still press that button.
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target && ev.target.closest && ev.target.closest('button, a') && ev.target !== $('pad')) return;
     ev.preventDefault(); ev.stopPropagation();
@@ -309,9 +496,28 @@
 
   // ═══════════════ What's on ═══════════════
   // Where something can be watched, in words + the one-tap action.
+  // Network name -> HTC channel, learned from tonight's games and listings.
+  const netCh = {};
+  function learnChannels(t) {
+    [...(t.live || []), ...(t.upcoming || []), ...(t.finals || []), ...(t.guide || [])].forEach((x) =>
+      (x.cable || []).forEach((c) => { if (c.net) netCh[String(c.net).toLowerCase()] = c; }));
+  }
+  function cableFor(networks) {
+    for (const n of networks || []) { const c = netCh[String(n || '').toLowerCase()]; if (c) return c; }
+    return null;
+  }
   function whereRow(apps, networks, { compact } = {}) {
     const row = el('div', 'where');
     const tv = selectedTv();
+    // On HTC cable too: tune the box (the light kits follow the box's picture).
+    const cab = cableFor(networks);
+    if (cab && tv && tv.box && canControl) {
+      const b = el('button', 'put cable');
+      b.type = 'button';
+      b.append(el('b', 'num', `Ch ${cab.ch}`), document.createTextNode(` ${cab.name} · ${tv.name.replace(/ TV$/, '')}`));
+      b.addEventListener('click', () => { tune(cab.ch, b); });
+      row.appendChild(b);
+    }
     const playable = (apps || []).filter((k) => SVC[k]);
     if (playable.length) {
       playable.slice(0, compact ? 1 : 2).forEach((k) => {
@@ -330,7 +536,8 @@
       // Over-the-air networks are on the TVs' live channels; everything else
       // (regional sports nets, League Pass, FS1…) simply isn't in the owner's apps.
       const ota = networks.find((n) => OTA.test(n));
-      row.appendChild(el('span', 'where-none', ota ? `${ota} — on the TV’s live channels` : `${networks[0]} — not in your apps`));
+      if (cab && row.childElementCount) return row;   // the tune button already says where
+      row.appendChild(el('span', 'where-none', cab ? `${cab.name} — HTC channel ${cab.ch}` : ota ? `${ota} — on the TV’s live channels` : `${networks[0]} — not in your apps`));
     }
     return row;
   }
@@ -555,10 +762,11 @@
   }
 
   async function loadTonight() {
-    try { tonight = await (await fetch('/api/watch/tonight', { credentials: 'same-origin' })).json(); }
+    try { tonight = await (await fetch('/api/watch/tonight', { credentials: 'same-origin' })).json(); learnChannels(tonight); }
     catch (e) { /* keep last */ }
     renderGuide();
     reschedule();
+    { const tv = selectedTv(); if (tv && !$('remote').hidden) renderRemote(tv); }   // live scores on the cable deck
     // Let the rest of the hub (Now's On-TV card, context opening) know.
     if (tonight) { window.HBLastTonight = tonight; window.dispatchEvent(new CustomEvent('hb:tonight', { detail: tonight })); }
   }

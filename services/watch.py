@@ -286,6 +286,15 @@ def _game_score(g: Dict[str, Any], now: datetime) -> float:
     return s
 
 
+def _ampm(t: Optional[str]) -> str:
+    """TVmaze's '20:00' -> '8:00 PM'."""
+    try:
+        h, m = (int(x) for x in str(t).split(":")[:2])
+        return f"{(h + 11) % 12 + 1}:{m:02d} {'AM' if h < 12 else 'PM'}"
+    except Exception:
+        return t or ""
+
+
 def _reason(g: Dict[str, Any]) -> str:
     """One line on why this is the pick — never a repeat of the title."""
     a, b = g["teams"][0], g["teams"][1] if len(g["teams"]) > 1 else {"abbr": "?"}
@@ -329,8 +338,9 @@ async def tonight() -> Dict[str, Any]:
         for g, wp in zip(live[:4], wps):
             g["win"] = wp
 
-    from services import favorites   # local import: favorites imports this module
+    from services import favorites, htc   # local import: favorites imports this module
     for g in games:
+        g["cable"] = htc.channels_for(g.get("networks") or [])   # HTC channel numbers, when it's on cable
         g.setdefault("close", None)
         g["fav"] = favorites.is_favorite(g)
         g["score"] = _game_score(g, now)
@@ -357,9 +367,11 @@ async def tonight() -> Dict[str, Any]:
         shows = [i for i in guide if i["kind"] == "show" and i["apps"]] or [i for i in guide if i["kind"] == "show"]
         if shows:
             s = sorted(shows, key=lambda i: i["time"] or "")[0]
-            pick = {"kind": "show", "title": s["title"], "reason": f"{s['time']} on {s['network']}" + (f" · {s['episode']}" if s.get("episode") else ""),
+            pick = {"kind": "show", "title": s["title"], "reason": f"{_ampm(s['time'])} on {s['network']}" + (f" · {s['episode']}" if s.get("episode") else ""),
                     "networks": [s["network"]], "apps": s["apps"], "start": None, "state": "pre"}
 
+    for i in guide:
+        i["cable"] = htc.channels_for([i.get("network")] if i.get("network") else [])
     return {
         "date": ymd_dash,
         "generated": now.isoformat(),

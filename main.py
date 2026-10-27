@@ -46,7 +46,7 @@ from config import (
 )
 import gtm
 from rate_limit import RateLimitMiddleware, rate_limiter
-from services import ambient, favorites, gamecenter, home_assistant, persistence, push, sky, state, vitals, watch, xbox
+from services import ambient, favorites, gamecenter, home_assistant, htc, persistence, push, sky, state, vitals, watch, xbox
 from services.xbox import fetch_xbox_status
 
 templates = Jinja2Templates(directory="templates")
@@ -2056,7 +2056,7 @@ async def api_watch_put(t: str = ""):
     if PUBLIC_MODE or not HA_ENABLED:
         raise HTTPException(403, "Home Assistant controls are disabled")
     name, link = watch.APP_LINKS[claim["app"]]
-    await home_assistant.call_ha_service("remote", "turn_on", claim["tv"], {"activity": link})
+    await _launch_on(claim["tv"], link)
     return {"status": "ok", "tv": claim["tv"], "app": name}
 
 
@@ -2129,7 +2129,17 @@ def _tvs_from(states: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 async def api_media_tvs():
     """Public read, like the lights."""
     states, ha_ok = await home_assistant.fetch_ha_states()
-    return {"ha_ok": ha_ok, "tvs": _tvs_from(states)}
+    return {"ha_ok": ha_ok, "tvs": _tvs_from(states), "channels": htc.favorites()}
+
+
+async def _launch_on(tv: str, app: str) -> str:
+    """Open an app for a TV. A TV with an HTC box gets it on the BOX: the
+    light kits sync from the HDMI signal, so an app running inside the TV
+    itself would leave the lights dark. Waking the box makes it the TV's
+    active input (HDMI-CEC). Returns the entity that got the launch."""
+    target = TV_BOXES.get(tv) or tv
+    await home_assistant.call_ha_service("remote", "turn_on", target, {"activity": app})
+    return target
 
 
 def _require_tv(body: dict) -> str:
@@ -2150,7 +2160,7 @@ async def api_media_launch(request: Request, body: dict = Body(default={})):
     app_id = (body.get("app") or "").strip()
     if not _TV_APP.fullmatch(app_id):
         raise HTTPException(400, "app must be an Android package or https URL")
-    await home_assistant.call_ha_service("remote", "turn_on", tv, {"activity": app_id})
+    await _launch_on(tv, app_id)
     return {"status": "ok", "tv": tv, "app": app_id}
 
 
@@ -2177,6 +2187,8 @@ async def api_media_command(request: Request, body: dict = Body(default={})):
         ch = str(body.get("channel") or "").strip()
         if not box or not re.fullmatch(r"\d{1,4}", ch):
             raise HTTPException(400, "channel needs a TV with a cable box and 1-4 digits")
+        # Wake the box first (no-op when it's on; CEC brings the TV to its input).
+        await home_assistant.call_ha_service("remote", "turn_on", box)
         await home_assistant.call_ha_service("remote", "send_command", box, {"command": list(ch), "delay_secs": 0.15})
         return {"status": "ok", "tv": tv, "channel": ch}
     if body.get("target") == "box":

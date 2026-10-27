@@ -509,7 +509,8 @@ def test_watch_put_endpoint(monkeypatch):
     tok = watch.sign_put("401", "remote.smart_tv", "espn")
     assert client.get(f"/api/watch/put?t={tok}").status_code == 200 and not calls        # GET never touches the TV
     assert client.post(f"/api/watch/put?t={tok}").status_code == 200
-    assert calls[-1] == ("remote", "turn_on", "remote.smart_tv", {"activity": "https://www.espn.com/watch/"})
+    # The Theater TV has an HTC box: apps launch on the box so the light kit sees them.
+    assert calls[-1] == ("remote", "turn_on", "remote.frc1_mobi", {"activity": "https://www.espn.com/watch/"})
 
 
 def test_watch_free_legal_apps_map():
