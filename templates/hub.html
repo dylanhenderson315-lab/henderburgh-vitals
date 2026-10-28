@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tokens.css?v=6">
-<link rel="stylesheet" href="/static/hub.css?v=50">
+<link rel="stylesheet" href="/static/hub.css?v=51">
 </head>
 <body>
 <!-- Monoline icons (24-unit grid, 1.6 stroke) — one family, no emoji. -->
@@ -173,6 +173,18 @@
       </div>
       <a class="tile-link" href="/home-assistant">Full lighting →</a>
     </div>
+    <!-- Tell the house: say what you want; the shared intent engine
+         (static/vibe.js) turns it into a plan, previewed as you type. -->
+    <form class="tell" id="tell" autocomplete="off">
+      <div class="tell-bar">
+        <svg class="tell-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+        <input class="tell-input" id="tell-input" type="text" spellcheck="false" enterkeyhint="go"
+               placeholder="Tell the house… “cozy rainy evening in the game room”" aria-label="Tell the house what you want">
+        <button class="tell-go" id="tell-go" type="submit">Make it so</button>
+      </div>
+      <p class="tell-read" id="tell-read" aria-live="polite"></p>
+      <div class="tell-chips" id="tell-chips"></div>
+    </form>
     <div class="modes" id="modes" aria-label="House modes"></div>
     <div class="rooms" id="rooms"></div>
     <p class="faint lock-note" id="lock-note" hidden>Controls are locked on this device. <a href="/home-assistant">Unlock on the lighting page</a>, then come back.</p>
@@ -465,8 +477,9 @@
 
 <script>window.HB_HUB = { name: {{ (display_name or "Dylan") | tojson }} };</script>
 <script src="/static/house-modes.js?v=1"></script>
+<script src="/static/vibe.js?v=1"></script>
 <script src="/static/streaming-services.js?v=6"></script>
-<script src="/static/hub.js?v=29"></script>
+<script src="/static/hub.js?v=31"></script>
 <script src="/static/watch.js?v=23"></script>
 <script src="/static/game.js?v=2"></script>
 <script src="/static/guide.js?v=10"></script>

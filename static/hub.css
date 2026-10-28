@@ -1424,3 +1424,34 @@ img.mb-logo.none, img.bug-logo.none{ visibility:hidden; }
 .cg-sec.splitting .cg-row.picked .cg-ch{ box-shadow:inset 3px 0 0 var(--amber); background:linear-gradient(90deg, rgba(255,180,84,0.18), #121215 80%); }
 .cg-sec.splitting .cg-row.picked .cg-ch b{ color:var(--amber); }
 .cg-sec.splitting .cg-prog:not(.gap){ cursor:copy; }
+
+/* ═══════════ Tell the house (2026-10-27) ═══════════
+   One line to say what you want. The preview under it says what the house
+   understood before you run it; misses say so instead of guessing. */
+.tell{ display:flex; flex-direction:column; gap:var(--s-2); margin-bottom:var(--s-5); }
+.tell-bar{ display:flex; align-items:center; gap:var(--s-3); padding:6px 6px 6px var(--s-4); border-radius:18px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), rgba(20,20,24,0.7);
+  border:1px solid rgba(255,255,255,0.09); box-shadow:0 1px 0 rgba(255,255,255,0.05) inset, 0 14px 30px -20px rgba(0,0,0,0.9);
+  transition:border-color 180ms ease, box-shadow 180ms ease; }
+.tell-bar:focus-within{ border-color:rgba(var(--house-rgb, var(--accent-rgb)), 0.55);
+  box-shadow:0 0 0 3px rgba(var(--house-rgb, var(--accent-rgb)), 0.14), 0 14px 30px -20px rgba(0,0,0,0.9); }
+.tell-ico{ width:20px; height:20px; flex-shrink:0; fill:rgb(var(--house-rgb, var(--accent-rgb))); opacity:0.9; }
+.tell-input{ flex:1; min-width:0; min-height:48px; background:none; border:0; outline:none; color:var(--text); font:inherit; font-size:16px; }
+.tell-input::placeholder{ color:var(--text-3); }
+.tell-go{ flex-shrink:0; min-height:48px; padding:0 var(--s-5); border-radius:14px; font-size:var(--t-sm); font-weight:700; white-space:nowrap;
+  color:var(--accent); background:rgba(var(--accent-rgb),0.12); border:1px solid var(--accent-line);
+  transition:transform 140ms cubic-bezier(0.23,1,0.32,1), background 160ms ease; }
+.tell-go:active{ transform:scale(0.96); }
+.tell.busy .tell-go{ opacity:0.6; pointer-events:none; }
+.tell-read{ min-height:1.3em; padding:0 var(--s-2); font-size:var(--t-sm); color:var(--text-3); }
+.tell-read.ok{ color:var(--text); }
+.tell-read.ok::before{ content:'→ '; color:var(--accent); }
+.tell-read.miss{ color:var(--text-3); font-style:italic; }
+.tell-chips{ display:flex; gap:var(--s-2); overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+.tell-chips::-webkit-scrollbar{ display:none; }
+.tell-chip{ flex-shrink:0; min-height:36px; padding:0 var(--s-3); border-radius:var(--r-full); font-size:var(--t-xs); color:var(--text-2); white-space:nowrap;
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); transition:transform 140ms cubic-bezier(0.23,1,0.32,1), border-color 160ms ease; }
+.tell-chip:active{ transform:scale(0.96); }
+@media (hover:hover) and (pointer:fine){ .tell-chip:hover{ border-color:rgba(255,255,255,0.2); color:var(--text); } }
+.undo-btn{ margin-left:var(--s-2); padding:2px 10px; border-radius:var(--r-full); font-weight:700; color:var(--text); background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14); }
+@media (max-width: 559px){ .tell-go{ padding:0 var(--s-3); } }

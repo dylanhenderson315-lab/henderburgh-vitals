@@ -337,6 +337,116 @@
     setTimeout(loadLights, 600);
     renderModes();
   }
+  // ═══════════════════════ Tell the house ═══════════════════════
+  // The lighting page's intent engine (static/vibe.js, shared), on the hub.
+  // As you type it shows what it understood; Enter / "Make it so" runs it;
+  // every run is undoable and every phrase (understood or not) is logged so
+  // the parser can be taught.
+  const VCTX = {
+    rooms: () => rooms.map((r) => ({ name: r.name })),
+    roomLightIds: (name) => (rooms.find((r) => r.name === name) || {}).ids || [],
+    allLightIds, modes: MODES,
+  };
+  const TELL_EXAMPLES = ['rainy cabin night in the bedroom', 'purple party in the game room', 'bright and crisp everywhere', 'candlelight dinner in the kitchen'];
+  let undo = null;   // { snap, fx }
+  function readPlan(text) {
+    const two = window.HBVibe ? window.HBVibe.compound(text, VCTX) : null;
+    if (two) return { two, label: `${two[0].whereLabel} → ${two[0].label} · ${two[1].whereLabel} → ${two[1].label}` };
+    const one = window.HBVibe ? window.HBVibe.parse(text, VCTX) : null;
+    return one ? { one, label: one.mode ? `${one.label} mode` : `${one.whereLabel} → ${one.label}` } : null;
+  }
+  function allLights() { return [...Object.values(lightsData.lights_by_room || {}).flat(), ...(lightsData.unassigned_lights || [])]; }
+  function snapshot(ids) {
+    const all = allLights();
+    return ids.map((eid) => {
+      const l = all.find((x) => x.entity_id === eid) || {};
+      return { eid, on: l.state === 'on', brightness: l.brightness, effect: l.current_effect || null, rgb: l.rgb_color || null, mired: l.color_temp || null };
+    });
+  }
+  async function restore(snap) {
+    await Promise.allSettled(snap.map((s) => {
+      if (!s.on) return callService('turn_off', [s.eid]);
+      const p = {};
+      if (s.brightness != null) p.brightness = s.brightness;
+      if (s.effect) p.effect = s.effect;
+      else if (Array.isArray(s.rgb) && s.rgb.length >= 3) p.rgb_color = s.rgb;
+      else if (s.mired) p.color_temp_kelvin = Math.round(1000000 / s.mired);
+      return callService('turn_on', [s.eid], p);
+    }));
+  }
+  async function orchestrate(body) {
+    const res = await fetch('/api/ha/orchestrate', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(res.status === 403 ? 'Controls are locked' : 'The scene didn’t start');
+  }
+  async function execPlan(plan) {
+    if (plan.fx) return orchestrate({ action: 'start', pattern: plan.fx, entity_ids: plan.ids });
+    if (plan.service === 'turn_off') return callService('turn_off', plan.ids);
+    return callService('turn_on', plan.ids, { transition: 0.4, ...plan.payload });
+  }
+  function logTell(text, label) {
+    fetch('/api/ha/vibe-log', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, understood: !!label, interpretation: label || '' }) }).catch(() => {});
+  }
+  function showUndo(label) {
+    const m = $('lights-msg');
+    m.className = 'msg ok';
+    m.replaceChildren(document.createTextNode(`${label} `));
+    const b = el('button', 'undo-btn', 'Undo');
+    b.type = 'button';
+    b.addEventListener('click', async () => {
+      const u = undo; undo = null;
+      if (!u) return;
+      m.textContent = 'Putting it back…';
+      try { if (u.fx) await orchestrate({ action: 'stop' }); } catch (e) {}
+      await restore(u.snap);
+      flash('Restored exactly how it was', 'ok');
+      setTimeout(loadLights, 600);
+    });
+    m.appendChild(b);
+    const mine = m.lastChild;
+    setTimeout(() => { if (m.lastChild === mine) { m.textContent = ''; undo = null; } }, 9000);
+  }
+  async function tell(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    if (!canControl) { flash('Controls are locked on this device', 'err'); return; }
+    const r = readPlan(text);
+    logTell(text, r && r.label);
+    if (!r) { flash('Didn’t catch that — try a color, mood, scene or “off” (“rainy”, “purple party”, “kitchen off”). Logged so it can be taught.', 'err'); return; }
+    const input = $('tell-input');
+    if (r.one && r.one.mode) { input.value = ''; preview(); runMode(r.one.mode); return; }
+    const plans = r.two || [r.one];
+    const ids = [...new Set(plans.flatMap((p) => p.ids))];
+    undo = { snap: snapshot(ids), fx: plans.some((p) => p.fx) };
+    $('tell').classList.add('busy');
+    const results = await Promise.allSettled(plans.map(execPlan));
+    $('tell').classList.remove('busy');
+    if (results.some((x) => x.status === 'fulfilled')) { input.value = ''; preview(); showUndo(r.label); }
+    else { undo = null; flash('The house didn’t respond — try again.', 'err'); }
+    setTimeout(loadLights, 700);
+  }
+  function preview() {
+    const text = $('tell-input').value.trim();
+    const out = $('tell-read');
+    if (!text) { out.textContent = ''; out.className = 'tell-read'; return; }
+    const r = readPlan(text);
+    out.className = 'tell-read' + (r ? ' ok' : ' miss');
+    out.textContent = r ? r.label : 'Not sure yet — add a room, color, mood or scene';
+  }
+  (function setupTell() {
+    const form = $('tell');
+    if (!form) return;
+    form.addEventListener('submit', (ev) => { ev.preventDefault(); tell($('tell-input').value); });
+    $('tell-input').addEventListener('input', preview);
+    const chips = $('tell-chips');
+    TELL_EXAMPLES.forEach((t) => {
+      const c = el('button', 'tell-chip', t);
+      c.type = 'button';
+      c.addEventListener('click', () => { $('tell-input').value = t; preview(); tell(t); });
+      chips.appendChild(c);
+    });
+  })();
+
   async function toggleRoom(r) {
     if (!canControl || pending.has(r.name)) return;
     const off = r.on > 0;
@@ -512,6 +622,8 @@
       // transition never finishes (hidden pane = no frames).
       const clear = () => ids.forEach((id) => { const c = $(id); if (c) c.style.viewTransitionName = ''; });
       vt.finished.then(clear, clear);
+      if (vt.ready) vt.ready.catch(() => {});                   // a skipped morph isn't an error
+      if (vt.updateCallbackDone) vt.updateCallbackDone.catch(() => {});
       setTimeout(clear, 1200);
     }
   }
