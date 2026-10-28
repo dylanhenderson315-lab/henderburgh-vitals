@@ -191,9 +191,9 @@
     note.textContent = !canControl ? 'Unlock TV control to start Split View.'
       : tv && !tv.box ? `${tv.name} has no HTC box.`
       : running ? 'The TV flips through each channel, then opens the grid — about 11 seconds a channel.'
-      : job && job.state === 'done' ? `Done — sound from ${(plan.chans[plan.audio] || {}).name || 'top left'}. Opened something else? Use “Retry from Home”.`
+      : job && job.state === 'done' ? `Done — sound from ${(plan.chans[plan.audio] || {}).name || 'top left'}. If it opened the wrong screen, open MultiView with your remote and Start again.`
       : job && job.state === 'error' ? `Didn’t finish: ${job.error || 'the box stopped answering'}`
-      : plan.chans.length < 4 ? 'Fewer than 4? The other windows keep what was there before.' : 'Tap Sound to choose which window you hear.';
+      : 'First open MultiView on the TV with your remote (TiVo → right → right → OK), then tap Start.' + (plan.chans.length < 4 ? ' Fewer than 4? The other windows keep what was there.' : '');
     foot.appendChild(note);
     if (job && job.state !== 'running' && plan.chans.length) {
       const retry = el('button', 'tray-retry', 'Retry from Home'); retry.type = 'button';
