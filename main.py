@@ -1994,7 +1994,7 @@ TV_COMMANDS = {"MEDIA_PLAY_PAUSE", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "H
 # HTC cable boxes (Evolution Digital Force 1, Android TV running HTC TV MAX /
 # TiVo), each wired to the TV it feeds. The remote sends to the box whenever
 # that TV is showing its HDMI input; volume and power stay with the TV.
-TV_BOXES = {"remote.smart_tv": "remote.frc1_mobi"}
+TV_BOXES = {"remote.smart_tv": "remote.frc1_mobi", "remote.smarttv_4k_ffm": "remote.frc1_mobi_2"}
 BOX_LABEL = "HTC TV"
 TV_INPUT_APPS = re.compile(r"tvcenter|^com\.tcl\.tv$", re.I)   # the TVs' own live-input apps
 # Typing into the TV's on-screen keyboard: each character is its own Android
