@@ -2171,6 +2171,82 @@ async def api_media_launch(request: Request, body: dict = Body(default={})):
     return {"status": "ok", "tv": tv, "app": app_id}
 
 
+# ── Split View (TiVo MultiView) ──────────────────────────────────────────────
+# MultiView has no API and typing a number inside it exits it. What it does
+# do (tested on the Living Room box 2026-10-27): every time MultiView opens,
+# the channel you're on is pushed into its top-left window and the others
+# shift along (top-right, bottom-left, bottom-right). So to choose all four:
+# tune each channel and open MultiView once, last pick first. The TiVo
+# menu (our HOME key) re-opens on the page last used, so after the first
+# open it lands on MultiView and OK opens it.
+_MV_JOBS: Dict[str, Dict[str, Any]] = {}
+MV_STEP_S = 11.0   # roughly how long one tune + open + exit takes
+
+
+async def _box_keys(box: str, keys: List[str], delay: float = 0.3) -> None:
+    await home_assistant.call_ha_service("remote", "send_command", box, {"command": keys, "delay_secs": delay})
+
+
+async def _run_multiview(box: str, channels: List[str], audio: int, first_open: str) -> None:
+    job = _MV_JOBS[box]
+    try:
+        await _box_keys(box, ["BACK"])           # out of any menu / old MultiView, to live TV
+        await asyncio.sleep(2.5)
+        order = list(reversed(channels))         # last pick first: the final push lands top-left
+        for i, ch in enumerate(order):
+            job.update(step=i + 1, channel=ch)
+            await _box_keys(box, list(ch), 0.3)
+            await asyncio.sleep(4.0)
+            await _box_keys(box, ["HOME"])
+            await asyncio.sleep(1.8)
+            # First open: if the menu last showed another page, walk to MultiView from Home.
+            await _box_keys(box, (["DPAD_RIGHT", "DPAD_RIGHT", "DPAD_CENTER"] if (i == 0 and first_open == "home") else ["DPAD_CENTER"]), 0.9)
+            await asyncio.sleep(4.0)
+            if i < len(order) - 1:
+                await _box_keys(box, ["BACK"])
+                await asyncio.sleep(3.0)
+        # Sound follows the highlight: move it to the window the owner picked.
+        moves = {0: [], 1: ["DPAD_RIGHT"], 2: ["DPAD_DOWN"], 3: ["DPAD_DOWN", "DPAD_RIGHT"]}.get(audio, [])
+        if moves:
+            await _box_keys(box, moves, 0.5)
+        job.update(state="done", step=len(order))
+    except Exception as e:
+        job.update(state="error", error=str(e)[:200])
+    finally:
+        job["finished"] = time.time()
+
+
+@app.post("/api/media/multiview")
+async def api_media_multiview(request: Request, body: dict = Body(default={})):
+    """Split View: {tv, channels: ["28","55",...] (1-4, top-left first), audio: 0-3,
+    first_open: "menu"|"home"}. Runs on the TV's HTC box in the background
+    (~11s per channel); poll GET /api/media/multiview?tv=… for progress."""
+    require_light_control(request)
+    if PUBLIC_MODE or not HA_ENABLED:
+        raise HTTPException(403, "Home Assistant controls are disabled")
+    tv = _require_tv(body)
+    box = TV_BOXES.get(tv)
+    if not box:
+        raise HTTPException(400, "this TV has no HTC box")
+    chans = [str(c).strip() for c in (body.get("channels") or [])][:4]
+    if not chans or not all(re.fullmatch(r"\d{1,4}", c) for c in chans):
+        raise HTTPException(400, "channels must be 1-4 channel numbers")
+    job = _MV_JOBS.get(box)
+    if job and job.get("state") == "running":
+        raise HTTPException(409, "Split View is already being set up on this TV")
+    audio = max(0, min(int(body.get("audio") or 0), len(chans) - 1))
+    _MV_JOBS[box] = {"state": "running", "step": 0, "total": len(chans), "channels": chans, "audio": audio,
+                     "started": time.time(), "eta_s": round(len(chans) * MV_STEP_S + 3)}
+    asyncio.create_task(_run_multiview(box, chans, audio, "home" if body.get("first_open") == "home" else "menu"))
+    return {"status": "started", "tv": tv, **_MV_JOBS[box]}
+
+
+@app.get("/api/media/multiview")
+async def api_media_multiview_status(tv: str = ""):
+    box = TV_BOXES.get(tv)
+    return {"tv": tv, **(_MV_JOBS.get(box) or {"state": "idle"})}
+
+
 @app.post("/api/media/command")
 async def api_media_command(request: Request, body: dict = Body(default={})):
     """Remote buttons: {tv, command} for a small allowlist, or {tv, power: true|false}."""

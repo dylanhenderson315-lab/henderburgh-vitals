@@ -319,6 +319,7 @@
     b.addEventListener('contextmenu', (ev) => ev.preventDefault());
   });
   document.querySelectorAll('#remote [data-box]').forEach((b) => b.addEventListener('click', () => send({ command: b.dataset.box, target: 'box' }, b)));
+  $('r-split').addEventListener('click', () => { if (!$('rm-sheet').hidden) closeRemoteSheet(); if (window.HBSplit) window.HBSplit.open(); });
   $('r-num').addEventListener('click', () => {
     const pad = $('r-numpad');
     pad.hidden = !pad.hidden;

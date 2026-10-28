@@ -616,3 +616,25 @@ def test_epg_parse_maps_and_cleans():
     assert list(out) == [28]
     p = out[28][0]
     assert p["title"] == "NFL Football" and p["new"] and p["kind"] == "sports" and "\U0001F3C8" not in p["sub"] and "[NFL]" not in p["sub"]
+
+
+def test_multiview_sequence_pushes_last_pick_first(monkeypatch):
+    import asyncio
+    import main
+    sent = []
+
+    async def keys(box, k, delay=0.3):
+        sent.append(tuple(k))
+
+    async def nosleep(_):
+        return None
+
+    monkeypatch.setattr(main, "_box_keys", keys)
+    monkeypatch.setattr(main.asyncio, "sleep", nosleep)
+    main._MV_JOBS["remote.box"] = {"state": "running"}
+    asyncio.run(main._run_multiview("remote.box", ["52", "55", "61", "24"], 3, "menu"))
+    tunes = [k for k in sent if all(x.isdigit() for x in k)]
+    assert tunes == [("2", "4"), ("6", "1"), ("5", "5"), ("5", "2")]     # reversed: Golf lands top-left
+    assert sent[-1] == ("DPAD_DOWN", "DPAD_RIGHT")                        # sound from bottom-right
+    assert sent.count(("BACK",)) == 1 + 3                                  # start + between opens, not after the last
+    assert main._MV_JOBS["remote.box"]["state"] == "done"

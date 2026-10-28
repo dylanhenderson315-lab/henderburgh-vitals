@@ -75,6 +75,157 @@
     flash(from, `${tv.name} → ${ch}${title ? ` · ${title}` : ''}`, true);
     mark(ch);
   }
+  // ═══════════════ Split View (TiVo MultiView) ═══════════════
+  // With Split View on, tapping a show adds its channel to a 2×2 plan
+  // instead of tuning; Start sets it up on the TV's HTC box (the server
+  // drives MultiView — /api/media/multiview). Plans are kept per TV.
+  const POS = ['Top left', 'Top right', 'Bottom left', 'Bottom right'];
+  let split = false;
+  let plan = { chans: [], audio: 0 };     // chans: [{ch, name, title}]
+  let job = null, jobTimer = null;
+  const planKey = (tv) => `hb-split:${tv ? tv.entity_id : ''}`;
+  function loadPlan() {
+    const { tv } = remote();
+    try { const p = JSON.parse(localStorage.getItem(planKey(tv)) || 'null'); if (p && Array.isArray(p.chans)) return p; } catch (e) {}
+    return { chans: [], audio: 0 };
+  }
+  function savePlan() { const { tv } = remote(); try { localStorage.setItem(planKey(tv), JSON.stringify(plan)); } catch (e) {} }
+  function nowOn(ch) {
+    const row = data && (data.channels || []).find((c) => c.ch === ch);
+    const n = Date.now();
+    const p = row && row.programs.find((x) => t(x.start) <= n && t(x.end) > n);
+    return p ? (p.kind === 'game' && p.live && p.teams ? `${p.teams[0].abbr} ${p.teams[0].score ?? ''}–${p.teams[1].score ?? ''} ${p.teams[1].abbr}` : p.title) : '';
+  }
+  function pick(ch, from, title, row) {
+    if (!split) { tuneTo(ch, from, title || (row && row.name)); return; }
+    const i = plan.chans.findIndex((x) => x.ch === ch);
+    if (i >= 0) plan.chans.splice(i, 1);                       // tapping again removes it
+    else if (plan.chans.length < 4) plan.chans.push({ ch, name: row ? (row.short || row.name) : String(ch), title: title || '' });
+    else { flash(from, 'Split View holds 4 — remove one first'); return; }
+    if (plan.audio >= plan.chans.length) plan.audio = 0;
+    savePlan(); renderTray(); markPicked();
+  }
+  function markPicked() {
+    const set = new Set(plan.chans.map((x) => x.ch));
+    document.querySelectorAll('#cg .cg-row').forEach((r) => r.classList.toggle('picked', split && set.has(Number(r.dataset.ch))));
+  }
+  function setSplit(on) {
+    split = on;
+    if (on) plan = loadPlan();
+    $('cg-split').setAttribute('aria-pressed', String(on));
+    $('cg-tray').hidden = !on;
+    $('cg-sec').classList.toggle('splitting', on);
+    renderTray(); markPicked();
+  }
+  function liveSports() {
+    // The best live games on HTC channels right now (the hub's own ranking).
+    const games = ((window.HBLastTonight || {}).live || []).filter((g) => (g.cable || []).length)
+      .sort((a, b) => (b.fav ? 100 : 0) + (b.score || 0) - ((a.fav ? 100 : 0) + (a.score || 0)));
+    const out = [];
+    games.forEach((g) => { const c = g.cable[0]; if (out.length < 4 && !out.some((x) => x.ch === c.ch)) out.push({ ch: c.ch, name: c.name, title: `${g.teams[0].abbr} @ ${g.teams[1].abbr}` }); });
+    return out;
+  }
+  function renderTray() {
+    const tray = $('cg-tray');
+    if (!split) return;
+    const { canControl, tv } = remote();
+    tray.replaceChildren();
+    const head = el('div', 'tray-head');
+    head.append(el('b', null, 'Split View'), el('span', 'faint', tv ? `on ${tv.name}` : ''));
+    const close = el('button', 'tray-x', 'Done'); close.type = 'button'; close.addEventListener('click', () => setSplit(false));
+    head.appendChild(close);
+    tray.appendChild(head);
+
+    const grid = el('div', 'tray-grid');
+    for (let i = 0; i < 4; i++) {
+      const c = plan.chans[i];
+      const slot = el('div', 'tray-slot' + (c ? '' : ' empty') + (c && plan.audio === i ? ' audio' : ''));
+      slot.append(el('span', 'tray-pos', POS[i]));
+      if (c) {
+        const live = nowOn(c.ch) || c.title;
+        slot.append(el('b', 'num', String(c.ch)), el('span', 'tray-name', c.name), el('span', 'tray-what', live || ''));
+        const snd = el('button', 'tray-snd', plan.audio === i ? 'Sound' : 'Mute');
+        snd.type = 'button';
+        snd.setAttribute('aria-pressed', String(plan.audio === i));
+        snd.setAttribute('aria-label', `Play sound from ${c.name}`);
+        snd.addEventListener('click', () => { plan.audio = i; savePlan(); renderTray(); });
+        const rm = el('button', 'tray-rm', '×'); rm.type = 'button'; rm.setAttribute('aria-label', `Remove ${c.name}`);
+        rm.addEventListener('click', () => { plan.chans.splice(i, 1); if (plan.audio >= plan.chans.length) plan.audio = 0; savePlan(); renderTray(); markPicked(); });
+        slot.append(snd, rm);
+      } else {
+        slot.append(el('span', 'tray-hint', i === plan.chans.length ? 'Tap a show in the guide' : ''));
+      }
+      grid.appendChild(slot);
+    }
+    tray.appendChild(grid);
+
+    const quick = el('div', 'tray-quick');
+    const ls = liveSports();
+    if (ls.length) {
+      const b = el('button', 'tray-chip', `Live sports (${ls.length})`); b.type = 'button';
+      b.addEventListener('click', () => { plan = { chans: ls, audio: 0 }; savePlan(); renderTray(); markPicked(); });
+      quick.appendChild(b);
+    }
+    if (plan.chans.length) {
+      const b = el('button', 'tray-chip', 'Clear'); b.type = 'button';
+      b.addEventListener('click', () => { plan = { chans: [], audio: 0 }; savePlan(); renderTray(); markPicked(); });
+      quick.appendChild(b);
+    }
+    tray.appendChild(quick);
+
+    const foot = el('div', 'tray-foot');
+    const running = job && job.state === 'running';
+    const go = el('button', 'tray-go', running ? `Setting up ${job.step || 1} of ${job.total}…` : `Start Split View${plan.chans.length ? ` · ${plan.chans.length}` : ''}`);
+    go.type = 'button';
+    go.disabled = running || !plan.chans.length || !canControl || !tv || !tv.box;
+    go.addEventListener('click', () => start('menu'));
+    foot.appendChild(go);
+    const bar = el('i', 'tray-bar');
+    if (running) {
+      const frac = Math.min(0.97, (Date.now() / 1000 - job.started) / job.eta_s);
+      bar.style.transform = `scaleX(${frac.toFixed(3)})`;
+      foot.classList.add('running');
+    }
+    foot.appendChild(bar);
+    const note = el('p', 'tray-note');
+    note.textContent = !canControl ? 'Unlock TV control to start Split View.'
+      : tv && !tv.box ? `${tv.name} has no HTC box.`
+      : running ? 'The TV flips through each channel, then opens the grid — about 11 seconds a channel.'
+      : job && job.state === 'done' ? `Done — sound from ${(plan.chans[plan.audio] || {}).name || 'top left'}. Opened something else? Use “Retry from Home”.`
+      : job && job.state === 'error' ? `Didn’t finish: ${job.error || 'the box stopped answering'}`
+      : plan.chans.length < 4 ? 'Fewer than 4? The other windows keep what was there before.' : 'Tap Sound to choose which window you hear.';
+    foot.appendChild(note);
+    if (job && job.state !== 'running' && plan.chans.length) {
+      const retry = el('button', 'tray-retry', 'Retry from Home'); retry.type = 'button';
+      retry.title = 'Use when the TiVo menu was last on its Home page';
+      retry.addEventListener('click', () => start('home'));
+      foot.appendChild(retry);
+    }
+    tray.appendChild(foot);
+  }
+  async function start(firstOpen) {
+    const { tv } = remote();
+    if (!tv || !plan.chans.length) return;
+    try {
+      const r = await fetch('/api/media/multiview', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tv: tv.entity_id, channels: plan.chans.map((x) => String(x.ch)), audio: plan.audio, first_open: firstOpen }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(r.status === 403 ? 'TV control is locked on this device' : d.detail || `Failed (${r.status})`);
+      job = d;
+      renderTray();
+      poll(tv.entity_id);
+    } catch (e) { job = { state: 'error', error: e.message }; renderTray(); }
+  }
+  function poll(tvId) {
+    clearTimeout(jobTimer);
+    jobTimer = setTimeout(async () => {
+      try { job = await (await fetch(`/api/media/multiview?tv=${encodeURIComponent(tvId)}`, { credentials: 'same-origin' })).json(); } catch (e) {}
+      renderTray();
+      if (job && job.state === 'running') poll(tvId);
+    }, 1000);
+  }
+  window.HBSplit = { open: () => { setSplit(true); $('cg-sec').scrollIntoView({ behavior: 'smooth', block: 'start' }); } };
+
   function flash(node, text, ok) {
     const s = $('cg-credit');
     s.textContent = text;
@@ -126,7 +277,7 @@
       b.classList.add('has-app');
     }
     b.setAttribute('aria-label', `${row.ch} ${row.name}: ${p.title}, ${clock(t(p.start))} to ${clock(e)}`);
-    b.addEventListener('click', () => tuneTo(row.ch, b, p.title));
+    b.addEventListener('click', () => pick(row.ch, b, p.title, row));
     return b;
   }
 
@@ -168,14 +319,14 @@
       head.type = 'button';
       head.append(el('b', 'num', String(c.ch)), el('span', null, c.short || c.name));
       head.setAttribute('aria-label', `Tune to ${c.ch} ${c.name}`);
-      head.addEventListener('click', () => tuneTo(c.ch, head, c.name));
+      head.addEventListener('click', () => pick(c.ch, head, null, c));
       const track = el('div', 'cg-track');
       if (!c.programs.length) {
         const gap = el('button', 'cg-prog gap');
         gap.type = 'button';
         gap.style.left = '0px'; gap.style.width = `${width - 4}px`;
         gap.append(txt(el('span', 'cg-title', c.name), el('span', 'cg-sub', 'No listings — tap to tune')));
-        gap.addEventListener('click', () => tuneTo(c.ch, gap, c.name));
+        gap.addEventListener('click', () => pick(c.ch, gap, null, c));
         track.appendChild(gap);
       }
       c.programs.forEach((p) => track.appendChild(block(p, c, t0, now)));
@@ -195,6 +346,7 @@
     $('cg-credit').textContent = data.credit || '';
     cacheGeometry();
     settle();
+    markPicked();
   }
 
   // Refreshes rebuild the grid only when the listings changed, and never
@@ -264,7 +416,8 @@
     const box = $('cg');
     box.scrollTo({ left: Math.max(0, (Date.now() - t(data.start)) / 60000 * PX - 40), behavior: 'smooth' });
   });
-  window.addEventListener('hb:tv', () => render());
+  window.addEventListener('hb:tv', () => { if (split) plan = loadPlan(); job = null; render(); renderTray(); });
+  $('cg-split').addEventListener('click', () => setSplit(!split));
   window.addEventListener('hb:tuned', (ev) => mark(ev.detail.ch));
   // The TV list and auth arrive after this script: re-header when they do.
   setTimeout(() => data && header(), 2500);
